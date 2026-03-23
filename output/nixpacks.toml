@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["dotnet-sdk_8"]
+
+[phases.build]
+cmds = ["dotnet publish src/IonCrm.API/IonCrm.API.csproj -c Release -o publish"]
+
+[start]
+cmd = "cd publish && dotnet IonCrm.API.dll"
