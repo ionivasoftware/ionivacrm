@@ -48,10 +48,16 @@ public static class DependencyInjection
                 sp.GetRequiredService<ILogger<DataMigrationService>>()));
 
         // ── Repositories ──────────────────────────────────────────────────────
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped(typeof(IRepository<>), typeof(GenericRepository<>));
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IContactHistoryRepository, ContactHistoryRepository>();
         services.AddScoped<ICustomerTaskRepository, CustomerTaskRepository>();
         services.AddScoped<ISyncLogRepository, SyncLogRepository>();
+
+        // ── Auth services ─────────────────────────────────────────────────────
+        services.AddScoped<ITokenService, TokenService>();
+        services.AddSingleton<IPasswordHasher, PasswordHasher>();
 
         // ── External API Clients (Typed HttpClients) ──────────────────────────
         RegisterSaasAClient(services, configuration);
