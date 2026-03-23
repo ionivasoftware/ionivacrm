@@ -1,0 +1,108 @@
+{
+  "name": "Sprint 0 — Analysis & Architecture",
+  "goal": "Analyze the legacy MSSQL .bak database, design the target PostgreSQL schema, define all API contracts, and document the solution structure. Zero production code written. All output is documentation for human review before Sprint 1 begins.",
+  "story_count": 4,
+  "total_story_points": 21,
+  "agents": "Architect Agent",
+  "duration": "2–3 days",
+  "token_cost_estimate": "~$8–14",
+  "approval_gate": "HUMAN MUST APPROVE sprint-0-approval.json output artifacts before Sprint 1 starts",
+  "stories": [
+    {
+      "id": "ION-001",
+      "title": "[ARCHITECT] Analyze MSSQL .bak file and extract legacy schema",
+      "points": 5,
+      "labels": ["backend", "migration", "analysis"],
+      "inputs": ["/root/my-product-team/input/database/crm.bak"],
+      "outputs": [
+        "/root/my-product-team/output/legacy-schema.md",
+        "/root/my-product-team/output/migration-mapping.md"
+      ],
+      "description": "Mount or restore the 4.4MB MSSQL backup. Extract all DDL. Document every table, column, FK, and index. Map legacy customers + contact history columns to new schema. Flag PII fields. Map MSSQL types to PostgreSQL equivalents.",
+      "acceptance_criteria": [
+        "All legacy tables documented with estimated row counts",
+        "Column mapping: old → new defined for customers and contact history",
+        "PII fields flagged",
+        "MSSQL-specific types mapped to PostgreSQL equivalents"
+      ]
+    },
+    {
+      "id": "ION-002",
+      "title": "[ARCHITECT] Design PostgreSQL target schema",
+      "points": 8,
+      "labels": ["backend", "database", "architecture"],
+      "inputs": ["/root/my-product-team/output/migration-mapping.md"],
+      "outputs": [
+        "/root/my-product-team/output/db-schema.md",
+        "/root/my-product-team/output/entity-stubs/"
+      ],
+      "description": "Design full PostgreSQL schema for: Projects, Users, UserProjectRoles, Customers, ContactHistory, Notes, Tasks, Opportunities, SyncLogs, RefreshTokens, AuditLogs. Every table has Id(UUID), CreatedAt, UpdatedAt, IsDeleted. Every tenant table has ProjectId. Define all enums, indexes, and FK relationships.",
+      "acceptance_criteria": [
+        "All entities have base fields (Id, CreatedAt, UpdatedAt, IsDeleted)",
+        "Foreign key relationships fully defined",
+        "Indexes identified on ProjectId, Email, ExternalId",
+        "All enum values listed",
+        "Schema validated against legacy migration mapping"
+      ]
+    },
+    {
+      "id": "ION-003",
+      "title": "[ARCHITECT] Define API contracts and OpenAPI spec",
+      "points": 5,
+      "labels": ["backend", "api", "architecture"],
+      "inputs": ["/root/my-product-team/output/db-schema.md"],
+      "outputs": ["/root/my-product-team/output/api-contracts.md"],
+      "description": "Define all REST endpoints: Auth, SuperAdmin, Customers, ContactHistory, Notes, Tasks, Opportunities, Sync, Dashboard. Specify request/response schemas, required roles, error codes. Define SaaS A and SaaS B inbound payload formats. Define outbound callback payload format.",
+      "acceptance_criteria": [
+        "All endpoints listed with method, path, auth requirement, allowed roles",
+        "Request/response body schemas defined",
+        "Standardized error codes documented (401, 403, 404, 422, 500)",
+        "Sync payload formats for SaaS A, SaaS B, and outbound callbacks defined",
+        "ApiResponse<T> wrapper format documented"
+      ]
+    },
+    {
+      "id": "ION-004",
+      "title": "[ARCHITECT] Define solution folder structure and project scaffold plan",
+      "points": 3,
+      "labels": ["backend", "devops", "architecture"],
+      "inputs": [],
+      "outputs": [
+        "/root/my-product-team/output/project-structure.md",
+        "/root/my-product-team/output/.env.example"
+      ],
+      "description": "Document the exact .NET solution folder structure (Domain, Application, Infrastructure, API, Tests), frontend folder structure, CI/CD workflow layout, and Docker Compose setup. List all required environment variables in .env.example template.",
+      "acceptance_criteria": [
+        "Every project layer mapped to Clean Architecture purpose",
+        "DI registration strategy described per layer",
+        "Docker Compose services listed (postgres, mssql, api, frontend)",
+        ".env.example contains all required variable names with no real values"
+      ]
+    }
+  ],
+  "deliverables": [
+    "/root/my-product-team/output/legacy-schema.md",
+    "/root/my-product-team/output/migration-mapping.md",
+    "/root/my-product-team/output/db-schema.md",
+    "/root/my-product-team/output/entity-stubs/",
+    "/root/my-product-team/output/api-contracts.md",
+    "/root/my-product-team/output/project-structure.md",
+    "/root/my-product-team/output/.env.example"
+  ],
+  "risks": [
+    {
+      "risk": "MSSQL .bak file may require full SQL Server license to restore",
+      "mitigation": "Use mssql Docker image (Developer Edition — free for dev use) or mssql-scripter CLI tool"
+    },
+    {
+      "risk": "Legacy schema may have unexpected tables or naming conventions",
+      "mitigation": "ION-001 does full discovery before any mapping decisions are made"
+    },
+    {
+      "risk": "SaaS A and SaaS B payload formats unknown until .bak analysis",
+      "mitigation": "ION-003 deferred until ION-001 complete; API contract placeholders used"
+    }
+  ],
+  "next_sprint_blocked_until": "Human approves Sprint 0 deliverables (db-schema.md, api-contracts.md)",
+  "status": "AWAITING_HUMAN_APPROVAL"
+}

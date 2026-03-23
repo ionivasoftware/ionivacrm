@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{071B668D-B5C9-4259-8DB7-B36CEE230C9F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IonCrm.Domain", "src\IonCrm.Domain\IonCrm.Domain.csproj", "{AFCDE336-11DC-41DF-A237-EE0EF42B30AD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IonCrm.Application", "src\IonCrm.Application\IonCrm.Application.csproj", "{A3098B31-F162-48D4-80F7-9AE62E1ED470}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IonCrm.Infrastructure", "src\IonCrm.Infrastructure\IonCrm.Infrastructure.csproj", "{10EDA632-E449-4EB3-A426-CADC5085176C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IonCrm.API", "src\IonCrm.API\IonCrm.API.csproj", "{D03FB76C-0CFF-4AC3-B365-65EAB8E46A26}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{CFAB0873-9421-4433-A8C2-1AC4B271ADFB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IonCrm.Tests", "tests\IonCrm.Tests\IonCrm.Tests.csproj", "{588C9954-CE07-478E-8CBE-3416EF603AA2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AFCDE336-11DC-41DF-A237-EE0EF42B30AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AFCDE336-11DC-41DF-A237-EE0EF42B30AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AFCDE336-11DC-41DF-A237-EE0EF42B30AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AFCDE336-11DC-41DF-A237-EE0EF42B30AD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3098B31-F162-48D4-80F7-9AE62E1ED470}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3098B31-F162-48D4-80F7-9AE62E1ED470}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3098B31-F162-48D4-80F7-9AE62E1ED470}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3098B31-F162-48D4-80F7-9AE62E1ED470}.Release|Any CPU.Build.0 = Release|Any CPU
+		{10EDA632-E449-4EB3-A426-CADC5085176C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{10EDA632-E449-4EB3-A426-CADC5085176C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{10EDA632-E449-4EB3-A426-CADC5085176C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{10EDA632-E449-4EB3-A426-CADC5085176C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D03FB76C-0CFF-4AC3-B365-65EAB8E46A26}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D03FB76C-0CFF-4AC3-B365-65EAB8E46A26}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D03FB76C-0CFF-4AC3-B365-65EAB8E46A26}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D03FB76C-0CFF-4AC3-B365-65EAB8E46A26}.Release|Any CPU.Build.0 = Release|Any CPU
+		{588C9954-CE07-478E-8CBE-3416EF603AA2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{588C9954-CE07-478E-8CBE-3416EF603AA2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{588C9954-CE07-478E-8CBE-3416EF603AA2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{588C9954-CE07-478E-8CBE-3416EF603AA2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{AFCDE336-11DC-41DF-A237-EE0EF42B30AD} = {071B668D-B5C9-4259-8DB7-B36CEE230C9F}
+		{A3098B31-F162-48D4-80F7-9AE62E1ED470} = {071B668D-B5C9-4259-8DB7-B36CEE230C9F}
+		{10EDA632-E449-4EB3-A426-CADC5085176C} = {071B668D-B5C9-4259-8DB7-B36CEE230C9F}
+		{D03FB76C-0CFF-4AC3-B365-65EAB8E46A26} = {071B668D-B5C9-4259-8DB7-B36CEE230C9F}
+		{588C9954-CE07-478E-8CBE-3416EF603AA2} = {CFAB0873-9421-4433-A8C2-1AC4B271ADFB}
+	EndGlobalSection
+EndGlobal

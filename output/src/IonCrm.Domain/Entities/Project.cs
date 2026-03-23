@@ -1,0 +1,29 @@
+using IonCrm.Domain.Common;
+
+namespace IonCrm.Domain.Entities;
+
+/// <summary>
+/// Represents a tenant (project) in the ION CRM multi-tenant system.
+/// Examples: "Ioniva Muhasebe", "Ioniva Satis".
+/// </summary>
+public class Project : BaseEntity
+{
+    /// <summary>Gets or sets the display name of the project.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets an optional description of the project.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether this project is active.</summary>
+    public bool IsActive { get; set; } = true;
+
+    // Navigation properties
+    /// <summary>Gets or sets the user-project role assignments for this project.</summary>
+    public ICollection<UserProjectRole> UserProjectRoles { get; set; } = new List<UserProjectRole>();
+
+    /// <summary>Gets or sets the customers belonging to this project.</summary>
+    public ICollection<Customer> Customers { get; set; } = new List<Customer>();
+
+    /// <summary>Gets or sets the sync logs for this project.</summary>
+    public ICollection<SyncLog> SyncLogs { get; set; } = new List<SyncLog>();
+}

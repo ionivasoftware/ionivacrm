@@ -1,0 +1,45 @@
+# Secrets - NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Output — track source, exclude build artifacts
+# output/   ← removed so generated source code IS committed
+
+# Old project files (don't push client code)
+input/database/
+input/old-project/
+
+# Logs
+logs/
+*.log
+
+# VS Code
+.vscode/settings.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node modules (never commit)
+node_modules/
+**/node_modules/
+
+# Build artifacts
+output/frontend/dist/
+**/dist/
+
+# .NET build outputs
+**/bin/
+**/obj/
