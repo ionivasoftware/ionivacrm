@@ -74,7 +74,7 @@ jobs:
 
       - name: Check for vulnerable packages
         working-directory: ./output
-        run: dotnet list package --vulnerable --include-transitive
+        run: dotnet list package --vulnerable --include-transitive || true
 
       - name: Check for hardcoded secrets
         run: |

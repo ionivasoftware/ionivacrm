@@ -63,7 +63,7 @@ public class AuthController : ControllerBase
         var result = await _mediator.Send(command);
         if (result.IsFailure)
             return BadRequest(ApiResponse<object>.Fail(result.Errors));
-        return Ok(ApiResponse<object>.Ok(null, "Logged out successfully"));
+        return Ok(ApiResponse<object>.Ok(new { message = "Logged out successfully" }));
     }
 
     /// <summary>Get current authenticated user.</summary>
