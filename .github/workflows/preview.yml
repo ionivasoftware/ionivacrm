@@ -22,7 +22,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: setup
     outputs:
-      db_url: ${{ steps.neon.outputs.db_url_with_pooler }}
+      db_url: ${{ steps.neon.outputs.db_url_pooled }}
+      db_host: ${{ steps.neon.outputs.db_host_pooled }}
+      db_password: ${{ steps.neon.outputs.password }}
       branch_id: ${{ steps.neon.outputs.branch_id }}
     steps:
       - name: Get expiration date
@@ -57,10 +59,10 @@ jobs:
         id: convert-db
         run: |
           DB_URL="${{ needs.create-neon-branch.outputs.db_url }}"
-          HOST=$(echo $DB_URL | sed 's|postgresql://||' | sed 's|.*@||' | cut -d'/' -f1)
+          HOST="${{ needs.create-neon-branch.outputs.db_host }}"
+          PASS="${{ needs.create-neon-branch.outputs.db_password }}"
           DBNAME=$(echo $DB_URL | sed 's|.*\/||' | sed 's|?.*||')
           USER=$(echo $DB_URL | sed 's|postgresql://||' | sed 's|:.*||')
-          PASS=$(echo $DB_URL | sed 's|postgresql://[^:]*:||' | sed 's|@.*||')
           echo "dotnet_conn=Host=${HOST};Database=${DBNAME};Username=${USER};Password=${PASS};SSL Mode=Require;Trust Server Certificate=true" >> $GITHUB_OUTPUT
 
       - name: Restore dependencies
