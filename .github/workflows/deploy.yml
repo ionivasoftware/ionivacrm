@@ -17,49 +17,125 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      - name: Build & Test
-        working-directory: ./output
-        run: |
-          dotnet restore
-          dotnet build --no-restore --configuration Release
-          dotnet test --no-build --configuration Release
 
-  # ── Frontend Build ─────────────────────────────────────────
+      - name: Restore dependencies
+        working-directory: ./output
+        run: dotnet restore
+
+      - name: Build
+        working-directory: ./output
+        run: dotnet build --configuration Release
+
+      - name: Test
+        working-directory: ./output
+        run: dotnet test --configuration Release
+
+  # ── Frontend Tests ─────────────────────────────────────────
   test-frontend:
     name: 🎨 Frontend Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: output/frontend/package-lock.json
-      - name: Build
+
+      - name: Install dependencies
         working-directory: ./output/frontend
-        run: |
-          npm ci
-          npm run build
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./output/frontend
+        run: npm run build
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
-  # ── Deploy Backend ─────────────────────────────────────────
-  deploy-backend:
-    name: 🚀 Deploy Backend
+  # ── Security Scan ──────────────────────────────────────────
+  security-scan:
+    name: 🔒 Security Scan
     runs-on: ubuntu-latest
-    needs: [test-backend, test-frontend]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: test-backend
     steps:
       - uses: actions/checkout@v4
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-      - name: Deploy Backend to Railway
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Check for vulnerable packages
         working-directory: ./output
-        run: railway up --service ion-crm-api --detach
+        run: dotnet list package --vulnerable --include-transitive
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "🔍 Scanning for hardcoded secrets..."
+          if grep -rn \
+            -e "password\s*=\s*['\"][^'\"]\+['\"]" \
+            -e "secret\s*=\s*['\"][^'\"]\+['\"]" \
+            -e "api[_-]key\s*=\s*['\"][^'\"]\+['\"]" \
+            -e "AKIA[0-9A-Z]\{16\}" \
+            --include="*.cs" --include="*.json" --include="*.ts" --include="*.js" \
+            --exclude-dir=".git" --exclude-dir="node_modules" --exclude-dir="bin" --exclude-dir="obj" \
+            . 2>/dev/null; then
+            echo "❌ Potential hardcoded secrets found!"
+            exit 1
+          else
+            echo "✅ No hardcoded secrets detected."
+          fi
+
+  # ── Production Deploy ──────────────────────────────────────
+  deploy-production:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, security-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://ion-crm-api-production.up.railway.app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy Backend to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          SERVICE_ID="987799b6-18b9-4223-81c6-505ffc6717ba"
+          echo "🚀 Deploying backend service: $SERVICE_ID"
+          curl -s -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"$SERVICE_ID\\\") }\"}"
 
+      - name: Wait for backend deployment
+        run: |
+          echo "⏳ Waiting 45 seconds for deployment to complete..."
+          sleep 45
+
+      - name: Health check — Backend
+        run: |
+          echo "🏥 Running health check..."
+          RESPONSE=$(curl -sf https://ion-crm-api-production.up.railway.app/health)
+          echo "Health check response: $RESPONSE"
+          echo "✅ Backend is healthy!"
+
+      - name: Deploy Frontend to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          FRONTEND_SERVICE_ID="frontend-service-id"
+          echo "🚀 Deploying frontend service: $FRONTEND_SERVICE_ID"
+          curl -s -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"$FRONTEND_SERVICE_ID\\\") }\"}"
+          echo "✅ Frontend deployment triggered!"

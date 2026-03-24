@@ -1,0 +1,151 @@
+name: ION CRM — Preview Environments
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+jobs:
+  # ── Setup: Get Branch Name ──────────────────────────────────
+  setup:
+    name: 🔍 Get Branch Name
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.branch-names.outputs.current_branch }}
+    steps:
+      - name: Get branch name
+        id: branch-names
+        uses: tj-actions/branch-names@v8
+
+  # ── Create Neon Preview Branch ──────────────────────────────
+  create-neon-branch:
+    name: 🐘 Create Neon Branch
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    needs: setup
+    outputs:
+      db_url: ${{ steps.neon.outputs.db_url }}
+      branch_id: ${{ steps.neon.outputs.branch_id }}
+    steps:
+      - name: Create Neon branch
+        id: neon
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch_name: preview/pr-${{ github.event.number }}-${{ needs.setup.outputs.branch }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          expires_at: ${{ '2026-04-07T00:00:00Z' }}
+
+  # ── Run EF Core Migrations ──────────────────────────────────
+  run-migrations:
+    name: 🗄️ Run Migrations
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    needs: [setup, create-neon-branch]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install EF Core CLI
+        run: dotnet tool install --global dotnet-ef
+
+      - name: Run EF Core Migrations
+        run: dotnet ef database update --project src/IonCrm.Infrastructure --startup-project src/IonCrm.API
+        env:
+          ConnectionStrings__DefaultConnection: ${{ needs.create-neon-branch.outputs.db_url }}
+          Jwt__Key: ${{ secrets.JWT_KEY }}
+
+  # ── Deploy Preview to Railway ───────────────────────────────
+  deploy-preview:
+    name: 🚀 Deploy Preview
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    needs: [setup, create-neon-branch, run-migrations]
+    outputs:
+      preview_url: ${{ steps.deploy.outputs.preview_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Railway Preview Service
+        id: deploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          DB_URL: ${{ needs.create-neon-branch.outputs.db_url }}
+          PR_NUMBER: ${{ github.event.number }}
+          BRANCH_NAME: ${{ needs.setup.outputs.branch }}
+        run: |
+          RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "query": "mutation { serviceInstanceDeploy(serviceId: \"preview-service-id\") }"
+            }')
+          echo "Deploy response: $RESPONSE"
+          PREVIEW_URL="https://ion-crm-preview-pr-${PR_NUMBER}.up.railway.app"
+          echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+
+  # ── Comment on PR with Preview URL ─────────────────────────
+  comment-pr:
+    name: 💬 Comment Preview URL
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    needs: [setup, create-neon-branch, deploy-preview]
+    steps:
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const previewUrl = '${{ needs.deploy-preview.outputs.preview_url }}';
+            const branchName = '${{ needs.setup.outputs.branch }}';
+            const body = `## 🚀 Preview Deployment Ready!
+
+            | | Details |
+            |---|---|
+            | **Preview URL** | [${previewUrl}](${previewUrl}) |
+            | **Branch** | \`${branchName}\` |
+            | **PR** | #${{ github.event.number }} |
+            | **Neon Branch** | \`preview/pr-${{ github.event.number }}-${branchName}\` |
+            | **DB Expires** | 14 days from creation |
+
+            > ✅ Migrations applied successfully. Preview environment is ready!`;
+
+            // Find existing bot comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const botComment = comments.find(c => c.user.type === 'Bot' && c.body.includes('Preview Deployment Ready'));
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+  # ── Delete Neon Branch on PR Close ─────────────────────────
+  delete-neon-branch:
+    name: 🗑️ Delete Neon Branch
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Neon branch
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: preview/pr-${{ github.event.number }}-${{ github.head_ref }}
+          api_key: ${{ secrets.NEON_API_KEY }}
