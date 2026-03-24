@@ -91,19 +91,24 @@ var app = builder.Build();
 // ── Middleware pipeline ───────────────────────────────────────────────────────
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
+// ── Health check (no auth required) ──────────────────────────────────────
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
+   .AllowAnonymous();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Note: HTTPS redirection is intentionally omitted — Railway terminates TLS at the edge.
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
-// ── Hangfire Dashboard (SuperAdmin only, Development + Staging) ───────────────
-if (!app.Environment.IsProduction())
+// ── Hangfire Dashboard (SuperAdmin only, Development + Staging, only when enabled) ───
+var hangfireEnabled = app.Configuration.GetValue<bool>("Hangfire:Enabled", false);
+if (hangfireEnabled && !app.Environment.IsProduction())
 {
     app.UseHangfireDashboard("/hangfire", new DashboardOptions
     {

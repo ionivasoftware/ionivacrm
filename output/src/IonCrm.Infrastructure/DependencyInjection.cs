@@ -64,28 +64,32 @@ public static class DependencyInjection
         RegisterSaasBClient(services, configuration);
 
         // ── Hangfire (background job scheduler + server) ──────────────────────
-        services.AddHangfire(cfg =>
+        var enableHangfire = configuration.GetValue<bool>("Hangfire:Enabled", false);
+        if (enableHangfire)
         {
-            cfg.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-               .UseSimpleAssemblyNameTypeSerializer()
-               .UseRecommendedSerializerSettings()
-               .UsePostgreSqlStorage(options =>
-               {
-                   options.UseNpgsqlConnection(connectionString);
-               });
-        });
+            services.AddHangfire(cfg =>
+            {
+                cfg.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+                   .UseSimpleAssemblyNameTypeSerializer()
+                   .UseRecommendedSerializerSettings()
+                   .UsePostgreSqlStorage(options =>
+                   {
+                       options.UseNpgsqlConnection(connectionString);
+                   });
+            });
 
-        services.AddHangfireServer(options =>
-        {
-            options.WorkerCount = 2;
-            options.Queues = new[] { "default" };
-        });
+            services.AddHangfireServer(options =>
+            {
+                options.WorkerCount = 2;
+                options.Queues = new[] { "default" };
+            });
 
-        // ── Background service: registers Hangfire recurring jobs ─────────────
-        services.AddHostedService<SyncBackgroundService>();
+            // ── Background service: registers Hangfire recurring jobs ─────────────
+            services.AddHostedService<SyncBackgroundService>();
 
-        // Register the sync job class for Hangfire DI activation
-        services.AddScoped<SaasSyncJob>();
+            // Register the sync job class for Hangfire DI activation
+            services.AddScoped<SaasSyncJob>();
+        }
 
         return services;
     }
