@@ -55,15 +55,11 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy to Railway
-        uses: railwayapp/railway-deploy@v1
-        with:
-          railway-token: ${{ secrets.RAILWAY_TOKEN }}
-          service: ion-crm-api
-          detach: false
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+      - name: Deploy Backend to Railway
+        working-directory: ./output
+        run: railway up --service ion-crm-api --detach
         env:
-          ConnectionStrings__DefaultConnection: ${{ secrets.PROD_DATABASE_URL }}
-          Jwt__Key: ${{ secrets.JWT_SECRET_PROD }}
-          ASPNETCORE_ENVIRONMENT: Production
-          Hangfire__Enabled: "false"
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
