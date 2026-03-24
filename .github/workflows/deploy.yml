@@ -85,7 +85,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: development
-      url: https://ion-crm-api-2876fe7c-8647-48b5-8d92-6f7f1005adda-development.up.railway.app
+      url: https://ion-crm-api-development.up.railway.app
     steps:
       - name: Deploy Backend to Development
         env:
@@ -109,7 +109,7 @@ jobs:
       - name: Wait and health check
         run: |
           sleep 45
-          curl -sf https://ion-crm-api-2876fe7c-8647-48b5-8d92-6f7f1005adda-development.up.railway.app/health \
+          curl -sf https://ion-crm-api-development.up.railway.app/health \
             && echo "✅ Development healthy!" || echo "⚠️ Health check failed"
 
   # ── Deploy Production (Manuel Onay) ────────────────────────
