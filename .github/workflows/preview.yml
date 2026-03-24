@@ -61,6 +61,8 @@ jobs:
           DBNAME=$(echo $DB_URL | sed 's|.*.com/||' | sed 's|?.*||')
           USER=$(echo $DB_URL | sed 's|postgresql://||' | sed 's|:.*||')
           PASS=$(echo $DB_URL | sed 's|postgresql://[^:]*:||' | sed 's|@.*||')
+          echo "DB_URL is: $DB_URL"
+          echo "HOST is: $HOST"
           echo "dotnet_conn=Host=${HOST};Database=${DBNAME};Username=${USER};Password=${PASS};SSL Mode=Require;Trust Server Certificate=true" >> $GITHUB_OUTPUT
 
       - name: Restore dependencies
