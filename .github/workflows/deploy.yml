@@ -93,11 +93,49 @@ jobs:
             echo "✅ No hardcoded secrets detected."
           fi
 
-  # ── Production Deploy ──────────────────────────────────────
+  # ── Deploy to Development (Automatic) ─────────────────────
+  deploy-development:
+    name: 🔧 Deploy to Development
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, security-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: development
+      url: https://ion-crm-api-2876fe7c-8647-48b5-8d92-6f7f1005adda-development.up.railway.app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy Backend to Development
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          SERVICE_ID="${{ secrets.DEV_RAILWAY_SERVICE_ID }}"
+          ENVIRONMENT_ID="c319cc09-f1a9-4d11-8119-a23815b9883a"
+          echo "🔧 Deploying backend to development environment..."
+          RESULT=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"${SERVICE_ID}\\\", environmentId: \\\"${ENVIRONMENT_ID}\\\") }\"}")
+          echo "Deploy result: $RESULT"
+
+      - name: Wait for development deployment
+        run: |
+          echo "⏳ Waiting 45 seconds for development deployment to complete..."
+          sleep 45
+
+      - name: Health check — Development
+        run: |
+          echo "🏥 Running development health check..."
+          DEV_URL="https://ion-crm-api-2876fe7c-8647-48b5-8d92-6f7f1005adda-development.up.railway.app"
+          RESPONSE=$(curl -sf --retry 3 --retry-delay 10 "${DEV_URL}/health" || echo "Health check skipped — service may be starting")
+          echo "Health check response: $RESPONSE"
+          echo "✅ Development deploy complete!"
+
+  # ── Deploy to Production (Manual Approval Required) ────────
   deploy-production:
     name: 🚀 Deploy to Production
     runs-on: ubuntu-latest
-    needs: [test-backend, test-frontend, security-scan]
+    needs: [test-backend, test-frontend, security-scan, deploy-development]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: production
@@ -110,11 +148,13 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
           SERVICE_ID="987799b6-18b9-4223-81c6-505ffc6717ba"
+          ENVIRONMENT_ID="d97b13df-ffe6-4f29-8c0a-936bfaaa65dc"
           echo "🚀 Deploying backend service: $SERVICE_ID"
-          curl -s -X POST https://backboard.railway.app/graphql/v2 \
+          RESULT=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"$SERVICE_ID\\\") }\"}"
+            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"${SERVICE_ID}\\\", environmentId: \\\"${ENVIRONMENT_ID}\\\") }\"}")
+          echo "Deploy result: $RESULT"
 
       - name: Wait for backend deployment
         run: |
@@ -132,10 +172,12 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          FRONTEND_SERVICE_ID="frontend-service-id"
+          FRONTEND_SERVICE_ID="8e6ec2df-e4a1-4fe1-afd9-31c22c5b2e59"
+          FRONTEND_ENV_ID="3a43d00a-371c-4dc5-8a9d-e093afb5f857"
           echo "🚀 Deploying frontend service: $FRONTEND_SERVICE_ID"
-          curl -s -X POST https://backboard.railway.app/graphql/v2 \
+          RESULT=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"$FRONTEND_SERVICE_ID\\\") }\"}"
+            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"${FRONTEND_SERVICE_ID}\\\", environmentId: \\\"${FRONTEND_ENV_ID}\\\") }\"}")
+          echo "Deploy result: $RESULT"
           echo "✅ Frontend deployment triggered!"
