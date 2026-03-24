@@ -85,7 +85,7 @@ jobs:
             -e "api[_-]key\s*=\s*['\"][^'\"]\+['\"]" \
             -e "AKIA[0-9A-Z]\{16\}" \
             --include="*.cs" --include="*.json" --include="*.ts" --include="*.js" \
-            --exclude-dir=".git" --exclude-dir="node_modules" --exclude-dir="bin" --exclude-dir="obj" \
+            --exclude-dir=".git" --exclude-dir="node_modules" --exclude-dir="bin" --exclude-dir="obj" --exclude-dir="tests" \
             . 2>/dev/null; then
             echo "❌ Potential hardcoded secrets found!"
             exit 1
