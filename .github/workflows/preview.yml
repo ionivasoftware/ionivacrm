@@ -53,6 +53,16 @@ jobs:
       - name: Install EF Core CLI
         run: dotnet tool install --global dotnet-ef
 
+      - name: Convert DB URL to .NET format
+        id: convert-db
+        run: |
+          DB_URL="${{ needs.create-neon-branch.outputs.db_url }}"
+          HOST=$(echo $DB_URL | sed 's|.*@||' | sed 's|/.*||')
+          DBNAME=$(echo $DB_URL | sed 's|.*.com/||' | sed 's|?.*||')
+          USER=$(echo $DB_URL | sed 's|postgresql://||' | sed 's|:.*||')
+          PASS=$(echo $DB_URL | sed 's|postgresql://[^:]*:||' | sed 's|@.*||')
+          echo "dotnet_conn=Host=${HOST};Database=${DBNAME};Username=${USER};Password=${PASS};SSL Mode=Require;Trust Server Certificate=true" >> $GITHUB_OUTPUT
+
       - name: Restore dependencies
         working-directory: ./output
         run: dotnet restore
@@ -61,7 +71,7 @@ jobs:
         working-directory: ./output
         run: dotnet ef database update --project src/IonCrm.Infrastructure --startup-project src/IonCrm.API
         env:
-          ConnectionStrings__DefaultConnection: ${{ needs.create-neon-branch.outputs.db_url }}
+          ConnectionStrings__DefaultConnection: ${{ steps.convert-db.outputs.dotnet_conn }}
           Jwt__Key: ${{ secrets.JWT_SECRET_PROD }}
           ASPNETCORE_ENVIRONMENT: Development
 
