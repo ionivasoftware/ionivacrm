@@ -1,43 +1,56 @@
-using IonCrm.Infrastructure.Persistence;
+using IonCrm.Application.Projects.Commands.CreateProject;
+using IonCrm.Application.Projects.Commands.UpdateProject;
+using IonCrm.Domain.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace IonCrm.API.Controllers;
 
-/// <summary>
-/// Returns the list of active projects (tenants).
-/// SuperAdmin: all active projects.
-/// Regular user: only their assigned projects (filtered by JWT claims).
-/// GET /api/v1/projects
-/// </summary>
 [Route("api/v1/projects")]
 public class ProjectsController : ApiControllerBase
 {
-    private readonly ApplicationDbContext _db;
+    private readonly IProjectRepository _projectRepository;
 
-    public ProjectsController(ApplicationDbContext db)
-    {
-        _db = db;
-    }
+    public ProjectsController(IProjectRepository projectRepository)
+        => _projectRepository = projectRepository;
 
+    /// <summary>Returns all projects (active and inactive).</summary>
     [HttpGet]
     public async Task<IActionResult> GetProjects(CancellationToken cancellationToken = default)
     {
-        var projects = await _db.Projects
-            .Where(p => p.IsActive)
-            .OrderBy(p => p.Name)
-            .Select(p => new
-            {
-                id = p.Id,
-                name = p.Name,
-                description = p.Description,
-                isActive = p.IsActive,
-                createdAt = p.CreatedAt,
-                updatedAt = p.UpdatedAt
-            })
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        var projects = await _projectRepository.GetAllAsync(cancellationToken);
+        var dtos = projects.Select(p => new
+        {
+            id = p.Id,
+            name = p.Name,
+            description = p.Description,
+            isActive = p.IsActive,
+            createdAt = p.CreatedAt,
+            updatedAt = p.UpdatedAt
+        });
+        return OkResponse(dtos);
+    }
 
-        return OkResponse(projects);
+    /// <summary>Creates a new project. SuperAdmin only.</summary>
+    [HttpPost]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> CreateProject(
+        [FromBody] CreateProjectCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(command, cancellationToken);
+        return ResultToResponse(result, created: true);
+    }
+
+    /// <summary>Updates an existing project. SuperAdmin only.</summary>
+    [HttpPut("{id:guid}")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> UpdateProject(
+        Guid id,
+        [FromBody] UpdateProjectCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(command with { Id = id }, cancellationToken);
+        return ResultToResponse(result);
     }
 }

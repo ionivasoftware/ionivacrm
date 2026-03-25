@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<ICustomerTaskRepository, CustomerTaskRepository>();
         services.AddScoped<ISyncLogRepository, SyncLogRepository>();
         services.AddScoped<IOpportunityRepository, OpportunityRepository>();
+        services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
 
         // ── Auth services ─────────────────────────────────────────────────────

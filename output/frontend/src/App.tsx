@@ -13,6 +13,8 @@ const CustomersPage     = lazy(() => import('@/pages/customers/CustomersPage').t
 const CustomerDetailPage = lazy(() => import('@/pages/customers/CustomerDetailPage').then(m => ({ default: m.CustomerDetailPage })));
 const PlaceholderPage   = lazy(() => import('@/pages/PlaceholderPage').then(m => ({ default: m.PlaceholderPage })));
 const ContactHistoriesPage = lazy(() => import('@/pages/ContactHistoriesPage').then(m => ({ default: m.ContactHistoriesPage })));
+const UsersAdminPage    = lazy(() => import('@/pages/admin/UsersAdminPage').then(m => ({ default: m.UsersAdminPage })));
+const ProjectsAdminPage = lazy(() => import('@/pages/admin/ProjectsAdminPage').then(m => ({ default: m.ProjectsAdminPage })));
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 function PageLoader() {
@@ -122,10 +124,7 @@ export default function App() {
                 path="/admin/users"
                 element={
                   <ProtectedRoute superAdminOnly>
-                    <PlaceholderPage
-                      title="Kullanıcı Yönetimi"
-                      description="Kullanıcı yönetimi modülü yakında aktif olacak."
-                    />
+                    <UsersAdminPage />
                   </ProtectedRoute>
                 }
               />
@@ -133,10 +132,7 @@ export default function App() {
                 path="/admin/projects"
                 element={
                   <ProtectedRoute superAdminOnly>
-                    <PlaceholderPage
-                      title="Proje Yönetimi"
-                      description="Proje yönetimi modülü yakında aktif olacak."
-                    />
+                    <ProjectsAdminPage />
                   </ProtectedRoute>
                 }
               />
