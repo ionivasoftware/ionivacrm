@@ -1,8 +1,17 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { AuthUser, LoginRequest, LoginResponse } from '@/types';
+import type { AuthUser, LoginRequest, LoginResponse, Project } from '@/types';
 import { apiClient, setAccessToken } from '@/api/client';
 import type { ApiResponse } from '@/types';
+
+async function fetchFirstProjectId(): Promise<string | null> {
+  try {
+    const res = await apiClient.get<ApiResponse<Project[]>>('/projects');
+    return res.data.data?.[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 interface AuthState {
   user: AuthUser | null;
@@ -34,9 +43,9 @@ export const useAuthStore = create<AuthState>()(
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('user', JSON.stringify(user));
 
-      // Set default project (first available)
+      // Set default project: use first assigned project, or fetch from API for SuperAdmin
       const projectIds = Object.keys(user.projectRoles);
-      const defaultProject = projectIds[0] ?? null;
+      const defaultProject = projectIds[0] ?? (user.isSuperAdmin ? await fetchFirstProjectId() : null);
 
       set({
         user,
@@ -79,7 +88,7 @@ export const useAuthStore = create<AuthState>()(
           const user = JSON.parse(savedUser);
           setAccessToken(savedToken);
           const projectIds = Object.keys(user.projectRoles || {});
-          const defaultProject = projectIds[0] ?? null;
+          const defaultProject = projectIds[0] ?? (user.isSuperAdmin ? await fetchFirstProjectId() : null);
           set({
             user,
             isAuthenticated: true,
