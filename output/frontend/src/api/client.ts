@@ -69,7 +69,7 @@ apiClient.interceptors.response.use(
         const response = await axios.post<{ data: { accessToken: string } }>(
           `${BASE_URL}/api/v1/auth/refresh`,
           {},
-          { withCredentials: true }
+          { withCredentials: true, headers: { "Content-Type": "application/json" } }
         );
 
         const newToken = response.data.data.accessToken;
