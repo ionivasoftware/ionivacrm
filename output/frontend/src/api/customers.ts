@@ -114,7 +114,7 @@ export function useContactHistory(customerId: string) {
     queryKey: ['contactHistory', customerId],
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<PaginatedResponse<ContactHistory>>>(
-        `/customers/${customerId}/contact-history`,
+        `/customers/${customerId}/contact-histories`,
         { params: { pageSize: 50, page: 1 } }
       );
       return response.data.data;
@@ -128,7 +128,7 @@ export function useCreateContactHistory() {
   return useMutation({
     mutationFn: async (data: CreateContactHistoryRequest) => {
       const response = await apiClient.post<ApiResponse<ContactHistory>>(
-        `/customers/${data.customerId}/contact-history`,
+        `/customers/${data.customerId}/contact-histories`,
         data
       );
       return response.data.data;
