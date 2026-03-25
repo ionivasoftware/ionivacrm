@@ -61,7 +61,7 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<AuthResp
         {
             AccessToken = accessToken,
             RefreshToken = rawRefreshToken,
-            AccessTokenExpiresAt = DateTime.UtcNow.AddMinutes(15),
+            AccessTokenExpiresAt = _tokenService.GetAccessTokenExpiresAt(),
             User = UserMappingHelper.MapToDto(user)
         });
     }

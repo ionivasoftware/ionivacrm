@@ -59,7 +59,7 @@ public class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand, R
         {
             AccessToken = accessToken,
             RefreshToken = rawNewRefreshToken,
-            AccessTokenExpiresAt = DateTime.UtcNow.AddMinutes(15),
+            AccessTokenExpiresAt = _tokenService.GetAccessTokenExpiresAt(),
             User = UserMappingHelper.MapToDto(user)
         });
     }

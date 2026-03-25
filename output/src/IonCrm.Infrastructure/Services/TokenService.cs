@@ -87,6 +87,13 @@ public class TokenService : ITokenService
         return handler.WriteToken(token);
     }
 
+    /// <inheritdoc />
+    public DateTime GetAccessTokenExpiresAt()
+    {
+        var expiryMinutes = _configuration.GetValue<int>("JwtSettings:AccessTokenExpiryMinutes", 15);
+        return DateTime.UtcNow.AddMinutes(expiryMinutes);
+    }
+
     // ── Refresh token ─────────────────────────────────────────────────────────
 
     /// <inheritdoc />

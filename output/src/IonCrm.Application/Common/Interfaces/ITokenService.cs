@@ -30,6 +30,12 @@ public interface ITokenService
     Task<RefreshToken?> GetActiveRefreshTokenAsync(
         string rawToken, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns the UTC timestamp when the next generated access token will expire,
+    /// based on the configured TTL (JwtSettings:AccessTokenExpiryMinutes).
+    /// </summary>
+    DateTime GetAccessTokenExpiresAt();
+
     /// <summary>Marks a specific refresh token as revoked (soft-invalidation).</summary>
     Task RevokeRefreshTokenAsync(string rawToken, CancellationToken cancellationToken = default);
 
