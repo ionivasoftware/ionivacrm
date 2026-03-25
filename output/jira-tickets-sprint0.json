@@ -1,0 +1,73 @@
+{
+  "sprint": "Sprint 0 \u2014 Analysis & Architecture",
+  "project_key": "PROD",
+  "epic": {
+    "type": "Epic",
+    "summary": "Sprint 0 \u2014 Analysis & Architecture",
+    "epic_name": "Sprint 0 \u2014 Analysis & Architecture",
+    "story_points": 21,
+    "labels": [
+      "architecture",
+      "sprint-0"
+    ],
+    "description": "Goal: Analyze the legacy MSSQL database, design the target PostgreSQL schema, define all API contracts, and document the solution structure. Zero production code in this sprint. Agents: Architect Agent. Duration: 1-2 days. Estimated cost: ~$8-12."
+  },
+  "stories": [
+    {
+      "id": "ION-001",
+      "type": "Story",
+      "summary": "[ARCHITECT] Analyze MSSQL .bak file and extract legacy schema",
+      "story_points": 5,
+      "labels": [
+        "backend",
+        "migration",
+        "analysis"
+      ],
+      "agent": "Architect",
+      "sprint": "Sprint 0 \u2014 Analysis & Architecture",
+      "description": "Restore the 4.4MB MSSQL backup. Extract all DDL. Document every table/column/FK/index. Map legacy customers + contact history to new schema. Flag PII fields. Map MSSQL types to PostgreSQL. Outputs: legacy-schema.md, migration-mapping.md"
+    },
+    {
+      "id": "ION-002",
+      "type": "Story",
+      "summary": "[ARCHITECT] Design PostgreSQL target schema",
+      "story_points": 8,
+      "labels": [
+        "backend",
+        "database",
+        "architecture"
+      ],
+      "agent": "Architect",
+      "sprint": "Sprint 0 \u2014 Analysis & Architecture",
+      "description": "Design full PostgreSQL schema: Projects, Users, UserProjectRoles, Customers, ContactHistory, Notes, CustomerTasks, Opportunities, SyncLogs, RefreshTokens, AuditLogs. Every table has Id(UUID), CreatedAt, UpdatedAt, IsDeleted, ProjectId. Define all enums, indexes, FKs. Outputs: db-schema.md, entity-stubs/"
+    },
+    {
+      "id": "ION-003",
+      "type": "Story",
+      "summary": "[ARCHITECT] Define API contracts and OpenAPI spec",
+      "story_points": 5,
+      "labels": [
+        "backend",
+        "api",
+        "architecture"
+      ],
+      "agent": "Architect",
+      "sprint": "Sprint 0 \u2014 Analysis & Architecture",
+      "description": "Define all REST endpoints: Auth, SuperAdmin, Customers, ContactHistory, Notes, Tasks, Opportunities, Sync, Dashboard. Specify request/response schemas, required roles, error codes. Define SaaS A and SaaS B inbound payload formats. Define outbound callback payload. Document ApiResponse<T> wrapper. Output: api-contracts.md"
+    },
+    {
+      "id": "ION-004",
+      "type": "Story",
+      "summary": "[ARCHITECT] Define solution folder structure and scaffold plan",
+      "story_points": 3,
+      "labels": [
+        "backend",
+        "devops",
+        "architecture"
+      ],
+      "agent": ".NET Dev",
+      "sprint": "Sprint 0 \u2014 Analysis & Architecture",
+      "description": "Document exact .NET solution folder structure (Domain, Application, Infrastructure, API, Tests), frontend structure (React+TS+shadcn), CI/CD workflows, Docker Compose setup. List all required env vars in .env.example. Outputs: project-structure.md, .env.example"
+    }
+  ]
+}

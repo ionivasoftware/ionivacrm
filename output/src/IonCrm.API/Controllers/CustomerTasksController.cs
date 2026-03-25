@@ -1,7 +1,10 @@
 using IonCrm.Application.Tasks.Commands.CreateCustomerTask;
 using IonCrm.Application.Tasks.Commands.DeleteCustomerTask;
 using IonCrm.Application.Tasks.Commands.UpdateCustomerTask;
-using IonCrm.Application.Tasks.Queries.GetCustomerTasks;
+using IonCrm.Application.Tasks.Commands.UpdateTaskStatus;
+using IonCrm.Application.Tasks.Queries.GetCustomerTaskById;
+using IonCrm.Application.Tasks.Queries.GetPagedCustomerTasks;
+using IonCrm.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IonCrm.API.Controllers;
@@ -13,13 +16,36 @@ namespace IonCrm.API.Controllers;
 [Route("api/v1/customers/{customerId:guid}/tasks")]
 public class CustomerTasksController : ApiControllerBase
 {
-    /// <summary>Gets all tasks for a customer.</summary>
+    /// <summary>Gets a paged list of tasks for a customer.</summary>
     [HttpGet]
     public async Task<IActionResult> GetTasks(
         Guid customerId,
+        [FromQuery] IonCrm.Domain.Enums.TaskStatus? status = null,
+        [FromQuery] TaskPriority? priority = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var result = await Mediator.Send(new GetCustomerTasksQuery(customerId), cancellationToken);
+        var query = new GetPagedCustomerTasksQuery
+        {
+            CustomerId = customerId,
+            Status = status,
+            Priority = priority,
+            Page = page,
+            PageSize = pageSize
+        };
+        var result = await Mediator.Send(query, cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>Gets a single task by ID.</summary>
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetTaskById(
+        Guid customerId,
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetCustomerTaskByIdQuery(id), cancellationToken);
         return ResultToResponse(result);
     }
 
@@ -41,6 +67,19 @@ public class CustomerTasksController : ApiControllerBase
         Guid customerId,
         Guid id,
         [FromBody] UpdateCustomerTaskCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var commandWithId = command with { Id = id };
+        var result = await Mediator.Send(commandWithId, cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>Updates only the status of a task.</summary>
+    [HttpPatch("{id:guid}/status")]
+    public async Task<IActionResult> UpdateTaskStatus(
+        Guid customerId,
+        Guid id,
+        [FromBody] UpdateTaskStatusCommand command,
         CancellationToken cancellationToken = default)
     {
         var commandWithId = command with { Id = id };

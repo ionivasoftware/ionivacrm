@@ -1,7 +1,9 @@
 using IonCrm.Application.ContactHistory.Commands.CreateContactHistory;
 using IonCrm.Application.ContactHistory.Commands.DeleteContactHistory;
 using IonCrm.Application.ContactHistory.Commands.UpdateContactHistory;
-using IonCrm.Application.ContactHistory.Queries.GetContactHistories;
+using IonCrm.Application.ContactHistory.Queries.GetContactHistoryById;
+using IonCrm.Application.ContactHistory.Queries.GetPagedContactHistories;
+using IonCrm.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IonCrm.API.Controllers;
@@ -13,13 +15,38 @@ namespace IonCrm.API.Controllers;
 [Route("api/v1/customers/{customerId:guid}/contact-histories")]
 public class ContactHistoriesController : ApiControllerBase
 {
-    /// <summary>Gets all contact history records for a customer.</summary>
+    /// <summary>Gets a paged list of contact history records for a customer.</summary>
     [HttpGet]
     public async Task<IActionResult> GetContactHistories(
         Guid customerId,
+        [FromQuery] ContactType? type = null,
+        [FromQuery] DateTime? fromDate = null,
+        [FromQuery] DateTime? toDate = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var result = await Mediator.Send(new GetContactHistoriesQuery(customerId), cancellationToken);
+        var query = new GetPagedContactHistoriesQuery
+        {
+            CustomerId = customerId,
+            Type = type,
+            FromDate = fromDate,
+            ToDate = toDate,
+            Page = page,
+            PageSize = pageSize
+        };
+        var result = await Mediator.Send(query, cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>Gets a single contact history record by ID.</summary>
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetContactHistoryById(
+        Guid customerId,
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetContactHistoryByIdQuery(id), cancellationToken);
         return ResultToResponse(result);
     }
 

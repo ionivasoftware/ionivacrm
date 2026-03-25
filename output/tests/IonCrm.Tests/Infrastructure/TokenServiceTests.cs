@@ -33,11 +33,11 @@ public class TokenServiceTests : IDisposable
         _configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Jwt:Key"]                      = "test-super-secret-key-minimum-32-chars!",
-                ["Jwt:Issuer"]                   = "TestIssuer",
-                ["Jwt:Audience"]                 = "TestAudience",
-                ["Jwt:AccessTokenExpiryMinutes"] = "15",
-                ["Jwt:RefreshTokenExpiryDays"]   = "7"
+                ["JwtSettings:Secret"]                   = "test-super-secret-key-minimum-32-chars!!",
+                ["JwtSettings:Issuer"]                   = "TestIssuer",
+                ["JwtSettings:Audience"]                 = "TestAudience",
+                ["JwtSettings:AccessTokenExpiryMinutes"] = "15",
+                ["JwtSettings:RefreshTokenExpiryDays"]   = "7"
             })
             .Build();
 

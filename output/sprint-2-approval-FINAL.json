@@ -1,0 +1,328 @@
+{
+  "approval_request": {
+    "sprint": "Sprint 2 — Customer Core Enhancement",
+    "status": "ACTIVE — AWAITING HUMAN APPROVAL TO PROCEED",
+    "requested_by": "Orchestrator Agent (Claude PM)",
+    "date": "2026-03-24",
+    "context": "Sprint 0 and Sprint 1 are COMPLETED. Sprint 2 is the current active sprint. Human must approve Sprint 2 execution before agents begin coding."
+  },
+
+  "sprint": {
+    "name": "Sprint 2 — Customer Core Enhancement",
+    "number": 2,
+    "goal": "Fix critical data-display bugs (customer list empty, add-form blank), add Label/Status classification system, build Pipeline call-scheduling feature, implement Potansiyel→Müşteri atomic merge workflow, deliver all-contact-histories view, and add Dashboard analytics charts. By end of sprint the CRM is fully usable by sales reps.",
+    "story_count": 13,
+    "total_story_points": 42,
+    "agents": "Backend Agent, Frontend Agent",
+    "duration": "3–4 days",
+    "token_cost_estimate": "~$18–28",
+    "status": "AWAITING_HUMAN_APPROVAL"
+  },
+
+  "db_migrations_required": [
+    "ALTER TABLE \"Customers\" ADD \"Label\" integer NOT NULL DEFAULT 2;   -- 0=YuksekPotansiyel,1=Potansiyel,2=Notr,3=Vasat,4=Kotu",
+    "ALTER TABLE \"Customers\" ADD \"Status\" integer NOT NULL DEFAULT 1;  -- 0=Musteri,1=Potansiyel,2=Demo",
+    "ALTER TABLE \"ContactHistories\" ADD \"ContactResult\" integer NULL;  -- 0=Olumlu,1=Olumsuz,2=BaskaTedarikci",
+    "CREATE TABLE \"Pipelines\" (Id uuid PK, CustomerId uuid FK, ProjectId uuid, PlannedDate timestamptz, Notes text, Status int DEFAULT 0, CreatedAt timestamptz, UpdatedAt timestamptz, IsDeleted boolean DEFAULT false)"
+  ],
+
+  "new_api_endpoints": [
+    "GET    /api/v1/customers              (add ?label= ?status= filters)",
+    "POST   /api/v1/customers/{id}/merge  (atomic Potansiyel→Müşteri merge)",
+    "GET    /api/v1/contact-histories     (with ?from= ?to= ?type= ?result= filters)",
+    "PUT    /api/v1/contact-histories/{id}",
+    "GET    /api/v1/pipelines             (default: next 7 days)",
+    "POST   /api/v1/pipelines",
+    "PUT    /api/v1/pipelines/{id}",
+    "DELETE /api/v1/pipelines/{id}",
+    "POST   /api/v1/pipelines/{id}/contact",
+    "GET    /api/v1/dashboard/stats",
+    "GET    /api/v1/dashboard/pipeline"
+  ],
+
+  "new_frontend_routes": [
+    "/customers/:id           (customer detail)",
+    "/customers/:id/edit      (customer edit form)",
+    "/contact-histories       (all contact histories with filters)",
+    "/pipeline                (call planning / pipeline manager)"
+  ],
+
+  "execution_order": {
+    "phase_1_parallel": {
+      "label": "Critical bug fixes — unblock the app",
+      "backend": ["ION-014 — Fix customer list API (ProjectId filter bug)"],
+      "frontend": [
+        "ION-015 — Fix customer add form blank",
+        "ION-016 — Add customer detail/edit/delete pages"
+      ]
+    },
+    "phase_2_backend_then_frontend": {
+      "label": "New features — backend APIs first, then frontend screens",
+      "sequence": [
+        {"backend": "ION-017 — Customer Label enum + migration", "then_frontend": "ION-019 — Label badges + filters"},
+        {"backend": "ION-018 — Customer Status enum + migration", "then_frontend": "ION-019 — Status badges + filters"},
+        {"backend": "ION-020 — Merge endpoint (transactional)", "then_frontend": "ION-021 — Müşteriye Bağla UI"},
+        {"backend": "ION-022 — ContactResult field + all-histories endpoint", "then_frontend": "ION-023 — All contact histories page"},
+        {"backend": "ION-024 — Pipeline CRUD + /contact sub-action", "then_frontend": "ION-025 — Pipeline page + Pipeline Ekle button"}
+      ]
+    },
+    "phase_3_dashboard": {
+      "label": "Dashboard — requires all above complete",
+      "both": ["ION-026 — Dashboard stats endpoints + pipeline widget + charts"]
+    }
+  },
+
+  "stories": [
+    {
+      "id": "ION-014",
+      "title": "[BACKEND] Fix: Customer list API not returning records",
+      "sprint": "Sprint 2",
+      "points": 2,
+      "labels": ["backend", "bug"],
+      "priority": "CRITICAL",
+      "agent": "Backend Agent",
+      "description": "Customer screen shows 0 records despite 639 customers in Neon DB. Root cause likely: ProjectId JWT claim not parsed correctly in tenant middleware, causing EF Core query to filter on null ProjectId. Fix and verify 639 records returned.",
+      "acceptance_criteria": [
+        "GET /api/v1/customers returns paginated results (default page 1, size 20)",
+        "All 639 existing records visible to authenticated ProjectAdmin",
+        "SuperAdmin sees records across all projects"
+      ]
+    },
+    {
+      "id": "ION-015",
+      "title": "[FRONTEND] Fix: Customer add form renders blank",
+      "sprint": "Sprint 2",
+      "points": 2,
+      "labels": ["frontend", "bug"],
+      "priority": "CRITICAL",
+      "agent": "Frontend Agent",
+      "description": "Müşteri Ekle page renders empty — no form fields visible. Fix React component state initialization and React Query mutation wiring to POST /api/v1/customers.",
+      "acceptance_criteria": [
+        "Form displays all required fields on load",
+        "Valid submission navigates back to customer list",
+        "Validation errors shown inline"
+      ]
+    },
+    {
+      "id": "ION-016",
+      "title": "[FRONTEND] Add customer detail, edit, and delete pages",
+      "sprint": "Sprint 2",
+      "points": 5,
+      "labels": ["frontend"],
+      "priority": "HIGH",
+      "agent": "Frontend Agent",
+      "description": "Three missing screens: /customers/:id (detail with contact history), /customers/:id/edit (pre-filled form), and delete confirmation dialog using shadcn/ui components.",
+      "acceptance_criteria": [
+        "Detail page shows all customer fields + contact history list",
+        "Edit form pre-populates existing values",
+        "Delete shows confirmation dialog; customer removed from list after confirmation",
+        "Back navigation works correctly"
+      ]
+    },
+    {
+      "id": "ION-017",
+      "title": "[BACKEND] Customer Label system",
+      "sprint": "Sprint 2",
+      "points": 3,
+      "labels": ["backend"],
+      "priority": "HIGH",
+      "agent": "Backend Agent",
+      "db_migration": "ALTER TABLE \"Customers\" ADD \"Label\" integer NOT NULL DEFAULT 2;",
+      "description": "Add CustomerLabel enum (YuksekPotansiyel=0, Potansiyel=1, Notr=2, Vasat=3, Kotu=4), EF Core migration, update DTOs/commands, add ?label= filter to GET /customers.",
+      "acceptance_criteria": [
+        "Migration runs cleanly on dev Neon DB",
+        "Label field persisted on create and update",
+        "GET /customers?label=0 returns filtered results"
+      ]
+    },
+    {
+      "id": "ION-018",
+      "title": "[BACKEND] Customer Status system",
+      "sprint": "Sprint 2",
+      "points": 3,
+      "labels": ["backend"],
+      "priority": "HIGH",
+      "agent": "Backend Agent",
+      "db_migration": "ALTER TABLE \"Customers\" ADD \"Status\" integer NOT NULL DEFAULT 1;",
+      "description": "Add CustomerStatus enum (Musteri=0, Potansiyel=1, Demo=2), EF Core migration, update DTOs/commands, add ?status= filter to GET /customers.",
+      "acceptance_criteria": [
+        "Status field persisted on create and update",
+        "GET /customers?status=0 filter works",
+        "Existing 639 customers default to Status=Potansiyel (1)"
+      ]
+    },
+    {
+      "id": "ION-019",
+      "title": "[FRONTEND] Label and Status badges + filters on customer list",
+      "sprint": "Sprint 2",
+      "points": 3,
+      "labels": ["frontend"],
+      "priority": "HIGH",
+      "agent": "Frontend Agent",
+      "depends_on": ["ION-017", "ION-018"],
+      "description": "Colored badges for Label and Status on customer list. Filter bar with dropdown chips. Filter state persisted in URL. 5 label colors + 3 status colors.",
+      "acceptance_criteria": [
+        "All 5 labels render with distinct colors",
+        "All 3 statuses render with distinct colors",
+        "Filter chips update list in real time",
+        "Filters persist in URL query string"
+      ]
+    },
+    {
+      "id": "ION-020",
+      "title": "[BACKEND] Potansiyel → Müşteri merge endpoint",
+      "sprint": "Sprint 2",
+      "points": 5,
+      "labels": ["backend"],
+      "priority": "HIGH",
+      "agent": "Backend Agent",
+      "description": "POST /api/v1/customers/{sourceId}/merge — atomically transfers all ContactHistories and Tasks from source (must be Potansiyel) to target (Musteri), then soft-deletes source. Full EF Core transaction.",
+      "acceptance_criteria": [
+        "Transaction rolls back fully on any error",
+        "Source customer soft-deleted after merge",
+        "All contact histories appear on target customer",
+        "Returns 409 if source status is not Potansiyel"
+      ]
+    },
+    {
+      "id": "ION-021",
+      "title": "[FRONTEND] Müşteriye Bağla merge UI",
+      "sprint": "Sprint 2",
+      "points": 3,
+      "labels": ["frontend"],
+      "priority": "MEDIUM",
+      "agent": "Frontend Agent",
+      "depends_on": ["ION-020"],
+      "description": "On customer detail when Status=Potansiyel: Müşteriye Bağla button → searchable customer modal → confirmation dialog → merge API call → redirect to target customer.",
+      "acceptance_criteria": [
+        "Button only visible for Potansiyel-status customers",
+        "Modal is searchable (live search)",
+        "Confirmation dialog shows source and target customer names",
+        "Success redirects to target customer detail"
+      ]
+    },
+    {
+      "id": "ION-022",
+      "title": "[BACKEND] Contact History result field + all-histories endpoint",
+      "sprint": "Sprint 2",
+      "points": 3,
+      "labels": ["backend"],
+      "priority": "MEDIUM",
+      "agent": "Backend Agent",
+      "db_migration": "ALTER TABLE \"ContactHistories\" ADD \"ContactResult\" integer NULL;",
+      "description": "Add ContactResult enum (Olumlu=0, Olumsuz=1, BaskaTedarikci=2) and field. New GET /contact-histories endpoint with ?from= ?to= ?type= ?result= filters.",
+      "acceptance_criteria": [
+        "Migration applied without errors",
+        "GET /contact-histories returns all project contacts, paginated",
+        "All three filters work independently and combined"
+      ]
+    },
+    {
+      "id": "ION-023",
+      "title": "[FRONTEND] All Contact Histories page",
+      "sprint": "Sprint 2",
+      "points": 3,
+      "labels": ["frontend"],
+      "priority": "MEDIUM",
+      "agent": "Frontend Agent",
+      "depends_on": ["ION-022"],
+      "description": "New /contact-histories route with table (Müşteri Adı, Tarih, Tip icon, Sonuç badge, Notlar truncated) and collapsible filter panel (date range, type chips, result chips). Row click navigates to customer detail.",
+      "acceptance_criteria": [
+        "Route accessible from sidebar navigation",
+        "All three filter types functional",
+        "Mobile layout collapses filter panel"
+      ]
+    },
+    {
+      "id": "ION-024",
+      "title": "[BACKEND] Pipeline (Arama Planlaması) CRUD",
+      "sprint": "Sprint 2",
+      "points": 5,
+      "labels": ["backend"],
+      "priority": "HIGH",
+      "agent": "Backend Agent",
+      "db_migration": "CREATE TABLE \"Pipelines\" (...) — see sprint2-tasks.md for full DDL",
+      "description": "Full CRUD for Pipelines table. POST /{id}/contact creates ContactHistory and marks Pipeline Status=Tamamlandi atomically. Default GET filter: next 7 days. Status enum: Bekliyor=0, Tamamlandi=1, Iptal=2.",
+      "acceptance_criteria": [
+        "EF Core migration runs without errors",
+        "All CRUD endpoints (GET/POST/PUT/DELETE) working",
+        "/contact sub-action creates ContactHistory and marks pipeline complete atomically",
+        "Default date filter returns only next 7 days"
+      ]
+    },
+    {
+      "id": "ION-025",
+      "title": "[FRONTEND] Pipeline page + Pipeline Ekle button",
+      "sprint": "Sprint 2",
+      "points": 4,
+      "labels": ["frontend"],
+      "priority": "HIGH",
+      "agent": "Frontend Agent",
+      "depends_on": ["ION-024"],
+      "description": "Customer detail gets Pipeline Ekle button (drawer with date picker + notes). New /pipeline route: list grouped by date, Görüşme Kaydı Gir inline action, edit/delete. Status badges: Bekliyor (orange), Tamamlandı (green), İptal (gray).",
+      "acceptance_criteria": [
+        "Pipeline items grouped by date",
+        "Görüşme Kaydı Gir creates contact and marks pipeline done",
+        "Route accessible from sidebar"
+      ]
+    },
+    {
+      "id": "ION-026",
+      "title": "[FRONTEND+BACKEND] Dashboard — Pipeline widget + analytics charts",
+      "sprint": "Sprint 2",
+      "points": 5,
+      "labels": ["frontend", "backend"],
+      "priority": "MEDIUM",
+      "agent": "Backend Agent + Frontend Agent",
+      "depends_on": ["ION-017", "ION-018", "ION-024"],
+      "description": "Backend: GET /dashboard/stats (counts by label, by status, daily contact history last 30 days) + GET /dashboard/pipeline (next 7 days). Frontend: 4 metric cards, donut chart (by status), bar chart (by label), line chart (contact volume 30d), pipeline widget with inline Görüşme Kaydı Gir. Use recharts.",
+      "acceptance_criteria": [
+        "Dashboard shows 4 metric cards with real data",
+        "Pipeline widget lists upcoming calls",
+        "All charts render with real data",
+        "Mobile responsive (charts stack vertically)"
+      ]
+    }
+  ],
+
+  "risks": [
+    {
+      "risk": "EF Core migrations on live Neon DB may conflict with existing data",
+      "mitigation": "Run migrations on dev DB first. All new columns have DEFAULT values — zero data loss risk. Never use destructive DDL."
+    },
+    {
+      "risk": "Merge operation (ION-020) could corrupt data if transaction not handled correctly",
+      "mitigation": "Explicit EF Core transaction with SaveChanges inside try/catch/rollback. Tested end-to-end before merging."
+    },
+    {
+      "risk": "Customer list bug (ION-014) may have multiple causes (JWT, EF query, tenant middleware)",
+      "mitigation": "Backend Agent diagnoses systematically: JWT parsing → middleware → EF query → response."
+    },
+    {
+      "risk": "Chart library bundle size bloat",
+      "mitigation": "Use recharts (already common in React/shadcn ecosystems); tree-shake unused chart components."
+    }
+  ],
+
+  "definition_of_done": [
+    "dotnet build passes with 0 errors",
+    "npm run build passes with 0 errors",
+    "All 13 stories have passing acceptance criteria",
+    "git add -A && git commit && git push origin main completed",
+    "Dev environment verified live: customer list shows 639 records",
+    "Pipeline page shows upcoming calls grouped by date",
+    "Dashboard charts render real data"
+  ],
+
+  "next_steps_after_approval": [
+    "1. Backend Agent starts Phase 1: ION-014 (critical bug fix)",
+    "2. Frontend Agent starts Phase 1: ION-015 + ION-016 (parallel)",
+    "3. After Phase 1 complete: Backend Agent starts ION-017, ION-018, ION-020, ION-022, ION-024",
+    "4. Frontend Agent follows with ION-019, ION-021, ION-023, ION-025",
+    "5. Final phase: Backend + Frontend coordinate on ION-026 (Dashboard)",
+    "6. After Sprint 2 complete: Human approves before Sprint 3 begins"
+  ],
+
+  "blocked_until": "Human approves this Sprint 2 plan",
+  "next_sprint_blocked_until": "Human approves Sprint 2 COMPLETION and Sprint 3 plan"
+}

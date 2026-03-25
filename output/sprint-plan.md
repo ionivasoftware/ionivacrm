@@ -1,7 +1,8 @@
-# ION CRM — Full Sprint Plan
-> Generated: 2026-03-23
+# ION CRM — Master Sprint Plan (Updated)
+> Generated: 2026-03-24
 > Orchestrator: Claude (Product Manager Agent)
-> Stack: ASP.NET Core 8 · Clean Architecture · PostgreSQL · React 18 · shadcn/ui · Railway
+> Stack: ASP.NET Core 8 · Clean Architecture · PostgreSQL (Neon) · React 18 · shadcn/ui · Railway
+> Repo: https://github.com/ionivasoftware/ionivacrm
 
 ---
 
@@ -10,1403 +11,1183 @@
 | Item | Detail |
 |------|--------|
 | Architecture | Clean Architecture (Domain → Application → Infrastructure → API) |
-| Auth | JWT Bearer (15min access / 7day refresh), RBAC + Project-scoped |
+| Auth | JWT Bearer (15-min access / 7-day refresh), RBAC + Project-scoped |
 | Multi-tenancy | SuperAdmin (all data) + Project-scoped roles (ProjectAdmin, SalesManager, SalesRep, Accounting) |
-| Sync | SaaS A & B → CRM every 15min (pull); CRM → SaaS instant push (subscriptions, status changes) |
-| Migration | One-time MSSQL .bak → PostgreSQL (customers + contact history only) |
+| Sync | SaaS A & B → CRM every 15 min (pull); CRM → SaaS instant push (subscriptions, status changes) |
+| Migration | One-time MSSQL .bak → PostgreSQL (customers + contact history — 639 customers, 892 contacts migrated ✅) |
 | Frontend | React 18, shadcn/ui, Zustand, React Query, dark mode default, Turkish language, mobile-first |
-| Deploy | Railway via GitHub Actions CI/CD |
-| DB File | `/input/database/crm.bak` — 4.4 MB Microsoft SQL Server backup (confirmed) |
+| Deploy | Railway via GitHub Actions CI/CD (dev + prod environments live ✅) |
+| DB File | `/input/database/crm.bak` — 4.4 MB MSSQL backup |
 
 ---
 
 ## ⚠️ APPROVAL GATES (MANDATORY)
-Per CLAUDE.md — Orchestrator MUST pause at:
-1. ✅ After sprint planning → **before any code written** ← YOU ARE HERE
-2. After DB schema design → before migrations run
-3. After each Sprint completion → before next sprint starts
-4. Before any deployment to Railway
+
+1. ✅ After sprint planning → before any code written
+2. ✅ After DB schema design → before migrations run
+3. ✅ Sprint 0 completed & approved
+4. ✅ Sprint 1 completed & approved
+5. 🔄 **Sprint 2 active — awaiting completion approval before Sprint 3**
+6. ⏳ After Sprint 3 completion → before Sprint 4
+7. ⏳ After Sprint 4 completion → before Sprint 5
+8. ⏳ After Sprint 5 completion → before Sprint 6
+9. ⏳ Before any deployment to Production
 
 ---
 
-# SPRINT 0 — Analysis & Architecture
+# ✅ SPRINT 0 — Analysis & Architecture
+**Status:** COMPLETED
+**Goal:** Analyze legacy MSSQL .bak, design PostgreSQL schema, define API contracts, scaffold solution structure.
+**Duration:** 2–3 days | **Agent:** Architect Agent | **Points:** 21
 
-**Goal:** Understand legacy data, design the target schema, define all API contracts, and scaffold the solution structure. No production code written until this sprint is approved.
+| Ticket | Title | Points | Status |
+|--------|-------|--------|--------|
+| ION-001 | [ARCHITECT] Analyze MSSQL .bak and extract legacy schema | 5 | ✅ Done |
+| ION-002 | [ARCHITECT] Design PostgreSQL target schema | 8 | ✅ Done |
+| ION-003 | [ARCHITECT] Define API contracts and OpenAPI spec | 5 | ✅ Done |
+| ION-004 | [ARCHITECT] Define solution folder structure and scaffold plan | 3 | ✅ Done |
 
-**Duration:** 2–3 days
-**Agent:** Architect Agent
-**Story Points Total:** 21
-
----
-
-### 🎫 ION-001
-**Title:** [ARCHITECT] Analyze MSSQL .bak file and extract legacy schema
-**Sprint:** Sprint 0
-**Story Points:** 5
-**Labels:** backend, migration, analysis
-**Description:**
-- Mount `/input/database/crm.bak` (4.4 MB MSSQL backup)
-- Use `mssql-scripter` or restore to a local MSSQL Docker container to extract DDL
-- Document every table, column, data type, FK relationship, and index
-- Identify which tables map to: customers, contact history, users, projects
-- Flag tables/columns NOT needed in new system (do NOT migrate everything)
-- Output: `/output/legacy-schema.md` with full table inventory
-- Output: `/output/migration-mapping.md` with old-column → new-column mapping
-
-**Acceptance Criteria:**
-- [ ] All legacy tables documented with row count estimates
-- [ ] Mapping document identifies source → target for customers and contact history
-- [ ] Columns with PII flagged for secure handling
-- [ ] Any MSSQL-specific types (money, nvarchar, bit) mapped to PostgreSQL equivalents
+**Deliverables produced:** `legacy-schema.md`, `migration-mapping.md`, `db-schema.md`, `entity-stubs/`, `api-contracts.md`, `project-structure.md`, `.env.example`
 
 ---
 
-### 🎫 ION-002
-**Title:** [ARCHITECT] Design PostgreSQL target schema
-**Sprint:** Sprint 0
-**Story Points:** 8
-**Labels:** backend, database, architecture
-**Description:**
-Design the complete target PostgreSQL schema following these rules from CLAUDE.md:
-- Every table: `Id (UUID/Guid)`, `CreatedAt`, `UpdatedAt`, `IsDeleted` (soft delete)
-- Every query has implicit `ProjectId` tenant filter (except SuperAdmin)
-- Use EF Core migrations — no raw SQL ever
+# ✅ SPRINT 1 — Foundation
+**Status:** COMPLETED
+**Goal:** Bootstrap the solution, implement auth, base entities, CI/CD, Railway deploy, and initial data migration.
+**Duration:** 3–4 days | **Agents:** Backend Agent, DevOps Agent, Frontend Agent | **Points:** 34
 
-**Tables to design:**
+| Ticket | Title | Points | Status |
+|--------|-------|--------|--------|
+| ION-005 | [BACKEND] .NET Core 8 Clean Architecture solution scaffold | 5 | ✅ Done |
+| ION-006 | [BACKEND] JWT Authentication (login, logout, refresh, /me) | 8 | ✅ Done |
+| ION-007 | [BACKEND] Customers CRUD base (+ EF Core Neon migrations) | 5 | ✅ Done |
+| ION-008 | [BACKEND] ContactHistories base endpoints | 3 | ✅ Done |
+| ION-009 | [BACKEND] CustomerTasks base endpoints | 3 | ✅ Done |
+| ION-010 | [BACKEND] Sync endpoints stub (SaaS A, SaaS B inbound) | 3 | ✅ Done |
+| ION-011 | [FRONTEND] React 18 app scaffold (shadcn/ui, Tailwind, dark mode, sidebar, login) | 5 | ✅ Done |
+| ION-012 | [DEVOPS] Railway deploy (dev + prod), GitHub Actions CI/CD | 5 | ✅ Done |
+| ION-013 | [BACKEND] One-time data migration: 639 customers + 892 contact histories from .bak | 5 | ✅ Done |
 
-```
-Projects          — Id, Name, SaasCode (A|B), WebhookUrl, SyncEnabled, ...
-Users             — Id, Email, PasswordHash, FullName, IsActive, IsSuperAdmin, ...
-UserProjectRoles  — UserId, ProjectId, Role (enum), ...
-Customers         — Id, ProjectId, ExternalId (from SaaS), FullName, Email, Phone,
-                    Company, Status (enum), Source (enum), ...
-ContactHistory    — Id, ProjectId, CustomerId, UserId, Type (Call|Email|Meeting|Note),
-                    Subject, Body, OccurredAt, ...
-Notes             — Id, ProjectId, CustomerId, UserId, Content, ...
-Tasks             — Id, ProjectId, CustomerId, AssignedUserId, Title, DueDate,
-                    IsCompleted, Priority (enum), ...
-Opportunities     — Id, ProjectId, CustomerId, OwnerId, Title, Value (decimal),
-                    Stage (enum), ExpectedCloseDate, ...
-SyncLogs          — Id, ProjectId, SaasSource (A|B), Direction (Inbound|Outbound),
-                    Status (Success|Failed|Retrying), Payload (jsonb),
-                    AttemptCount, NextRetryAt, Error, ...
-RefreshTokens     — Id, UserId, Token, ExpiresAt, IsRevoked, ...
-AuditLogs         — Id, ProjectId, UserId, Action, EntityType, EntityId,
-                    OldValues (jsonb), NewValues (jsonb), ...
-```
-
-**Output:** `/output/db-schema.md` with full ERD description and column specs
-**Output:** EF Core entity class stubs in `/output/entity-stubs/`
-
-**Acceptance Criteria:**
-- [ ] All entities have base fields (Id, CreatedAt, UpdatedAt, IsDeleted)
-- [ ] Foreign key relationships defined
-- [ ] Indexes identified (ProjectId on every tenant table, Email unique on Users)
-- [ ] Enum values listed for all enum columns
-- [ ] Schema reviewed against legacy mapping for completeness
+**Live environments:**
+- Dev API: https://ion-crm-api-development.up.railway.app
+- Dev Frontend: https://ion-crm-frontend-development.up.railway.app
+- Prod API: https://ion-crm-api-production.up.railway.app
+- Prod Frontend: https://ion-crm-frontend-production.up.railway.app
 
 ---
 
-### 🎫 ION-003
-**Title:** [ARCHITECT] Define API contracts and OpenAPI spec
-**Sprint:** Sprint 0
-**Story Points:** 5
-**Labels:** backend, api, architecture
-**Description:**
-Define all REST endpoints the system will expose. Format: OpenAPI 3.0 YAML or detailed markdown.
-
-**Endpoint groups:**
-```
-Auth:
-  POST   /api/v1/auth/login
-  POST   /api/v1/auth/refresh
-  POST   /api/v1/auth/logout
-  POST   /api/v1/auth/register (SuperAdmin only)
-
-SuperAdmin:
-  GET    /api/v1/admin/projects
-  POST   /api/v1/admin/projects
-  GET    /api/v1/admin/users
-  PUT    /api/v1/admin/users/{id}/roles
-
-Customers:
-  GET    /api/v1/customers            (paginated, filtered, tenant-scoped)
-  POST   /api/v1/customers
-  GET    /api/v1/customers/{id}
-  PUT    /api/v1/customers/{id}
-  DELETE /api/v1/customers/{id}       (soft delete)
-  GET    /api/v1/customers/{id}/history
-  GET    /api/v1/customers/{id}/tasks
-  GET    /api/v1/customers/{id}/opportunities
-
-ContactHistory:
-  POST   /api/v1/customers/{id}/history
-  PUT    /api/v1/history/{id}
-  DELETE /api/v1/history/{id}
-
-Tasks:
-  GET    /api/v1/tasks                (my tasks, overdue, etc.)
-  POST   /api/v1/tasks
-  PUT    /api/v1/tasks/{id}
-  PATCH  /api/v1/tasks/{id}/complete
-
-Opportunities:
-  GET    /api/v1/opportunities        (pipeline view, paginated)
-  POST   /api/v1/opportunities
-  PUT    /api/v1/opportunities/{id}
-  PATCH  /api/v1/opportunities/{id}/stage
-
-Sync:
-  POST   /api/v1/sync/saas-a         (SaaS A pushes data here)
-  POST   /api/v1/sync/saas-b         (SaaS B pushes data here)
-  GET    /api/v1/sync/logs            (admin view)
-
-Dashboard:
-  GET    /api/v1/dashboard/summary    (KPIs per project)
-```
-
-**Standard response wrapper:**
-```json
-{
-  "success": true,
-  "data": {},
-  "errors": [],
-  "pagination": { "page": 1, "pageSize": 20, "total": 150 }
-}
-```
-
-**Output:** `/output/api-contracts.md`
-
-**Acceptance Criteria:**
-- [ ] All endpoints listed with HTTP method, path, auth requirement, roles allowed
-- [ ] Request/response body schemas defined for each endpoint
-- [ ] Error codes and messages standardized (401, 403, 404, 422, 500)
-- [ ] Sync payload formats for SaaS A and SaaS B defined
-
----
-
-### 🎫 ION-004
-**Title:** [ARCHITECT] Define solution folder structure and project scaffold plan
-**Sprint:** Sprint 0
-**Story Points:** 3
-**Labels:** backend, devops, architecture
-**Description:**
-Document the exact folder/project structure before any code is written.
-
-```
-IonCrm/
-├── src/
-│   ├── IonCrm.Domain/
-│   │   ├── Entities/
-│   │   ├── Enums/
-│   │   ├── Interfaces/
-│   │   └── ValueObjects/
-│   ├── IonCrm.Application/
-│   │   ├── Common/         (ApiResponse, Result, PaginatedList)
-│   │   ├── Auth/           (Commands, Queries, DTOs)
-│   │   ├── Customers/
-│   │   ├── Opportunities/
-│   │   ├── Tasks/
-│   │   ├── Sync/
-│   │   └── Dashboard/
-│   ├── IonCrm.Infrastructure/
-│   │   ├── Persistence/    (AppDbContext, Migrations, Repositories)
-│   │   ├── Services/       (SyncBackgroundService, EmailService)
-│   │   ├── ExternalApis/   (SaasAClient, SaasBClient)
-│   │   └── Migration/      (LegacyMigrationService)
-│   └── IonCrm.API/
-│       ├── Controllers/
-│       ├── Middleware/     (ExceptionMiddleware, TenantMiddleware)
-│       └── Extensions/
-├── tests/
-│   ├── IonCrm.Tests.Unit/
-│   └── IonCrm.Tests.Integration/
-├── frontend/
-│   ├── src/
-│   │   ├── components/     (shadcn/ui wrappers)
-│   │   ├── pages/
-│   │   ├── stores/         (Zustand)
-│   │   ├── hooks/          (React Query hooks)
-│   │   ├── api/            (axios instances)
-│   │   └── lib/
-│   └── public/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml
-│       └── deploy.yml
-├── docker-compose.yml      (local dev: postgres + mssql)
-├── .env.example
-└── README.md
-```
-
-**Output:** `/output/project-structure.md`
-
-**Acceptance Criteria:**
-- [ ] Every project layer mapped to Clean Architecture purpose
-- [ ] DI registration strategy described
-- [ ] Local dev environment documented (Docker Compose with Postgres + MSSQL for .bak analysis)
-- [ ] Environment variables listed (.env.example template)
-
----
-
-# SPRINT 1 — Foundation
-
-**Goal:** Working solution scaffold with authentication, multi-tenant middleware, base entity framework, and CI/CD pipeline.
-
-**Duration:** 3–4 days
-**Agents:** Backend Agent, DevOps Agent
-**Story Points Total:** 34
-
----
-
-### 🎫 ION-010
-**Title:** [BACKEND] Scaffold .NET solution with Clean Architecture projects
-**Sprint:** Sprint 1
-**Story Points:** 3
-**Labels:** backend
-**Description:**
-- Create solution with 5 projects: Domain, Application, Infrastructure, API, Tests
-- Wire project references (API → Infrastructure → Application → Domain)
-- Install base NuGet packages:
-  - MediatR, FluentValidation, AutoMapper (Application)
-  - EF Core, Npgsql, Hangfire (Infrastructure)
-  - Swashbuckle, Serilog (API)
-- Configure `appsettings.json` with environment variable references only (no hardcoded values)
-- Create `.env.example` with all required environment variables
-
-**Acceptance Criteria:**
-- [ ] `dotnet build` succeeds with 0 errors
-- [ ] All project references correctly set
-- [ ] No secrets hardcoded anywhere
-
----
-
-### 🎫 ION-011
-**Title:** [BACKEND] Implement base entities, Result<T> pattern, and ApiResponse wrapper
-**Sprint:** Sprint 1
-**Story Points:** 3
-**Labels:** backend
-**Description:**
-In `IonCrm.Domain`:
-- Create `BaseEntity` with: `Id (Guid)`, `CreatedAt`, `UpdatedAt`, `IsDeleted`
-- Create `Result<T>` type with success/failure states and error messages
-
-In `IonCrm.Application`:
-- Create `ApiResponse<T>` wrapper: `{ success, data, errors[], pagination? }`
-- Create `PaginatedList<T>` with page/pageSize/total
-- Create `PaginationQuery` base class
-
-**Acceptance Criteria:**
-- [ ] All domain entities inherit BaseEntity
-- [ ] Result<T> used for all business logic returns (no exceptions for business errors)
-- [ ] ApiResponse<T> returned from all controllers
-
----
-
-### 🎫 ION-012
-**Title:** [BACKEND] EF Core setup, AppDbContext, and initial migration
-**Sprint:** Sprint 1
-**Story Points:** 5
-**Labels:** backend, database
-**Description:**
-- Implement `AppDbContext` in Infrastructure layer
-- Configure all entities from Sprint 0 schema design
-- Global query filter on every entity: `IsDeleted == false && ProjectId == currentProjectId` (SuperAdmin bypasses)
-- Seed initial SuperAdmin user (credentials from ENV)
-- Create and run initial migration: `dotnet ef migrations add InitialCreate`
-- Test with local Postgres via Docker Compose
-
-**Acceptance Criteria:**
-- [ ] `dotnet ef database update` runs without errors
-- [ ] Tenant filter active on all project-scoped queries
-- [ ] SuperAdmin bypass works correctly
-- [ ] Seed data creates SuperAdmin user
-
----
-
-### 🎫 ION-013
-**Title:** [BACKEND] JWT Authentication — login, refresh, logout
-**Sprint:** Sprint 1
-**Story Points:** 8
-**Labels:** backend, auth
-**Description:**
-Implement full JWT auth flow:
-
-**LoginCommand:**
-- Accept email + password
-- Validate with FluentValidation
-- bcrypt verify (cost 12)
-- Return: `{ accessToken (15min), refreshToken (7days), user: { id, email, fullName, projects[], roles{} } }`
-- JWT payload: `userId`, `projectIds[]`, `roles{ [projectId]: role }`
-
-**RefreshCommand:**
-- Accept refreshToken
-- Validate not revoked, not expired
-- Rotate: issue new access + refresh token, revoke old refresh token
-
-**LogoutCommand:**
-- Revoke refresh token
-
-**Middleware:**
-- `TenantMiddleware` — extracts projectId from route/header, validates user has access
-- Rate limiting on `/auth/login` (5 req/min per IP)
-
-**Acceptance Criteria:**
-- [ ] Login returns correct JWT with project/role claims
-- [ ] Refresh token rotation works
-- [ ] Expired/revoked tokens rejected with 401
-- [ ] Rate limiting blocks brute force
-- [ ] Passwords never logged
+# 🔄 SPRINT 2 — Customer Core Enhancement
+**Status:** ACTIVE
+**Goal:** Fix critical data-display bugs, add Label/Status classification system, build Pipeline (call scheduling), merge Potansiyel→Müşteri workflow, and add Dashboard analytics.
+**Duration:** 3–4 days | **Agents:** Backend Agent, Frontend Agent | **Points:** 42
 
 ---
 
 ### 🎫 ION-014
-**Title:** [BACKEND] Role-based authorization middleware and policies
-**Sprint:** Sprint 1
-**Story Points:** 5
-**Labels:** backend, auth
+**Title:** [BACKEND] Fix: Customer list API not returning records
+**Sprint:** Sprint 2
+**Story Points:** 2
+**Labels:** backend, bug
 **Description:**
-Implement authorization policies:
-- `SuperAdminOnly` — IsSuperAdmin claim
-- `ProjectAdmin` — role in current project context
-- `SalesManager` — SalesManager or above in project
-- `SalesRep` — any role in project
-- `Accounting` — Accounting role in project
-
-Create `[RequireProjectRole(Role.SalesRep)]` attribute for controller decoration.
-
-Implement `ICurrentUserService` — exposes:
-- `UserId`, `IsSuperAdmin`, `CurrentProjectId`, `HasRoleInProject(projectId, role)`
+Customers screen shows 0 records despite 639 customers in Neon DB. Diagnose the root cause:
+- Check `GET /api/v1/customers` query — likely a missing `ProjectId` filter returning 0 for null tenant context.
+- Verify JWT claims include ProjectId and are correctly parsed in middleware.
+- Confirm EF Core query does not accidentally filter IsDeleted=false on null records.
+- Return paginated 639 customers after fix.
 
 **Acceptance Criteria:**
-- [ ] SuperAdmin can access all project endpoints
-- [ ] SalesRep cannot access other project's data (403)
-- [ ] Accounting cannot access sales endpoints (403)
-- [ ] ICurrentUserService injected and working in all layers
+- [ ] `GET /api/v1/customers` returns paginated results (default page 1, size 20)
+- [ ] All 639 existing records visible to authenticated ProjectAdmin
+- [ ] SuperAdmin can see records across all projects
 
 ---
 
 ### 🎫 ION-015
-**Title:** [BACKEND] Global exception middleware and Serilog structured logging
-**Sprint:** Sprint 1
-**Story Points:** 3
-**Labels:** backend
+**Title:** [FRONTEND] Fix: Customer add form renders blank
+**Sprint:** Sprint 2
+**Story Points:** 2
+**Labels:** frontend, bug
 **Description:**
-- Global exception handler middleware — catches all unhandled exceptions, returns `ApiResponse` with appropriate status codes
-- Never expose stack traces in production
-- Serilog configuration: structured JSON logging, console sink (dev), file sink (prod)
-- Correlation ID middleware — adds `X-Correlation-Id` header to every request
-- Never log: passwords, tokens, connection strings, PII
+The "Müşteri Ekle" page renders empty (no form fields). Diagnose and fix:
+- Check React component for missing form state initialization.
+- Verify React Query mutation for `POST /api/v1/customers` is wired to submit handler.
+- Ensure all required fields (FullName, Phone, Email, Company) are present.
+- Add form validation with error messages.
 
 **Acceptance Criteria:**
-- [ ] 500 errors return `{ success: false, errors: ["Internal server error"] }` in prod
-- [ ] Correlation ID present on all log entries
-- [ ] Sensitive data not logged
+- [ ] Form displays all required fields on load
+- [ ] Submitting a valid customer navigates back to list
+- [ ] Validation errors shown inline
 
 ---
 
 ### 🎫 ION-016
-**Title:** [DEVOPS] GitHub Actions CI pipeline + Docker Compose local dev
-**Sprint:** Sprint 1
+**Title:** [FRONTEND] Add customer detail, edit, and delete pages
+**Sprint:** Sprint 2
 **Story Points:** 5
-**Labels:** devops
+**Labels:** frontend
 **Description:**
-**CI Pipeline (`.github/workflows/ci.yml`):**
-- Trigger: push to any branch, PR to main
-- Steps: checkout → setup .NET 8 → restore → build → test → lint frontend
-- Block merge if tests fail
+Three missing customer screens:
+1. **Detail page** (`/customers/:id`) — name, contact info, label, status, contact history list, tasks list.
+2. **Edit page** (`/customers/:id/edit`) — pre-filled form, `PUT /api/v1/customers/:id`.
+3. **Delete** — confirmation dialog with `DELETE /api/v1/customers/:id` (soft delete).
 
-**Docker Compose (`docker-compose.yml`):**
-- `postgres` service (latest, port 5432)
-- `mssql` service (for .bak analysis in Sprint 0 — keep for dev)
-- `api` service (build from Dockerfile)
-- `frontend` service
-
-**Dockerfile** for API (multi-stage: build → runtime)
-
-**Railway deploy config** (`railway.toml`):
-- Environment variables from Railway dashboard
-- Health check endpoint `/health`
-- Implement `/health` endpoint in API
+Use shadcn/ui Card, Dialog, and Form components. Mobile-first layout.
 
 **Acceptance Criteria:**
-- [ ] CI runs on every PR
-- [ ] `docker-compose up` starts all services locally
-- [ ] `/health` returns 200 with DB connectivity status
-- [ ] No secrets in git
+- [ ] Detail page shows all customer fields and related contact history
+- [ ] Edit form pre-populates existing values
+- [ ] Delete shows confirmation dialog; customer removed from list after confirmation
+- [ ] Back navigation works correctly
 
 ---
 
 ### 🎫 ION-017
-**Title:** [BACKEND] SuperAdmin project & user management endpoints
-**Sprint:** Sprint 1
-**Story Points:** 5
+**Title:** [BACKEND] Customer Label system (YuksekPotansiyel/Potansiyel/Notr/Vasat/Kotu)
+**Sprint:** Sprint 2
+**Story Points:** 3
 **Labels:** backend
 **Description:**
-SuperAdmin-only endpoints:
-- `GET /api/v1/admin/projects` — list all projects
-- `POST /api/v1/admin/projects` — create project (name, saasCode, webhookUrl)
-- `GET /api/v1/admin/users` — list all users (paginated)
-- `POST /api/v1/admin/users` — create user
-- `PUT /api/v1/admin/users/{id}/roles` — assign user to project with role
-- `DELETE /api/v1/admin/users/{id}/roles/{projectId}` — remove from project
-
-All guarded with `[RequireSuperAdmin]`.
+Add classification labels to customers:
+```sql
+ALTER TABLE "Customers" ADD "Label" integer NOT NULL DEFAULT 2;
+-- 0=YuksekPotansiyel, 1=Potansiyel, 2=Notr, 3=Vasat, 4=Kotu
+```
+- Add `CustomerLabel` enum to Domain layer.
+- Add `Label` property to `Customer` entity.
+- Create and run EF Core migration.
+- Update `CreateCustomerCommand`, `UpdateCustomerCommand`, `CustomerDto`.
+- Support `?label=` filter on `GET /api/v1/customers`.
 
 **Acceptance Criteria:**
-- [ ] Non-SuperAdmin gets 403
-- [ ] User can be assigned to multiple projects with different roles
-- [ ] JWT reflects updated roles on next login
+- [ ] Migration runs cleanly on dev Neon DB
+- [ ] Label field persisted on create/update
+- [ ] GET customers supports `?label=0` filter
 
 ---
 
-# SPRINT 2 — Customer Core
+### 🎫 ION-018
+**Title:** [BACKEND] Customer Status system (Musteri/Potansiyel/Demo)
+**Sprint:** Sprint 2
+**Story Points:** 3
+**Labels:** backend
+**Description:**
+```sql
+ALTER TABLE "Customers" ADD "Status" integer NOT NULL DEFAULT 1;
+-- 0=Musteri, 1=Potansiyel, 2=Demo
+```
+- Add `CustomerStatus` enum to Domain.
+- EF Core migration.
+- Update DTOs and commands.
+- Support `?status=` filter on `GET /api/v1/customers`.
 
-**Goal:** Full customer lifecycle management — CRUD, contact history, notes, tasks — all multi-tenant with proper role enforcement.
+**Acceptance Criteria:**
+- [ ] Status field persisted
+- [ ] GET customers supports `?status=0` filter
+- [ ] Existing 639 customers default to Status=Potansiyel (1)
 
-**Duration:** 3–4 days
-**Agent:** Backend Agent
-**Story Points Total:** 29
+---
+
+### 🎫 ION-019
+**Title:** [FRONTEND] Label and Status badges + filters on customer list
+**Sprint:** Sprint 2
+**Story Points:** 3
+**Labels:** frontend
+**Description:**
+Enhance customer list page:
+- Show colored badge for Label (e.g., YuksekPotansiyel = green, Kotu = red)
+- Show status badge (Musteri = blue, Potansiyel = yellow, Demo = purple)
+- Add filter bar: Label dropdown + Status dropdown (chips style)
+- Selecting filter calls `GET /api/v1/customers?label=X&status=Y`
+- Filters persist in URL query string
+
+**Acceptance Criteria:**
+- [ ] All 5 labels render with distinct colors
+- [ ] All 3 statuses render with distinct colors
+- [ ] Filter chips update list in real time
 
 ---
 
 ### 🎫 ION-020
-**Title:** [BACKEND] Customer CRUD with multi-tenant filtering
+**Title:** [BACKEND] Potansiyel → Müşteri merge endpoint
 **Sprint:** Sprint 2
-**Story Points:** 8
+**Story Points:** 5
 **Labels:** backend
 **Description:**
-Full CQRS for customers:
+`POST /api/v1/customers/{sourceId}/merge`
+Body: `{ "targetCustomerId": "uuid" }`
 
-**Commands:** `CreateCustomerCommand`, `UpdateCustomerCommand`, `DeleteCustomerCommand` (soft)
-**Queries:** `GetCustomersQuery` (paginated + filter by status/source/search), `GetCustomerByIdQuery`
+Business rules (must be atomic transaction):
+1. Verify `source` customer has `Status = Potansiyel`
+2. Transfer all `ContactHistories` from source → target (`CustomerId` updated)
+3. Transfer all `Tasks` from source → target
+4. Soft-delete the source customer (`IsDeleted = true`)
+5. Return updated target customer DTO
 
-**Customer fields:** FullName, Email, Phone, Company, Status (Lead/Active/Churned/Prospect), Source (SaasA/SaasB/Manual), ExternalId (for sync mapping), ProjectId, AssignedUserId
-
-**Rules:**
-- SalesRep only sees customers assigned to them (`AssignedUserId == currentUserId`)
-- SalesManager/ProjectAdmin sees all project customers
-- SuperAdmin sees all
-- `ExternalId` + `ProjectId` must be unique (for sync upsert)
-- All commands validated with FluentValidation
-
-**Endpoints:**
-- `GET /api/v1/customers?page=1&pageSize=20&status=Active&search=john`
-- `POST /api/v1/customers`
-- `GET /api/v1/customers/{id}`
-- `PUT /api/v1/customers/{id}`
-- `DELETE /api/v1/customers/{id}`
+Roles: ProjectAdmin, SalesManager
 
 **Acceptance Criteria:**
-- [ ] SalesRep cannot see other reps' customers
-- [ ] Soft delete sets IsDeleted=true, filters it from all queries
-- [ ] Pagination correct (total count accurate with filters)
-- [ ] ExternalId uniqueness enforced per project
+- [ ] Transaction rolls back fully on any error
+- [ ] Source customer soft-deleted after merge
+- [ ] All contact histories appear on target customer
+- [ ] Returns 409 if source is not Potansiyel status
 
 ---
 
 ### 🎫 ION-021
-**Title:** [BACKEND] Contact history CRUD
+**Title:** [FRONTEND] "Müşteriye Bağla" merge UI
 **Sprint:** Sprint 2
-**Story Points:** 5
-**Labels:** backend
+**Story Points:** 3
+**Labels:** frontend
 **Description:**
-Track every interaction with a customer.
-
-**ContactHistory entity:** CustomerId, UserId, Type (Call/Email/Meeting/Note/SMS), Subject, Body, OccurredAt, DurationMinutes (nullable)
-
-**Commands:** `AddContactHistoryCommand`, `UpdateContactHistoryCommand`, `DeleteContactHistoryCommand`
-**Queries:** `GetCustomerHistoryQuery` (paginated, filter by type/date range)
-
-**Endpoints:**
-- `GET /api/v1/customers/{customerId}/history`
-- `POST /api/v1/customers/{customerId}/history`
-- `PUT /api/v1/history/{id}`
-- `DELETE /api/v1/history/{id}`
-
-**Rules:**
-- SalesRep can only edit/delete their own history entries
-- SalesManager can edit/delete any
+On the customer detail page, when `Status = Potansiyel`:
+- Show "Müşteriye Bağla" button
+- Clicking opens a searchable modal listing active Musteri-status customers
+- User selects target → confirmation dialog: "639 görüşme [source] → [target] aktarılacak. Emin misiniz?"
+- On confirm: call `POST /customers/{id}/merge`, refresh page, redirect to target customer
 
 **Acceptance Criteria:**
-- [ ] History entries tied to correct customer and user
-- [ ] Date range filtering works
-- [ ] SalesRep cannot delete other reps' history entries (403)
+- [ ] Button only visible for Potansiyel-status customers
+- [ ] Modal is searchable
+- [ ] Confirmation dialog shows source/target names
+- [ ] Success redirects to target customer detail
 
 ---
 
 ### 🎫 ION-022
-**Title:** [BACKEND] Notes module
+**Title:** [BACKEND] Contact History result field + all-histories endpoint
 **Sprint:** Sprint 2
 **Story Points:** 3
 **Labels:** backend
 **Description:**
-Customer notes (rich text content stored as plain text/markdown):
-
-**Note entity:** CustomerId, UserId, Content, IsPinned
-
-**Commands:** `CreateNoteCommand`, `UpdateNoteCommand`, `DeleteNoteCommand`
-**Queries:** `GetCustomerNotesQuery` (pinned first, then by date)
-
-**Endpoints:**
-- `GET /api/v1/customers/{customerId}/notes`
-- `POST /api/v1/customers/{customerId}/notes`
-- `PUT /api/v1/notes/{id}`
-- `DELETE /api/v1/notes/{id}`
-- `PATCH /api/v1/notes/{id}/pin`
+```sql
+ALTER TABLE "ContactHistories" ADD "ContactResult" integer NULL;
+-- 0=Olumlu, 1=Olumsuz, 2=BaskaTedarikci
+```
+- Add `ContactResult` enum and field to entity + DTO
+- EF Core migration
+- `GET /api/v1/contact-histories` — paginated, with filters:
+  - `?from=` `?to=` (date range)
+  - `?type=` (Call, Email, Meeting, Note)
+  - `?result=` (Olumlu, Olumsuz, BaskaTedarikci)
+- `PUT /api/v1/contact-histories/{id}` — allow result update
 
 **Acceptance Criteria:**
-- [ ] Pinned notes appear first
-- [ ] SalesRep can only edit own notes
+- [ ] Migration applied
+- [ ] GET /contact-histories returns all contacts across project, paginated
+- [ ] All three filters work independently and combined
 
 ---
 
 ### 🎫 ION-023
-**Title:** [BACKEND] Tasks module
+**Title:** [FRONTEND] All Contact Histories page
 **Sprint:** Sprint 2
-**Story Points:** 5
-**Labels:** backend
+**Story Points:** 3
+**Labels:** frontend
 **Description:**
-Customer-linked tasks (to-dos, follow-ups, callbacks):
-
-**Task entity:** CustomerId, AssignedUserId, CreatedByUserId, Title, Description, DueDate, IsCompleted, CompletedAt, Priority (Low/Medium/High/Urgent)
-
-**Commands:** `CreateTaskCommand`, `UpdateTaskCommand`, `CompleteTaskCommand`, `DeleteTaskCommand`
-**Queries:** `GetMyTasksQuery` (for current user), `GetCustomerTasksQuery`, `GetOverdueTasksQuery`
-
-**Endpoints:**
-- `GET /api/v1/tasks` (my tasks, with filters: overdue, today, upcoming, completed)
-- `POST /api/v1/tasks`
-- `PUT /api/v1/tasks/{id}`
-- `PATCH /api/v1/tasks/{id}/complete`
-- `DELETE /api/v1/tasks/{id}`
-- `GET /api/v1/customers/{customerId}/tasks`
+New route `/contact-histories`:
+- Table: Müşteri Adı, Tarih, Tip (icon), Sonuç badge, Notlar (truncated)
+- Filter panel (collapsible on mobile): date-range picker, type chips, result chips
+- Row click → navigate to customer detail
+- Pagination controls
 
 **Acceptance Criteria:**
-- [ ] SalesRep only sees tasks assigned to them
-- [ ] Overdue filter works based on DueDate vs current UTC time
-- [ ] CompleteTask sets CompletedAt timestamp
+- [ ] Route accessible from sidebar navigation
+- [ ] All three filter types functional
+- [ ] Mobile layout collapses filter panel
 
 ---
 
 ### 🎫 ION-024
-**Title:** [BACKEND] Customer 360° view aggregation endpoint
+**Title:** [BACKEND] Pipeline (Arama Planlaması) CRUD
 **Sprint:** Sprint 2
-**Story Points:** 3
+**Story Points:** 5
 **Labels:** backend
 **Description:**
-Single endpoint that returns everything about a customer for the detail view:
-
-`GET /api/v1/customers/{id}/360`
-
-Response:
-```json
-{
-  "customer": { ...full customer object },
-  "recentHistory": [ ...last 5 entries ],
-  "openTasks": [ ...incomplete tasks, sorted by dueDate ],
-  "pinnedNotes": [ ...pinned notes ],
-  "openOpportunities": [ ...active opportunities ],
-  "stats": {
-    "totalInteractions": 42,
-    "lastContactDate": "2026-03-01",
-    "totalOpportunityValue": 15000.00
-  }
-}
+New `Pipelines` table:
+```sql
+CREATE TABLE "Pipelines" (
+  "Id" uuid PRIMARY KEY,
+  "CustomerId" uuid NOT NULL REFERENCES "Customers"("Id"),
+  "ProjectId" uuid NOT NULL,
+  "PlannedDate" timestamptz NOT NULL,
+  "Notes" text,
+  "Status" integer NOT NULL DEFAULT 0,  -- 0=Bekliyor, 1=Tamamlandi, 2=Iptal
+  "CreatedAt" timestamptz NOT NULL,
+  "UpdatedAt" timestamptz NOT NULL,
+  "IsDeleted" boolean NOT NULL DEFAULT false
+);
 ```
+Endpoints:
+- `GET /api/v1/pipelines` — `?from=&to=&status=` filters; defaults to next 7 days
+- `POST /api/v1/pipelines`
+- `PUT /api/v1/pipelines/{id}`
+- `DELETE /api/v1/pipelines/{id}` (soft delete)
+- `POST /api/v1/pipelines/{id}/contact` — create ContactHistory from pipeline entry, sets pipeline Status=Tamamlandi
 
 **Acceptance Criteria:**
-- [ ] Single DB round-trip using EF Core Include/projection
-- [ ] Tenant filter applies to all sub-queries
-- [ ] Stats are accurate
+- [ ] EF Core migration runs
+- [ ] CRUD all working
+- [ ] /contact sub-action creates CH and marks pipeline complete atomically
+- [ ] Default date filter returns only next 7 days
 
 ---
 
 ### 🎫 ION-025
-**Title:** [BACKEND] Dashboard KPI summary endpoint
+**Title:** [FRONTEND] Pipeline page + "Pipeline Ekle" button
 **Sprint:** Sprint 2
-**Story Points:** 5
-**Labels:** backend
+**Story Points:** 4
+**Labels:** frontend
 **Description:**
-`GET /api/v1/dashboard/summary`
-
-Returns per-project KPIs:
-```json
-{
-  "totalCustomers": 150,
-  "newCustomersThisMonth": 12,
-  "activeLeads": 34,
-  "openTasks": 8,
-  "overdueTasksCount": 3,
-  "openOpportunitiesValue": 125000.00,
-  "wonThisMonth": 5,
-  "syncStatus": {
-    "lastSyncSaasA": "2026-03-23T10:00:00Z",
-    "lastSyncSaasB": "2026-03-23T10:05:00Z",
-    "failedSyncsLast24h": 0
-  }
-}
-```
-
-SalesRep version: scoped to their customers only.
-SalesManager/ProjectAdmin: full project view.
+1. **Customer detail page** — "Pipeline Ekle" button opens drawer/modal: date picker, notes field
+2. **`/pipeline` route** — list view grouped by date:
+   - Each row: Müşteri adı, Tarih, Notlar, Durum badge, action buttons
+   - "Görüşme Kaydı Gir" button per row → quick contact-log form
+   - Edit / Delete actions
+3. Status badges: Bekliyor (orange), Tamamlandı (green), İptal (gray)
 
 **Acceptance Criteria:**
-- [ ] Correct scoping per role
-- [ ] All counts accurate
-- [ ] syncStatus reflects real SyncLog data
+- [ ] Pipeline items grouped by date
+- [ ] "Görüşme Kaydı Gir" creates contact and marks pipeline done
+- [ ] Accessible from sidebar
 
 ---
 
-# SPRINT 3 — Sync Service
+### 🎫 ION-026
+**Title:** [FRONTEND] Dashboard — Pipeline widget + analytics charts
+**Sprint:** Sprint 2
+**Story Points:** 5
+**Labels:** frontend
+**Description:**
+Enhance the existing dashboard:
 
-**Goal:** Bidirectional sync engine — SaaS A & B → CRM (every 15 min pull + inbound push endpoint), and CRM → SaaS instant callbacks for subscription/status changes.
+**Pipeline Widget:**
+- Upcoming 7-day pipeline calls, sorted by date
+- "Görüşme Kaydı Gir" action inline
 
-**Duration:** 3–4 days
-**Agent:** Backend Agent
-**Story Points Total:** 34
+**Analytics Charts (use recharts or similar):**
+1. Total Customers count card
+2. Customers by Status (donut/pie)
+3. Customers by Label (bar chart)
+4. Contact history volume over last 30 days (line chart)
+
+All charts call `GET /api/v1/dashboard/stats`
+Pipeline widget calls `GET /api/v1/dashboard/pipeline`
+
+**Backend:**
+- `GET /api/v1/dashboard/stats` — counts by status, by label, contact history daily counts
+- `GET /api/v1/dashboard/pipeline` — next 7-day pipeline for current project
+
+**Acceptance Criteria:**
+- [ ] Dashboard shows 4 metrics
+- [ ] Pipeline widget lists upcoming calls
+- [ ] Charts render with real data
+- [ ] Mobile responsive (charts stack vertically)
+
+---
+
+# ⏳ SPRINT 3 — Sync Service
+**Status:** PLANNED
+**Goal:** Build a robust bidirectional sync engine: background pull from SaaS A & B every 15 minutes, and instant push callbacks from CRM to SaaS on subscription/status changes.
+**Duration:** 3–4 days | **Agents:** Backend Agent, DevOps Agent | **Points:** 39
+
+---
+
+### 🎫 ION-027
+**Title:** [BACKEND] SaaS A inbound sync handler (pull every 15 min)
+**Sprint:** Sprint 3
+**Story Points:** 8
+**Labels:** backend, sync
+**Description:**
+Implement a `IHostedService` background worker (`SyncBackgroundService`) that fires every 15 minutes:
+- Calls SaaS A REST API (or polls configured webhook endpoint) for new/updated customers
+- Payload schema to be confirmed from Sprint 0 API contracts
+- Upsert logic: if `ExternalId` exists → update; else → insert new Customer
+- Project scoped: only syncs customers for `Project.SaasCode = "A"`
+- Write result to `SyncLogs` (Success/Failed, record count, payload sample)
+- On failure: exponential backoff, max 3 retries, alert via log
+
+Environment variables:
+```
+SAAS_A_API_URL=
+SAAS_A_API_KEY=
+SAAS_A_SYNC_INTERVAL_MINUTES=15
+```
+
+**Acceptance Criteria:**
+- [ ] Background service starts on application startup
+- [ ] Runs exactly every 15 minutes (configurable)
+- [ ] New customers from SaaS A appear in CRM after sync
+- [ ] Updated customers (by ExternalId) are updated, not duplicated
+- [ ] SyncLog entry written for every run (success or failure)
+- [ ] Failed run triggers retry logic with backoff
+
+---
+
+### 🎫 ION-028
+**Title:** [BACKEND] SaaS B inbound sync handler (pull every 15 min)
+**Sprint:** Sprint 3
+**Story Points:** 5
+**Labels:** backend, sync
+**Description:**
+Same pattern as ION-027 but for SaaS B:
+- May have different payload schema than SaaS A
+- Separate `SyncSaasBHandler` implementing `ISyncHandler`
+- Both handlers registered in DI, scheduled by the same `SyncBackgroundService`
+- Project scoped to `Project.SaasCode = "B"`
+
+Environment variables:
+```
+SAAS_B_API_URL=
+SAAS_B_API_KEY=
+SAAS_B_SYNC_INTERVAL_MINUTES=15
+```
+
+**Acceptance Criteria:**
+- [ ] SaaS B sync runs independently of SaaS A
+- [ ] Different field mappings handled gracefully
+- [ ] SyncLog entries distinguish SaasSource A vs B
+
+---
+
+### 🎫 ION-029
+**Title:** [BACKEND] Instant CRM → SaaS callback service
+**Sprint:** Sprint 3
+**Story Points:** 8
+**Labels:** backend, sync
+**Description:**
+When CRM data changes (customer status, subscription), instantly push to SaaS:
+
+**Trigger events:**
+- Customer.Status changed → notify SaaS
+- Customer.Label changed → notify SaaS
+- New ContactHistory created → notify SaaS
+
+**Implementation:**
+- Domain event: `CustomerStatusChangedEvent`, `ContactHistoryCreatedEvent`
+- MediatR handler: `SaasCallbackHandler`
+- HTTP POST to `Project.WebhookUrl` with payload (see api-contracts.md for format)
+- Record attempt in `SyncLogs` (Direction=Outbound)
+- Retry up to 3 times on 5xx errors with 2s, 5s, 10s backoff
+- Do NOT block the original request — fire outbound callback on background thread
+
+**Acceptance Criteria:**
+- [ ] Status change triggers outbound HTTP POST within 200ms of request returning
+- [ ] SyncLog records outbound attempt with status
+- [ ] Failure does not affect the primary CRM operation
+- [ ] Retry logic logs each attempt
 
 ---
 
 ### 🎫 ION-030
-**Title:** [BACKEND] Inbound sync endpoint — SaaS A
+**Title:** [BACKEND] Sync admin endpoints (SuperAdmin only)
 **Sprint:** Sprint 3
-**Story Points:** 5
+**Story Points:** 3
 **Labels:** backend, sync
 **Description:**
-`POST /api/v1/sync/saas-a` — receives customer data from SaaS A.
+Admin endpoints for visibility and manual control:
+- `GET /api/v1/admin/sync/logs` — paginated sync logs, filterable by project, direction, status
+- `POST /api/v1/admin/sync/trigger/{projectId}` — manually trigger a sync run
+- `GET /api/v1/admin/sync/status` — current sync health (last run time, success rate, pending retries)
 
-**Payload (SaaS A format — to be confirmed from legacy .bak analysis):**
-```json
-{
-  "eventType": "customer.updated",
-  "timestamp": "2026-03-23T10:00:00Z",
-  "data": {
-    "externalId": "saas-a-001",
-    "fullName": "Ahmet Yılmaz",
-    "email": "ahmet@example.com",
-    "phone": "+90...",
-    "subscriptionStatus": "active",
-    "subscriptionExpiresAt": "2026-12-31T23:59:59Z"
-  }
-}
-```
-
-**Logic:**
-1. Validate HMAC signature header (`X-Saas-Signature`) — reject if invalid
-2. Find existing customer by `ExternalId + ProjectId` (upsert)
-3. Map fields to Customer entity
-4. Record SyncLog entry (Success/Failed)
-5. Return 200 immediately, process async
+All routes: `[Authorize(Roles = "SuperAdmin")]`
 
 **Acceptance Criteria:**
-- [ ] Invalid HMAC → 401
-- [ ] New customer created if ExternalId not found
-- [ ] Existing customer updated (not duplicated)
-- [ ] SyncLog entry created for every call
+- [ ] Non-SuperAdmin gets 403
+- [ ] Manual trigger fires sync immediately for given project
+- [ ] Sync logs show 30-day history
 
 ---
 
 ### 🎫 ION-031
-**Title:** [BACKEND] Inbound sync endpoint — SaaS B
+**Title:** [BACKEND] SyncLog entity + migration + repository
 **Sprint:** Sprint 3
-**Story Points:** 5
-**Labels:** backend, sync
+**Story Points:** 3
+**Labels:** backend, database
 **Description:**
-`POST /api/v1/sync/saas-b` — identical structure to ION-030 but SaaS B payload format may differ.
-
-**Additional SaaS B fields:** `companyName`, `sector`, `tier (gold/silver/bronze)`
-
-**Logic:** Same upsert logic as SaaS A, but with SaaS B field mapping.
-Separate HMAC secret per SaaS source (from ENV).
+Implement the `SyncLog` entity from the DB schema:
+```
+Id, ProjectId, SaasSource (A|B), Direction (Inbound|Outbound),
+Status (Success|Failed|Retrying), Payload (jsonb), RecordCount,
+AttemptCount, NextRetryAt, Error, CreatedAt
+```
+- EF Core migration
+- `ISyncLogRepository` interface + EF implementation
+- Indexes on: `ProjectId`, `CreatedAt DESC`, `Status`
 
 **Acceptance Criteria:**
-- [ ] SaaS B-specific fields mapped correctly
-- [ ] Does not interfere with SaaS A customer records (different ExternalId namespace)
-- [ ] SyncLog records source as "SaasB"
+- [ ] Migration runs without errors
+- [ ] Repository write/query tested
 
 ---
 
 ### 🎫 ION-032
-**Title:** [BACKEND] Hangfire background sync job — 15-minute pull
+**Title:** [FRONTEND] Sync status dashboard (SuperAdmin)
 **Sprint:** Sprint 3
-**Story Points:** 8
-**Labels:** backend, sync
+**Story Points:** 5
+**Labels:** frontend, sync
 **Description:**
-.NET BackgroundService + Hangfire recurring job that pulls from SaaS A & B every 15 minutes.
-
-**SyncBackgroundService:**
-- Registered as `IHostedService`
-- Hangfire recurring job: `"sync-saas-all"` → every 15 minutes
-- Calls `ISaasAClient.GetUpdatedCustomers(since: lastSuccessfulSync)`
-- Calls `ISaasBClient.GetUpdatedCustomers(since: lastSuccessfulSync)`
-- Uses cursor-based sync: reads `LastSyncAt` from SyncLog per project per source
-- Processes response through same upsert logic as inbound endpoints
-- Concurrency: max 1 sync job running per project at a time (Hangfire distributed lock)
-
-**ISaasAClient / ISaasBClient** (in Infrastructure/ExternalApis):
-- HTTP client with retry (Polly: 3 retries, exponential backoff)
-- Timeout: 30 seconds
-- API keys from ENV variables
+SuperAdmin-only section in the app:
+- `/admin/sync` route
+- Cards: Last sync time per project, success/failure counts (last 24h)
+- Sync log table: Project, Direction, Source, Status, RecordCount, Time
+- "Sync Şimdi" button per project → calls `POST /admin/sync/trigger/:id`
+- Auto-refresh every 60 seconds
 
 **Acceptance Criteria:**
-- [ ] Job runs every 15 minutes (verified in Hangfire dashboard)
-- [ ] Uses LastSyncAt cursor — does not re-import already synced records
-- [ ] Max 1 concurrent sync per project
-- [ ] Failed sync retried 3 times with exponential backoff
-- [ ] SyncLog records every attempt
+- [ ] Hidden from non-SuperAdmin users (route guard)
+- [ ] Manual trigger shows toast on success
+- [ ] Log table paginates
 
 ---
 
 ### 🎫 ION-033
-**Title:** [BACKEND] Outbound instant callback — CRM → SaaS
+**Title:** [DEVOPS] Environment secrets for sync service
 **Sprint:** Sprint 3
-**Story Points:** 8
-**Labels:** backend, sync
+**Story Points:** 2
+**Labels:** devops
 **Description:**
-When specific events occur in CRM, push changes instantly to SaaS.
-
-**Trigger events:**
-- Customer subscription status changed
-- Customer subscription extended
-- Customer marked as churned
-- Customer notes updated (if SaaS has callback URL)
-
-**Implementation:**
-- `IDomainEvent` on Customer entity (e.g., `CustomerStatusChangedEvent`)
-- MediatR `INotificationHandler` processes the event
-- `IOutboundSyncService.NotifySaas(projectId, payload)` called
-- Finds project's `WebhookUrl` and POST's callback
-- HMAC sign outbound request with shared secret
-
-**Retry logic:**
-- Failed callbacks queued in Hangfire
-- 3 retries with exponential backoff (1min, 5min, 15min)
-- After 3 failures: mark SyncLog as Failed, alert SuperAdmin
-
-**Payload to SaaS:**
-```json
-{
-  "event": "customer.status_changed",
-  "externalId": "saas-a-001",
-  "newStatus": "active",
-  "effectiveAt": "2026-03-23T10:00:00Z",
-  "source": "ion-crm"
-}
-```
+Add required env vars to Railway (dev + prod):
+- `SAAS_A_API_URL`, `SAAS_A_API_KEY`
+- `SAAS_B_API_URL`, `SAAS_B_API_KEY`
+- `SYNC_INTERVAL_MINUTES=15`
+- Document all new vars in `.env.example`
+- Update GitHub Actions workflow to pass secrets through
 
 **Acceptance Criteria:**
-- [ ] Status change triggers callback within 1 second
-- [ ] Callback signed with HMAC
-- [ ] Retry queue works
-- [ ] SyncLog records outbound events
+- [ ] Dev environment syncs to SaaS A and B
+- [ ] Secrets not committed to git
+- [ ] `.env.example` updated
 
 ---
 
 ### 🎫 ION-034
-**Title:** [BACKEND] Sync logs admin endpoint & retry mechanism
+**Title:** [BACKEND] Idempotent upsert and conflict resolution for sync
 **Sprint:** Sprint 3
 **Story Points:** 5
 **Labels:** backend, sync
 **Description:**
-- `GET /api/v1/sync/logs?source=SaasA&status=Failed&from=2026-03-01` — admin only
-- `POST /api/v1/sync/logs/{id}/retry` — manually retry a failed sync
-- Display in response: source, direction, status, attemptCount, error, payload (sanitized)
-
-**SyncLog retention:** soft-delete logs older than 90 days (nightly Hangfire job).
+Handle edge cases in sync logic:
+- If SaaS sends a customer that was manually deleted in CRM → re-create or skip? Policy: re-create (SaaS is source of truth for existence)
+- If same ExternalId appears in two SaaS A payloads simultaneously → use `ON CONFLICT (ExternalId, ProjectId) DO UPDATE` or EF upsert pattern
+- If SaaS B and SaaS A have overlapping ExternalIds → namespaced by `SaasSource` in key
+- Write integration test scenarios for each case
 
 **Acceptance Criteria:**
-- [ ] Only SuperAdmin or ProjectAdmin can view sync logs
-- [ ] Manual retry re-queues the job
-- [ ] Log retention job runs nightly
+- [ ] Duplicate sync run produces no duplicate records
+- [ ] Deleted-then-resynced customer is restored correctly
+- [ ] Cross-SaaS ExternalId collision does not corrupt data
+
+---
+
+# ⏳ SPRINT 4 — Sales Pipeline & Performance Tracking
+**Status:** PLANNED
+**Goal:** Build the full Opportunities / Sales Pipeline feature set, user performance reports, and notification system for sales teams.
+**Duration:** 3–4 days | **Agents:** Backend Agent, Frontend Agent | **Points:** 37
 
 ---
 
 ### 🎫 ION-035
-**Title:** [BACKEND] Hangfire dashboard and monitoring
-**Sprint:** Sprint 3
-**Story Points:** 3
-**Labels:** backend, devops
+**Title:** [BACKEND] Opportunities entity and CRUD
+**Sprint:** Sprint 4
+**Story Points:** 5
+**Labels:** backend
 **Description:**
-- Enable Hangfire dashboard at `/hangfire` (SuperAdmin access only)
-- Configure Hangfire to use PostgreSQL storage
-- Set up job success/failure metrics
-- Add Hangfire basic auth protection (ENV-sourced credentials)
+New `Opportunities` table:
+```
+Id (UUID), ProjectId, CustomerId, OwnerId (UserId),
+Title (varchar 200), Value (decimal 18,2), Stage (enum),
+ExpectedCloseDate (date), ActualCloseDate (date nullable),
+Notes (text), IsDeleted, CreatedAt, UpdatedAt
+```
+Stage enum: `Lead=0, Qualified=1, ProposalSent=2, Negotiation=3, Won=4, Lost=5`
+
+Endpoints:
+- `GET /api/v1/opportunities` — filters: stage, owner, date range
+- `POST /api/v1/opportunities`
+- `GET /api/v1/opportunities/{id}`
+- `PUT /api/v1/opportunities/{id}`
+- `DELETE /api/v1/opportunities/{id}`
+- `PUT /api/v1/opportunities/{id}/stage` — move stage, log stage change in AuditLog
 
 **Acceptance Criteria:**
-- [ ] Hangfire dashboard accessible to SuperAdmin only
-- [ ] All background jobs visible
-- [ ] Job history retained for 7 days
+- [ ] All CRUD endpoints working
+- [ ] Stage change writes AuditLog entry
+- [ ] Value and ExpectedCloseDate required on create
 
 ---
 
-# SPRINT 4 — Sales Pipeline
+### 🎫 ION-036
+**Title:** [FRONTEND] Opportunities Kanban board
+**Sprint:** Sprint 4
+**Story Points:** 8
+**Labels:** frontend
+**Description:**
+`/opportunities` route with Kanban view:
+- Columns: Lead, Qualified, Proposal Sent, Negotiation, Won, Lost
+- Cards: customer name, opportunity title, value (TRY formatted), expected close date
+- Drag-and-drop between stages (calls `PUT /opportunities/{id}/stage`)
+- Click card → opportunity detail drawer
+- "Yeni Fırsat" button → create form
+- Summary bar: total pipeline value, count per stage
 
-**Goal:** Full opportunities/pipeline management with stage tracking, funnel views, and performance reporting.
+**Acceptance Criteria:**
+- [ ] Drag-and-drop works on desktop and touch (mobile)
+- [ ] Stage move triggers API call and optimistic UI update
+- [ ] Total value updates after stage move
 
-**Duration:** 3 days
-**Agent:** Backend Agent
-**Story Points Total:** 21
+---
+
+### 🎫 ION-037
+**Title:** [BACKEND] Sales performance report endpoints
+**Sprint:** Sprint 4
+**Story Points:** 5
+**Labels:** backend
+**Description:**
+`GET /api/v1/reports/sales-performance`
+- Per user: contact count, opportunities created, won value, conversion rate
+- Filter: `?userId=&from=&to=&projectId=`
+- SuperAdmin sees all projects; ProjectAdmin sees their project
+
+`GET /api/v1/reports/pipeline-forecast`
+- Expected revenue by month (grouped by ExpectedCloseDate month)
+- Stage-weighted probability: Lead=10%, Qualified=30%, Proposal=50%, Negotiation=75%, Won=100%
+
+**Acceptance Criteria:**
+- [ ] Performance report returns per-user stats
+- [ ] Forecast groups by month correctly
+- [ ] Role-based access enforced
+
+---
+
+### 🎫 ION-038
+**Title:** [FRONTEND] Sales performance & forecast charts
+**Sprint:** Sprint 4
+**Story Points:** 5
+**Labels:** frontend
+**Description:**
+`/reports` route:
+1. **Sales Leaderboard** — table: Rep name, contacts made, opps created, won value
+2. **Pipeline Forecast** — bar chart by month showing expected revenue
+3. **Win Rate Trend** — line chart over last 6 months
+Date range picker to filter all charts
+
+**Acceptance Criteria:**
+- [ ] Leaderboard sortable by any column
+- [ ] Charts responsive on mobile
+- [ ] Date range filter applies to all charts simultaneously
+
+---
+
+### 🎫 ION-039
+**Title:** [BACKEND] In-app notification system
+**Sprint:** Sprint 4
+**Story Points:** 5
+**Labels:** backend
+**Description:**
+Lightweight notification system:
+```
+Notifications table:
+  Id, UserId, ProjectId, Type (enum), Message, EntityType, EntityId,
+  IsRead, CreatedAt
+```
+Type enum: `TaskDue=0, PipelineReminder=1, OpportunityStageChange=2, SyncFailure=3`
+
+Events that create notifications:
+- Task due date approaching (24h before)
+- Pipeline call scheduled for today
+- Opportunity moved to Won or Lost
+- Sync failure
+
+Endpoints:
+- `GET /api/v1/notifications` — unread first, paginated
+- `PUT /api/v1/notifications/{id}/read`
+- `PUT /api/v1/notifications/read-all`
+
+**Acceptance Criteria:**
+- [ ] Notifications created on all trigger events
+- [ ] Mark-read endpoints working
+- [ ] Only current user's notifications returned
 
 ---
 
 ### 🎫 ION-040
-**Title:** [BACKEND] Opportunities CRUD
+**Title:** [FRONTEND] Notification bell + dropdown
 **Sprint:** Sprint 4
-**Story Points:** 5
-**Labels:** backend
+**Story Points:** 3
+**Labels:** frontend
 **Description:**
-**Opportunity entity:** CustomerId, OwnerId (UserId), Title, Description, Value (decimal), Currency (default TRY), Stage (enum), ExpectedCloseDate, ActualCloseDate, WonLostReason, Probability (0-100)
-
-**Stage enum:** Lead → Qualified → Proposal → Negotiation → Won → Lost
-
-**Commands:** `CreateOpportunityCommand`, `UpdateOpportunityCommand`, `ChangeOpportunityStageCommand`, `DeleteOpportunityCommand`
-
-**Endpoints:**
-- `GET /api/v1/opportunities?stage=Proposal&ownerId=xxx`
-- `POST /api/v1/opportunities`
-- `GET /api/v1/opportunities/{id}`
-- `PUT /api/v1/opportunities/{id}`
-- `PATCH /api/v1/opportunities/{id}/stage`
-- `DELETE /api/v1/opportunities/{id}`
-
-**Rules:**
-- SalesRep: sees only their own opportunities
-- SalesManager: sees all project opportunities
-- Stage change recorded in history (AuditLog)
+Top navbar notification bell:
+- Badge with unread count (red dot)
+- Click → dropdown list of recent notifications
+- Each item: icon, message, time ago, link to related entity
+- "Tümünü okundu işaretle" button
+- Polls `GET /notifications` every 30 seconds
 
 **Acceptance Criteria:**
-- [ ] Stage transition validated (can't go from Lead directly to Won)
-- [ ] AuditLog entry created on stage change
-- [ ] Won/Lost records ActualCloseDate automatically
+- [ ] Badge count accurate (refreshes every 30s)
+- [ ] Clicking notification navigates to related entity
+- [ ] Mark-all-read clears badge
 
 ---
 
 ### 🎫 ION-041
-**Title:** [BACKEND] Pipeline board query (Kanban view data)
+**Title:** [BACKEND] Task due-date reminder background job
 **Sprint:** Sprint 4
-**Story Points:** 5
+**Story Points:** 3
 **Labels:** backend
 **Description:**
-`GET /api/v1/opportunities/pipeline` — returns all open opportunities grouped by stage.
-
-Response:
-```json
-{
-  "columns": [
-    {
-      "stage": "Lead",
-      "count": 12,
-      "totalValue": 45000.00,
-      "opportunities": [ ...top 20 per stage, sorted by value desc ]
-    },
-    ...
-  ],
-  "summary": {
-    "totalOpen": 45,
-    "totalValue": 380000.00,
-    "weightedValue": 142000.00
-  }
-}
-```
-
-Weighted value = sum of (Value × Probability / 100).
+Extend `SyncBackgroundService` (or create `ReminderBackgroundService`) to run hourly:
+- Query tasks due in next 24 hours that have not been notified yet
+- Create `Notification` records for assigned user
+- Query pipeline entries scheduled for today that have not been notified
+- Create `Notification` records for responsible sales rep
 
 **Acceptance Criteria:**
-- [ ] All stages represented (even empty ones)
-- [ ] Weighted value calculation correct
-- [ ] Tenant-scoped (SalesRep sees own only)
+- [ ] Tasks due tomorrow appear in notifications
+- [ ] Same task does not create duplicate notification on next run
+- [ ] Pipeline reminders fire on day-of
 
 ---
 
 ### 🎫 ION-042
-**Title:** [BACKEND] Performance & sales reporting endpoints
+**Title:** [FRONTEND] Customer notes full implementation
 **Sprint:** Sprint 4
-**Story Points:** 5
-**Labels:** backend
+**Story Points:** 3
+**Labels:** frontend
 **Description:**
-`GET /api/v1/reports/sales?from=2026-01-01&to=2026-03-31&groupBy=rep`
-
-Returns:
-```json
-{
-  "period": { "from": "...", "to": "..." },
-  "byRep": [
-    {
-      "userId": "xxx",
-      "userName": "Mehmet Kaya",
-      "wonCount": 8,
-      "wonValue": 45000.00,
-      "lostCount": 3,
-      "conversionRate": 72.7,
-      "avgDealSize": 5625.00,
-      "activePipelineValue": 22000.00
-    }
-  ],
-  "totals": { ... }
-}
-```
-
-SalesRep only sees own stats. SalesManager sees team.
+Customer detail page — Notes tab:
+- List all notes (newest first): author, timestamp, content
+- "Not Ekle" inline text area (no modal needed)
+- Submit on Ctrl+Enter or button click
+- Edit note (own notes only) — inline edit
+- Delete note (own notes only) — confirm dialog
+- Notes update without page refresh (React Query invalidation)
 
 **Acceptance Criteria:**
-- [ ] Date range filter works correctly
-- [ ] Conversion rate formula: won / (won + lost) × 100
-- [ ] Correct role scoping
+- [ ] Notes list/add/edit/delete all functional
+- [ ] Cannot edit/delete another user's note
+- [ ] Mobile: full-width note cards
+
+---
+
+# ⏳ SPRINT 5 — Frontend Polish & UX
+**Status:** PLANNED
+**Goal:** Complete all remaining frontend screens, ensure full mobile-first responsiveness, implement global search, refine UX, and prepare for production.
+**Duration:** 3–4 days | **Agent:** Frontend Agent | **Points:** 38
 
 ---
 
 ### 🎫 ION-043
-**Title:** [BACKEND] Audit log for all entity changes
-**Sprint:** Sprint 4
-**Story Points:** 6
-**Labels:** backend
+**Title:** [FRONTEND] Global search (Cmd+K)
+**Sprint:** Sprint 5
+**Story Points:** 5
+**Labels:** frontend
 **Description:**
-Implement automatic audit logging via EF Core `SaveChangesAsync` override in `AppDbContext`.
-
-For every Insert/Update/Delete on auditable entities (Customers, Opportunities, ContactHistory):
-- Capture: `UserId`, `Action (Created/Updated/Deleted)`, `EntityType`, `EntityId`, `OldValues (jsonb)`, `NewValues (jsonb)`, `Timestamp`
-- Store in `AuditLogs` table
-- Exclude sensitive fields from audit log values (passwords, tokens)
-
-`GET /api/v1/audit?entityType=Customer&entityId=xxx` — SuperAdmin/ProjectAdmin only
+Command-palette style global search:
+- Keyboard shortcut: Cmd+K (Mac) / Ctrl+K (Windows)
+- Search across: Customers (name, email, phone), Opportunities (title), Pipeline entries
+- `GET /api/v1/search?q=` endpoint (backend: Sprint 5 ION-044)
+- Results grouped by type with icons
+- Click result → navigate to entity
+- Recent searches stored in localStorage
 
 **Acceptance Criteria:**
-- [ ] All CRUD operations on auditable entities create audit entries
-- [ ] Old and new values stored correctly
-- [ ] Sensitive fields excluded
-- [ ] Query endpoint works with filters
+- [ ] Opens on Cmd+K
+- [ ] Results appear within 300ms (debounced 200ms)
+- [ ] Keyboard navigation (↑↓ Enter Esc)
+- [ ] Mobile: accessible via search icon in header
 
 ---
 
-# SPRINT 5 — Frontend
+### 🎫 ION-044
+**Title:** [BACKEND] Global search endpoint
+**Sprint:** Sprint 5
+**Story Points:** 3
+**Labels:** backend
+**Description:**
+`GET /api/v1/search?q={term}&limit=10`
+- PostgreSQL `ILIKE` across: Customer (FullName, Email, Phone, Company), Opportunity (Title)
+- Results: `{ type: "customer"|"opportunity"|"pipeline", id, display, subtitle }`
+- Project-scoped (SuperAdmin can add `?projectId=`)
+- Index on Customer(FullName), Customer(Email), Customer(Phone)
 
-**Goal:** Complete React frontend — all screens, dark mode, mobile-first, Turkish language, shadcn/ui components, connected to live API.
+**Acceptance Criteria:**
+- [ ] Returns mixed-type results
+- [ ] Response under 100ms for typical queries
+- [ ] Minimum 2 characters required
 
-**Duration:** 4–5 days
-**Agent:** Frontend Agent
-**Story Points Total:** 42
+---
+
+### 🎫 ION-045
+**Title:** [FRONTEND] User management pages (SuperAdmin)
+**Sprint:** Sprint 5
+**Story Points:** 5
+**Labels:** frontend
+**Description:**
+`/admin/users` — SuperAdmin only:
+- User list: name, email, projects, role, last login, active/inactive toggle
+- "Kullanıcı Ekle" form: name, email, temp password, assign project + role
+- Edit user: change role, assign/unassign projects, deactivate
+- "Şifre Sıfırla" — generate reset link
+
+`/admin/projects`:
+- Project list: name, SaasCode, sync status, user count
+- "Proje Ekle" form: name, SaasCode, WebhookUrl
+
+**Acceptance Criteria:**
+- [ ] All CRUD operations call correct backend endpoints
+- [ ] Role assignment updates immediately
+- [ ] Deactivated users cannot login
+
+---
+
+### 🎫 ION-046
+**Title:** [BACKEND] User management endpoints (SuperAdmin)
+**Sprint:** Sprint 5
+**Story Points:** 3
+**Labels:** backend
+**Description:**
+- `GET /api/v1/admin/users` — all users with roles
+- `POST /api/v1/admin/users` — create user, auto-assign to project with role
+- `PUT /api/v1/admin/users/{id}` — update user info, roles
+- `DELETE /api/v1/admin/users/{id}` — deactivate (soft)
+- `POST /api/v1/admin/users/{id}/reset-password` — generate reset token
+- `GET /api/v1/admin/projects` — all projects
+- `POST /api/v1/admin/projects` — create project
+- `PUT /api/v1/admin/projects/{id}` — update webhook URL, sync config
+
+**Acceptance Criteria:**
+- [ ] All SuperAdmin-only routes return 403 for non-superadmin
+- [ ] Create user sends welcome email (if SMTP configured)
+- [ ] Project creation validates SaasCode uniqueness
+
+---
+
+### 🎫 ION-047
+**Title:** [FRONTEND] User profile & settings page
+**Sprint:** Sprint 5
+**Story Points:** 3
+**Labels:** frontend
+**Description:**
+`/profile` route (all users):
+- Display name, email, role, assigned projects
+- "Şifre Değiştir" section: current + new + confirm
+- Theme toggle (dark/light) — persisted in localStorage
+- Language: Turkish only (but structure for future i18n)
+
+**Acceptance Criteria:**
+- [ ] Password change calls `PUT /api/v1/auth/change-password`
+- [ ] Theme toggle persists across sessions
+
+---
+
+### 🎫 ION-048
+**Title:** [FRONTEND] Mobile navigation overhaul
+**Sprint:** Sprint 5
+**Story Points:** 5
+**Labels:** frontend
+**Description:**
+Ensure full mobile-first UX:
+- Replace sidebar with bottom navigation bar on mobile (≤768px)
+- Bottom nav: Dashboard, Customers, Pipeline, Opportunities, More (...)
+- "More" opens sheet with: Reports, Contact Histories, Admin, Profile
+- All tables switch to card-list view on mobile
+- All forms use full-screen modal on mobile
+- Swipe-to-delete on customer/pipeline list items (mobile)
+
+**Acceptance Criteria:**
+- [ ] No horizontal scroll on any screen at 375px width
+- [ ] Bottom nav visible on all main routes (mobile)
+- [ ] All touch targets ≥ 44×44px
+
+---
+
+### 🎫 ION-049
+**Title:** [FRONTEND] Empty states, loading skeletons, error boundaries
+**Sprint:** Sprint 5
+**Story Points:** 3
+**Labels:** frontend
+**Description:**
+Polish pass on all screens:
+- **Empty states**: Customer list (no customers), Pipeline (no upcoming calls), Opportunities (no opps) — each with CTA button
+- **Loading skeletons**: All tables and dashboards show skeleton UI while loading
+- **Error boundaries**: Catch render errors per page, show "Bir hata oluştu" with retry button
+- **Toast notifications**: Consistent success/error toasts on all mutations
+
+**Acceptance Criteria:**
+- [ ] No blank screens during data load
+- [ ] Network error shows user-friendly message
+- [ ] All CRUD operations show success/error toast
 
 ---
 
 ### 🎫 ION-050
-**Title:** [FRONTEND] React project scaffold with Vite, shadcn/ui, Zustand, React Query
+**Title:** [FRONTEND] Advanced customer filters & export
 **Sprint:** Sprint 5
-**Story Points:** 3
+**Story Points:** 5
 **Labels:** frontend
 **Description:**
-- Vite + React 18 + TypeScript
-- shadcn/ui init with dark mode as default
-- Tailwind CSS configured
-- Zustand store setup (authStore, uiStore)
-- React Query v5 setup with axios interceptor (auto-attach JWT, handle 401 refresh)
-- i18n setup (i18next) — Turkish as default locale
-- React Router v6 with protected routes
-- ESLint + Prettier config
+Enhanced customer list:
+- Multi-select label filter (AND logic)
+- Multi-select status filter
+- Company name filter (text input)
+- "Son Görüşme" date range filter
+- Sort by: Created date, Last contact, Name
+- **CSV Export**: `GET /api/v1/customers/export?format=csv` with active filters
+- Persist filters in URL params (shareable links)
 
 **Acceptance Criteria:**
-- [ ] `npm run dev` starts with no errors
-- [ ] Dark mode is default, toggle works
-- [ ] Turkish locale loaded
-- [ ] Protected routes redirect to login if unauthenticated
+- [ ] Combined filters work correctly
+- [ ] CSV download includes all columns (Name, Email, Phone, Company, Label, Status, LastContact)
+- [ ] URL with filters can be shared and reloads correctly
 
 ---
 
 ### 🎫 ION-051
-**Title:** [FRONTEND] Authentication screens — Login, session management
+**Title:** [BACKEND] Customer CSV export endpoint
 **Sprint:** Sprint 5
-**Story Points:** 3
-**Labels:** frontend
+**Story Points:** 2
+**Labels:** backend
 **Description:**
-- Login page: email/password form, shadcn/ui Card, error handling
-- JWT stored in memory (access token) + httpOnly cookie (refresh token)
-- Auto-refresh access token 1 minute before expiry
-- Logout clears all tokens
-- Post-login redirect to last visited page
-- Loading spinner on auth state resolution
+`GET /api/v1/customers/export?format=csv&label=&status=&company=`
+- Streams CSV response (Content-Type: text/csv)
+- Applies same filters as customer list
+- Columns: Id, FullName, Email, Phone, Company, Label, Status, CreatedAt, LastContactDate
+- Respects tenant (ProjectId) scoping
 
 **Acceptance Criteria:**
-- [ ] Login works with real API
-- [ ] Token refresh transparent to user
-- [ ] Logout fully clears session
-- [ ] Invalid credentials show error message in Turkish
+- [ ] Returns valid CSV
+- [ ] All active filters applied
+- [ ] File named `customers-{date}.csv`
 
 ---
 
 ### 🎫 ION-052
-**Title:** [FRONTEND] App shell — sidebar, topbar, navigation
+**Title:** [FRONTEND] Accessibility & i18n prep
 **Sprint:** Sprint 5
-**Story Points:** 5
+**Story Points:** 4
 **Labels:** frontend
 **Description:**
-Responsive app shell:
-- **Sidebar** (desktop): logo, nav links (Dashboard, Müşteriler, Görevler, Fırsatlar, Senkron, Ayarlar), user avatar + project switcher at bottom
-- **Bottom tab bar** (mobile): Dashboard, Müşteriler, Görevler, Fırsatlar
-- **Topbar**: project name, search bar (global), notifications bell, dark/light toggle, user menu
-- **Project switcher**: dropdown showing user's projects, switches active project context
-- SuperAdmin sees extra "Yönetim Paneli" nav item
+- Add `aria-label` to all icon-only buttons
+- Ensure keyboard-navigable forms
+- Add `lang="tr"` to HTML root
+- Extract all Turkish string literals to `locales/tr.ts` constants file
+- Ensure color contrast meets WCAG AA in both dark and light modes
 
 **Acceptance Criteria:**
-- [ ] Sidebar collapses to icon-only on tablet
-- [ ] Bottom tab bar appears below 768px
-- [ ] Project switcher updates all data to selected project
-- [ ] Active nav item highlighted
+- [ ] No axe-core accessibility errors on main screens
+- [ ] All strings in locales file (ready for future language addition)
+
+---
+
+# ⏳ SPRINT 6 — Hardening, Testing & Production
+**Status:** PLANNED
+**Goal:** Validate the MSSQL migration completeness, write full test suite, perform security audit, and deliver production-ready deployment with monitoring.
+**Duration:** 3–4 days | **Agents:** Backend Agent, DevOps Agent, Testing Agent | **Points:** 40
 
 ---
 
 ### 🎫 ION-053
-**Title:** [FRONTEND] Dashboard screen
-**Sprint:** Sprint 5
+**Title:** [BACKEND] Validate & harden one-time data migration
+**Sprint:** Sprint 6
 **Story Points:** 5
-**Labels:** frontend
+**Labels:** backend, migration
 **Description:**
-`/dashboard` — KPI cards + recent activity:
-
-**KPI Cards (shadcn/ui Card):**
-- Toplam Müşteri, Bu Ay Yeni, Aktif Fırsatlar (with value), Bugün Görevler
-- Each card has icon, value, % change from last month
-
-**Charts (recharts or shadcn/ui charts):**
-- Funnel/bar chart: pipeline by stage
-- Line chart: new customers last 30 days
-
-**Sync Status Widget:**
-- Last sync time for SaaS A and SaaS B
-- Red badge if last sync > 30 min ago
-
-**Recent Activity Feed:**
-- Last 10 contact history entries across project
+The 639-customer / 892-contact migration ran in Sprint 1. Now validate it completely:
+- Re-run migration script against dev DB; compare row counts
+- Verify all nullable fields handled (no "N/A" strings in phone/email)
+- Confirm Turkish characters (ğ, ş, ı, ç) preserved correctly (UTF-8)
+- Verify `ExternalId` mappings intact (needed for SaaS sync deduplication)
+- Write a reconciliation SQL script: count per-table source vs target
+- Document any data quality issues found
 
 **Acceptance Criteria:**
-- [ ] All KPIs loaded from `/api/v1/dashboard/summary`
-- [ ] Charts render correctly in dark mode
-- [ ] Mobile layout stacks cards vertically
-- [ ] Data refreshes every 5 minutes (React Query staleTime)
+- [ ] 639 customers in new DB with correct field mapping
+- [ ] 892 contact histories linked to correct customers
+- [ ] No encoding issues in Turkish characters
+- [ ] Reconciliation script passes
 
 ---
 
 ### 🎫 ION-054
-**Title:** [FRONTEND] Customer list screen with filters and search
-**Sprint:** Sprint 5
-**Story Points:** 5
-**Labels:** frontend
+**Title:** [TESTING] Backend unit test suite (Domain + Application)
+**Sprint:** Sprint 6
+**Story Points:** 8
+**Labels:** testing, backend
 **Description:**
-`/musteriler` — paginated customer list:
-- Search input (debounced 300ms)
-- Filter chips: Status (Tümü / Aktif / Lead / Kayıp / Prospect), Source
-- Table (desktop): avatar, name, company, phone, status badge, last contact, assigned rep
-- Card grid (mobile): compact customer cards
-- Infinite scroll or pagination controls
-- "Yeni Müşteri" button → opens Create Customer drawer
+Using xUnit + Moq + FluentAssertions. Target: **80%+ coverage on Application layer**:
+- `CreateCustomerCommandHandler` — validation, repo mock, result
+- `MergeCustomerCommandHandler` — transaction logic, all edge cases
+- `SaasCallbackHandler` — fire-and-forget, retry logic
+- `SyncSaasAHandler` — upsert logic, SyncLog creation
+- All FluentValidation validators
+- All domain entity invariants
 
 **Acceptance Criteria:**
-- [ ] Search debounced, triggers API call
-- [ ] Filters update URL query params (shareable links)
-- [ ] Mobile card layout renders correctly
-- [ ] Empty state with illustration shown when no results
+- [ ] `dotnet test` passes with 0 failures
+- [ ] Coverage report ≥ 80% on Application layer
+- [ ] Edge cases: null payload, duplicate ExternalId, invalid ProjectId
 
 ---
 
 ### 🎫 ION-055
-**Title:** [FRONTEND] Customer detail screen (360° view)
-**Sprint:** Sprint 5
-**Story Points:** 8
-**Labels:** frontend
+**Title:** [TESTING] Backend integration test suite
+**Sprint:** Sprint 6
+**Story Points:** 5
+**Labels:** testing, backend
 **Description:**
-`/musteriler/{id}` — full customer profile:
-
-**Header:** Avatar, name, company, status badge, quick action buttons (Ara, E-posta, Görev Ekle)
-
-**Tabs:**
-1. **Özet** — key info, assigned rep, contact info
-2. **İletişim Geçmişi** — timeline of all interactions, add new entry button
-3. **Notlar** — pinned notes first, add/edit/delete
-4. **Görevler** — open tasks list, add task
-5. **Fırsatlar** — linked opportunities with stage
-6. **Aktivite** — audit log (manager+ only)
-
-**Edit Customer** — inline edit or side drawer
+Using `WebApplicationFactory<Program>` + Testcontainers (PostgreSQL):
+- Auth: login → get token → use token
+- Customer CRUD end-to-end
+- Label/Status filter queries
+- Merge workflow (Potansiyel → Müşteri)
+- Pipeline create → add contact → verify status=Tamamlandi
+- Sync endpoint: send SaaS payload → verify customer upserted
+- Multi-tenant isolation: user from Project A cannot see Project B data
 
 **Acceptance Criteria:**
-- [ ] All tabs load data from respective API endpoints
-- [ ] Adding history/note/task works without page refresh
-- [ ] Edit form validates required fields
-- [ ] SalesRep sees only their own history entries (API enforced, UI consistent)
+- [ ] All integration tests pass against real PostgreSQL (Testcontainers)
+- [ ] Multi-tenant isolation tested explicitly
+- [ ] Tests run in CI via GitHub Actions
 
 ---
 
 ### 🎫 ION-056
-**Title:** [FRONTEND] Tasks screen
-**Sprint:** Sprint 5
-**Story Points:** 3
-**Labels:** frontend
+**Title:** [TESTING] Frontend E2E test suite
+**Sprint:** Sprint 6
+**Story Points:** 5
+**Labels:** testing, frontend
 **Description:**
-`/gorevler` — personal task board:
-- **Filter tabs:** Bugün / Bu Hafta / Gecikmiş / Tümü / Tamamlananlar
-- Task cards: title, customer name (link), priority badge, due date, complete checkbox
-- Swipe to complete on mobile (shadcn gesture or custom)
-- "Yeni Görev" button → drawer with form
-- Overdue count badge on "Gecikmiş" tab
+Using Playwright:
+- Login → see dashboard
+- Add customer → appears in list
+- Change customer label → badge updates
+- Add pipeline entry → appears in pipeline page
+- Mark pipeline as complete → status badge changes
+- Create opportunity → drag to "Qualified" stage
+- SuperAdmin: view sync logs page
 
 **Acceptance Criteria:**
-- [ ] Complete checkbox calls API and removes from pending list
-- [ ] Overdue tasks shown in red
-- [ ] Task creation pre-fills customer if navigated from customer detail
+- [ ] All E2E tests pass against dev environment
+- [ ] Tests run in CI
+- [ ] Screenshots on failure uploaded as GitHub Actions artifact
 
 ---
 
 ### 🎫 ION-057
-**Title:** [FRONTEND] Opportunities pipeline (Kanban) screen
-**Sprint:** Sprint 5
+**Title:** [DEVOPS] Security audit and hardening
+**Sprint:** Sprint 6
 **Story Points:** 5
-**Labels:** frontend
+**Labels:** devops, security
 **Description:**
-`/firsatlar` — Kanban board:
-- Columns: Lead → Qualified → Proposal → Negotiation → Won → Lost
-- Each column shows count + total value
-- Drag-and-drop cards between stages (dnd-kit)
-- Opportunity card: title, customer, value, close date, owner avatar
-- Mobile: horizontal scroll or list view with stage filter
-
-**Opportunity Detail Drawer:**
-- Edit all fields
-- Stage change with confirmation (Won/Lost requires reason)
-- Activity history
+Pre-production security checklist:
+- Run `dotnet-retire` / OWASP dependency check on NuGet packages
+- Run `npm audit` on frontend
+- Verify all endpoints have `[Authorize]` attribute (no accidental open endpoints)
+- Check no secrets in git history (`git-secrets` or `trufflehog`)
+- Add rate limiting middleware: `AspNetCoreRateLimit` (100 req/min per IP)
+- Add CORS policy: only allow Railway frontend URL
+- Add security headers: HSTS, X-Frame-Options, CSP
+- Verify JWT expiry/refresh works correctly
+- Test that SuperAdmin token cannot be forged by modifying claims
 
 **Acceptance Criteria:**
-- [ ] Drag-and-drop triggers `PATCH /opportunities/{id}/stage`
-- [ ] Won/Lost confirmation modal with reason field
-- [ ] Mobile scrollable columns work on iOS/Android WebView
-- [ ] Currency formatted as ₺ (Turkish Lira)
+- [ ] Zero critical/high NuGet or npm vulnerabilities
+- [ ] No unprotected endpoints
+- [ ] Rate limiting configured
+- [ ] Security headers present on all responses
 
 ---
 
 ### 🎫 ION-058
-**Title:** [FRONTEND] SuperAdmin panel
-**Sprint:** Sprint 5
-**Story Points:** 3
-**Labels:** frontend
+**Title:** [DEVOPS] Production deployment and monitoring
+**Sprint:** Sprint 6
+**Story Points:** 5
+**Labels:** devops
 **Description:**
-`/admin` — SuperAdmin only:
-- **Projects tab:** list all projects, add project, configure webhook URL, toggle sync on/off
-- **Users tab:** list all users, create user, assign to project with role, remove from project
-- **Sync Logs tab:** table of sync logs (filterable by source/status), retry button on failed
-- **System Health:** DB connection, last sync times, Hangfire job status
+Final production deployment:
+- Deploy to Railway prod (API + Frontend services)
+- Run EF Core migrations on prod Neon DB (`dotnet ef database update`)
+- Verify HTTPS on prod domains
+- Configure Railway health checks (ping `/health` every 30s)
+- Add structured logging: Serilog → Railway logs (JSON format)
+- Add OpenTelemetry traces (optional, if time allows)
+- Set all prod environment variables in Railway dashboard
+- Verify SaaS A and B webhooks point to prod API URL
 
 **Acceptance Criteria:**
-- [ ] Non-SuperAdmin gets redirect to dashboard
-- [ ] User role assignment updates immediately
-- [ ] Retry button calls API and shows success/fail toast
+- [ ] Prod API responds at `https://ion-crm-api-production.up.railway.app/health`
+- [ ] Prod frontend loads at `https://ion-crm-frontend-production.up.railway.app`
+- [ ] All migrations applied to prod DB
+- [ ] Health check green in Railway dashboard
 
 ---
 
-# SPRINT 6 — Migration, Testing & Deploy
+### 🎫 ION-059
+**Title:** [DEVOPS] CI/CD pipeline enhancement
+**Sprint:** Sprint 6
+**Story Points:** 3
+**Labels:** devops
+**Description:**
+Enhance the existing GitHub Actions pipeline:
+- Add test stage: `dotnet test` runs on every PR
+- Add Playwright E2E stage: runs on merge to main
+- Add build status badge to README
+- Branch protection: require PR review + all checks green before merge to main
+- Add `dotnet format` check to PR workflow
+- Separate dev and prod deploy jobs (dev auto-deploys on main push; prod requires manual approval)
 
-**Goal:** Migrate legacy MSSQL data to PostgreSQL, achieve full test coverage, security audit, and deploy to Railway.
-
-**Duration:** 3–4 days
-**Agents:** Backend Agent, DevOps Agent, Testing Agent
-**Story Points Total:** 34
+**Acceptance Criteria:**
+- [ ] PRs blocked from merging if tests fail
+- [ ] Prod deploy requires GitHub workflow approval
+- [ ] Badge shows in README
 
 ---
 
 ### 🎫 ION-060
-**Title:** [BACKEND] Legacy MSSQL migration service — customers
+**Title:** [BACKEND] Health check and readiness probe endpoint
 **Sprint:** Sprint 6
-**Story Points:** 8
-**Labels:** backend, migration
+**Story Points:** 2
+**Labels:** backend, devops
 **Description:**
-Standalone `MigrationService` (console app or hosted service) that reads from MSSQL (mounted `.bak`) and writes to PostgreSQL.
-
-**Migration scope (from ION-001 analysis):**
-- Customers table → `Customers` entity
-- Contact history table → `ContactHistory` entity
-- Map old IDs to new GUIDs (store mapping in `MigrationIdMap` table for traceability)
-
-**Idempotency:**
-- Check if ExternalId already exists before inserting
-- Can run multiple times safely
-- `--dry-run` flag for safe preview
-
-**Logging:**
-- Log every migrated record count
-- Log any records skipped/failed with reason
-- Output migration report to `/output/migration-report.md`
+Add ASP.NET Core Health Checks:
+- `GET /health` — overall status: Healthy/Degraded/Unhealthy
+- Checks: DB connectivity (Neon), SaaS A reachability, SaaS B reachability, last sync age (warning if >30 min)
+- `GET /health/ready` — simple 200 for Railway readiness probe
+- Add `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore`
 
 **Acceptance Criteria:**
-- [ ] All legacy customers migrated with no data loss
-- [ ] Contact history linked to correct migrated customers
-- [ ] Re-running migration does not create duplicates
-- [ ] Migration report shows counts and any failures
+- [ ] `/health` returns JSON with component statuses
+- [ ] DB failure returns Unhealthy
+- [ ] Sync lag > 30 min returns Degraded
 
 ---
 
-### 🎫 ION-061
-**Title:** [BACKEND] Data validation post-migration
-**Sprint:** Sprint 6
-**Story Points:** 3
-**Labels:** backend, migration, testing
-**Description:**
-- Count verification: legacy record count == migrated record count
-- Spot-check 20 random customers for data accuracy
-- Verify all ContactHistory entries linked to valid CustomerId
-- Check no null values in required fields
-- Generate `/output/validation-report.md`
+## 📊 SPRINT SUMMARY TABLE
 
-**Acceptance Criteria:**
-- [ ] 100% of customers migrated (or known exceptions documented)
-- [ ] No orphaned ContactHistory records
-- [ ] Validation report signed off
+| Sprint | Name | Status | Stories | Points | Duration | Agents |
+|--------|------|--------|---------|--------|----------|--------|
+| Sprint 0 | Analysis & Architecture | ✅ DONE | 4 | 21 | 2–3 days | Architect |
+| Sprint 1 | Foundation | ✅ DONE | 9 | 34 | 3–4 days | Backend, Frontend, DevOps |
+| Sprint 2 | Customer Core Enhancement | 🔄 ACTIVE | 13 | 42 | 3–4 days | Backend, Frontend |
+| Sprint 3 | Sync Service | ⏳ PLANNED | 8 | 39 | 3–4 days | Backend, DevOps |
+| Sprint 4 | Sales Pipeline & Performance | ⏳ PLANNED | 8 | 37 | 3–4 days | Backend, Frontend |
+| Sprint 5 | Frontend Polish & UX | ⏳ PLANNED | 10 | 38 | 3–4 days | Frontend |
+| Sprint 6 | Hardening, Testing & Production | ⏳ PLANNED | 8 | 40 | 3–4 days | Backend, DevOps, Testing |
+| **TOTAL** | | | **60** | **251** | **~22–27 days** | |
 
 ---
 
-### 🎫 ION-062
-**Title:** [TESTING] Unit tests — Application layer (CQRS handlers)
-**Sprint:** Sprint 6
-**Story Points:** 5
-**Labels:** testing
-**Description:**
-xUnit tests for all MediatR command/query handlers.
+## 🚧 OPEN RISKS & DEPENDENCIES
 
-**Coverage targets:**
-- All Customer CRUD handlers
-- Auth commands (login, refresh)
-- Sync upsert logic
-- Tenant filter enforcement
-- Opportunity stage transitions
-
-**Mocking:** Moq for repositories, ICurrentUserService
-
-Minimum 80% code coverage on Application layer.
-
-**Acceptance Criteria:**
-- [ ] `dotnet test` passes with 0 failures
-- [ ] 80%+ coverage on Application layer
-- [ ] Tenant isolation tested explicitly (SalesRep cannot access other rep's data)
+| Risk | Sprint | Mitigation |
+|------|--------|-----------|
+| SaaS A/B API credentials not yet provided | Sprint 3 | Use mock server for development; real creds swapped in via env vars |
+| SaaS payload schemas unknown | Sprint 3 | Design handlers to be schema-driven (JSON config per SaaS source) |
+| Neon DB connection pool limits (free tier) | Sprint 3+ | Use Neon pooler URL; add connection pool settings in EF Core |
+| Playwright tests flaky on Railway CI | Sprint 6 | Add retry logic; use stable selectors (data-testid) |
+| Production migration needs downtime | Sprint 6 | Schedule maintenance window; migrations are additive only (no destructive DDL) |
 
 ---
-
-### 🎫 ION-063
-**Title:** [TESTING] Integration tests — API endpoints
-**Sprint:** Sprint 6
-**Story Points:** 5
-**Labels:** testing
-**Description:**
-xUnit integration tests using `WebApplicationFactory` with test PostgreSQL instance.
-
-**Test scenarios:**
-- Login flow (valid/invalid credentials)
-- CRUD operations with correct/incorrect permissions (403 tests)
-- Sync endpoint with valid/invalid HMAC signature
-- Tenant isolation (user from Project A cannot access Project B data)
-- Pagination correctness
-
-**Acceptance Criteria:**
-- [ ] All happy-path API tests pass
-- [ ] All 403/401/404 scenarios tested
-- [ ] Tests run in CI pipeline
-
----
-
-### 🎫 ION-064
-**Title:** [TESTING] Security audit checklist
-**Sprint:** Sprint 6
-**Story Points:** 3
-**Labels:** testing, security
-**Description:**
-Manual + automated security review:
-
-**Checklist:**
-- [ ] No secrets in git history (`git log` + trufflehog scan)
-- [ ] All auth endpoints rate-limited
-- [ ] JWT expiry enforced
-- [ ] CORS locked to allowed origins
-- [ ] All inputs validated (FluentValidation + EF parameterized)
-- [ ] HTTPS-only headers in production (HSTS)
-- [ ] Tenant filter on every query (SQL explain plan review)
-- [ ] Audit log captures all data changes
-- [ ] Password hashing is bcrypt cost 12
-- [ ] Refresh token rotation working
-- [ ] HMAC verification on inbound sync
-
-**Output:** `/output/security-audit.md`
-
-**Acceptance Criteria:**
-- [ ] Zero critical findings
-- [ ] All items checked and documented
-
----
-
-### 🎫 ION-065
-**Title:** [DEVOPS] Railway deployment — production setup
-**Sprint:** Sprint 6
-**Story Points:** 5
-**Labels:** devops
-**Description:**
-Deploy to Railway:
-
-**Services on Railway:**
-- `ion-crm-api` — .NET 8 API (Dockerfile)
-- `ion-crm-frontend` — React (Vite build, static serve)
-- `ion-crm-postgres` — Railway Postgres addon
-
-**GitHub Actions deploy workflow (`.github/workflows/deploy.yml`):**
-- Trigger: push to `main`
-- Steps: build → test → docker build → push to Railway
-
-**Railway environment variables to configure:**
-- `DATABASE_URL`
-- `JWT_SECRET`
-- `JWT_REFRESH_SECRET`
-- `SAAS_A_API_KEY`, `SAAS_A_WEBHOOK_SECRET`
-- `SAAS_B_API_KEY`, `SAAS_B_WEBHOOK_SECRET`
-- `HANGFIRE_DASHBOARD_USER`, `HANGFIRE_DASHBOARD_PASS`
-- `CORS_ALLOWED_ORIGINS`
-
-**Acceptance Criteria:**
-- [ ] Production deploy succeeds via GitHub Actions
-- [ ] Health check returns 200 on Railway URL
-- [ ] HTTPS enforced (Railway auto-TLS)
-- [ ] No hardcoded secrets in any config file
-- [ ] Rollback procedure documented
-
----
-
-### 🎫 ION-066
-**Title:** [DEVOPS] Production monitoring & alerting setup
-**Sprint:** Sprint 6
-**Story Points:** 5
-**Labels:** devops
-**Description:**
-- Serilog → Railway logs (structured JSON)
-- Health check endpoint `/health` monitors: DB connectivity, last sync time, disk
-- Set up Railway alerts: CPU > 80%, memory > 85%, deploy failures
-- Document runbook: `/output/runbook.md`
-  - How to restart API
-  - How to trigger manual sync
-  - How to run migration again
-  - How to rotate JWT secrets
-
-**Acceptance Criteria:**
-- [ ] Logs visible in Railway dashboard
-- [ ] Health endpoint monitored
-- [ ] Runbook written and reviewed
-
----
-
-# 📊 SPRINT SUMMARY TABLE
-
-| Sprint | Name | Stories | Points | Duration | Agents |
-|--------|------|---------|--------|----------|--------|
-| Sprint 0 | Analysis & Architecture | 4 | 21 | 2–3 days | Architect |
-| Sprint 1 | Foundation | 8 | 34 | 3–4 days | Backend, DevOps |
-| Sprint 2 | Customer Core | 6 | 29 | 3–4 days | Backend |
-| Sprint 3 | Sync Service | 6 | 34 | 3–4 days | Backend |
-| Sprint 4 | Sales Pipeline | 4 | 21 | 3 days | Backend |
-| Sprint 5 | Frontend | 9 | 42 | 4–5 days | Frontend |
-| Sprint 6 | Migration & Testing | 7 | 34 | 3–4 days | Backend, DevOps, Testing |
-| **TOTAL** | | **44 stories** | **215 pts** | **~3.5 weeks** | |
-
----
-
-*⚠️ AWAITING HUMAN APPROVAL FOR SPRINT 0 BEFORE ANY CODE IS WRITTEN*
+*Last updated: 2026-03-24 by Orchestrator Agent*

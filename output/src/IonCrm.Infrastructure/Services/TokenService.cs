@@ -43,7 +43,7 @@ public class TokenService : ITokenService
         var key = GetSigningKey();
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var expiryMinutes = _configuration.GetValue<int>("Jwt:AccessTokenExpiryMinutes", 15);
+        var expiryMinutes = _configuration.GetValue<int>("JwtSettings:AccessTokenExpiryMinutes", 15);
 
         // Build project-roles JSON: { "projectId": "RoleName" }
         var rolesDict = user.UserProjectRoles
@@ -74,8 +74,8 @@ public class TokenService : ITokenService
         {
             Subject            = new ClaimsIdentity(claims),
             Expires            = DateTime.UtcNow.AddMinutes(expiryMinutes),
-            Issuer             = _configuration["Jwt:Issuer"] ?? "IonCrm",
-            Audience           = _configuration["Jwt:Audience"] ?? "IonCrm",
+            Issuer             = _configuration["JwtSettings:Issuer"] ?? "IonCrm",
+            Audience           = _configuration["JwtSettings:Audience"] ?? "IonCrmUsers",
             SigningCredentials = credentials
         };
 
@@ -94,7 +94,7 @@ public class TokenService : ITokenService
         User user,
         CancellationToken cancellationToken = default)
     {
-        var expiryDays = _configuration.GetValue<int>("Jwt:RefreshTokenExpiryDays", 7);
+        var expiryDays = _configuration.GetValue<int>("JwtSettings:RefreshTokenExpiryDays", 7);
 
         // Generate a cryptographically secure random raw token (256 bits)
         var rawBytes  = RandomNumberGenerator.GetBytes(32);
@@ -178,9 +178,9 @@ public class TokenService : ITokenService
 
     private SymmetricSecurityKey GetSigningKey()
     {
-        var jwtKey = _configuration["Jwt:Key"]
+        var jwtKey = _configuration["JwtSettings:Secret"]
             ?? throw new InvalidOperationException(
-                "JWT signing key is missing. Set the 'Jwt:Key' configuration value.");
+                "JWT signing key is missing. Set the 'JwtSettings:Secret' configuration value.");
 
         return new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
     }

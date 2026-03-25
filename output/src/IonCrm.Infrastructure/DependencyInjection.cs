@@ -11,6 +11,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Polly;
+using Polly.Extensions.Http;
 
 namespace IonCrm.Infrastructure;
 
@@ -96,23 +98,53 @@ public static class DependencyInjection
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Builds a Polly v7 circuit-breaker policy (Polly.Extensions.Http) for the HttpClient
+    /// transport layer.  This is complementary to — NOT a replacement for — the Polly v8
+    /// <c>ResiliencePipeline</c> inside each typed client (SaasAClient / SaasBClient):
+    ///
+    ///   Layer 1 — Typed client (Polly v8 ResiliencePipeline)
+    ///     • 3 retries, exponential back-off 2 s / 4 s / 8 s (± jitter)
+    ///     • Handles HttpRequestException + TaskCanceledException
+    ///     • Logs each retry attempt via ILogger
+    ///
+    ///   Layer 2 — HttpClient handler pipeline (Polly.Extensions.Http, this method)
+    ///     • Circuit-breaker: opens after 5 consecutive failures (HTTP 5xx / 408 / network)
+    ///     • Stays open for 30 seconds, then allows one probe request
+    ///     • Prevents cascading failures when an entire SaaS endpoint is down
+    ///
+    /// The circuit-breaker ONLY triggers on the final outcome of all 4 attempts (initial + 3
+    /// retries), so a single transient failure never trips the circuit.
+    /// </summary>
+    private static IAsyncPolicy<HttpResponseMessage> BuildCircuitBreakerPolicy() =>
+        HttpPolicyExtensions
+            .HandleTransientHttpError()   // 5xx responses, 408, HttpRequestException
+            .CircuitBreakerAsync(
+                handledEventsAllowedBeforeBreaking: 5,
+                durationOfBreak: TimeSpan.FromSeconds(30));
+
     private static void RegisterSaasAClient(
         IServiceCollection services,
         IConfiguration configuration)
     {
         var baseUrl = configuration["SaasA:BaseUrl"];
-        var apiKey = configuration["SaasA:ApiKey"];
+        var apiKey  = configuration["SaasA:ApiKey"];
 
-        services.AddHttpClient<ISaasAClient, SaasAClient>(client =>
-        {
-            if (!string.IsNullOrWhiteSpace(baseUrl))
-                client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+        services
+            .AddHttpClient<ISaasAClient, SaasAClient>(client =>
+            {
+                if (!string.IsNullOrWhiteSpace(baseUrl))
+                    client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
 
-            if (!string.IsNullOrWhiteSpace(apiKey))
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+                // Bearer token auth — SaaS A standard REST convention
+                if (!string.IsNullOrWhiteSpace(apiKey))
+                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
 
-            client.Timeout = TimeSpan.FromSeconds(30);
-        });
+                // Total timeout across ALL retry attempts.
+                // Individual attempt backoff (2 s / 4 s / 8 s) sits inside this ceiling.
+                client.Timeout = TimeSpan.FromSeconds(120);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
     }
 
     private static void RegisterSaasBClient(
@@ -120,17 +152,21 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         var baseUrl = configuration["SaasB:BaseUrl"];
-        var apiKey = configuration["SaasB:ApiKey"];
+        var apiKey  = configuration["SaasB:ApiKey"];
 
-        services.AddHttpClient<ISaasBClient, SaasBClient>(client =>
-        {
-            if (!string.IsNullOrWhiteSpace(baseUrl))
-                client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+        services
+            .AddHttpClient<ISaasBClient, SaasBClient>(client =>
+            {
+                if (!string.IsNullOrWhiteSpace(baseUrl))
+                    client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
 
-            if (!string.IsNullOrWhiteSpace(apiKey))
-                client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
+                // X-Api-Key auth — SaaS B convention
+                if (!string.IsNullOrWhiteSpace(apiKey))
+                    client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
 
-            client.Timeout = TimeSpan.FromSeconds(30);
-        });
+                // Total timeout across ALL retry attempts.
+                client.Timeout = TimeSpan.FromSeconds(120);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
     }
 }

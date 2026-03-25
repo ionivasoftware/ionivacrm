@@ -1,0 +1,81 @@
+{
+  "sprint": "Sprint 0 — Analysis & Architecture",
+  "project_key": "PROD",
+  "project_name": "ION CRM",
+  "goal": "Analyze old DB, design new schema, define API contracts, scaffold project",
+  "story_count": 6,
+  "total_story_points": 29,
+  "agents": "Architect, .NET Dev",
+  "duration": "1-2 days",
+  "token_cost": "~$8-12",
+  "epic": {
+    "type": "Epic",
+    "summary": "Sprint 0 — Analysis & Architecture",
+    "epic_name": "Sprint 0 — Analysis & Architecture",
+    "story_points": 29,
+    "labels": ["architecture", "sprint-0"],
+    "description": "Goal: Analyze the legacy MSSQL database, design the target PostgreSQL schema, define all API contracts, design the sync service, and document all architectural decisions. No production code written in this sprint."
+  },
+  "stories": [
+    {
+      "id": "ION-S0-01",
+      "type": "Story",
+      "summary": "[ARCHITECT] Analyze MSSQL .bak file and extract legacy schema",
+      "story_points": 5,
+      "labels": ["backend", "migration", "analysis"],
+      "agent": "Architect",
+      "sprint": "Sprint 0 — Analysis & Architecture",
+      "description": "Restore the 4.4MB MSSQL backup. Extract all DDL. Document every table/column/FK/index. Map legacy customers + contact history to new schema. Flag PII fields. Map MSSQL types to PostgreSQL. Outputs: legacy-schema.md, migration-mapping.md"
+    },
+    {
+      "id": "ION-S0-02",
+      "type": "Story",
+      "summary": "[ARCHITECT] Design PostgreSQL target schema",
+      "story_points": 8,
+      "labels": ["backend", "database", "architecture"],
+      "agent": "Architect",
+      "sprint": "Sprint 0 — Analysis & Architecture",
+      "description": "Design full PostgreSQL schema: Projects, Users, UserProjectRoles, Customers, ContactHistory, Notes, CustomerTasks, Opportunities, SyncLogs, RefreshTokens, AuditLogs. Every table: Id(UUID), CreatedAt, UpdatedAt, IsDeleted, ProjectId. Outputs: db-schema.md, entity-stubs/"
+    },
+    {
+      "id": "ION-S0-03",
+      "type": "Story",
+      "summary": "[ARCHITECT] Define API contracts and OpenAPI spec",
+      "story_points": 5,
+      "labels": ["backend", "api", "architecture"],
+      "agent": "Architect",
+      "sprint": "Sprint 0 — Analysis & Architecture",
+      "description": "Define all REST endpoints: Auth, SuperAdmin, Customers, ContactHistory, Notes, Tasks, Opportunities, Sync (inbound + outbound), Dashboard. Specify request/response schemas, roles, error codes. Output: api-contracts.md"
+    },
+    {
+      "id": "ION-S0-04",
+      "type": "Story",
+      "summary": "[ARCHITECT] Define solution folder structure and Clean Architecture scaffold",
+      "story_points": 3,
+      "labels": ["backend", "devops", "architecture"],
+      "agent": ".NET Dev",
+      "sprint": "Sprint 0 — Analysis & Architecture",
+      "description": "Document exact .NET solution folder structure (Domain, Application, Infrastructure, API, Tests), frontend structure (React+TS+shadcn), CI/CD workflows, Docker Compose. List all env vars in .env.example. Outputs: project-structure.md, .env.example"
+    },
+    {
+      "id": "ION-S0-05",
+      "type": "Story",
+      "summary": "[ARCHITECT] Define Sync Service architecture (SaaS A & B ↔ ION CRM)",
+      "story_points": 5,
+      "labels": ["backend", "sync", "architecture"],
+      "agent": "Architect",
+      "sprint": "Sprint 0 — Analysis & Architecture",
+      "description": "Design bi-directional sync: SaaS A/B → ION CRM (15-min inbound webhooks, upsert by ExternalId), ION CRM → SaaS (instant outbound callbacks, 3-retry with backoff). SyncLog entity. IHostedService background poller. Output: sync-architecture.md"
+    },
+    {
+      "id": "ION-S0-06",
+      "type": "Story",
+      "summary": "[ARCHITECT] Document ADRs, tech decisions, and dev environment setup",
+      "story_points": 3,
+      "labels": ["architecture", "documentation", "devops"],
+      "agent": "Architect",
+      "sprint": "Sprint 0 — Analysis & Architecture",
+      "description": "Write 7 ADRs: Clean Architecture, MediatR/CQRS, Neon PostgreSQL, Railway deploy, multi-tenancy strategy, sync strategy, JWT auth. Dev setup guide (prerequisites, clone, env vars, dotnet run, npm dev, migrations). Outputs: docs/adr/*.md, dev-setup.md"
+    }
+  ]
+}

@@ -29,15 +29,30 @@ public sealed class SaasSyncJob
     private readonly IConfiguration _configuration;
     private readonly ILogger<SaasSyncJob> _logger;
 
-    // Polly v8 ResiliencePipeline — 3 retries with exponential backoff
-    private static readonly ResiliencePipeline RetryPipeline =
+    // Retry pipeline is built per-call so OnRetry can close over the SyncLog instance
+    // and update RetryCount + status in the database on each failed attempt.
+    private ResiliencePipeline BuildRetryPipeline(SyncLog log, ISyncLogRepository syncLogRepo) =>
         new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
             {
                 MaxRetryAttempts = 3,
                 Delay = TimeSpan.FromSeconds(2),
                 BackoffType = DelayBackoffType.Exponential,
-                UseJitter = true
+                UseJitter = true,
+                OnRetry = async args =>
+                {
+                    log.RetryCount++;
+                    log.Status = SyncStatus.Retrying;
+                    log.ErrorMessage = args.Outcome.Exception?.Message;
+                    await syncLogRepo.UpdateAsync(log);
+
+                    _logger.LogWarning(
+                        "Sync retry #{Attempt} for {Source}/{EntityType}. Error: {Error}",
+                        log.RetryCount,
+                        log.Source,
+                        log.EntityType,
+                        args.Outcome.Exception?.Message);
+                }
             })
             .Build();
 
@@ -173,8 +188,10 @@ public sealed class SaasSyncJob
     // ── Retry wrapper ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Wraps a sync action in the Polly retry pipeline (3 attempts, exponential backoff).
-    /// Logs success/failure to SyncLogs table after each attempt.
+    /// Wraps a sync action in a Polly retry pipeline (3 attempts, exponential backoff).
+    /// Uses a per-call pipeline so <see cref="SyncLog.RetryCount"/> is updated after
+    /// each failed attempt via the <c>OnRetry</c> delegate before the next attempt.
+    /// Logs final success/failure to the SyncLogs table.
     /// </summary>
     private async Task SyncWithRetryAsync(
         SyncSource source,
@@ -183,7 +200,6 @@ public sealed class SaasSyncJob
         Func<Task<int>> action)
     {
         using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var syncLogRepo = scope.ServiceProvider.GetRequiredService<ISyncLogRepository>();
 
         var log = new SyncLog
@@ -198,19 +214,14 @@ public sealed class SaasSyncJob
 
         await syncLogRepo.AddAsync(log);
 
+        // Per-call pipeline closes over log+syncLogRepo to track each retry in DB
+        var pipeline = BuildRetryPipeline(log, syncLogRepo);
+
         try
         {
-            var count = await RetryPipeline.ExecuteAsync(async _ =>
-            {
-                if (log.RetryCount > 0)
-                {
-                    log.Status = SyncStatus.Retrying;
-                    await syncLogRepo.UpdateAsync(log);
-                }
-
-                var result = await action();
-                return result;
-            }, CancellationToken.None);
+            var count = await pipeline.ExecuteAsync<int>(
+                async _ => await action(),
+                CancellationToken.None);
 
             log.Status = SyncStatus.Success;
             log.SyncedAt = DateTime.UtcNow;
@@ -229,8 +240,8 @@ public sealed class SaasSyncJob
             await syncLogRepo.UpdateAsync(log);
 
             _logger.LogError(ex,
-                "{Source} {EntityType} sync failed after retries.",
-                source, entityType);
+                "{Source} {EntityType} sync failed after {Retries} retries.",
+                source, entityType, log.RetryCount);
         }
     }
 

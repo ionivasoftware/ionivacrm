@@ -1,0 +1,34 @@
+# ── Build artefacts ──────────────────────────────────────────────────────────
+**/bin/
+**/obj/
+*.user
+*.suo
+
+# ── Secrets & local environment overrides ────────────────────────────────────
+# SECURITY: These files frequently contain passwords, API keys, and JWT secrets.
+# Use .NET User Secrets (dotnet user-secrets) or environment variables instead.
+**/appsettings.Development.json
+**/appsettings.Local.json
+**/appsettings.*.local.json
+**/*.local.json
+.env
+.env.local
+.env.*.local
+**/secrets.json
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── OS / IDE ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/settings.json
