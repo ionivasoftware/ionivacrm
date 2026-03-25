@@ -24,7 +24,7 @@ import {
 import { useCreateCustomer, useUpdateCustomer } from '@/api/customers';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { Customer, CustomerStatus, CustomerSegment } from '@/types';
+import type { Customer, CustomerStatus, CustomerSegment, UpdateCustomerRequest } from '@/types';
 
 // ── Schema ──────────────────────────────────────────────────────────────────
 
@@ -85,7 +85,8 @@ export function CustomerFormDialog({
   }, [isOpen, customer, reset]);
 
   const onSubmit = async (data: FormData) => {
-    const payload = {
+    // Build payload without projectId — useCreateCustomer injects it from authStore
+    const basePayload = {
       companyName: data.companyName,
       contactName: data.contactName || undefined,
       email: data.email || undefined,
@@ -94,16 +95,23 @@ export function CustomerFormDialog({
       taxNumber: data.taxNumber || undefined,
       taxUnit: data.taxUnit || undefined,
       status: data.status as CustomerStatus,
-      segment: (data.segment || undefined) as CustomerSegment | undefined,
+      // Convert "none" sentinel back to undefined for the API
+      segment: (data.segment === 'none' || !data.segment ? undefined : data.segment) as CustomerSegment | undefined,
       code: data.code || undefined,
     };
 
     try {
       let result: Customer;
       if (isEdit && customer) {
-        result = await updateMutation.mutateAsync({ ...payload, id: customer.id });
+        const updatePayload: UpdateCustomerRequest = {
+          ...basePayload,
+          id: customer.id,
+          projectId: customer.projectId,
+        };
+        result = await updateMutation.mutateAsync(updatePayload);
       } else {
-        result = await createMutation.mutateAsync(payload);
+        // projectId is injected inside useCreateCustomer from the auth store
+        result = await createMutation.mutateAsync(basePayload);
       }
       toast({
         title: isEdit ? 'Müşteri güncellendi' : 'Müşteri oluşturuldu',
@@ -198,7 +206,7 @@ export function CustomerFormDialog({
                         <SelectValue placeholder="Segment seçin" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Belirtilmedi</SelectItem>
+                        <SelectItem value="none">Belirtilmedi</SelectItem>
                         <SelectItem value="SME">KOBİ</SelectItem>
                         <SelectItem value="Enterprise">Kurumsal</SelectItem>
                         <SelectItem value="Startup">Startup</SelectItem>
@@ -324,7 +332,8 @@ function getDefaultValues(customer?: Customer): FormData {
       taxNumber: customer.taxNumber ?? '',
       taxUnit: customer.taxUnit ?? '',
       status: customer.status,
-      segment: customer.segment ?? '',
+      // Use "none" sentinel so Radix Select doesn't have empty-string value issues
+      segment: customer.segment ?? 'none',
       code: customer.code ?? '',
     };
   }
@@ -337,7 +346,7 @@ function getDefaultValues(customer?: Customer): FormData {
     taxNumber: '',
     taxUnit: '',
     status: 'Lead',
-    segment: '',
+    segment: 'none',
     code: '',
   };
 }

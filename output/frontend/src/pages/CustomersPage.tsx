@@ -121,7 +121,7 @@ export function CustomersPage() {
           {data && data.totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 pt-4 mt-4 border-t border-border">
               <p className="text-sm text-muted-foreground">
-                Toplam {data.totalCount} kayıt · Sayfa {data.pageNumber} / {data.totalPages}
+                Toplam {data.totalCount} kayıt · Sayfa {data.page} / {data.totalPages}
               </p>
             </div>
           )}

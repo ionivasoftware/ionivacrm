@@ -58,7 +58,7 @@ export function CustomersPage() {
     search: search.trim() || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
     segment: segmentFilter !== 'all' ? segmentFilter : undefined,
-    pageNumber: page,
+    page,
     pageSize: PAGE_SIZE,
   });
 

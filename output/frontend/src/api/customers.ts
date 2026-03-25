@@ -25,9 +25,20 @@ export function useCustomers(params: CustomerListParams = {}) {
   return useQuery({
     queryKey: ['customers', projectId, params],
     queryFn: async () => {
+      // Backend uses JWT claims to filter by project (not a query param).
+      // Map `page` → backend expects `page` (not `pageNumber`).
+      // Exclude `undefined` values so they don't show as empty query params.
+      const queryParams: Record<string, string | number | undefined> = {};
+      if (params.search) queryParams.search = params.search;
+      if (params.status) queryParams.status = params.status;
+      if (params.segment) queryParams.segment = params.segment;
+      if (params.assignedUserId) queryParams.assignedUserId = params.assignedUserId;
+      queryParams.page = params.page ?? 1;
+      queryParams.pageSize = params.pageSize ?? 20;
+
       const response = await apiClient.get<ApiResponse<PaginatedResponse<Customer>>>(
         '/customers',
-        { params: { ...params, projectId } }
+        { params: queryParams }
       );
       return response.data.data;
     },
@@ -48,13 +59,19 @@ export function useCustomer(id: string) {
 
 export function useCreateCustomer() {
   const queryClient = useQueryClient();
+  // Resolve projectId from store — backend requires it in the request body
+  const projectId = useAuthStore((s) => s.currentProjectId);
+
   return useMutation({
-    mutationFn: async (data: CreateCustomerRequest) => {
-      const response = await apiClient.post<ApiResponse<Customer>>('/customers', data);
+    mutationFn: async (data: Omit<CreateCustomerRequest, 'projectId'>) => {
+      if (!projectId) throw new Error('Proje seçili değil. Lütfen bir proje seçiniz.');
+      const payload: CreateCustomerRequest = { ...data, projectId };
+      const response = await apiClient.post<ApiResponse<Customer>>('/customers', payload);
       return response.data.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -84,6 +101,7 @@ export function useDeleteCustomer() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -96,7 +114,7 @@ export function useContactHistory(customerId: string) {
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<PaginatedResponse<ContactHistory>>>(
         `/customers/${customerId}/contact-history`,
-        { params: { pageSize: 50, pageNumber: 1 } }
+        { params: { pageSize: 50, page: 1 } }
       );
       return response.data.data;
     },
@@ -116,6 +134,7 @@ export function useCreateContactHistory() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['contactHistory', variables.customerId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -128,7 +147,7 @@ export function useCustomerTasks(customerId: string) {
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<PaginatedResponse<CustomerTask>>>(
         `/customers/${customerId}/tasks`,
-        { params: { pageSize: 50, pageNumber: 1 } }
+        { params: { pageSize: 50, page: 1 } }
       );
       return response.data.data;
     },
@@ -148,6 +167,7 @@ export function useCreateTask() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['customerTasks', variables.customerId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -176,7 +196,7 @@ export function useCustomerOpportunities(customerId: string) {
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<PaginatedResponse<Opportunity>>>(
         `/customers/${customerId}/opportunities`,
-        { params: { pageSize: 50, pageNumber: 1 } }
+        { params: { pageSize: 50, page: 1 } }
       );
       return response.data.data;
     },
@@ -196,6 +216,7 @@ export function useCreateOpportunity() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['customerOpportunities', variables.customerId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

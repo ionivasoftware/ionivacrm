@@ -40,9 +40,12 @@ export interface ApiResponse<T> {
 export interface PaginatedResponse<T> {
   items: T[];
   totalCount: number;
-  pageNumber: number;
+  /** Backend returns `page` (not `pageNumber`) — matches ASP.NET Core PagedResult */
+  page: number;
   pageSize: number;
   totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }
 
 // ----- Auth -----
@@ -136,6 +139,8 @@ export interface Customer {
 }
 
 export interface CreateCustomerRequest {
+  /** Required by backend — must match one of the user's project IDs */
+  projectId: string;
   companyName: string;
   contactName?: string;
   email?: string;
@@ -154,7 +159,8 @@ export interface UpdateCustomerRequest extends CreateCustomerRequest {
 }
 
 export interface CustomerListParams {
-  pageNumber?: number;
+  /** 1-based page number — matches backend `page` query param */
+  page?: number;
   pageSize?: number;
   search?: string;
   status?: CustomerStatus;
