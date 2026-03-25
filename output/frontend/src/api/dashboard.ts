@@ -15,6 +15,7 @@ export function useDashboardStats() {
       return response.data.data;
     },
     enabled: !!projectId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
   });
 }

@@ -14,10 +14,7 @@ public class DashboardRepository : IDashboardRepository
     private static readonly string[] TurkishMonths =
         ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
 
-    public DashboardRepository(ApplicationDbContext db)
-    {
-        _db = db;
-    }
+    public DashboardRepository(ApplicationDbContext db) => _db = db;
 
     public async Task<DashboardStatsDto> GetStatsAsync(
         Guid projectId, CancellationToken cancellationToken = default)
@@ -54,23 +51,25 @@ public class DashboardRepository : IDashboardRepository
                         o.Stage != OpportunityStage.ClosedLost)
             .CountAsync(cancellationToken);
 
-        var pipelineValue = await _db.Opportunities
-            .Where(o => o.ProjectId == projectId &&
-                        o.Stage != OpportunityStage.ClosedLost)
-            .SumAsync(o => (decimal?)(o.Value ?? 0), cancellationToken) ?? 0m;
+        // Use SumAsync directly — result is decimal?, ?? applied in memory
+        var pipelineValue = (await _db.Opportunities
+            .Where(o => o.ProjectId == projectId && o.Stage != OpportunityStage.ClosedLost)
+            .SumAsync(o => (decimal?)o.Value, cancellationToken)) ?? 0m;
 
-        // ── Monthly activity (last 6 months) ─────────────────────────────────
+        // ── Monthly activity (last 6 months) — fetch raw, group in memory ────
 
         var rawActivity = await _db.ContactHistories
             .Where(h => h.ProjectId == projectId && h.ContactedAt >= sixMonthsAgo)
-            .Select(h => new { h.ContactedAt.Year, h.ContactedAt.Month, h.Type })
+            .Select(h => new { h.ContactedAt, h.Type })
             .ToListAsync(cancellationToken);
 
         var monthlyActivity = Enumerable.Range(0, 6)
             .Select(i => monthStart.AddMonths(-5 + i))
             .Select(m =>
             {
-                var slice = rawActivity.Where(h => h.Year == m.Year && h.Month == m.Month).ToList();
+                var slice = rawActivity
+                    .Where(h => h.ContactedAt.Year == m.Year && h.ContactedAt.Month == m.Month)
+                    .ToList();
                 return new MonthlyActivityDto(
                     TurkishMonths[m.Month - 1],
                     slice.Count(h => h.Type == ContactType.Call),
@@ -80,63 +79,51 @@ public class DashboardRepository : IDashboardRepository
             })
             .ToList();
 
-        // ── Customers by status ───────────────────────────────────────────────
+        // ── Customers by status — group in memory ────────────────────────────
 
-        var statusGroups = await _db.Customers
+        var allCustomerStatuses = await _db.Customers
             .Where(c => c.ProjectId == projectId)
-            .GroupBy(c => c.Status)
-            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .Select(c => c.Status)
             .ToListAsync(cancellationToken);
 
-        var customersByStatus = statusGroups
-            .Select(g => new StatusBreakdownDto(g.Status, g.Count))
+        var customersByStatus = allCustomerStatuses
+            .GroupBy(s => s)
+            .Select(g => new StatusBreakdownDto(g.Key, g.Count()))
             .ToList();
 
-        // ── Opportunities by stage ────────────────────────────────────────────
+        // ── Opportunities by stage — group in memory ──────────────────────────
 
-        var stageGroups = await _db.Opportunities
-            .Where(o => o.ProjectId == projectId &&
-                        o.Stage != OpportunityStage.ClosedLost)
-            .GroupBy(o => o.Stage)
-            .Select(g => new
-            {
-                Stage = g.Key,
-                Count = g.Count(),
-                Value = g.Sum(o => (decimal?)(o.Value ?? 0)) ?? 0m
-            })
+        var allOpportunities = await _db.Opportunities
+            .Where(o => o.ProjectId == projectId && o.Stage != OpportunityStage.ClosedLost)
+            .Select(o => new { o.Stage, o.Value })
             .ToListAsync(cancellationToken);
 
-        var opportunitiesByStage = stageGroups
-            .OrderBy(g => g.Stage)
-            .Select(g => new StageBreakdownDto(g.Stage, g.Count, g.Value))
+        var opportunitiesByStage = allOpportunities
+            .GroupBy(o => o.Stage)
+            .OrderBy(g => g.Key)
+            .Select(g => new StageBreakdownDto(g.Key, g.Count(), g.Sum(o => o.Value ?? 0m)))
             .ToList();
 
         // ── Recent activities (last 10) ───────────────────────────────────────
 
         var recentRaw = await _db.ContactHistories
+            .Include(h => h.Customer)
+            .Include(h => h.CreatedByUser)
             .Where(h => h.ProjectId == projectId)
             .OrderByDescending(h => h.ContactedAt)
             .Take(10)
-            .Select(h => new
-            {
-                h.Id,
-                h.Type,
-                CustomerName = h.Customer.CompanyName,
-                h.Subject,
-                CreatedByUserName = h.CreatedByUser != null
-                    ? h.CreatedByUser.FirstName + " " + h.CreatedByUser.LastName
-                    : null,
-                h.ContactedAt
-            })
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         var recentActivities = recentRaw
             .Select(h => new RecentActivityDto(
                 h.Id.ToString(),
                 h.Type,
-                h.CustomerName,
+                h.Customer?.CompanyName ?? string.Empty,
                 h.Subject,
-                h.CreatedByUserName,
+                h.CreatedByUser is not null
+                    ? $"{h.CreatedByUser.FirstName} {h.CreatedByUser.LastName}".Trim()
+                    : null,
                 h.ContactedAt))
             .ToList();
 

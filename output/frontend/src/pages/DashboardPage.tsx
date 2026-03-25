@@ -1,4 +1,4 @@
-import { Users, TrendingUp, CheckSquare, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Users, TrendingUp, CheckSquare, Activity, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,6 +21,13 @@ const STATUS_COLORS: Record<string, string> = {
   Active: '#22c55e',
   Inactive: '#f59e0b',
   Churned: '#ef4444',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  Lead: 'Lead',
+  Active: 'Aktif',
+  Inactive: 'Pasif',
+  Churned: 'Kaybedildi',
 };
 
 const STAGE_LABELS: Record<string, string> = {
@@ -63,12 +70,11 @@ interface StatCardProps {
   title: string;
   value: string | number;
   icon: React.ComponentType<{ className?: string }>;
-  trend?: number;
   description?: string;
   isLoading?: boolean;
 }
 
-function StatCard({ title, value, icon: Icon, trend, description, isLoading }: StatCardProps) {
+function StatCard({ title, value, icon: Icon, description, isLoading }: StatCardProps) {
   return (
     <Card>
       <CardContent className="p-6">
@@ -86,16 +92,6 @@ function StatCard({ title, value, icon: Icon, trend, description, isLoading }: S
               {description && (
                 <p className="text-xs text-muted-foreground">{description}</p>
               )}
-              {trend !== undefined && (
-                <div className={`flex items-center gap-1 text-xs ${trend >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {trend >= 0 ? (
-                    <ArrowUpRight className="h-3 w-3" />
-                  ) : (
-                    <ArrowDownRight className="h-3 w-3" />
-                  )}
-                  <span>{Math.abs(trend)}% geçen aya göre</span>
-                </div>
-              )}
             </div>
             <div className="p-3 rounded-xl bg-primary/10">
               <Icon className="h-6 w-6 text-primary" />
@@ -108,47 +104,16 @@ function StatCard({ title, value, icon: Icon, trend, description, isLoading }: S
 }
 
 export function DashboardPage() {
-  const { data: stats, isLoading } = useDashboardStats();
+  const { data: stats, isLoading, isError } = useDashboardStats();
 
-  // Mock data for when API is not available
-  const mockStats = {
-    totalCustomers: 248,
-    activeCustomers: 189,
-    newLeadsThisMonth: 23,
-    openTasks: 47,
-    openOpportunities: 31,
-    pipelineValue: 2450000,
-    monthlyActivity: [
-      { month: 'Eki', calls: 45, meetings: 12, emails: 38 },
-      { month: 'Kas', calls: 52, meetings: 18, emails: 42 },
-      { month: 'Ara', calls: 38, meetings: 8, emails: 29 },
-      { month: 'Oca', calls: 61, meetings: 22, emails: 55 },
-      { month: 'Şub', calls: 48, meetings: 15, emails: 41 },
-      { month: 'Mar', calls: 67, meetings: 28, emails: 62 },
-    ],
-    customersByStatus: [
-      { status: 'Active' as const, count: 189 },
-      { status: 'Lead' as const, count: 32 },
-      { status: 'Inactive' as const, count: 18 },
-      { status: 'Churned' as const, count: 9 },
-    ],
-    opportunitiesByStage: [
-      { stage: 'Prospecting' as const, count: 12, value: 480000 },
-      { stage: 'Qualification' as const, count: 8, value: 620000 },
-      { stage: 'Proposal' as const, count: 5, value: 750000 },
-      { stage: 'Negotiation' as const, count: 4, value: 380000 },
-      { stage: 'ClosedWon' as const, count: 2, value: 220000 },
-    ],
-    recentActivities: [
-      { id: '1', type: 'Call' as const, customerName: 'ABC Teknoloji A.Ş.', subject: 'Yıllık abonelik görüşmesi', createdByUserName: 'Ahmet Yılmaz', contactedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString() },
-      { id: '2', type: 'Meeting' as const, customerName: 'XYZ Yazılım Ltd.', subject: 'Demo sunumu', createdByUserName: 'Fatma Kaya', contactedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
-      { id: '3', type: 'Email' as const, customerName: 'Delta Holding', subject: 'Teklif gönderildi', createdByUserName: 'Mehmet Demir', contactedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString() },
-      { id: '4', type: 'WhatsApp' as const, customerName: 'Beta Lojistik', subject: 'Randevu onayı', createdByUserName: 'Ayşe Çelik', contactedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString() },
-      { id: '5', type: 'Visit' as const, customerName: 'Omega Mühendislik', subject: 'Yerinde inceleme', createdByUserName: 'Ali Şahin', contactedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
-    ],
-  };
-
-  const displayStats = stats ?? mockStats;
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3">
+        <AlertCircle className="h-10 w-10 text-destructive/50" />
+        <p className="text-muted-foreground text-sm">Dashboard verileri yüklenemedi.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -164,32 +129,28 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Toplam Müşteri"
-          value={displayStats.totalCustomers}
+          value={stats?.totalCustomers ?? 0}
           icon={Users}
-          trend={8}
-          description={`${displayStats.activeCustomers} aktif müşteri`}
+          description={stats ? `${stats.activeCustomers} aktif müşteri` : undefined}
           isLoading={isLoading}
         />
         <StatCard
           title="Bu Ay Yeni Lead"
-          value={displayStats.newLeadsThisMonth}
+          value={stats?.newLeadsThisMonth ?? 0}
           icon={TrendingUp}
-          trend={12}
           isLoading={isLoading}
         />
         <StatCard
           title="Açık Görevler"
-          value={displayStats.openTasks}
+          value={stats?.openTasks ?? 0}
           icon={CheckSquare}
-          trend={-5}
           isLoading={isLoading}
         />
         <StatCard
           title="Pipeline Değeri"
-          value={formatCurrency(displayStats.pipelineValue)}
+          value={stats ? formatCurrency(stats.pipelineValue) : '₺0'}
           icon={Activity}
-          trend={23}
-          description={`${displayStats.openOpportunities} açık fırsat`}
+          description={stats ? `${stats.openOpportunities} açık fırsat` : undefined}
           isLoading={isLoading}
         />
       </div>
@@ -207,7 +168,7 @@ export function DashboardPage() {
               <Skeleton className="h-[220px] w-full" />
             ) : (
               <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={displayStats.monthlyActivity}>
+                <AreaChart data={stats?.monthlyActivity ?? []}>
                   <defs>
                     <linearGradient id="callsGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
@@ -269,12 +230,16 @@ export function DashboardPage() {
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-[220px] w-full" />
+            ) : !stats?.customersByStatus?.length ? (
+              <div className="flex items-center justify-center h-[220px]">
+                <p className="text-sm text-muted-foreground">Veri yok</p>
+              </div>
             ) : (
               <div className="space-y-4">
                 <ResponsiveContainer width="100%" height={140}>
                   <PieChart>
                     <Pie
-                      data={displayStats.customersByStatus}
+                      data={stats.customersByStatus}
                       cx="50%"
                       cy="50%"
                       innerRadius={40}
@@ -282,7 +247,7 @@ export function DashboardPage() {
                       dataKey="count"
                       nameKey="status"
                     >
-                      {displayStats.customersByStatus.map((entry) => (
+                      {stats.customersByStatus.map((entry) => (
                         <Cell
                           key={entry.status}
                           fill={STATUS_COLORS[entry.status] ?? '#64748b'}
@@ -295,18 +260,21 @@ export function DashboardPage() {
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px',
                       }}
+                      formatter={(value, name) => [value, STATUS_LABELS[name as string] ?? name]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="space-y-2">
-                  {displayStats.customersByStatus.map((item) => (
+                  {stats.customersByStatus.map((item) => (
                     <div key={item.status} className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-2">
                         <div
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: STATUS_COLORS[item.status] }}
                         />
-                        <span className="text-muted-foreground">{item.status}</span>
+                        <span className="text-muted-foreground">
+                          {STATUS_LABELS[item.status] ?? item.status}
+                        </span>
                       </div>
                       <span className="font-medium text-foreground">{item.count}</span>
                     </div>
@@ -333,9 +301,11 @@ export function DashboardPage() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
+            ) : !stats?.recentActivities?.length ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Henüz aktivite yok.</p>
             ) : (
               <div className="space-y-3">
-                {displayStats.recentActivities.map((activity) => (
+                {stats.recentActivities.map((activity) => (
                   <div
                     key={activity.id}
                     className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
@@ -383,10 +353,12 @@ export function DashboardPage() {
                   <Skeleton key={i} className="h-10 w-full" />
                 ))}
               </div>
+            ) : !stats?.opportunitiesByStage?.length ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Henüz fırsat yok.</p>
             ) : (
               <div className="space-y-3">
-                {displayStats.opportunitiesByStage.map((item) => {
-                  const maxValue = Math.max(...displayStats.opportunitiesByStage.map((s) => s.value));
+                {stats.opportunitiesByStage.map((item) => {
+                  const maxValue = Math.max(...stats.opportunitiesByStage.map((s) => s.value));
                   const percentage = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
                   return (
                     <div key={item.stage} className="space-y-1">
