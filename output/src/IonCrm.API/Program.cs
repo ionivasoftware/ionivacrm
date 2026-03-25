@@ -10,6 +10,9 @@ using Microsoft.OpenApi.Models;
 using Serilog;
 using System.Text;
 
+// Npgsql: treat Unspecified DateTime as UTC (prevents timestamptz errors from frontend input)
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ── Serilog ───────────────────────────────────────────────────────────────────
@@ -30,6 +33,8 @@ builder.Services.AddControllers()
     .AddJsonOptions(opts =>
     {
         opts.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        opts.JsonSerializerOptions.Converters.Add(new IonCrm.API.Common.UtcDateTimeConverter());
+        opts.JsonSerializerOptions.Converters.Add(new IonCrm.API.Common.UtcNullableDateTimeConverter());
     });
 builder.Services.AddEndpointsApiExplorer();
 
