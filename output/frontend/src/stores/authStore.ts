@@ -4,12 +4,12 @@ import type { AuthUser, LoginRequest, LoginResponse, Project } from '@/types';
 import { apiClient, setAccessToken } from '@/api/client';
 import type { ApiResponse } from '@/types';
 
-async function fetchFirstProjectId(): Promise<string | null> {
+async function fetchProjects(): Promise<Project[]> {
   try {
     const res = await apiClient.get<ApiResponse<Project[]>>('/projects');
-    return res.data.data?.[0]?.id ?? null;
+    return res.data.data ?? [];
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -18,6 +18,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   currentProjectId: string | null;
+  projectNames: Record<string, string>;
 
   login: (credentials: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
@@ -31,6 +32,7 @@ export const useAuthStore = create<AuthState>()(
     isAuthenticated: false,
     isLoading: true,
     currentProjectId: null,
+    projectNames: {},
 
     login: async (credentials: LoginRequest) => {
       const response = await apiClient.post<ApiResponse<LoginResponse>>(
@@ -43,14 +45,17 @@ export const useAuthStore = create<AuthState>()(
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('user', JSON.stringify(user));
 
-      // Set default project: use first assigned project, or fetch from API for SuperAdmin
+      // Fetch all projects to get names + resolve SuperAdmin's default project
+      const projects = await fetchProjects();
+      const projectNames = Object.fromEntries(projects.map(p => [p.id, p.name]));
       const projectIds = Object.keys(user.projectRoles);
-      const defaultProject = projectIds[0] ?? (user.isSuperAdmin ? await fetchFirstProjectId() : null);
+      const defaultProject = projectIds[0] ?? projects[0]?.id ?? null;
 
       set({
         user,
         isAuthenticated: true,
         currentProjectId: defaultProject,
+        projectNames,
       });
     },
 
@@ -67,6 +72,7 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           isAuthenticated: false,
           currentProjectId: null,
+          projectNames: {},
         });
       }
     },
@@ -87,12 +93,15 @@ export const useAuthStore = create<AuthState>()(
         if (savedToken && savedUser) {
           const user = JSON.parse(savedUser);
           setAccessToken(savedToken);
+          const projects = await fetchProjects();
+          const projectNames = Object.fromEntries(projects.map(p => [p.id, p.name]));
           const projectIds = Object.keys(user.projectRoles || {});
-          const defaultProject = projectIds[0] ?? (user.isSuperAdmin ? await fetchFirstProjectId() : null);
+          const defaultProject = projectIds[0] ?? projects[0]?.id ?? null;
           set({
             user,
             isAuthenticated: true,
             currentProjectId: defaultProject,
+            projectNames,
             isLoading: false,
           });
         } else {

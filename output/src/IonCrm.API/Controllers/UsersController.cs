@@ -1,6 +1,8 @@
 using IonCrm.API.Common;
 using IonCrm.Application.Auth.Commands.AssignRole;
+using IonCrm.Application.Auth.Commands.DeleteUser;
 using IonCrm.Application.Auth.Commands.RegisterUser;
+using IonCrm.Application.Auth.Commands.UpdateUser;
 using IonCrm.Application.Auth.Queries.GetUsers;
 using IonCrm.Application.Common.DTOs;
 using IonCrm.Domain.Enums;
@@ -63,6 +65,38 @@ public class UsersController : ControllerBase
         if (result.IsFailure)
             return BadRequest(ApiResponse<UserDto>.Fail(result.Errors));
         return StatusCode(201, ApiResponse<UserDto>.Created(result.Value!));
+    }
+
+    // ── PUT /api/v1/users/{id} ───────────────────────────────────────────────
+
+    /// <summary>Updates user details. Restricted to SuperAdmin.</summary>
+    [HttpPut("{id:guid}")]
+    [Authorize(Policy = "SuperAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<UserDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<UserDto>), 400)]
+    public async Task<IActionResult> UpdateUser(
+        [FromRoute] Guid id,
+        [FromBody] UpdateUserCommand command)
+    {
+        var result = await _mediator.Send(command with { Id = id });
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<UserDto>.Fail(result.Errors));
+        return Ok(ApiResponse<UserDto>.Ok(result.Value!));
+    }
+
+    // ── DELETE /api/v1/users/{id} ────────────────────────────────────────────
+
+    /// <summary>Soft-deletes a user. Restricted to SuperAdmin.</summary>
+    [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "SuperAdmin")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    public async Task<IActionResult> DeleteUser([FromRoute] Guid id)
+    {
+        var result = await _mediator.Send(new DeleteUserCommand(id));
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<object>.Fail(result.Errors));
+        return NoContent();
     }
 
     // ── POST /api/v1/users/{userId}/roles ────────────────────────────────────

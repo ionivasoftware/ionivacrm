@@ -19,7 +19,7 @@ interface HeaderProps {
 }
 
 export function Header({ onMobileMenuOpen }: HeaderProps) {
-  const { user, logout, currentProjectId, setCurrentProject } = useAuthStore();
+  const { user, logout, currentProjectId, setCurrentProject, projectNames } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
 
@@ -51,7 +51,7 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="h-9 gap-2 text-sm border-border">
                 <span className="max-w-[150px] truncate">
-                  {currentProjectId}
+                  {(currentProjectId && projectNames[currentProjectId]) || currentProjectId}
                 </span>
                 {currentRole && (
                   <Badge variant="secondary" className="text-xs">
@@ -70,7 +70,7 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
                   onClick={() => setCurrentProject(pid)}
                   className="flex items-center justify-between"
                 >
-                  <span className="truncate">{pid}</span>
+                  <span className="truncate">{projectNames[pid] || pid}</span>
                   {pid === currentProjectId && (
                     <span className="text-primary text-xs">✓</span>
                   )}

@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, UserCheck, Shield, Mail, Loader2, Users } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Plus, UserCheck, Shield, Mail, Loader2, Users, Pencil, Trash2 } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,7 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  useAdminUsers, useCreateUser, useAssignRole,
+  useAdminUsers, useCreateUser, useUpdateUser, useDeleteUser, useAssignRole,
   type AdminUser,
 } from '@/api/admin';
 import { useAdminProjects } from '@/api/admin';
@@ -28,7 +28,11 @@ const createSchema = z.object({
   firstName: z.string().min(1, 'Ad gereklidir'),
   lastName: z.string().min(1, 'Soyad gereklidir'),
   email: z.string().email('Geçerli e-posta giriniz'),
-  password: z.string().min(8, 'En az 8 karakter'),
+  password: z.string()
+    .min(8, 'En az 8 karakter')
+    .regex(/[A-Z]/, 'En az bir büyük harf içermelidir')
+    .regex(/[a-z]/, 'En az bir küçük harf içermelidir')
+    .regex(/[0-9]/, 'En az bir rakam içermelidir'),
   isSuperAdmin: z.boolean(),
 });
 type CreateForm = z.infer<typeof createSchema>;
@@ -46,8 +50,10 @@ function CreateUserDialog({ onClose }: { onClose: () => void }) {
       await mutation.mutateAsync(data);
       toast({ title: 'Kullanıcı oluşturuldu', description: `${data.email} başarıyla eklendi.` });
       onClose();
-    } catch {
-      toast({ title: 'Hata', description: 'Kullanıcı oluşturulamadı.', variant: 'destructive' });
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0]
+        ?? 'Kullanıcı oluşturulamadı.';
+      toast({ title: 'Hata', description: msg, variant: 'destructive' });
     }
   };
 
@@ -77,6 +83,7 @@ function CreateUserDialog({ onClose }: { onClose: () => void }) {
             <Label>Şifre *</Label>
             <Input type="password" {...register('password')} className="h-10" />
             {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+            <p className="text-xs text-muted-foreground">En az 8 karakter, büyük/küçük harf ve rakam içermelidir.</p>
           </div>
           <div className="flex items-center gap-3 p-3 rounded-lg border">
             <input
@@ -99,6 +106,131 @@ function CreateUserDialog({ onClose }: { onClose: () => void }) {
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Edit User Dialog ───────────────────────────────────────────────────────────
+
+const editSchema = z.object({
+  firstName: z.string().min(1, 'Ad gereklidir'),
+  lastName: z.string().min(1, 'Soyad gereklidir'),
+  isActive: z.boolean(),
+  isSuperAdmin: z.boolean(),
+});
+type EditForm = z.infer<typeof editSchema>;
+
+function EditUserDialog({ user, onClose }: { user: AdminUser; onClose: () => void }) {
+  const { toast } = useToast();
+  const mutation = useUpdateUser();
+  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<EditForm>({
+    resolver: zodResolver(editSchema),
+    defaultValues: {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      isActive: user.isActive,
+      isSuperAdmin: user.isSuperAdmin,
+    },
+  });
+
+  const onSubmit = async (data: EditForm) => {
+    try {
+      await mutation.mutateAsync({ id: user.id, ...data });
+      toast({ title: 'Kullanıcı güncellendi' });
+      onClose();
+    } catch {
+      toast({ title: 'Hata', description: 'Güncelleme başarısız.', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Kullanıcıyı Düzenle</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Ad *</Label>
+              <Input {...register('firstName')} className="h-10" />
+              {errors.firstName && <p className="text-xs text-destructive">{errors.firstName.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Soyad *</Label>
+              <Input {...register('lastName')} className="h-10" />
+              {errors.lastName && <p className="text-xs text-destructive">{errors.lastName.message}</p>}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 p-3 rounded-lg border">
+              <input
+                type="checkbox"
+                id="editIsActive"
+                checked={watch('isActive')}
+                onChange={(e) => setValue('isActive', e.target.checked)}
+                className="w-4 h-4"
+              />
+              <label htmlFor="editIsActive" className="text-sm font-medium cursor-pointer">Aktif</label>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg border">
+              <input
+                type="checkbox"
+                id="editIsSuperAdmin"
+                checked={watch('isSuperAdmin')}
+                onChange={(e) => setValue('isSuperAdmin', e.target.checked)}
+                className="w-4 h-4"
+              />
+              <div>
+                <label htmlFor="editIsSuperAdmin" className="text-sm font-medium cursor-pointer">SuperAdmin</label>
+                <p className="text-xs text-muted-foreground">Tüm projelere tam erişim</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>İptal</Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Güncelle
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Delete Confirm Dialog ──────────────────────────────────────────────────────
+
+function DeleteUserDialog({ user, onClose }: { user: AdminUser; onClose: () => void }) {
+  const { toast } = useToast();
+  const mutation = useDeleteUser();
+
+  const handleDelete = async () => {
+    try {
+      await mutation.mutateAsync(user.id);
+      toast({ title: 'Kullanıcı silindi' });
+      onClose();
+    } catch {
+      toast({ title: 'Hata', description: 'Kullanıcı silinemedi.', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Kullanıcıyı Sil</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground py-2">
+          <span className="font-semibold text-foreground">{user.fullName}</span> kullanıcısını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+        </p>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose}>İptal</Button>
+          <Button variant="destructive" disabled={mutation.isPending} onClick={handleDelete}>
+            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Sil
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -181,6 +313,8 @@ const ROLE_LABELS: Record<string, string> = {
 export function UsersAdminPage() {
   const { data: users = [], isLoading } = useAdminUsers();
   const [showCreate, setShowCreate] = useState(false);
+  const [editTarget, setEditTarget] = useState<AdminUser | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
   const [assignTarget, setAssignTarget] = useState<AdminUser | null>(null);
 
   return (
@@ -248,14 +382,32 @@ export function UsersAdminPage() {
                       </div>
                     )}
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-shrink-0 gap-1.5"
-                    onClick={() => setAssignTarget(user)}
-                  >
-                    <UserCheck className="h-3.5 w-3.5" /> Rol Ata
-                  </Button>
+                  <div className="flex gap-1.5 flex-shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setAssignTarget(user)}
+                    >
+                      <UserCheck className="h-3.5 w-3.5" /> Rol Ata
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setEditTarget(user)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-destructive hover:text-destructive"
+                      onClick={() => setDeleteTarget(user)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -264,6 +416,8 @@ export function UsersAdminPage() {
       </Card>
 
       {showCreate && <CreateUserDialog onClose={() => setShowCreate(false)} />}
+      {editTarget && <EditUserDialog user={editTarget} onClose={() => setEditTarget(null)} />}
+      {deleteTarget && <DeleteUserDialog user={deleteTarget} onClose={() => setDeleteTarget(null)} />}
       {assignTarget && <AssignRoleDialog user={assignTarget} onClose={() => setAssignTarget(null)} />}
     </div>
   );

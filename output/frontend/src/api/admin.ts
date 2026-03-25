@@ -29,6 +29,13 @@ export interface AssignRoleRequest {
   role: string;
 }
 
+export interface UpdateUserRequest {
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  isSuperAdmin: boolean;
+}
+
 export interface AdminProject {
   id: string;
   name: string;
@@ -59,6 +66,27 @@ export function useCreateUser() {
     mutationFn: async (data: CreateUserRequest) => {
       const res = await apiClient.post<ApiResponse<AdminUser>>('/users', data);
       return res.data.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['adminUsers'] }),
+  });
+}
+
+export function useUpdateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: UpdateUserRequest & { id: string }) => {
+      const res = await apiClient.put<ApiResponse<AdminUser>>(`/users/${id}`, data);
+      return res.data.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['adminUsers'] }),
+  });
+}
+
+export function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.delete(`/users/${id}`);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['adminUsers'] }),
   });
