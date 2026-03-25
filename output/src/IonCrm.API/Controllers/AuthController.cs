@@ -47,8 +47,12 @@ public class AuthController : ControllerBase
     /// <summary>Refresh access token using refresh token.</summary>
     [HttpPost("refresh")]
     [AllowAnonymous]
-    public async Task<IActionResult> Refresh([FromBody] RefreshTokenCommand command)
+    public async Task<IActionResult> Refresh()
     {
+        var refreshToken = Request.Cookies["refreshToken"];
+        if (string.IsNullOrEmpty(refreshToken))
+            return Unauthorized(ApiResponse<AuthResponseDto>.Fail("Refresh token not found", 401));
+        var command = new RefreshTokenCommand(refreshToken);
         var result = await _mediator.Send(command);
         if (result.IsFailure)
             return Unauthorized(ApiResponse<AuthResponseDto>.Fail(result.Errors, 401));
