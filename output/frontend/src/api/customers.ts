@@ -13,9 +13,11 @@ import type {
   CustomerTask,
   CreateTaskRequest,
   UpdateTaskRequest,
+  TaskStatus,
   Opportunity,
   CreateOpportunityRequest,
   UpdateOpportunityRequest,
+  OpportunityStage,
 } from '@/types';
 
 // ── Customer CRUD ─────────────────────────────────────────────────────────────
@@ -262,6 +264,91 @@ export function useUpdateOpportunity() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['customerOpportunities', variables.customerId] });
+      queryClient.invalidateQueries({ queryKey: ['allOpportunities'] });
+    },
+  });
+}
+
+// ── Project-level Tasks ────────────────────────────────────────────────────────
+
+export interface AllTasksParams {
+  status?: TaskStatus;
+  priority?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export function useAllTasks(params: AllTasksParams = {}) {
+  const projectId = useAuthStore((s) => s.currentProjectId);
+  return useQuery({
+    queryKey: ['allTasks', projectId, params],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<PaginatedResponse<CustomerTask>>>(
+        '/tasks',
+        { params: { projectId, pageSize: 200, ...params } }
+      );
+      return response.data.data;
+    },
+    enabled: !!projectId,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useUpdateTaskStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ customerId, taskId, status }: { customerId: string; taskId: string; status: TaskStatus }) => {
+      const response = await apiClient.patch<ApiResponse<CustomerTask>>(
+        `/customers/${customerId}/tasks/${taskId}/status`,
+        { status }
+      );
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['customerTasks', variables.customerId] });
+      queryClient.invalidateQueries({ queryKey: ['allTasks'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+// ── Project-level Opportunities (Pipeline) ────────────────────────────────────
+
+export interface AllOpportunitiesParams {
+  stage?: OpportunityStage;
+  page?: number;
+  pageSize?: number;
+}
+
+export function useAllOpportunities(params: AllOpportunitiesParams = {}) {
+  const projectId = useAuthStore((s) => s.currentProjectId);
+  return useQuery({
+    queryKey: ['allOpportunities', projectId, params],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<PaginatedResponse<Opportunity>>>(
+        '/pipeline',
+        { params: { projectId, pageSize: 200, ...params } }
+      );
+      return response.data.data;
+    },
+    enabled: !!projectId,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useUpdateOpportunityStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, stage }: { id: string; stage: OpportunityStage }) => {
+      const response = await apiClient.patch<ApiResponse<Opportunity>>(
+        `/pipeline/${id}/stage`,
+        { stage }
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allOpportunities'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

@@ -1,4 +1,5 @@
 using IonCrm.Domain.Entities;
+using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
 using IonCrm.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,33 @@ public class OpportunityRepository : GenericRepository<Opportunity>, IOpportunit
         var items = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
+    public async Task<(IReadOnlyList<Opportunity> Items, int TotalCount)> GetPagedByProjectAsync(
+        Guid projectId,
+        OpportunityStage? stage,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = DbSet
+            .Include(o => o.Customer)
+            .Include(o => o.AssignedUser)
+            .Where(o => o.ProjectId == projectId);
+
+        if (stage.HasValue)
+            query = query.Where(o => o.Stage == stage.Value);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderBy(o => o.Stage)
+            .ThenByDescending(o => o.Value)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         return (items, totalCount);

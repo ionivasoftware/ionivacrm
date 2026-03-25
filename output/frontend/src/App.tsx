@@ -13,6 +13,8 @@ const CustomersPage     = lazy(() => import('@/pages/customers/CustomersPage').t
 const CustomerDetailPage = lazy(() => import('@/pages/customers/CustomerDetailPage').then(m => ({ default: m.CustomerDetailPage })));
 const PlaceholderPage   = lazy(() => import('@/pages/PlaceholderPage').then(m => ({ default: m.PlaceholderPage })));
 const ContactHistoriesPage = lazy(() => import('@/pages/ContactHistoriesPage').then(m => ({ default: m.ContactHistoriesPage })));
+const PipelinePage      = lazy(() => import('@/pages/PipelinePage').then(m => ({ default: m.PipelinePage })));
+const TasksPage         = lazy(() => import('@/pages/TasksPage').then(m => ({ default: m.TasksPage })));
 const UsersAdminPage    = lazy(() => import('@/pages/admin/UsersAdminPage').then(m => ({ default: m.UsersAdminPage })));
 const ProjectsAdminPage = lazy(() => import('@/pages/admin/ProjectsAdminPage').then(m => ({ default: m.ProjectsAdminPage })));
 
@@ -82,24 +84,8 @@ export default function App() {
               <Route path="/contact-histories" element={<ContactHistoriesPage />} />
 
               {/* Feature routes — placeholder until Sprint 2+ */}
-              <Route
-                path="/pipeline"
-                element={
-                  <PlaceholderPage
-                    title="Pipeline"
-                    description="Kanban tabanlı satış pipeline'ı yakında aktif olacak."
-                  />
-                }
-              />
-              <Route
-                path="/tasks"
-                element={
-                  <PlaceholderPage
-                    title="Görevler"
-                    description="Görev yönetimi sayfası yakında aktif olacak."
-                  />
-                }
-              />
+              <Route path="/pipeline" element={<PipelinePage />} />
+              <Route path="/tasks" element={<TasksPage />} />
               <Route
                 path="/reports"
                 element={

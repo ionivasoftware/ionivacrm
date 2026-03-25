@@ -11,6 +11,7 @@ public static class CustomerTaskMappings
     {
         Id = t.Id,
         CustomerId = t.CustomerId,
+        CustomerName = t.Customer?.CompanyName ?? string.Empty,
         ProjectId = t.ProjectId,
         Title = t.Title,
         Description = t.Description,

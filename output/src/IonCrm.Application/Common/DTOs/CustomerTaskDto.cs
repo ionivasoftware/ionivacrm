@@ -7,6 +7,7 @@ public class CustomerTaskDto
 {
     public Guid Id { get; set; }
     public Guid CustomerId { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
     public Guid ProjectId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
