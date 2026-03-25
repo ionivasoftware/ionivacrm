@@ -58,10 +58,10 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Touch-friendly minimum tap targets */
-  button, a, [role="button"] {
+  /* Touch-friendly minimum tap targets — only for interactive button elements */
+  button:not(.inline-link),
+  [role="button"]:not(.inline-link) {
     min-height: 44px;
-    min-width: 44px;
   }
 
   /* Scrollbar styling */

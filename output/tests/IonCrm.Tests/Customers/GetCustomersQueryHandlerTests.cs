@@ -25,9 +25,11 @@ public class GetCustomersQueryHandlerTests
 
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
+                It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CustomerStatus?>(),
                 It.IsAny<CustomerSegment?>(),
+                It.IsAny<CustomerLabel?>(),
                 It.IsAny<Guid?>(),
                 It.IsAny<int>(),
                 It.IsAny<int>(),
@@ -56,7 +58,7 @@ public class GetCustomersQueryHandlerTests
         // Arrange
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
-                null, null, null, null, 1, 100, It.IsAny<CancellationToken>()))
+                null, null, null, null, null, null, 1, 100, It.IsAny<CancellationToken>()))
             .ReturnsAsync(((IReadOnlyList<Customer>)new List<Customer>(), 0));
 
         var query = new GetCustomersQuery { Page = 1, PageSize = 9999 };
@@ -67,7 +69,7 @@ public class GetCustomersQueryHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _customerRepoMock.Verify(r => r.GetPagedAsync(
-            null, null, null, null, 1, 100, It.IsAny<CancellationToken>()), Times.Once);
+            null, null, null, null, null, null, 1, 100, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -76,7 +78,7 @@ public class GetCustomersQueryHandlerTests
         // Arrange
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
-                null, null, null, null, 1, 20, It.IsAny<CancellationToken>()))
+                null, null, null, null, null, null, 1, 20, It.IsAny<CancellationToken>()))
             .ReturnsAsync(((IReadOnlyList<Customer>)new List<Customer>(), 0));
 
         var query = new GetCustomersQuery { Page = -5, PageSize = 20 };
@@ -87,6 +89,6 @@ public class GetCustomersQueryHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _customerRepoMock.Verify(r => r.GetPagedAsync(
-            null, null, null, null, 1, 20, It.IsAny<CancellationToken>()), Times.Once);
+            null, null, null, null, null, null, 1, 20, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

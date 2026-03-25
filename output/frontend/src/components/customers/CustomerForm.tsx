@@ -24,7 +24,7 @@ import {
 import { useCreateCustomer, useUpdateCustomer } from '@/api/customers';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { Customer, CustomerStatus, CustomerSegment, UpdateCustomerRequest } from '@/types';
+import type { Customer, CustomerStatus, CustomerSegment, CustomerLabel, UpdateCustomerRequest } from '@/types';
 
 // ── Schema ──────────────────────────────────────────────────────────────────
 
@@ -38,6 +38,7 @@ const schema = z.object({
   taxUnit: z.string(),
   status: z.enum(['Lead', 'Active', 'Inactive', 'Churned'] as const),
   segment: z.string(),
+  label: z.string(),
   code: z.string(),
 });
 
@@ -97,6 +98,7 @@ export function CustomerFormDialog({
       status: data.status as CustomerStatus,
       // Convert "none" sentinel back to undefined for the API
       segment: (data.segment === 'none' || !data.segment ? undefined : data.segment) as CustomerSegment | undefined,
+      label: (data.label === 'none' || !data.label ? undefined : data.label) as CustomerLabel | undefined,
       code: data.code || undefined,
     };
 
@@ -174,7 +176,7 @@ export function CustomerFormDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label>Durum <span className="text-destructive">*</span></Label>
                 <Controller
@@ -212,6 +214,28 @@ export function CustomerFormDialog({
                         <SelectItem value="Startup">Startup</SelectItem>
                         <SelectItem value="Government">Kamu</SelectItem>
                         <SelectItem value="Individual">Bireysel</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Potansiyel Label</Label>
+                <Controller
+                  control={control}
+                  name="label"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Label seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Belirtilmedi</SelectItem>
+                        <SelectItem value="YuksekPotansiyel">⭐ Yüksek Potansiyel</SelectItem>
+                        <SelectItem value="Potansiyel">🔵 Potansiyel</SelectItem>
+                        <SelectItem value="Notr">⚪ Nötr</SelectItem>
+                        <SelectItem value="Vasat">🟡 Vasat</SelectItem>
+                        <SelectItem value="Kotu">🔴 Kötü</SelectItem>
                       </SelectContent>
                     </Select>
                   )}
@@ -334,6 +358,7 @@ function getDefaultValues(customer?: Customer): FormData {
       status: customer.status,
       // Use "none" sentinel so Radix Select doesn't have empty-string value issues
       segment: customer.segment ?? 'none',
+      label: customer.label ?? 'none',
       code: customer.code ?? '',
     };
   }
@@ -347,6 +372,7 @@ function getDefaultValues(customer?: Customer): FormData {
     taxUnit: '',
     status: 'Lead',
     segment: 'none',
+    label: 'none',
     code: '',
   };
 }

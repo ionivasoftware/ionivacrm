@@ -33,6 +33,7 @@ export function useCustomers(params: CustomerListParams = {}) {
       if (params.status) queryParams.status = params.status;
       if (params.segment) queryParams.segment = params.segment;
       if (params.assignedUserId) queryParams.assignedUserId = params.assignedUserId;
+      if (params.label) queryParams.label = params.label;
       queryParams.page = params.page ?? 1;
       queryParams.pageSize = params.pageSize ?? 20;
 

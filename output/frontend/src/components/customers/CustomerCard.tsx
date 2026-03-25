@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Phone, Mail, StickyNote, MoreVertical, MapPin } from 'lucide-react';
-import { CustomerStatusBadge } from './CustomerStatusBadge';
+import { CustomerStatusBadge, CustomerLabelBadge } from './CustomerStatusBadge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -39,9 +39,14 @@ export function CustomerCard({ customer, onQuickAction }: CustomerCardProps) {
           <span className="text-primary text-sm font-semibold">{initials}</span>
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-medium text-foreground truncate leading-tight">
-            {customer.companyName}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-medium text-foreground truncate leading-tight">
+              {customer.companyName}
+            </p>
+            {customer.label && (
+              <CustomerLabelBadge label={customer.label} className="hidden sm:inline-flex" />
+            )}
+          </div>
           <div className="flex items-center gap-2 mt-0.5">
             {customer.contactName && (
               <p className="text-sm text-muted-foreground truncate">

@@ -240,7 +240,7 @@ public class MultiTenantIsolationTests
 
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
-                search, status, segment, projectId, 2, 15, It.IsAny<CancellationToken>()))
+                null, search, status, segment, null, projectId, 2, 15, It.IsAny<CancellationToken>()))
             .ReturnsAsync(((IReadOnlyList<Customer>)new List<Customer>(), 0));
 
         var query = new GetCustomersQuery
@@ -259,7 +259,7 @@ public class MultiTenantIsolationTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _customerRepoMock.Verify(r => r.GetPagedAsync(
-            search, status, segment, projectId, 2, 15, It.IsAny<CancellationToken>()), Times.Once);
+            null, search, status, segment, null, projectId, 2, 15, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     // ── Cross-tenant isolation test ──────────────────────────────────────────

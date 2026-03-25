@@ -26,7 +26,7 @@ import { CustomerCard } from '@/components/customers/CustomerCard';
 import { CustomerFormDialog } from '@/components/customers/CustomerForm';
 import { AddContactHistoryDialog } from '@/components/customers/AddContactHistoryDialog';
 import { useToast } from '@/hooks/use-toast';
-import type { CustomerStatus, CustomerSegment, ContactType } from '@/types';
+import type { CustomerStatus, CustomerSegment, CustomerLabel, ContactType } from '@/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -44,6 +44,7 @@ export function CustomersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | 'all'>('all');
   const [segmentFilter, setSegmentFilter] = useState<CustomerSegment | 'all'>('all');
+  const [labelFilter, setLabelFilter] = useState<CustomerLabel | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
 
   // Pagination
@@ -58,12 +59,17 @@ export function CustomersPage() {
     search: search.trim() || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
     segment: segmentFilter !== 'all' ? segmentFilter : undefined,
+    label: labelFilter !== 'all' ? labelFilter : undefined,
     page,
     pageSize: PAGE_SIZE,
   });
 
-  const hasActiveFilters = statusFilter !== 'all' || segmentFilter !== 'all';
-  const activeFilterCount = [statusFilter !== 'all', segmentFilter !== 'all'].filter(Boolean).length;
+  const hasActiveFilters = statusFilter !== 'all' || segmentFilter !== 'all' || labelFilter !== 'all';
+  const activeFilterCount = [
+    statusFilter !== 'all',
+    segmentFilter !== 'all',
+    labelFilter !== 'all',
+  ].filter(Boolean).length;
 
   function handleSearch(value: string) {
     setSearch(value);
@@ -80,9 +86,15 @@ export function CustomersPage() {
     setPage(1);
   }
 
+  function handleLabelChange(value: string) {
+    setLabelFilter(value as CustomerLabel | 'all');
+    setPage(1);
+  }
+
   function clearFilters() {
     setStatusFilter('all');
     setSegmentFilter('all');
+    setLabelFilter('all');
     setPage(1);
   }
 
@@ -183,8 +195,8 @@ export function CustomersPage() {
 
           {/* Filter dropdowns (collapsible) */}
           {showFilters && (
-            <div className="flex flex-col sm:flex-row gap-3 mt-4 pt-4 border-t border-border">
-              <div className="flex-1">
+            <div className="flex flex-col sm:flex-row gap-3 mt-4 pt-4 border-t border-border flex-wrap">
+              <div className="flex-1 min-w-[160px]">
                 <Select value={statusFilter} onValueChange={handleStatusChange}>
                   <SelectTrigger className="h-11">
                     <SelectValue placeholder="Tüm Durumlar" />
@@ -198,7 +210,7 @@ export function CustomersPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-[160px]">
                 <Select value={segmentFilter} onValueChange={handleSegmentChange}>
                   <SelectTrigger className="h-11">
                     <SelectValue placeholder="Tüm Segmentler" />
@@ -210,6 +222,21 @@ export function CustomersPage() {
                     <SelectItem value="Startup">Startup</SelectItem>
                     <SelectItem value="Government">Kamu</SelectItem>
                     <SelectItem value="Individual">Bireysel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1 min-w-[160px]">
+                <Select value={labelFilter} onValueChange={handleLabelChange}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Tüm Labellar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tüm Labellar</SelectItem>
+                    <SelectItem value="YuksekPotansiyel">⭐ Yüksek Potansiyel</SelectItem>
+                    <SelectItem value="Potansiyel">🔵 Potansiyel</SelectItem>
+                    <SelectItem value="Notr">⚪ Nötr</SelectItem>
+                    <SelectItem value="Vasat">🟡 Vasat</SelectItem>
+                    <SelectItem value="Kotu">🔴 Kötü</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

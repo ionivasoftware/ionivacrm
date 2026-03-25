@@ -68,7 +68,7 @@ public class DbContextTenantFilterTests : IDisposable
         var repo = new CustomerRepository(userCtx);
 
         // Act
-        var (items, total) = await repo.GetPagedAsync(null, null, null, null, 1, 50);
+        var (items, total) = await repo.GetPagedAsync(null, null, null, null, null, null, 1, 50);
 
         // Assert — user in Project A must ONLY see Project A customers
         items.Should().HaveCount(1);
@@ -89,7 +89,7 @@ public class DbContextTenantFilterTests : IDisposable
         var repo = new CustomerRepository(userCtx);
 
         // Act
-        var (items, _) = await repo.GetPagedAsync(null, null, null, null, 1, 50);
+        var (items, _) = await repo.GetPagedAsync(null, null, null, null, null, null, 1, 50);
 
         // Assert
         items.Should().HaveCount(1);
@@ -110,7 +110,7 @@ public class DbContextTenantFilterTests : IDisposable
         var repo = new CustomerRepository(superCtx);
 
         // Act
-        var (items, total) = await repo.GetPagedAsync(null, null, null, null, 1, 50);
+        var (items, total) = await repo.GetPagedAsync(null, null, null, null, null, null, 1, 50);
 
         // Assert — superadmin bypasses filter and sees both tenants
         total.Should().Be(2);
@@ -132,7 +132,7 @@ public class DbContextTenantFilterTests : IDisposable
         var repo = new CustomerRepository(noAccessCtx);
 
         // Act
-        var (items, total) = await repo.GetPagedAsync(null, null, null, null, 1, 50);
+        var (items, total) = await repo.GetPagedAsync(null, null, null, null, null, null, 1, 50);
 
         // Assert
         total.Should().Be(0);
@@ -157,7 +157,7 @@ public class DbContextTenantFilterTests : IDisposable
         var repo = new CustomerRepository(userCtx);
 
         // Act
-        var (items, total) = await repo.GetPagedAsync(null, null, null, null, 1, 50);
+        var (items, total) = await repo.GetPagedAsync(null, null, null, null, null, null, 1, 50);
 
         // Assert — soft-deleted customer must be invisible
         total.Should().Be(1);
@@ -184,7 +184,7 @@ public class DbContextTenantFilterTests : IDisposable
         await ctx.SaveChangesAsync();
 
         var repo = new CustomerRepository(ctx);
-        var (before, beforeTotal) = await repo.GetPagedAsync(null, null, null, null, 1, 50);
+        var (before, beforeTotal) = await repo.GetPagedAsync(null, null, null, null, null, null, 1, 50);
         beforeTotal.Should().Be(1, "customer should be visible before delete");
 
         // Act — soft delete
@@ -194,7 +194,7 @@ public class DbContextTenantFilterTests : IDisposable
         customer.IsDeleted.Should().BeTrue("DeleteAsync must set IsDeleted = true");
 
         // Assert — customer no longer appears in queries (global filter hides it)
-        var (after, afterTotal) = await repo.GetPagedAsync(null, null, null, null, 1, 50);
+        var (after, afterTotal) = await repo.GetPagedAsync(null, null, null, null, null, null, 1, 50);
         afterTotal.Should().Be(0, "soft-deleted customer must not appear in filtered queries");
         after.Should().BeEmpty();
     }
@@ -228,7 +228,7 @@ public class DbContextTenantFilterTests : IDisposable
         // Note: FindAsync bypasses query filters, so the repository handler
         // must enforce the project check in the command handler (which it does).
         // Here we verify the paged query filter excludes it.
-        var (items, total) = await repo.GetPagedAsync(null, null, null, null, 1, 50);
+        var (items, total) = await repo.GetPagedAsync(null, null, null, null, null, null, 1, 50);
         total.Should().Be(0, "Project A user must NOT see Project B customers via paged query");
     }
 }

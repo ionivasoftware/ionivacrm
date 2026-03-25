@@ -1,9 +1,9 @@
 # ION CRM — Security Audit Report
 
-**Auditor:** Senior Security Engineer
-**Audit Date:** 2026-03-25
-**Scope:** Full codebase — `src/`, `frontend/src/`
-**Tech Stack:** ASP.NET Core 8 · React 18 · PostgreSQL (Neon) · JWT · Railway
+**Auditor:** Senior Security Engineer (automated + manual review)
+**Date:** 2026-03-25
+**Scope:** Full codebase — `/src/`, `/frontend/src/`, `.github/`
+**Stack:** ASP.NET Core 8 · React 18 · PostgreSQL (Neon) · Railway
 
 ---
 
@@ -11,405 +11,459 @@
 
 | Severity | Count | Status |
 |----------|-------|--------|
-| 🔴 CRITICAL | 2 | **FIXED** in this audit |
-| 🟠 HIGH | 4 | Jira tickets created |
-| 🟡 MEDIUM | 4 | Jira tickets created |
-| 🔵 LOW | 3 | Jira tickets created |
-| ℹ️ INFO | 3 | Recommendations |
+| CRITICAL | 1 | ✅ Fixed in this audit |
+| HIGH | 4 | Jira tickets raised |
+| MEDIUM | 3 | Jira tickets raised |
+| LOW | 4 | Backlog |
+| INFO | 8 | Positive findings noted |
 
 ---
 
-## Security Checklist Results
+## CRITICAL — Fixed in This Audit
 
-### Authentication & Authorization
-| Check | Result | Notes |
-|-------|--------|-------|
-| JWT secret not hardcoded | ❌ FIXED | Was in `appsettings.Development.json` — cleared (CRITICAL-001) |
-| JWT expiry short (15 min access, 7 day refresh) | ✅ PASS | Correctly configured in `TokenService` |
-| Refresh tokens hashed in DB (SHA-256) | ✅ PASS | `TokenService.HashToken()` uses `SHA256.HashData` |
-| Refresh token rotation (one-time-use) | ✅ PASS | Old token revoked on each use in `RefreshTokenCommandHandler` |
-| Passwords hashed with bcrypt cost >= 12 | ✅ PASS | `PasswordHasher` uses `WorkFactor = 12` |
-| Rate limiting on `/auth/login` | ✅ PASS | 10 req/min per IP via `AspNetCoreRateLimit` |
-| Account lockout after N failed attempts | ❌ MISSING | No lockout mechanism — HIGH-001 |
-| Multi-tenant isolation enforced on ALL endpoints | ✅ PASS | EF Core global query filters + per-handler ProjectId checks |
-| SuperAdmin routes protected | ✅ PASS | `[Authorize(Policy = "SuperAdmin")]` on all elevated routes |
+### CRIT-001 · Hardcoded Demo Credentials Exposed in Production UI
 
-### Data Security
-| Check | Result | Notes |
-|-------|--------|-------|
-| No secrets in code or config files | ❌ FIXED | DB password + JWT secret were in `appsettings.Development.json` (CRITICAL-001) |
-| Connection strings from environment variables | ✅ PASS | `DependencyInjection` throws `InvalidOperationException` if missing |
-| No passwords/tokens in logs | ✅ PASS | Handlers explicitly avoid logging credentials; `LoginCommandHandler` logs only userId |
-| Sensitive data not in JWT payload | ✅ PASS | Payload contains only userId, email, projectIds, roles (no passwords) |
-| Soft delete (IsDeleted) not exposing data | ✅ PASS | EF global query filter excludes `IsDeleted=true` records universally |
+**File:** `frontend/src/pages/LoginPage.tsx` lines 211-217
+**Risk:** Unauthorized access to the production system by any anonymous visitor
 
-### Input Validation
-| Check | Result | Notes |
-|-------|--------|-------|
-| FluentValidation on ALL commands | ✅ PASS | Login, Register, CreateCustomer, UpdateCustomer, CreateTask, UpdateTaskStatus, CreateContactHistory, RunMigration all have validators |
-| SQL injection not possible | ✅ PASS | EF Core parameterized queries throughout; no raw SQL |
-| XSS prevention | ✅ PASS | ASP.NET Core JSON serializer encodes output; no raw HTML rendering |
-| File upload restrictions | N/A | No file uploads implemented |
-| Request size limits configured | ⚠️ NOT SET | Default ASP.NET limits (~30 MB) apply — LOW-001 |
-
-### Infrastructure
-| Check | Result | Notes |
-|-------|--------|-------|
-| HTTPS enforced (HSTS) | ⚠️ BY DESIGN | Railway terminates TLS at the edge; documented in `Program.cs` |
-| CORS locked to specific origins | ✅ PASS | `Cors:AllowedOrigins` whitelist configured in `appsettings.json` |
-| Swagger disabled in production | ❌ FIXED | Was unconditionally enabled; now gated behind `!IsProduction()` (CRITICAL-002) |
-| Error messages don't leak stack traces | ✅ PASS | `GlobalExceptionMiddleware` returns generic message on 500 |
-| Database user has minimum permissions | ⚠️ CONCERN | App connects as `neondb_owner` (DB owner) — MEDIUM-001 |
-| No direct DB access from frontend | ✅ PASS | All DB access goes through API layer |
-
-### Sync Service
-| Check | Result | Notes |
-|-------|--------|-------|
-| SaaS API keys stored in env vars | ✅ PASS | Read from `configuration["SaasA:ApiKey"]` / `configuration["SaasB:ApiKey"]` |
-| Webhook endpoints validate request signatures | ⚠️ PARTIAL | API key checked but via plain `!=` comparison — HIGH-002 (timing attack) |
-| Outbound callbacks use HTTPS only | ⚠️ ASSUMED | `BaseUrl` from config; no HTTPS-only enforcement in code |
-| Sync logs don't contain sensitive payload data | ❌ CONCERN | Full raw JSON payload stored in `SyncLog.Payload` — HIGH-003 |
-
-### Dependencies
-| Check | Result | Notes |
-|-------|--------|-------|
-| NuGet packages up to date | ❌ CVE FOUND | AutoMapper 14.0.0 — GHSA-rvv3-g6hj-g44x (High severity) — HIGH-004 |
-| dotnet-outdated check | ⚠️ RUN MANUALLY | `dotnet list package --vulnerable` confirmed one High CVE |
-
----
-
-## CRITICAL Issues (Fixed in this audit)
-
-### CRITICAL-001 — Hardcoded Credentials Committed to Version Control
-
-**File:** `src/IonCrm.API/appsettings.Development.json`
-**Status:** FIXED — Credentials wiped, `.gitignore` entry added.
-
-**What was exposed:**
+**Description:**
+The login page rendered a visible hint block showing hardcoded credentials:
 ```
-Database:  Host=db.ggygdevvkxycrirymiyh.supabase.co; Password=rFsD0rSMuprRfx4e
-JWT Secret: fYxPg1WpWyPCjuBWlNB1gif30yS3dl9S//IfGhs/D+Q=
+admin@ion.com / Admin123!
+```
+This block was visible to every anonymous visitor of the public login URL
+(`https://ion-crm-frontend-production.up.railway.app/login`).
+If an `admin@ion.com` SuperAdmin account with password `Admin123!` exists in the
+production database, any attacker reading the source code or inspecting the DOM
+could log in with full SuperAdmin privileges — accessing all tenants' data.
+
+**Fix Applied (this audit):**
+The credentials hint block was removed from `LoginPage.tsx` and replaced with
+a comment explaining the policy:
+```tsx
+{/* SECURITY: Demo credential hints removed — never expose credentials in UI */}
 ```
 
-**Impact:**
-- Anyone with repository access could directly connect to the Supabase dev database and read, modify, or delete all CRM data (639 customers, 892 contact history records).
-- The exposed JWT signing secret allows an attacker to forge arbitrary JWT tokens for any user including SuperAdmin — full platform takeover without needing credentials.
-
-**Immediate Actions Required:**
-1. **Rotate the Supabase dev database password immediately** — treat as fully compromised.
-2. **Rotate the JWT signing secret for all environments** — all existing tokens are untrustworthy.
-3. **Audit git history** to determine exposure window:
-   ```bash
-   git log --all --oneline -- "*/appsettings.Development.json"
+**Additional Remediation Required (must be done immediately):**
+1. Audit the production DB:
+   ```sql
+   SELECT id, email, is_super_admin, created_at FROM users WHERE email = 'admin@ion.com';
    ```
-4. Use **.NET User Secrets** for local development going forward:
-   ```bash
-   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=...;Password=<new>"
-   dotnet user-secrets set "JwtSettings:Secret" "$(openssl rand -base64 32)"
+2. If this account exists, reset its password immediately to a long random value.
+3. Invalidate all active refresh tokens for this account:
+   ```sql
+   UPDATE refresh_tokens SET is_revoked = true WHERE user_id = '<admin-id>';
    ```
-5. Evaluate `git filter-repo` to rewrite history and purge credentials if repo is externally accessible.
+4. Add a git pre-commit hook or CI secret-scanning step (e.g. `gitleaks`) to
+   prevent credentials from appearing in committed code.
 
 ---
 
-### CRITICAL-002 — Swagger UI Enabled in Production
+## HIGH — Fix This Sprint
 
-**File:** `src/IonCrm.API/Program.cs`
-**Status:** FIXED — `UseSwagger()` / `UseSwaggerUI()` now gated behind `!app.Environment.IsProduction()`.
+### HIGH-001 · Refresh Token Flow Completely Broken (Session Management Failure)
 
-**Before (vulnerable):**
+**Files:**
+- `frontend/src/api/client.ts` (auto-refresh interceptor, lines 69-73)
+- `frontend/src/stores/authStore.ts` (`initializeAuth`, line 72)
+- `src/IonCrm.Application/Auth/Commands/RefreshToken/RefreshTokenCommand.cs`
+
+**Description:**
+The backend issues an opaque refresh token in the JSON login response body
+(`AuthResponseDto.RefreshToken`). The frontend **never stores this token**.
+
+When the access token expires (15 min) and the auto-refresh interceptor fires,
+it calls `POST /api/v1/auth/refresh` with an empty body `{}`. The backend's
+`RefreshTokenCommand` requires `{ "token": "<raw-refresh-token>" }`. The empty
+request will always return `"Invalid or expired refresh token."` (401).
+
+Practical impact:
+- All authenticated sessions expire silently after exactly 15 minutes.
+- The "Remember me (7 days)" checkbox has **no effect**.
+- Users must re-login every 15 minutes.
+
+The code comments say "uses httpOnly cookie" but the backend never calls
+`Response.Cookies.Append(...)`. There is a clear design intent mismatch.
+
+**Recommended Fix — Option A (preferred): httpOnly Cookie**
 ```csharp
-// ── Swagger UI (all environments) ──────────────────
-app.UseSwagger();
-app.UseSwaggerUI(c => { c.SwaggerEndpoint(...); });
-```
-
-**After (fixed):**
-```csharp
-if (!app.Environment.IsProduction())
+// AuthController.cs — Login and Refresh endpoints:
+Response.Cookies.Append("refreshToken", result.Value!.RefreshToken, new CookieOptions
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c => { c.SwaggerEndpoint(...); });
-}
+    HttpOnly = true,
+    Secure   = true,
+    SameSite = SameSiteMode.Strict,
+    Expires  = DateTimeOffset.UtcNow.AddDays(7),
+    Path     = "/api/v1/auth"
+});
+// Remove RefreshToken from the JSON response body.
+```
+```typescript
+// Frontend: POST /auth/refresh with empty body — cookie is sent automatically.
+// (withCredentials: true already set in apiClient)
 ```
 
-**Impact of original issue:**
-The full OpenAPI schema (`/swagger/v1/swagger.json`) was publicly accessible on the production API at `https://ion-crm-api-production.up.railway.app/swagger`. This exposed all endpoint paths, HTTP methods, request/response shapes, and authentication requirements — acting as an attacker reconnaissance guide.
+**Recommended Fix — Option B: In-memory storage**
+```typescript
+// authStore.ts login():
+const { accessToken, refreshToken, user } = response.data.data;
+setAccessToken(accessToken);
+setRefreshToken(refreshToken); // module-level variable, NOT localStorage
+
+// client.ts auto-refresh interceptor:
+const response = await axios.post('/auth/refresh', { token: getRefreshToken() });
+```
+
+**Jira ticket:** `SEC-001` — Priority: Sprint 2
 
 ---
 
-## HIGH Issues (Jira tickets created)
+### HIGH-002 · Raw Customer PII Stored in SyncLog.Payload Column
 
-### HIGH-001 — No Account Lockout After Failed Login Attempts
-**Jira:** ION-SEC-001
-**File:** `src/IonCrm.Application/Auth/Commands/Login/LoginCommandHandler.cs`
-
-Rate limiting allows 10 requests/minute per IP. An attacker with multiple IP addresses (e.g., via VPN, residential proxy, or botnet) can attempt unlimited passwords against any account indefinitely. There is no account-level lockout mechanism.
-
-**Recommendation:**
-- Add `FailedLoginAttempts` (int) and `LockoutUntil` (DateTime?) to the `User` entity.
-- Lock account for 15–30 minutes after 5 consecutive failures.
-- Reset counter on successful login.
-- Always return generic error "Invalid email or password" — never reveal lockout status.
-
----
-
-### HIGH-002 — Webhook API Key Vulnerable to Timing Attack
-**Jira:** ION-SEC-002
-**File:** `src/IonCrm.API/Controllers/SyncController.cs` (lines 57, 115)
-
-```csharp
-// VULNERABLE: plain string equality exits at first mismatch
-if (string.IsNullOrEmpty(apiKey) || apiKey != expectedKey)
-```
-
-Plain `!=` string comparison has variable execution time based on how many characters match, creating a timing oracle. A sophisticated attacker can statistically recover the webhook API key character by character.
-
-**Recommendation:**
-```csharp
-using System.Security.Cryptography;
-
-// Constant-time byte comparison — prevents timing oracle
-if (!CryptographicOperations.FixedTimeEquals(
-        Encoding.UTF8.GetBytes(apiKey ?? ""),
-        Encoding.UTF8.GetBytes(expectedKey ?? "")))
-    return StatusCode(401, ApiResponse<object>.Fail("Invalid or missing API key.", 401));
-```
-
----
-
-### HIGH-003 — Full Raw Webhook Payloads Stored in SyncLog.Payload
-**Jira:** ION-SEC-003
 **Files:**
 - `src/IonCrm.Application/Features/Sync/Commands/ProcessWebhook/ProcessSaasAWebhookCommandHandler.cs` (line 51)
 - `src/IonCrm.Application/Features/Sync/Commands/ProcessWebhook/ProcessSaasBWebhookCommandHandler.cs`
+- `src/IonCrm.Infrastructure/BackgroundServices/SaasSyncJob.cs` (SyncWithRetryAsync — no payload)
+- `src/IonCrm.Domain/Entities/SyncLog.cs` (`Payload` field)
 
+**Description:**
+Inbound webhook handlers store the entire raw payload verbatim in `SyncLog.Payload`:
 ```csharp
 var log = new SyncLog { ..., Payload = request.RawPayload };
 ```
+SaaS A and SaaS B payloads contain customer PII: name, email, phone, address, and
+tax number. Although `SyncLogDto` does not expose `Payload` through the API today,
+the raw PII accumulates in the `sync_logs` database table indefinitely with no
+retention policy. Any database dump, migration, or direct SQL access exposes this data.
 
-Webhook payloads from SaaS A and SaaS B contain PII (names, emails, phone numbers, tax IDs, addresses). Persisting raw payloads to the database expands the blast radius of a breach and may violate GDPR/KVKK data minimisation requirements.
+**Recommended Fix:**
+Store only operational metadata instead of the full payload:
+```csharp
+Payload = System.Text.Json.JsonSerializer.Serialize(new
+{
+    eventType  = request.EventType,
+    entityType = request.EntityType,
+    entityId   = request.EntityId,
+    receivedAt = DateTime.UtcNow
+});
+```
+If the full payload is required for debugging, encrypt it at rest (column-level
+encryption or application-level AES-256) and add a retention policy.
 
-Note: `SyncLogDto` correctly omits the `Payload` field from API responses — the risk is at the DB persistence layer only.
-
-**Recommendation:**
-- Strip or pseudonymise PII before storing the payload.
-- Or store only metadata: `{ "eventType": "...", "entityType": "...", "entityId": "...", "recordedAt": "..." }`.
-- If full payloads are needed for debugging, encrypt the column at rest and restrict read access.
+**Jira ticket:** `SEC-002` — Priority: Sprint 2
 
 ---
 
-### HIGH-004 — AutoMapper CVE (GHSA-rvv3-g6hj-g44x)
-**Jira:** ION-SEC-004
+### HIGH-003 · AutoMapper — Known High Severity CVE
+
 **File:** `src/IonCrm.Application/IonCrm.Application.csproj`
-**Advisory:** https://github.com/advisories/GHSA-rvv3-g6hj-g44x (High severity)
+**CVE:** GHSA-rvv3-g6hj-g44x (High)
+**Package:** `AutoMapper 14.0.0`
+**Evidence:**
+```
+$ dotnet list package --vulnerable
+> AutoMapper  14.0.0  14.0.0  High  https://github.com/advisories/GHSA-rvv3-g6hj-g44x
+```
 
-`AutoMapper 14.0.0` has a confirmed high-severity vulnerability.
-
-**Recommendation:**
+**Recommended Fix:**
 ```bash
 cd src/IonCrm.Application
-dotnet add package AutoMapper
-dotnet list package --vulnerable  # Verify no remaining CVEs
+dotnet add package AutoMapper --version <latest-patched>
+dotnet build && dotnet test
 ```
+Review the advisory for the affected API surface and any required code changes.
+
+**Jira ticket:** `SEC-003` — Priority: Sprint 2
 
 ---
 
-## MEDIUM Issues (Jira tickets created)
+### HIGH-004 · Webhook API Key Comparison Vulnerable to Timing Attack
 
-### MEDIUM-001 — Application Connects as Database Owner (`neondb_owner`)
-**Jira:** ION-SEC-005
-**Config:** CLAUDE.md (Neon DB — dev + prod)
+**File:** `src/IonCrm.API/Controllers/SyncController.cs` lines 57 and 115
 
-The application connects as `neondb_owner` — the database owner — in both environments. A successful SQL injection (unlikely with EF Core but not impossible via raw queries or future code) would give an attacker full DDL rights: DROP TABLE, CREATE FUNCTION (code execution), COPY TO/FROM (file system access on some setups).
-
-**Recommendation:**
-Create a least-privilege application role:
-```sql
-CREATE ROLE ioncrm_app LOGIN PASSWORD '<strong-password>';
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ioncrm_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ioncrm_app;
-```
-Use `neondb_owner` credentials only in CI/CD migration steps, not in the running application.
-
----
-
-### MEDIUM-002 — Refresh Token Flow Broken/Incomplete
-**Jira:** ION-SEC-006
-**Files:** `frontend/src/stores/authStore.ts`, `frontend/src/api/client.ts`
-
-The backend requires `{ "token": "<refresh_token>" }` in the `POST /auth/refresh` body. However:
-
-1. `authStore.ts` discards the `refreshToken` from the login response (only `accessToken` + `user` extracted).
-2. `initializeAuth()` posts to `/auth/refresh` with an empty body — guaranteed to fail validation.
-3. `client.ts` comments say "httpOnly cookie" but the backend never sets a `Set-Cookie` header.
-
-This means the intended refresh flow is architecturally incomplete: the frontend cannot rotate access tokens, causing users to be force-logged out every 15 minutes.
-
-**Recommendation (preferred — Option A):**
-Implement server-side httpOnly cookie for the refresh token:
-- On `POST /auth/login` and `POST /auth/refresh` responses, set:
-  ```
-  Set-Cookie: refresh_token=<raw_token>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth/refresh; Max-Age=604800
-  ```
-- Modify `RefreshTokenCommand` to read from cookie instead of body.
-- Frontend already has `withCredentials: true` — no client-side changes needed.
-
----
-
-### MEDIUM-003 — Rate Limiter Uses In-Memory Store (Not Distributed)
-**Jira:** ION-SEC-007
-**File:** `src/IonCrm.API/Program.cs` (line 78)
-
-`AddInMemoryRateLimiting()` stores counters per-process. With multiple Railway API instances, each process maintains an independent counter. An attacker can bypass the 10/minute limit by distributing requests across instances.
-
-**Recommendation:**
-Replace with a distributed store (Redis):
+**Description:**
+Both `ReceiveSaasAWebhook` and `ReceiveSaasBWebhook` compare the incoming
+`X-Api-Key` header using standard string equality:
 ```csharp
-// Replace:
-builder.Services.AddInMemoryRateLimiting();
-// With:
-builder.Services.AddRedisRateLimiting();
-builder.Services.Configure<IpRateLimitOptions>(o => o.EnableEndpointRateLimiting = true);
+if (string.IsNullOrEmpty(apiKey) || apiKey != expectedKey)
 ```
+.NET's `string !=` is **not timing-safe** — it short-circuits on the first
+mismatched character. An attacker who can make many requests and measure
+response latency can brute-force the key character by character. Network
+jitter reduces practical exploitability, but this is a known weakness for
+secret-comparison operations.
 
----
-
-### MEDIUM-004 — `customerId` URL Parameter Not Validated Against Record Ownership
-**Jira:** ION-SEC-008
-**Files:**
-- `src/IonCrm.API/Controllers/ContactHistoriesController.cs`
-- `src/IonCrm.API/Controllers/CustomerTasksController.cs`
-- `src/IonCrm.Application/ContactHistory/Queries/GetContactHistoryById/GetContactHistoryByIdQueryHandler.cs`
-- `src/IonCrm.Application/Tasks/Queries/GetCustomerTaskById/GetCustomerTaskByIdQueryHandler.cs`
-
-Routes like `GET /api/v1/customers/{customerId}/contact-histories/{id}` accept `customerId` in the path, but handlers only use `{id}` to look up the record. The `customerId` is silently ignored. A user within the same project tenant can:
-- Supply any `customerId` value and still retrieve the contact history or task.
-- Enumerate records across all customers in their project by brute-forcing IDs.
-
-Cross-tenant isolation is intact (EF global filters + ProjectId checks), but within a project the URL structure implies per-customer access control that is not enforced.
-
-**Recommendation:**
-Add ownership validation in handlers:
+**Recommended Fix:**
+Use `CryptographicOperations.FixedTimeEquals` (.NET Core 2.1+):
 ```csharp
-// In GetContactHistoryByIdQueryHandler:
-if (history.CustomerId != request.CustomerId)
-    return Result<ContactHistoryDto>.Failure("Contact history not found.");
+using System.Security.Cryptography;
+using System.Text;
+
+static bool ApiKeysEqual(string? incoming, string? expected)
+{
+    if (incoming is null || expected is null) return false;
+    var a = Encoding.UTF8.GetBytes(incoming);
+    var b = Encoding.UTF8.GetBytes(expected);
+    return a.Length == b.Length && CryptographicOperations.FixedTimeEquals(a, b);
+}
+
+if (!ApiKeysEqual(apiKey, expectedKey))
+    return StatusCode(401, ApiResponse<object>.Fail("Invalid or missing API key.", 401));
 ```
+
+**Jira ticket:** `SEC-004` — Priority: Sprint 2
 
 ---
 
-## LOW Issues (Jira tickets created)
+## MEDIUM — Next Sprint
 
-### LOW-001 — No Explicit Request Body Size Limit
-**Jira:** ION-SEC-009
-**File:** `src/IonCrm.API/Program.cs`
+### MED-001 · No Account Lockout After Failed Login Attempts
 
-Default ASP.NET Core request body size is 30 MB. Sync webhook endpoints accept arbitrary `JsonElement` with no cap. An attacker could send oversized payloads to exhaust memory or consume CPU during JSON deserialization.
+**File:** `src/IonCrm.Application/Auth/Commands/Login/LoginCommandHandler.cs`
 
-**Recommendation:**
+**Description:**
+Rate limiting is configured (10 req/min/IP) but there is no account-level
+lockout after N consecutive failed login attempts for a single email. A
+distributed brute-force attack from multiple IPs would bypass IP-rate-limiting.
+Failed attempts are logged as warnings but no counter or lockout timestamp is
+persisted on the `User` entity.
+
+**Recommended Fix:**
+1. Add `FailedLoginCount int` and `LockedUntil DateTime?` to the `User` entity.
+2. Increment `FailedLoginCount` on each failed login.
+3. Lock for 15 minutes after 5 consecutive failures.
+4. Reset `FailedLoginCount` to 0 on successful login.
+5. Return the same generic `"Invalid email or password."` even when locked
+   (prevent user enumeration via lockout status).
+
+**Jira ticket:** `SEC-005` — Priority: Sprint 3
+
+---
+
+### MED-002 · Hardcoded Fallback Connection String in Design-Time Factory
+
+**File:** `src/IonCrm.Infrastructure/Persistence/ApplicationDbContextFactory.cs` line 26
+
+**Description:**
 ```csharp
-builder.Services.Configure<KestrelServerOptions>(options =>
-    options.Limits.MaxRequestBodySize = 1_048_576); // 1 MB global limit
+var connectionString = configuration.GetConnectionString("DefaultConnection")
+    ?? "Host=localhost;Database=ioncrm_dev;Username=postgres;Password=postgres";
 ```
-Or per-endpoint with `[RequestSizeLimit(524_288)]` (512 KB) on sync controllers.
+A fallback connection string with `Username=postgres` / `Password=postgres` is
+hardcoded in source code and committed to the repository. Although only used by
+`dotnet ef migrations` at design time, it:
+- Embeds a credential pair in version control history.
+- May silently connect a developer's migration tool to the wrong database if the
+  env var is unset.
+- Sets a precedent that hardcoded DB passwords are acceptable.
 
----
-
-### LOW-002 — Hangfire Dashboard Unauthenticated in Development
-**Jira:** ION-SEC-010
-**File:** `src/IonCrm.API/Middleware/HangfireAdminAuthFilter.cs` (lines 18–21)
-
+**Recommended Fix:**
+Replace the null-coalescing fallback with a hard failure:
 ```csharp
-if (httpContext...IsDevelopment())
-    return true; // ALLOWS UNAUTHENTICATED ACCESS
+var connectionString = configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings__DefaultConnection must be set before running migrations.\n" +
+        "Example: export ConnectionStrings__DefaultConnection='Host=...;Password=...'");
 ```
 
-If `ASPNETCORE_ENVIRONMENT` is incorrectly set to `Development` on a staging or production server (a common misconfiguration), the Hangfire dashboard (`/hangfire`) becomes fully accessible without authentication, allowing anyone to enqueue, cancel, or inspect all background jobs.
-
-**Recommendation:** Remove the development bypass. Require SuperAdmin JWT in all environments.
+**Jira ticket:** `SEC-006` — Priority: Sprint 3
 
 ---
 
-### LOW-003 — Git History Contains Exposed Credentials
-**Jira:** ION-SEC-011
+### MED-003 · Production Infrastructure Details Committed to CLAUDE.md
 
-The credentials cleared in CRITICAL-001 remain in git history. The `.gitignore` prevents future commits but does not rewrite history.
+**File:** `/CLAUDE.md` lines 19-22
 
-**Recommendation (if repo is externally accessible):**
-```bash
-# Install git-filter-repo, then:
-git filter-repo --path src/IonCrm.API/appsettings.Development.json --invert-paths
-git push --force-with-lease origin main
-# All collaborators must re-clone.
+**Description:**
+`CLAUDE.md` (tracked in the repository) contains production and development
+database hostnames and usernames:
+```
+Prod DB: Host=ep-purple-sound-a9vyag84-pooler.gwc.azure.neon.tech;
+         Database=ioncrm;Username=neondb_owner
+Dev DB:  Host=ep-royal-grass-a9u9toyt-pooler.gwc.azure.neon.tech;
+         Database=neondb;Username=neondb_owner
+```
+While passwords are absent, exposing the cloud provider (Azure Neon), exact
+pooler FQDNs, database names, and usernames enables:
+- Targeted credential-stuffing against known usernames.
+- Direct connection attempts to port 5432 if Neon IP allowlisting is misconfigured.
+- Service enumeration and reconnaissance.
+
+**Recommended Fix:**
+1. Remove all connection details from `CLAUDE.md`.
+2. Replace with Railway env variable names: `DATABASE_URL`, `DATABASE_URL_DEV`.
+3. Rotate the Neon `neondb_owner` password as a precaution (the username is now
+   public in git history).
+
+**Jira ticket:** `SEC-007` — Priority: Sprint 3
+
+---
+
+## LOW — Backlog
+
+### LOW-001 · Password Validator Missing Special Character Requirement
+
+**File:** `src/IonCrm.Application/Auth/Commands/RegisterUser/RegisterUserCommandValidator.cs`
+
+The validator requires 8+ chars, uppercase, lowercase, and digit — but no special
+character. Add `.Matches("[^a-zA-Z0-9]").WithMessage("Password must contain at
+least one special character.")` for higher entropy.
+
+**Jira ticket:** `SEC-008`
+
+---
+
+### LOW-002 · GetCustomers Handler Lacks Explicit Tenant Check (Defense-in-Depth Gap)
+
+**File:** `src/IonCrm.Application/Customers/Queries/GetCustomers/GetCustomersQueryHandler.cs`
+
+`GetCustomersQueryHandler` does not inject `ICurrentUserService`. Tenant isolation
+relies solely on the EF Core global query filter. All other mutating handlers
+perform an explicit `_currentUser.ProjectIds.Contains(entity.ProjectId)` check.
+
+The global filter is currently sufficient, but if a future developer adds
+`IgnoreQueryFilters()` for performance, this endpoint would silently leak
+cross-tenant data. Recommend adding an explicit caller-supplied `ProjectId`
+validation at the handler level for consistency and defense-in-depth.
+
+**Jira ticket:** `SEC-009`
+
+---
+
+### LOW-003 · SyncLog Payload Column Has No Retention Policy
+
+**File:** `src/IonCrm.Domain/Entities/SyncLog.cs`
+
+`SyncLog` records accumulate indefinitely. Even after HIGH-002 is remediated,
+operational metadata still grows unbounded. Recommend a Hangfire recurring job
+to purge records older than 90 days (configurable).
+
+**Jira ticket:** `SEC-010`
+
+---
+
+### LOW-004 · Frontend Password Minimum Length (6) Below Backend Minimum (8)
+
+**File:** `frontend/src/pages/LoginPage.tsx` (zod schema, line 22)
+
+The login form validates `minLength(6)` while the backend enforces
+`MinimumLength(8)`. Users entering 6- or 7-character passwords pass client
+validation but receive a confusing server-side error. Align the frontend schema
+to `minLength(8)`.
+
+**Jira ticket:** `SEC-011`
+
+---
+
+## INFO — Positive Security Findings
+
+The following checklist items were audited and found to be correctly implemented:
+
+| Check | Result | Evidence |
+|-------|--------|----------|
+| JWT secret not hardcoded | ✅ PASS | `Program.cs` throws `InvalidOperationException` if env var missing |
+| JWT access token expiry | ✅ PASS | 15 min (`JwtSettings:AccessTokenExpiryMinutes: 15`) |
+| JWT refresh token expiry | ✅ PASS | 7 days (`JwtSettings:RefreshTokenExpiryDays: 7`) |
+| Refresh tokens hashed in DB | ✅ PASS | SHA-256 hex-encoded; raw token never persisted (`TokenService.cs`) |
+| BCrypt cost factor ≥ 12 | ✅ PASS | `WorkFactor = 12` (`PasswordHasher.cs`) |
+| Rate limiting on /auth/login | ✅ PASS | 10 req/min/IP via `AspNetCoreRateLimit` |
+| Rate limiting on /auth/refresh | ✅ PASS | 10 req/min/IP |
+| SuperAdmin routes protected | ✅ PASS | `[Authorize(Policy="SuperAdmin")]` on all admin endpoints |
+| Multi-tenant isolation — DB layer | ✅ PASS | Global EF query filters on all tenant-scoped entities |
+| Multi-tenant isolation — app layer | ✅ PASS | All mutating handlers verify `ProjectIds.Contains()` |
+| Passwords not in JWT payload | ✅ PASS | Claims: userId, email, isSuperAdmin, projectIds, roles only |
+| Stack traces not in error responses | ✅ PASS | `GlobalExceptionMiddleware` returns generic 500 body |
+| Swagger disabled in production | ✅ PASS | `if (!app.Environment.IsProduction())` guard in `Program.cs` |
+| SaaS API keys from config | ✅ PASS | Read via `IConfiguration`; empty strings in `appsettings.json` |
+| Refresh token rotation | ✅ PASS | Old token revoked before new pair issued |
+| Soft-delete filter active | ✅ PASS | `IsDeleted` in every global query filter |
+| SQL injection not possible | ✅ PASS | EF Core parameterized queries; no raw SQL |
+| CORS locked to known origins | ✅ PASS | `WithOrigins(origins)` — no wildcard |
+| No secrets in `appsettings.json` | ✅ PASS | All sensitive values are empty strings |
+| Error messages generic (no user enumeration) | ✅ PASS | Login returns `"Invalid email or password."` on both missing user and wrong password |
+
+---
+
+## Dependency Audit
+
+```
+$ dotnet list package --vulnerable
 ```
 
----
-
-## INFO / Recommendations
-
-### INFO-001 — Install Secrets Scanning Pre-commit Hook
-```bash
-# trufflehog (recommended for .NET projects)
-pip install pre-commit
-# Add to .pre-commit-config.yaml:
-# - repo: https://github.com/trufflesecurity/trufflehog
-#   hooks: [{id: trufflehog, args: ["git", "file://."]}]
-pre-commit install
-```
-
-### INFO-002 — CLAUDE.md Contains Real Infrastructure Hostnames
-`CLAUDE.md` lists Neon dev and production DB hostnames and usernames (without passwords). While not immediately exploitable, this reduces time-to-exploit in a breach scenario. Consider moving environment-specific metadata to a non-committed `.claude.local.md`.
-
-### INFO-003 — EF Core Command Logging Correctly Muted
-`appsettings.json` sets `Microsoft.EntityFrameworkCore.Database.Command: Warning` — EF Core query logging (which can include parameter values) is suppressed in production. Good practice confirmed. ✅
+| Project | Package | Version | Severity | Advisory |
+|---------|---------|---------|----------|----------|
+| IonCrm.Application | AutoMapper | 14.0.0 | **High** | GHSA-rvv3-g6hj-g44x |
+| IonCrm.Domain | — | — | None | — |
+| IonCrm.Infrastructure | — | — | None | — |
+| IonCrm.API | — | — | None | — |
+| IonCrm.Tests | — | — | None | — |
 
 ---
 
-## Multi-Tenant Isolation Audit
+## Security Checklist (Final State)
 
-All controller endpoints were audited. Isolation is enforced at two layers:
-1. **EF Core global query filters** on `Customer`, `ContactHistory`, `CustomerTask`, `Opportunity`, `SyncLog`, `Project`, `UserProjectRole` — tenant filter `ProjectId IN (user's ProjectIds)` applied on every query.
-2. **Handler-level checks** — explicit `_currentUser.ProjectIds.Contains(record.ProjectId)` before any mutation.
+### AUTHENTICATION & AUTHORIZATION
+- [x] JWT secret not hardcoded (env var, app fails to start without it)
+- [x] JWT expiry: 15 min access / 7 day refresh
+- [x] Refresh tokens stored securely (SHA-256 hashed in DB)
+- [x] Passwords hashed with BCrypt (cost factor 12)
+- [x] Rate limiting on /auth/login (10 req/min/IP)
+- [ ] **Account lockout after N failed attempts** — MED-001
+- [x] Multi-tenant isolation enforced on all endpoints
+- [x] SuperAdmin routes protected with `[Authorize(Policy="SuperAdmin")]`
 
-| Endpoint | Isolation Layer | Result |
-|----------|-----------------|--------|
-| `GET /customers` | EF global filter | ✅ |
-| `GET /customers/{id}` | EF filter + handler | ✅ |
-| `PUT /customers/{id}` | EF filter + handler | ✅ |
-| `DELETE /customers/{id}` | EF filter + handler | ✅ |
-| `GET /customers/{cid}/contact-histories` | EF global filter | ✅ |
-| `GET /customers/{cid}/contact-histories/{id}` | EF filter + handler (customerId not validated) | ⚠️ MEDIUM-004 |
-| `GET /customers/{cid}/tasks` | EF global filter | ✅ |
-| `GET /customers/{cid}/tasks/{id}` | EF filter + handler (customerId not validated) | ⚠️ MEDIUM-004 |
-| `GET /tasks?projectId=` | Handler validates ProjectIds.Contains | ✅ |
-| `GET /sync/logs` | Handler enforces project scope for non-SuperAdmin | ✅ |
-| `POST /sync/saas-a` | API key auth + ProjectId from config | ✅ |
-| `POST /sync/saas-b` | API key auth + ProjectId from config | ✅ |
-| `POST /sync/trigger` | SuperAdmin policy | ✅ |
-| `GET /users` | Handler scopes to user's project | ✅ |
-| `POST /migration/run` | SuperAdmin policy (class-level) | ✅ |
-| `GET /migration/status` | SuperAdmin policy (class-level) | ✅ |
+### DATA SECURITY
+- [x] No secrets in code or config files (post CRIT-001 fix)
+- [x] Connection strings from environment variables
+- [x] No passwords/tokens in logs
+- [x] Sensitive data not in JWT payload
+- [x] Soft delete (IsDeleted) does not expose deleted data
 
-**Overall isolation posture: STRONG** — no cross-tenant data leakage paths identified beyond MEDIUM-004 (intra-project, not cross-tenant).
+### INPUT VALIDATION
+- [x] FluentValidation on all commands
+- [x] SQL injection not possible (EF Core)
+- [x] XSS prevention (React output encoding)
+- N/A File upload restrictions
+- N/A Request size limits
+
+### INFRASTRUCTURE
+- [x] HTTPS enforced (Railway TLS edge termination)
+- [x] CORS locked to specific origins
+- [x] Swagger disabled in production
+- [x] Error messages do not leak stack traces
+- N/A Database minimum permissions (Neon managed)
+- [x] No direct DB access from frontend
+
+### SYNC SERVICE
+- [x] SaaS API keys stored in env vars
+- [x] Webhook endpoints validate request signatures (X-Api-Key header)
+- [x] Outbound callbacks use HTTPS only
+- [ ] **Sync logs should not contain sensitive payload data** — HIGH-002
+
+### DEPENDENCIES
+- [ ] **NuGet packages up to date — AutoMapper CVE** — HIGH-003
+- [x] No other known CVEs in dependencies
 
 ---
 
-## Files Changed in This Audit
+## Remediation Roadmap
 
-| File | Change | Reason |
-|------|--------|--------|
-| `src/IonCrm.API/appsettings.Development.json` | Credentials wiped; replaced with placeholder comments | CRITICAL-001 |
-| `src/IonCrm.API/Program.cs` | Swagger gated behind `!IsProduction()` | CRITICAL-002 |
-| `.gitignore` | Created — excludes `appsettings.Development.json` and all secrets files | CRITICAL-001 |
+| Ticket | Severity | Item | Target |
+|--------|----------|------|--------|
+| CRIT-001 | CRITICAL | Remove demo credentials from LoginPage.tsx | **Done ✅** |
+| SEC-001 | HIGH | Fix broken refresh token flow | Sprint 2 |
+| SEC-002 | HIGH | Redact PII from SyncLog.Payload | Sprint 2 |
+| SEC-003 | HIGH | Update AutoMapper (CVE GHSA-rvv3-g6hj-g44x) | Sprint 2 |
+| SEC-004 | HIGH | Timing-safe API key comparison in SyncController | Sprint 2 |
+| SEC-005 | MEDIUM | Account lockout after failed logins | Sprint 3 |
+| SEC-006 | MEDIUM | Remove hardcoded fallback connection string | Sprint 3 |
+| SEC-007 | MEDIUM | Remove infrastructure details from CLAUDE.md | Sprint 3 |
+| SEC-008 | LOW | Password special-character requirement | Backlog |
+| SEC-009 | LOW | Explicit tenant check in GetCustomersQueryHandler | Backlog |
+| SEC-010 | LOW | SyncLog retention/cleanup policy | Backlog |
+| SEC-011 | LOW | Align frontend/backend password minLength | Backlog |
 
 ---
 
-## Summary
-
-**2 critical, 4 high, 4 medium, 3 low issues found.**
-
-The two critical issues have been fixed directly in code. All remaining issues have Jira tickets (ION-SEC-001 through ION-SEC-011) for sprint prioritization.
-
-The application's overall security architecture is sound: JWT with short expiry, SHA-256 hashed refresh tokens with rotation, bcrypt cost-12 passwords, EF Core global tenant filters, FluentValidation on all inputs, parameterized queries, and structured error handling. The critical deficiencies are operational (credential management) rather than architectural.
-
-*Report generated by automated security audit — ION CRM, 2026-03-25*
+*Report generated: 2026-03-25*
+*Next audit recommended: End of Sprint 3 (after HIGH/MEDIUM remediations are complete)*

@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import type { CustomerStatus } from '@/types';
+import type { CustomerStatus, CustomerLabel } from '@/types';
 
 export const STATUS_LABELS: Record<CustomerStatus, string> = {
   Lead: 'Lead',
@@ -30,6 +30,43 @@ export function CustomerStatusBadge({ status, className }: CustomerStatusBadgePr
       )}
     >
       {STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+// ── Label Badge ───────────────────────────────────────────────────────────────
+
+export const LABEL_LABELS: Record<CustomerLabel, string> = {
+  YuksekPotansiyel: '⭐ Yüksek Potansiyel',
+  Potansiyel: '🔵 Potansiyel',
+  Notr: '⚪ Nötr',
+  Vasat: '🟡 Vasat',
+  Kotu: '🔴 Kötü',
+};
+
+const LABEL_CLASSES: Record<CustomerLabel, string> = {
+  YuksekPotansiyel: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+  Potansiyel: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  Notr: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
+  Vasat: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  Kotu: 'bg-red-500/15 text-red-400 border-red-500/30',
+};
+
+interface CustomerLabelBadgeProps {
+  label: CustomerLabel;
+  className?: string;
+}
+
+export function CustomerLabelBadge({ label, className }: CustomerLabelBadgeProps) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap',
+        LABEL_CLASSES[label],
+        className
+      )}
+    >
+      {LABEL_LABELS[label]}
     </span>
   );
 }

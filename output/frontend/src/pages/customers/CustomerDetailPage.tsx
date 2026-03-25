@@ -64,7 +64,7 @@ import {
   useCreateOpportunity,
   useDeleteCustomer,
 } from '@/api/customers';
-import { CustomerStatusBadge } from '@/components/customers/CustomerStatusBadge';
+import { CustomerStatusBadge, CustomerLabelBadge } from '@/components/customers/CustomerStatusBadge';
 import { CustomerFormDialog } from '@/components/customers/CustomerForm';
 import {
   AddContactHistoryDialog,
@@ -707,6 +707,7 @@ export function CustomerDetailPage() {
                     {customer.companyName}
                   </h1>
                   <CustomerStatusBadge status={customer.status} />
+                  {customer.label && <CustomerLabelBadge label={customer.label} />}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   {customer.segment && (

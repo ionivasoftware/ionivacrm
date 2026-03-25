@@ -10,6 +10,13 @@ export type CustomerStatus = 'Lead' | 'Active' | 'Inactive' | 'Churned';
 
 export type CustomerSegment = 'SME' | 'Enterprise' | 'Startup' | 'Government' | 'Individual';
 
+export type CustomerLabel =
+  | 'YuksekPotansiyel'
+  | 'Potansiyel'
+  | 'Notr'
+  | 'Vasat'
+  | 'Kotu';
+
 export type ContactType = 'Call' | 'Email' | 'Meeting' | 'Note' | 'WhatsApp' | 'Visit';
 
 export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Critical';
@@ -131,6 +138,7 @@ export interface Customer {
   taxUnit: string | null;
   status: CustomerStatus;
   segment: CustomerSegment | null;
+  label: CustomerLabel | null;
   assignedUserId: string | null;
   assignedUserName: string | null;
   legacyId: string | null;
@@ -150,6 +158,7 @@ export interface CreateCustomerRequest {
   taxUnit?: string;
   status: CustomerStatus;
   segment?: CustomerSegment;
+  label?: CustomerLabel;
   assignedUserId?: string;
   code?: string;
 }
@@ -165,6 +174,7 @@ export interface CustomerListParams {
   search?: string;
   status?: CustomerStatus;
   segment?: CustomerSegment;
+  label?: CustomerLabel;
   assignedUserId?: string;
 }
 

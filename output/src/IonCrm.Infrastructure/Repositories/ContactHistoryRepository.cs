@@ -57,4 +57,48 @@ public class ContactHistoryRepository : GenericRepository<ContactHistory>, ICont
 
         return (items, totalCount);
     }
+
+    /// <inheritdoc />
+    public async Task<(IReadOnlyList<ContactHistory> Items, int TotalCount)> GetPagedAllAsync(
+        Guid? projectId,
+        Guid? customerId,
+        ContactType? type,
+        DateTime? fromDate,
+        DateTime? toDate,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        // Global query filter already restricts to user's accessible projects (tenant isolation).
+        var query = DbSet
+            .Include(h => h.CreatedByUser)
+            .Include(h => h.Customer)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (projectId.HasValue)
+            query = query.Where(h => h.ProjectId == projectId.Value);
+
+        if (customerId.HasValue)
+            query = query.Where(h => h.CustomerId == customerId.Value);
+
+        if (type.HasValue)
+            query = query.Where(h => h.Type == type.Value);
+
+        if (fromDate.HasValue)
+            query = query.Where(h => h.ContactedAt >= fromDate.Value);
+
+        if (toDate.HasValue)
+            query = query.Where(h => h.ContactedAt <= toDate.Value);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(h => h.ContactedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
 }

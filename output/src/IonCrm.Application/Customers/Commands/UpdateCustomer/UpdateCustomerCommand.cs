@@ -19,5 +19,6 @@ public record UpdateCustomerCommand : IRequest<Result<CustomerDto>>
     public string? TaxUnit { get; init; }
     public CustomerStatus Status { get; init; }
     public CustomerSegment? Segment { get; init; }
+    public CustomerLabel? Label { get; init; }
     public Guid? AssignedUserId { get; init; }
 }

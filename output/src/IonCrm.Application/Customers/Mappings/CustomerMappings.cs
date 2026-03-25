@@ -21,6 +21,7 @@ public static class CustomerMappings
         TaxUnit = c.TaxUnit,
         Status = c.Status,
         Segment = c.Segment,
+        Label = c.Label,
         AssignedUserId = c.AssignedUserId,
         AssignedUserName = c.AssignedUser is not null
             ? $"{c.AssignedUser.FirstName} {c.AssignedUser.LastName}".Trim()

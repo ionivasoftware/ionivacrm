@@ -23,9 +23,11 @@ public class GetCustomersQueryHandler : IRequestHandler<GetCustomersQuery, Resul
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
         var (items, totalCount) = await _customerRepository.GetPagedAsync(
+            request.ProjectId,
             request.Search,
             request.Status,
             request.Segment,
+            request.Label,
             request.AssignedUserId,
             page,
             pageSize,

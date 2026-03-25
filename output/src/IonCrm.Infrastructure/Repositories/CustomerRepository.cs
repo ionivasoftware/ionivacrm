@@ -17,9 +17,11 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
 
     /// <inheritdoc />
     public async Task<(IReadOnlyList<Customer> Items, int TotalCount)> GetPagedAsync(
+        Guid? projectId,
         string? search,
         CustomerStatus? status,
         CustomerSegment? segment,
+        CustomerLabel? label,
         Guid? assignedUserId,
         int page,
         int pageSize,
@@ -29,6 +31,11 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
             .Include(c => c.AssignedUser)
             .AsNoTracking()
             .AsQueryable();
+
+        // Project filter (global query filter already restricts to user's projects;
+        // this adds an extra explicit filter when a specific project is requested)
+        if (projectId.HasValue)
+            query = query.Where(c => c.ProjectId == projectId.Value);
 
         // Full-text search across key fields
         if (!string.IsNullOrWhiteSpace(search))
@@ -48,6 +55,9 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
         if (segment.HasValue)
             query = query.Where(c => c.Segment == segment.Value);
 
+        if (label.HasValue)
+            query = query.Where(c => c.Label == label.Value);
+
         if (assignedUserId.HasValue)
             query = query.Where(c => c.AssignedUserId == assignedUserId.Value);
 
@@ -60,6 +70,19 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
             .ToListAsync(cancellationToken);
 
         return (items, totalCount);
+    }
+
+    /// <inheritdoc />
+    public async Task<Customer?> GetWithDetailsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await DbSet
+            .Include(c => c.AssignedUser)
+            .Include(c => c.ContactHistories.Where(h => !h.IsDeleted))
+                .ThenInclude(h => h.CreatedByUser)
+            .Include(c => c.Tasks.Where(t => !t.IsDeleted))
+                .ThenInclude(t => t.AssignedUser)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
     }
 
     /// <inheritdoc />

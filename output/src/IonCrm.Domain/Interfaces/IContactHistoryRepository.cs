@@ -20,4 +20,19 @@ public interface IContactHistoryRepository : IRepository<ContactHistory>
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a paged list of all contact history records across all customers in accessible projects.
+    /// Tenant isolation is enforced via the global query filter (ProjectId).
+    /// Supports optional filtering by project, contact type, date range, and customer.
+    /// </summary>
+    Task<(IReadOnlyList<ContactHistory> Items, int TotalCount)> GetPagedAllAsync(
+        Guid? projectId,
+        Guid? customerId,
+        ContactType? type,
+        DateTime? fromDate,
+        DateTime? toDate,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
 }

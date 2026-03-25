@@ -42,6 +42,12 @@ public class Customer : BaseEntity
     /// <summary>Gets or sets the business segment classification.</summary>
     public CustomerSegment? Segment { get; set; }
 
+    /// <summary>
+    /// Gets or sets the quality/potential label for this customer.
+    /// Maps to: YuksekPotansiyel, Potansiyel, Notr, Vasat, Kotu.
+    /// </summary>
+    public CustomerLabel? Label { get; set; }
+
     /// <summary>Gets or sets the sales rep assigned to this customer.</summary>
     public Guid? AssignedUserId { get; set; }
 

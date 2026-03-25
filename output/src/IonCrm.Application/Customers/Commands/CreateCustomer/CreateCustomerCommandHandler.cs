@@ -45,6 +45,7 @@ public class CreateCustomerCommandHandler : IRequestHandler<CreateCustomerComman
             TaxUnit = request.TaxUnit,
             Status = request.Status,
             Segment = request.Segment,
+            Label = request.Label,
             AssignedUserId = request.AssignedUserId
         };
 

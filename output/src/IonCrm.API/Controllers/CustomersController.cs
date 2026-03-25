@@ -1,7 +1,9 @@
+using IonCrm.Application.Customers.Commands.ConvertLeadToCustomer;
 using IonCrm.Application.Customers.Commands.CreateCustomer;
 using IonCrm.Application.Customers.Commands.DeleteCustomer;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
+using IonCrm.Application.Customers.Queries.GetCustomerWithDetails;
 using IonCrm.Application.Customers.Queries.GetCustomers;
 using IonCrm.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
@@ -23,9 +25,11 @@ public class CustomersController : ApiControllerBase
     /// <summary>Gets a paginated, filtered list of customers.</summary>
     [HttpGet]
     public async Task<IActionResult> GetCustomers(
+        [FromQuery] Guid? projectId,
         [FromQuery] string? search,
         [FromQuery] CustomerStatus? status,
         [FromQuery] CustomerSegment? segment,
+        [FromQuery] CustomerLabel? label,
         [FromQuery] Guid? assignedUserId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
@@ -33,9 +37,11 @@ public class CustomersController : ApiControllerBase
     {
         var query = new GetCustomersQuery
         {
+            ProjectId = projectId,
             Search = search,
             Status = status,
             Segment = segment,
+            Label = label,
             AssignedUserId = assignedUserId,
             Page = page,
             PageSize = pageSize
@@ -80,6 +86,26 @@ public class CustomersController : ApiControllerBase
     public async Task<IActionResult> DeleteCustomer(Guid id, CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(new DeleteCustomerCommand(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// Gets a customer with full details including recent contact history and open tasks.
+    /// </summary>
+    [HttpGet("{id:guid}/details")]
+    public async Task<IActionResult> GetCustomerWithDetails(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetCustomerWithDetailsQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// Converts a Lead customer to an Active customer (potential → customer pipeline step).
+    /// </summary>
+    [HttpPost("{id:guid}/convert")]
+    public async Task<IActionResult> ConvertLeadToCustomer(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new ConvertLeadToCustomerCommand(id), cancellationToken);
         return ResultToResponse(result);
     }
 }

@@ -208,13 +208,7 @@ export function LoginPage() {
               </Button>
             </form>
 
-            {/* Demo credentials hint */}
-            <div className="mt-6 p-3 rounded-lg bg-muted/50 border border-border">
-              <p className="text-xs text-muted-foreground text-center">
-                <span className="font-medium">Demo:</span>{' '}
-                admin@ion.com / Admin123!
-              </p>
-            </div>
+            {/* SECURITY: Demo credential hints removed — never expose credentials in UI */}
           </CardContent>
         </Card>
 
