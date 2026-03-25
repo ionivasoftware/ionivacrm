@@ -43,7 +43,7 @@ export function useCustomers(params: CustomerListParams = {}) {
       );
       return response.data.data;
     },
-    enabled: !!projectId,
+    enabled: true, // SuperAdmin can see all customers without projectId
   });
 }
 
