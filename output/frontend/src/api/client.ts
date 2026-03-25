@@ -81,9 +81,6 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         setAccessToken(null);
         processQueue(null);
-        // Clear auth state — redirect to login
-        useAuthStore.getState().logout();
-        window.location.href = '/login';
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
