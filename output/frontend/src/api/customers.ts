@@ -107,7 +107,35 @@ export function useDeleteCustomer() {
   });
 }
 
-// ── Contact History ───────────────────────────────────────────────────────────
+// ── All Contact Histories (global) ────────────────────────────────────────────
+
+export interface AllContactHistoriesParams {
+  projectId?: string;
+  customerId?: string;
+  type?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export function useAllContactHistories(params: AllContactHistoriesParams = {}) {
+  const projectId = useAuthStore((s) => s.currentProjectId);
+  return useQuery({
+    queryKey: ['allContactHistories', params],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<PaginatedResponse<ContactHistory>>>(
+        '/contact-histories',
+        { params: { projectId, ...params } }
+      );
+      return response.data.data;
+    },
+    enabled: !!projectId,
+    staleTime: 60 * 1000,
+  });
+}
+
+// ── Contact History (per customer) ────────────────────────────────────────────
 
 export function useContactHistory(customerId: string) {
   return useQuery({

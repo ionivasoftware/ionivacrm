@@ -10,6 +10,7 @@ public static class ContactHistoryMappings
     {
         Id = h.Id,
         CustomerId = h.CustomerId,
+        CustomerName = h.Customer?.CompanyName,
         ProjectId = h.ProjectId,
         Type = h.Type,
         Subject = h.Subject,

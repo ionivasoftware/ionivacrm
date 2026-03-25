@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -9,6 +10,7 @@ import {
   ChevronRight,
   Users,
   X,
+  MessageSquare,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,6 +41,7 @@ interface QuickActionState {
 
 export function CustomersPage() {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Search & filter state
   const [search, setSearch] = useState('');
@@ -128,6 +131,15 @@ export function CustomersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 h-10"
+            onClick={() => navigate('/contact-histories')}
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span className="hidden sm:inline">Tüm Görüşmeler</span>
+          </Button>
           <Button
             variant="outline"
             size="sm"

@@ -12,6 +12,7 @@ const DashboardPage     = lazy(() => import('@/pages/DashboardPage').then(m => (
 const CustomersPage     = lazy(() => import('@/pages/customers/CustomersPage').then(m => ({ default: m.CustomersPage })));
 const CustomerDetailPage = lazy(() => import('@/pages/customers/CustomerDetailPage').then(m => ({ default: m.CustomerDetailPage })));
 const PlaceholderPage   = lazy(() => import('@/pages/PlaceholderPage').then(m => ({ default: m.PlaceholderPage })));
+const ContactHistoriesPage = lazy(() => import('@/pages/ContactHistoriesPage').then(m => ({ default: m.ContactHistoriesPage })));
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 function PageLoader() {
@@ -76,6 +77,7 @@ export default function App() {
                 element={<Navigate to="/customers" replace />}
               />
               <Route path="/customers/:id" element={<CustomerDetailPage />} />
+              <Route path="/contact-histories" element={<ContactHistoriesPage />} />
 
               {/* Feature routes — placeholder until Sprint 2+ */}
               <Route

@@ -183,6 +183,7 @@ export interface CustomerListParams {
 export interface ContactHistory {
   id: string;
   customerId: string;
+  customerName: string | null;
   projectId: string;
   type: ContactType;
   subject: string | null;

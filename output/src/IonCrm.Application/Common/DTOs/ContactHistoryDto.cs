@@ -7,6 +7,7 @@ public class ContactHistoryDto
 {
     public Guid Id { get; set; }
     public Guid CustomerId { get; set; }
+    public string? CustomerName { get; set; }
     public Guid ProjectId { get; set; }
     public ContactType Type { get; set; }
     public string? Subject { get; set; }
