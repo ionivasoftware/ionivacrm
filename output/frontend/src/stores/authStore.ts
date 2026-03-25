@@ -31,6 +31,8 @@ export const useAuthStore = create<AuthState>()(
 
       const { accessToken, user } = response.data.data;
       setAccessToken(accessToken);
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('user', JSON.stringify(user));
 
       // Set default project (first available)
       const projectIds = Object.keys(user.projectRoles);
@@ -50,6 +52,8 @@ export const useAuthStore = create<AuthState>()(
         // Ignore errors on logout
       } finally {
         setAccessToken(null);
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('user');
         set({
           user: null,
           isAuthenticated: false,
@@ -68,22 +72,27 @@ export const useAuthStore = create<AuthState>()(
     initializeAuth: async () => {
       set({ isLoading: true });
       try {
-        // Try to refresh token on app start (uses httpOnly cookie)
-        const response = await apiClient.post<ApiResponse<LoginResponse>>('/auth/refresh');
-        const { accessToken, user } = response.data.data;
-        setAccessToken(accessToken);
-
-        const projectIds = Object.keys(user.projectRoles);
-        const defaultProject = projectIds[0] ?? null;
-
-        set({
-          user,
-          isAuthenticated: true,
-          currentProjectId: defaultProject,
-          isLoading: false,
-        });
+        // Restore session from localStorage
+        const savedToken = localStorage.getItem('accessToken');
+        const savedUser = localStorage.getItem('user');
+        if (savedToken && savedUser) {
+          const user = JSON.parse(savedUser);
+          setAccessToken(savedToken);
+          const projectIds = Object.keys(user.projectRoles || {});
+          const defaultProject = projectIds[0] ?? null;
+          set({
+            user,
+            isAuthenticated: true,
+            currentProjectId: defaultProject,
+            isLoading: false,
+          });
+        } else {
+          set({ user: null, isAuthenticated: false, isLoading: false });
+        }
       } catch {
         setAccessToken(null);
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('user');
         set({ user: null, isAuthenticated: false, isLoading: false });
       }
     },
