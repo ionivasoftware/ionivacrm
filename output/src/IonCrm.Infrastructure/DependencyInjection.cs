@@ -56,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<IContactHistoryRepository, ContactHistoryRepository>();
         services.AddScoped<ICustomerTaskRepository, CustomerTaskRepository>();
         services.AddScoped<ISyncLogRepository, SyncLogRepository>();
+        services.AddScoped<IOpportunityRepository, OpportunityRepository>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
 
         // ── Auth services ─────────────────────────────────────────────────────
