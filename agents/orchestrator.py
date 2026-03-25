@@ -1,8 +1,8 @@
 """
 Orchestrator Agent (PM)
 ========================
-Reads the product spec, plans sprints, creates Jira tickets,
-manages the team, and coordinates approval gates.
+Reads the product spec, plans sprints,
+manages the team, and coordinates the agent workflow.
 """
 
 import os
@@ -11,7 +11,6 @@ import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.base_agent import BaseAgent, console
-from hooks.approval_gate import gate_sprint_plan
 
 WORKSPACE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -23,9 +22,7 @@ Your responsibilities:
 2. Analyze requirements and old DB data (if provided)
 3. Break product into Epics → Stories → Tasks
 4. Plan sprints with clear goals and agent assignments
-5. Create Jira tickets for every story
-6. Coordinate agents and track progress
-7. ALWAYS pause for human approval before starting a sprint
+5. Coordinate agents and track progress
 
 ION CRM Context:
 - Multi-tenant: SuperAdmin sees all, users scoped to their project(s)
@@ -74,13 +71,6 @@ SPRINT 6 — Migration & Testing
   - Security audit
   - Deploy to Railway
 
-When creating Jira tickets, format each as:
-  Title: [AGENT] Short description
-  Description: Detailed requirements
-  Story Points: 1-8
-  Sprint: Sprint name
-  Labels: backend/frontend/devops/testing
-
 Always produce a sprint plan as a JSON summary:
 {
   "name": "Sprint X — Name",
@@ -102,7 +92,7 @@ class OrchestratorAgent(BaseAgent):
     color = "yellow"
     ALLOWED_TOOLS = [
         "Read", "Write", "Glob", "WebSearch",
-        "Bash",   # for git operations and Jira CLI
+        "Bash",   # for git operations
     ]
 
     def get_system_prompt(self) -> str:
@@ -120,7 +110,6 @@ class OrchestratorAgent(BaseAgent):
         - All sprints listed (Sprint 0 through Sprint 6)
         - Each sprint has: name, goal, stories list, agent assignments, estimated duration
         - Stories are detailed enough for developers to implement
-        - Jira ticket format for each story
 
         Focus on:
         - Multi-tenant architecture (SuperAdmin + Project-scoped users)
@@ -156,37 +145,3 @@ class OrchestratorAgent(BaseAgent):
             "token_cost": "~$8-12",
         }
 
-    async def create_jira_tickets(self, sprint_data: dict):
-        """Create Jira tickets for approved sprint."""
-        jira_host  = os.getenv("JIRA_HOST", "")
-        jira_email = os.getenv("JIRA_EMAIL", "")
-        jira_token = os.getenv("JIRA_API_TOKEN", "")
-        project    = os.getenv("JIRA_PROJECT_KEY", "IONCRM")
-
-        if not all([jira_host, jira_email, jira_token]):
-            console.print("[yellow]⚠️  Jira credentials not set — skipping ticket creation[/yellow]")
-            return
-
-        prompt = f"""
-        Create Jira tickets for the following sprint using the Jira REST API.
-
-        Jira settings:
-        - Host: {jira_host}
-        - Email: {jira_email}
-        - API Token: (use JIRA_API_TOKEN env var)
-        - Project Key: {project}
-
-        Sprint data:
-        {json.dumps(sprint_data, indent=2)}
-
-        For each story, use curl to POST to Jira API:
-        POST {jira_host}/rest/api/3/issue
-        Authorization: Basic base64(email:token)
-        Content-Type: application/json
-
-        Create: Epic first, then Stories under the Epic.
-        Set sprint, story points, and labels correctly.
-        Print the created ticket IDs when done.
-        """
-
-        await self.run(prompt)

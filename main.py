@@ -46,10 +46,6 @@ if missing:
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from hooks.cost_tracker import CostTracker
-from hooks.approval_gate import (
-    gate_sprint_plan, gate_db_schema,
-    gate_sprint_complete, gate_deployment
-)
 from agents.orchestrator import OrchestratorAgent
 from agents.architect import ArchitectAgent
 from agents.dotnet_dev import DotNetDevAgent
@@ -109,15 +105,6 @@ async def run_team():
         orchestrator = OrchestratorAgent(tracker)
         sprint_data = await orchestrator.plan_sprints()
 
-        # ✋ APPROVAL GATE 1 — Sprint Plan
-        if not gate_sprint_plan(sprint_data):
-            console.print("[red]Sprint plan rejected. Edit CLAUDE.md or notes.txt and re-run.[/red]")
-            tracker.print_summary()
-            return
-
-        # Create Jira tickets for approved sprint
-        await orchestrator.create_jira_tickets(sprint_data)
-
         # ════════════════════════════════════════════════════
         # PHASE 1 — Architecture & Scaffold
         # ════════════════════════════════════════════════════
@@ -129,18 +116,6 @@ async def run_team():
         architect = ArchitectAgent(tracker)
         await architect.analyze_and_scaffold()
 
-        # ✋ APPROVAL GATE 2 — DB Schema
-        schema_path = os.path.join(OUTPUT_DIR, "docs", "schema.md")
-        schema_summary = "See output/docs/schema.md for full schema"
-        if os.path.exists(schema_path):
-            with open(schema_path) as f:
-                schema_summary = f.read()[:500] + "..."
-
-        if not gate_db_schema(schema_summary):
-            console.print("[red]Schema rejected. Architect will need to redesign.[/red]")
-            tracker.print_summary()
-            return
-
         # ════════════════════════════════════════════════════
         # PHASE 2 — Backend Foundation (Auth + Core)
         # ════════════════════════════════════════════════════
@@ -151,18 +126,6 @@ async def run_team():
 
         dotnet_dev = DotNetDevAgent(tracker)
         await dotnet_dev.implement_auth()
-
-        if not gate_sprint_complete(
-            "Sprint 1 — Foundation",
-            [
-                "JWT authentication with refresh tokens",
-                "Multi-tenant role system",
-                "Base entities + EF Core migrations",
-                "Program.cs with full DI setup",
-            ]
-        ):
-            tracker.print_summary()
-            return
 
         # ════════════════════════════════════════════════════
         # PHASE 3 — Customer Core + Sync Service
@@ -183,19 +146,6 @@ async def run_team():
         )
 
         await dotnet_dev.implement_sync_service()
-
-        if not gate_sprint_complete(
-            "Sprint 2 — Customer Core & Sync",
-            [
-                "Customer CRUD with tenant isolation",
-                "Contact history endpoints",
-                "15-minute SaaS sync service (Hangfire)",
-                "Instant CRM → SaaS callbacks",
-                "SyncLogs table and API",
-            ]
-        ):
-            tracker.print_summary()
-            return
 
         # ════════════════════════════════════════════════════
         # PHASE 4 — Migration Service
@@ -219,19 +169,6 @@ async def run_team():
         await frontend_dev.scaffold_frontend()
         await frontend_dev.implement_customer_module()
 
-        if not gate_sprint_complete(
-            "Sprint 5 — Frontend",
-            [
-                "React app with dark mode",
-                "Login, Dashboard, Customers pages",
-                "Customer detail with history timeline",
-                "Mobile responsive (WebView ready)",
-                "shadcn/ui components",
-            ]
-        ):
-            tracker.print_summary()
-            return
-
         # ════════════════════════════════════════════════════
         # PHASE 6 — QA & Security
         # ════════════════════════════════════════════════════
@@ -249,19 +186,6 @@ async def run_team():
             security_agent.audit(),
         )
 
-        if not gate_sprint_complete(
-            "Sprint 6 — QA & Security",
-            [
-                "Unit tests written and passing",
-                "Multi-tenant isolation tests",
-                "Auth security tests",
-                "Security audit report generated",
-                "Critical vulnerabilities fixed",
-            ]
-        ):
-            tracker.print_summary()
-            return
-
         # ════════════════════════════════════════════════════
         # PHASE 7 — Deploy
         # ════════════════════════════════════════════════════
@@ -270,12 +194,8 @@ async def run_team():
             "Push to GitHub → GitHub Actions → Railway"
         )
 
-        # ✋ APPROVAL GATE — Deployment
-        if not gate_deployment("Railway Production", run_id):
-            console.print("[yellow]Deployment skipped. Push to main branch manually when ready.[/yellow]")
-        else:
-            # Push to GitHub → triggers GitHub Actions
-            push_prompt = f"""
+        # Push to GitHub → triggers GitHub Actions
+        push_prompt = f"""
             cd {WORKSPACE}
             git add output/ .github/
             git commit -m "feat: ION CRM {run_id} — full build"
@@ -286,7 +206,7 @@ async def run_team():
             
             Report the deployment status.
             """
-            await orchestrator.run(push_prompt)
+        await orchestrator.run(push_prompt)
 
         # ════════════════════════════════════════════════════
         # DONE
@@ -368,26 +288,63 @@ def agents_menu():
     tracker = CostTracker()
 
     async def run_single():
+        from rich.prompt import Prompt as RPrompt
+
+        agent_defaults = {
+            "1": ("🧠 Orchestrator", "Plan next sprint"),
+            "2": ("🏗️  Architect", "Analyze and scaffold solution"),
+            "3": ("💻 .NET Dev", "Implement pending features"),
+            "4": ("🎨 Frontend Dev", "Scaffold/update frontend"),
+            "5": ("🧪 QA", "Run all tests"),
+            "6": ("🔒 Security", "Run security audit"),
+        }
+
+        agent_name, default_task = agent_defaults.get(choice, ("Agent", "Default task"))
+
+        console.print(f"\n[bold]{agent_name}[/bold]")
+        console.print(f"  [dim]Default: {default_task}[/dim]")
+        mode = RPrompt.ask(
+            "  Nasıl çalışsın?",
+            choices=["default", "custom"],
+            default="default"
+        )
+
+        custom_task = None
+        if mode == "custom":
+            custom_task = RPrompt.ask("  Prompt")
+
         if choice == "1":
             agent = OrchestratorAgent(tracker)
-            task = input("Task: ").strip()
+            task = custom_task or "Plan next sprint based on CLAUDE.md"
             await agent.run(task)
         elif choice == "2":
             agent = ArchitectAgent(tracker)
-            await agent.analyze_and_scaffold()
+            if custom_task:
+                await agent.run(custom_task)
+            else:
+                await agent.analyze_and_scaffold()
         elif choice == "3":
             agent = DotNetDevAgent(tracker)
-            task = input("What to implement: ").strip()
+            task = custom_task or "Implement all pending features from CLAUDE.md"
             await agent.implement_sprint("Custom", [task])
         elif choice == "4":
             agent = FrontendDevAgent(tracker)
-            await agent.scaffold_frontend()
+            if custom_task:
+                await agent.run(custom_task)
+            else:
+                await agent.scaffold_frontend()
         elif choice == "5":
             agent = QAAgent(tracker)
-            await agent.run_tests()
+            if custom_task:
+                await agent.run(custom_task)
+            else:
+                await agent.run_tests()
         elif choice == "6":
             agent = SecurityAgent(tracker)
-            await agent.audit()
+            if custom_task:
+                await agent.run(custom_task)
+            else:
+                await agent.audit()
         tracker.print_summary()
         tracker.save()
 

@@ -128,24 +128,14 @@ async def main():
         border_style="bright_blue"
     ))
 
-    console.print("\n[bold]Gerekli bilgiler:[/bold]\n")
-    neon_pass = getpass.getpass("🔑 Neon DB şifresi: ")
+    # .env'den oku
+    prod_db = os.getenv("PROD_DATABASE_URL", "")
+    dev_db = os.getenv("DEV_DATABASE_URL", "")
 
     credentials = {
-        "NEON_PASSWORD": neon_pass,
-        "NEON_CONNECTION_DOTNET": (
-            f"Host=ep-purple-sound-a9vyag84-pooler.gwc.azure.neon.tech;"
-            f"Database=ioncrm;"
-            f"Username=neondb_owner;"
-            f"Password={neon_pass};"
-            f"SSL Mode=Require;"
-            f"Trust Server Certificate=true"
-        ),
-        "NEON_CONNECTION_URL": (
-            f"postgresql://neondb_owner:{neon_pass}"
-            f"@ep-purple-sound-a9vyag84-pooler.gwc.azure.neon.tech/ioncrm"
-            f"?sslmode=require"
-        )
+        "PROD_DATABASE_URL": prod_db,
+        "DEV_DATABASE_URL": dev_db,
+        "NEON_CONNECTION_DOTNET": prod_db,
     }
 
     console.print("[dim]Başlıyor...[/dim]\n")
