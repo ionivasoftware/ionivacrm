@@ -48,7 +48,7 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, Result<List<U
                     projectUsers.Select(UserMappingHelper.MapToDto).ToList());
             }
 
-            var allUsers = await _userRepository.GetAllAsync(cancellationToken);
+            var allUsers = await _userRepository.GetAllWithRolesAsync(cancellationToken);
             return Result<List<UserDto>>.Success(
                 allUsers.Select(UserMappingHelper.MapToDto).ToList());
         }

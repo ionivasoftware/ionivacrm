@@ -19,4 +19,7 @@ public interface IUserRepository : IRepository<User>
 
     /// <summary>Gets all non-deleted, active users who are members of a specific project.</summary>
     Task<IReadOnlyList<User>> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets all users with their project-role assignments and related project data loaded.</summary>
+    Task<IReadOnlyList<User>> GetAllWithRolesAsync(CancellationToken cancellationToken = default);
 }

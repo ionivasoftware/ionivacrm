@@ -21,7 +21,7 @@ public class Opportunity : BaseEntity
     public decimal? Value { get; set; }
 
     /// <summary>Gets or sets the current pipeline stage.</summary>
-    public OpportunityStage Stage { get; set; } = OpportunityStage.Prospecting;
+    public OpportunityStage Stage { get; set; } = OpportunityStage.YeniArama;
 
     /// <summary>
     /// Gets or sets the probability of closing this opportunity (0–100).

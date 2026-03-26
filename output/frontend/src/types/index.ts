@@ -24,12 +24,11 @@ export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Critical';
 export type TaskStatus = 'Todo' | 'InProgress' | 'Done' | 'Cancelled';
 
 export type OpportunityStage =
-  | 'Prospecting'
-  | 'Qualification'
-  | 'Proposal'
-  | 'Negotiation'
-  | 'ClosedWon'
-  | 'ClosedLost';
+  | 'YeniArama'
+  | 'Potansiyel'
+  | 'Demo'
+  | 'Musteri'
+  | 'Kayip';
 
 export type SyncSource = 'SaasA' | 'SaasB';
 export type SyncDirection = 'Inbound' | 'Outbound';

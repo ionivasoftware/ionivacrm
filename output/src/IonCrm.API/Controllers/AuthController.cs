@@ -3,6 +3,7 @@ using IonCrm.Application.Auth.Commands.Login;
 using IonCrm.Application.Auth.Commands.Logout;
 using IonCrm.Application.Auth.Commands.RefreshToken;
 using IonCrm.Application.Auth.Commands.RegisterUser;
+using IonCrm.Application.Auth.Commands.UpdateProfile;
 using IonCrm.Application.Auth.Queries.GetCurrentUser;
 using IonCrm.Application.Common.DTOs;
 using MediatR;
@@ -79,5 +80,16 @@ public class AuthController : ControllerBase
         if (result.IsFailure)
             return Unauthorized(ApiResponse<UserDto>.Fail(result.Errors, 401));
         return Ok(ApiResponse<UserDto>.Ok(result.Value!));
+    }
+
+    /// <summary>Update the current user's profile (name + optional password).</summary>
+    [HttpPut("profile")]
+    [Authorize]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileCommand command)
+    {
+        var result = await _mediator.Send(command);
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<object>.Fail(result.Errors));
+        return Ok(ApiResponse<object>.Ok(new { message = "Profil güncellendi." }));
     }
 }

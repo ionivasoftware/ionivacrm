@@ -17,6 +17,8 @@ const PipelinePage      = lazy(() => import('@/pages/PipelinePage').then(m => ({
 const TasksPage         = lazy(() => import('@/pages/TasksPage').then(m => ({ default: m.TasksPage })));
 const UsersAdminPage    = lazy(() => import('@/pages/admin/UsersAdminPage').then(m => ({ default: m.UsersAdminPage })));
 const ProjectsAdminPage = lazy(() => import('@/pages/admin/ProjectsAdminPage').then(m => ({ default: m.ProjectsAdminPage })));
+const SettingsPage      = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const ReportsPage       = lazy(() => import('@/pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 function PageLoader() {
@@ -86,24 +88,8 @@ export default function App() {
               {/* Feature routes — placeholder until Sprint 2+ */}
               <Route path="/pipeline" element={<PipelinePage />} />
               <Route path="/tasks" element={<TasksPage />} />
-              <Route
-                path="/reports"
-                element={
-                  <PlaceholderPage
-                    title="Raporlar"
-                    description="Raporlama modülü yakında aktif olacak."
-                  />
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <PlaceholderPage
-                    title="Ayarlar"
-                    description="Ayarlar sayfası yakında aktif olacak."
-                  />
-                }
-              />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
 
               {/* SuperAdmin-only routes */}
               <Route

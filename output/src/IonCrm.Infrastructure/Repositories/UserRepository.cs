@@ -55,10 +55,23 @@ public class UserRepository : GenericRepository<User>, IUserRepository
         CancellationToken cancellationToken = default)
     {
         return await DbSet
+            .Include(u => u.UserProjectRoles.Where(upr => !upr.IsDeleted))
+                .ThenInclude(upr => upr.Project)
             .AsNoTracking()
             .Where(u => u.IsActive &&
                         u.UserProjectRoles.Any(upr =>
                             upr.ProjectId == projectId && !upr.IsDeleted))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>Returns all users with their project-role assignments loaded.</summary>
+    public async Task<IReadOnlyList<User>> GetAllWithRolesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await DbSet
+            .Include(u => u.UserProjectRoles.Where(upr => !upr.IsDeleted))
+                .ThenInclude(upr => upr.Project)
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
     }
 }

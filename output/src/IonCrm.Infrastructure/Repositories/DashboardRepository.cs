@@ -47,13 +47,13 @@ public class DashboardRepository : IDashboardRepository
 
         var openOpportunities = await _db.Opportunities
             .Where(o => o.ProjectId == projectId &&
-                        o.Stage != OpportunityStage.ClosedWon &&
-                        o.Stage != OpportunityStage.ClosedLost)
+                        o.Stage != OpportunityStage.Musteri &&
+                        o.Stage != OpportunityStage.Kayip)
             .CountAsync(cancellationToken);
 
         // Use SumAsync directly — result is decimal?, ?? applied in memory
         var pipelineValue = (await _db.Opportunities
-            .Where(o => o.ProjectId == projectId && o.Stage != OpportunityStage.ClosedLost)
+            .Where(o => o.ProjectId == projectId && o.Stage != OpportunityStage.Kayip)
             .SumAsync(o => (decimal?)o.Value, cancellationToken)) ?? 0m;
 
         // ── Monthly activity (last 6 months) — fetch raw, group in memory ────
@@ -94,7 +94,7 @@ public class DashboardRepository : IDashboardRepository
         // ── Opportunities by stage — group in memory ──────────────────────────
 
         var allOpportunities = await _db.Opportunities
-            .Where(o => o.ProjectId == projectId && o.Stage != OpportunityStage.ClosedLost)
+            .Where(o => o.ProjectId == projectId && o.Stage != OpportunityStage.Kayip)
             .Select(o => new { o.Stage, o.Value })
             .ToListAsync(cancellationToken);
 
@@ -106,26 +106,7 @@ public class DashboardRepository : IDashboardRepository
 
         // ── Recent activities (last 10) ───────────────────────────────────────
 
-        var recentRaw = await _db.ContactHistories
-            .Include(h => h.Customer)
-            .Include(h => h.CreatedByUser)
-            .Where(h => h.ProjectId == projectId)
-            .OrderByDescending(h => h.ContactedAt)
-            .Take(10)
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
-
-        var recentActivities = recentRaw
-            .Select(h => new RecentActivityDto(
-                h.Id.ToString(),
-                h.Type,
-                h.Customer?.CompanyName ?? string.Empty,
-                h.Subject,
-                h.CreatedByUser is not null
-                    ? $"{h.CreatedByUser.FirstName} {h.CreatedByUser.LastName}".Trim()
-                    : null,
-                h.ContactedAt))
-            .ToList();
+        var recentActivities = await FetchRecentActivitiesAsync(projectId, 10, cancellationToken);
 
         return new DashboardStatsDto(
             totalCustomers,
@@ -139,5 +120,142 @@ public class DashboardRepository : IDashboardRepository
             opportunitiesByStage,
             recentActivities
         );
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<RecentActivityDto>> GetRecentActivitiesAsync(
+        int count, CancellationToken cancellationToken = default)
+    {
+        // Global query filter (tenant isolation) is applied automatically
+        return await FetchRecentActivitiesAsync(null, count, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<ReportsDto> GetReportsAsync(
+        Guid projectId, DateTime startDate, DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        var endInclusive = endDate.Date.AddDays(1).AddTicks(-1);
+
+        // ── Customers ──────────────────────────────────────────────────────────
+        var totalCustomers = await _db.Customers
+            .Where(c => c.ProjectId == projectId)
+            .CountAsync(cancellationToken);
+
+        var newCustomers = await _db.Customers
+            .Where(c => c.ProjectId == projectId &&
+                        c.CreatedAt >= startDate && c.CreatedAt <= endInclusive)
+            .CountAsync(cancellationToken);
+
+        var newLeads = await _db.Customers
+            .Where(c => c.ProjectId == projectId &&
+                        c.Status == CustomerStatus.Lead &&
+                        c.CreatedAt >= startDate && c.CreatedAt <= endInclusive)
+            .CountAsync(cancellationToken);
+
+        // ── Pipeline ───────────────────────────────────────────────────────────
+        var closedWon = await _db.Opportunities
+            .Where(o => o.ProjectId == projectId &&
+                        o.Stage == OpportunityStage.Musteri &&
+                        o.UpdatedAt >= startDate && o.UpdatedAt <= endInclusive)
+            .CountAsync(cancellationToken);
+
+        var closedLost = await _db.Opportunities
+            .Where(o => o.ProjectId == projectId &&
+                        o.Stage == OpportunityStage.Kayip &&
+                        o.UpdatedAt >= startDate && o.UpdatedAt <= endInclusive)
+            .CountAsync(cancellationToken);
+
+        var pipelineValue = (await _db.Opportunities
+            .Where(o => o.ProjectId == projectId && o.Stage != OpportunityStage.Kayip)
+            .SumAsync(o => (decimal?)o.Value, cancellationToken)) ?? 0m;
+
+        // ── Contacts ───────────────────────────────────────────────────────────
+        var rawContacts = await _db.ContactHistories
+            .Where(h => h.ProjectId == projectId &&
+                        h.ContactedAt >= startDate && h.ContactedAt <= endInclusive)
+            .Select(h => new { h.ContactedAt, h.Type })
+            .ToListAsync(cancellationToken);
+
+        var totalContacts = rawContacts.Count;
+
+        var contactTypeBreakdown = rawContacts
+            .GroupBy(h => h.Type.ToString())
+            .Select(g => new ContactTypeBreakdownDto(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ToList();
+
+        // ── Tasks ─────────────────────────────────────────────────────────────
+        var rawTasks = await _db.CustomerTasks
+            .Where(t => t.ProjectId == projectId &&
+                        t.CreatedAt >= startDate && t.CreatedAt <= endInclusive)
+            .Select(t => new { t.Status })
+            .ToListAsync(cancellationToken);
+
+        var totalTasks = rawTasks.Count;
+        var completedTasks = rawTasks.Count(t => t.Status == IonCrm.Domain.Enums.TaskStatus.Done);
+
+        // ── Daily activity ────────────────────────────────────────────────────
+        var days = (int)(endDate.Date - startDate.Date).TotalDays + 1;
+        var contactsByDate = rawContacts
+            .GroupBy(h => h.ContactedAt.Date)
+            .ToDictionary(g => g.Key, g => g.Count());
+        var tasksByDate = rawTasks.Count > 0
+            ? new Dictionary<DateTime, int>() // tasks don't have contacted_at, skip for now
+            : new Dictionary<DateTime, int>();
+
+        var dailyActivity = Enumerable.Range(0, Math.Min(days, 90))
+            .Select(i => startDate.Date.AddDays(i))
+            .Select(d => new DailyActivityDto(
+                d.ToString("dd.MM"),
+                contactsByDate.GetValueOrDefault(d, 0),
+                0))
+            .ToList();
+
+        return new ReportsDto(
+            totalCustomers,
+            newCustomers,
+            newLeads,
+            closedWon,
+            closedLost,
+            totalContacts,
+            totalTasks,
+            completedTasks,
+            pipelineValue,
+            dailyActivity,
+            contactTypeBreakdown
+        );
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    private async Task<IReadOnlyList<RecentActivityDto>> FetchRecentActivitiesAsync(
+        Guid? projectId, int count, CancellationToken cancellationToken)
+    {
+        var query = _db.ContactHistories
+            .Include(h => h.Customer)
+            .Include(h => h.CreatedByUser)
+            .AsQueryable();
+
+        if (projectId.HasValue)
+            query = query.Where(h => h.ProjectId == projectId.Value);
+
+        var recentRaw = await query
+            .OrderByDescending(h => h.ContactedAt)
+            .Take(count)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        return recentRaw
+            .Select(h => new RecentActivityDto(
+                h.Id.ToString(),
+                h.Type,
+                h.Customer?.CompanyName ?? string.Empty,
+                h.Subject,
+                h.CreatedByUser is not null
+                    ? $"{h.CreatedByUser.FirstName} {h.CreatedByUser.LastName}".Trim()
+                    : null,
+                h.ContactedAt))
+            .ToList();
     }
 }

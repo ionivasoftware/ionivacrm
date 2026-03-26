@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Phone, Mail, StickyNote, MoreVertical, MapPin } from 'lucide-react';
+import { Phone, Mail, StickyNote, MoreVertical, MapPin, FolderOpen } from 'lucide-react';
 import { CustomerStatusBadge, CustomerLabelBadge } from './CustomerStatusBadge';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useAuthStore } from '@/stores/authStore';
 import type { Customer, ContactType } from '@/types';
 
 const SEGMENT_LABELS: Record<string, string> = {
@@ -26,7 +27,11 @@ interface CustomerCardProps {
 
 export function CustomerCard({ customer, onQuickAction }: CustomerCardProps) {
   const navigate = useNavigate();
+  const { user, projectNames } = useAuthStore();
   const initials = customer.companyName.slice(0, 2).toUpperCase();
+  // Show project badge for SuperAdmin who can see multiple projects
+  const showProjectBadge = user?.isSuperAdmin && Object.keys(projectNames).length > 1;
+  const projectName = projectNames[customer.projectId];
 
   return (
     <div
@@ -76,6 +81,11 @@ export function CustomerCard({ customer, onQuickAction }: CustomerCardProps) {
         className="flex items-center gap-2 flex-shrink-0 ml-3"
         onClick={(e) => e.stopPropagation()}
       >
+        {showProjectBadge && projectName && (
+          <span className="text-xs text-muted-foreground hidden lg:inline px-2 py-0.5 rounded-full border border-primary/30 bg-primary/5 gap-1 flex items-center">
+            <FolderOpen className="h-3 w-3 inline" /> {projectName}
+          </span>
+        )}
         {customer.segment && (
           <span className="text-xs text-muted-foreground hidden lg:inline px-2 py-0.5 rounded-full border border-border">
             {SEGMENT_LABELS[customer.segment] ?? customer.segment}

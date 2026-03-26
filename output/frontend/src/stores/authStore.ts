@@ -19,6 +19,8 @@ interface AuthState {
   isLoading: boolean;
   currentProjectId: string | null;
   projectNames: Record<string, string>;
+  /** All project IDs fetched from /projects (used by SuperAdmin to list all projects) */
+  allProjectIds: string[];
 
   login: (credentials: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
@@ -33,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
     isLoading: true,
     currentProjectId: null,
     projectNames: {},
+    allProjectIds: [],
 
     login: async (credentials: LoginRequest) => {
       const response = await apiClient.post<ApiResponse<LoginResponse>>(
@@ -48,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
       // Fetch all projects to get names + resolve SuperAdmin's default project
       const projects = await fetchProjects();
       const projectNames = Object.fromEntries(projects.map(p => [p.id, p.name]));
+      const allProjectIds = projects.map(p => p.id);
       const projectIds = Object.keys(user.projectRoles);
       const defaultProject = projectIds[0] ?? projects[0]?.id ?? null;
 
@@ -56,6 +60,7 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: true,
         currentProjectId: defaultProject,
         projectNames,
+        allProjectIds,
       });
     },
 
@@ -73,6 +78,7 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
           currentProjectId: null,
           projectNames: {},
+          allProjectIds: [],
         });
       }
     },
@@ -95,6 +101,7 @@ export const useAuthStore = create<AuthState>()(
           setAccessToken(savedToken);
           const projects = await fetchProjects();
           const projectNames = Object.fromEntries(projects.map(p => [p.id, p.name]));
+          const allProjectIds = projects.map(p => p.id);
           const projectIds = Object.keys(user.projectRoles || {});
           const defaultProject = projectIds[0] ?? projects[0]?.id ?? null;
           set({
@@ -102,6 +109,7 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             currentProjectId: defaultProject,
             projectNames,
+            allProjectIds,
             isLoading: false,
           });
         } else {

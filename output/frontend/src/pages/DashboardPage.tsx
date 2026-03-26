@@ -31,12 +31,11 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STAGE_LABELS: Record<string, string> = {
-  Prospecting: 'Araştırma',
-  Qualification: 'Nitelendirme',
-  Proposal: 'Teklif',
-  Negotiation: 'Müzakere',
-  ClosedWon: 'Kazanıldı',
-  ClosedLost: 'Kaybedildi',
+  YeniArama: 'Yeni Arama',
+  Potansiyel: 'Potansiyel',
+  Demo: 'Demo',
+  Musteri: 'Müşteri',
+  Kayip: 'Kayıp',
 };
 
 const CONTACT_TYPE_LABELS: Record<string, string> = {
