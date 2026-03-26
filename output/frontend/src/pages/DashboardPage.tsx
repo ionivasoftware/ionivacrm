@@ -1,4 +1,5 @@
-import { Users, TrendingUp, CheckSquare, Activity, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, TrendingUp, CheckSquare, Activity, AlertCircle, Clock, Phone } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,14 +20,14 @@ import {
 const STATUS_COLORS: Record<string, string> = {
   Lead: '#6366f1',
   Active: '#22c55e',
-  Inactive: '#f59e0b',
+  Demo: '#8b5cf6',
   Churned: '#ef4444',
 };
 
 const STATUS_LABELS: Record<string, string> = {
   Lead: 'Lead',
   Active: 'Aktif',
-  Inactive: 'Pasif',
+  Demo: 'Demo',
   Churned: 'Kaybedildi',
 };
 
@@ -62,6 +63,14 @@ function formatDate(dateStr: string): string {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
+  }).format(new Date(dateStr));
+}
+
+function formatExpirationDate(dateStr: string): string {
+  return new Intl.DateTimeFormat('tr-TR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
   }).format(new Date(dateStr));
 }
 
@@ -104,6 +113,7 @@ function StatCard({ title, value, icon: Icon, description, isLoading }: StatCard
 
 export function DashboardPage() {
   const { data: stats, isLoading, isError } = useDashboardStats();
+  const navigate = useNavigate();
 
   if (isError) {
     return (
@@ -285,8 +295,95 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Recent Activity + Pipeline */}
+      {/* Expiring subscriptions + Recent activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Expiring subscriptions widget */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  Süresi Yaklaşan Abonelikler
+                </CardTitle>
+                <CardDescription>Önümüzdeki 30 gün içinde</CardDescription>
+              </div>
+              {(stats?.expiringCustomers?.length ?? 0) > 0 && (
+                <Badge variant="outline" className="text-amber-500 border-amber-500/40 bg-amber-500/10">
+                  {stats!.expiringCustomers.length} firma
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-14 w-full" />
+                ))}
+              </div>
+            ) : !stats?.expiringCustomers?.length ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                  <Clock className="h-6 w-6 text-muted-foreground/40" />
+                </div>
+                <p className="text-sm text-muted-foreground">Önümüzdeki 30 günde süresi dolacak abonelik yok.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {stats.expiringCustomers.map((customer) => (
+                  <div
+                    key={customer.id}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/customers/${customer.id}`)}
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                      customer.daysLeft <= 7
+                        ? 'bg-red-500/15 text-red-400'
+                        : customer.daysLeft <= 14
+                        ? 'bg-amber-500/15 text-amber-400'
+                        : 'bg-orange-500/15 text-orange-400'
+                    }`}>
+                      {customer.daysLeft}g
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {customer.companyName}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {customer.contactName && (
+                          <p className="text-xs text-muted-foreground truncate">{customer.contactName}</p>
+                        )}
+                        {customer.phone && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Phone className="h-3 w-3" />
+                            {customer.phone}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-muted-foreground">{formatExpirationDate(customer.expirationDate)}</p>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs mt-1 ${
+                          customer.daysLeft <= 7
+                            ? 'text-red-400 border-red-500/40 bg-red-500/10'
+                            : customer.daysLeft <= 14
+                            ? 'text-amber-400 border-amber-500/40 bg-amber-500/10'
+                            : 'text-orange-400 border-orange-500/40 bg-orange-500/10'
+                        }`}
+                      >
+                        {customer.daysLeft === 0 ? 'Bugün' : `${customer.daysLeft} gün`}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Recent activities */}
         <Card>
           <CardHeader>
@@ -338,56 +435,37 @@ export function DashboardPage() {
             )}
           </CardContent>
         </Card>
+      </div>
 
-        {/* Pipeline by stage */}
+      {/* Mini pipeline summary */}
+      {(stats?.opportunitiesByStage?.length ?? 0) > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Satış Pipeline</CardTitle>
-            <CardDescription>Aşamaya göre fırsatlar</CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Satış Pipeline Özeti</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : !stats?.opportunitiesByStage?.length ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Henüz fırsat yok.</p>
+              <Skeleton className="h-10 w-full" />
             ) : (
-              <div className="space-y-3">
-                {stats.opportunitiesByStage.map((item) => {
-                  const maxValue = Math.max(...stats.opportunitiesByStage.map((s) => s.value));
-                  const percentage = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
-                  return (
-                    <div key={item.stage} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">
-                          {STAGE_LABELS[item.stage] ?? item.stage}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            {item.count} fırsat
-                          </Badge>
-                          <span className="font-medium text-foreground text-xs">
-                            {formatCurrency(item.value)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all duration-500"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="flex flex-wrap gap-3">
+                {stats!.opportunitiesByStage.map((item) => (
+                  <div
+                    key={item.stage}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border border-border/50"
+                  >
+                    <span className="text-xs text-muted-foreground">
+                      {STAGE_LABELS[item.stage] ?? item.stage}
+                    </span>
+                    <Badge variant="outline" className="text-xs">
+                      {item.count}
+                    </Badge>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
-      </div>
+      )}
     </div>
   );
 }

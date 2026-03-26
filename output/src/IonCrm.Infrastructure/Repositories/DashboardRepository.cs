@@ -108,6 +108,28 @@ public class DashboardRepository : IDashboardRepository
 
         var recentActivities = await FetchRecentActivitiesAsync(projectId, 10, cancellationToken);
 
+        // ── Expiring subscriptions (within next 30 days) ──────────────────────
+
+        var expiryThreshold = now.AddDays(30);
+        var expiringRaw = await _db.Customers
+            .Where(c => c.ProjectId == projectId &&
+                        c.ExpirationDate != null &&
+                        c.ExpirationDate > now &&
+                        c.ExpirationDate <= expiryThreshold)
+            .OrderBy(c => c.ExpirationDate)
+            .Select(c => new { c.Id, c.CompanyName, c.ContactName, c.Phone, c.ExpirationDate })
+            .ToListAsync(cancellationToken);
+
+        var expiringCustomers = expiringRaw
+            .Select(c => new ExpiringCustomerDto(
+                c.Id,
+                c.CompanyName,
+                c.ContactName,
+                c.Phone,
+                c.ExpirationDate!.Value,
+                (int)(c.ExpirationDate.Value.Date - now.Date).TotalDays))
+            .ToList();
+
         return new DashboardStatsDto(
             totalCustomers,
             activeCustomers,
@@ -118,7 +140,8 @@ public class DashboardRepository : IDashboardRepository
             monthlyActivity,
             customersByStatus,
             opportunitiesByStage,
-            recentActivities
+            recentActivities,
+            expiringCustomers
         );
     }
 

@@ -26,6 +26,7 @@ public static class CustomerMappings
         AssignedUserName = c.AssignedUser is not null
             ? $"{c.AssignedUser.FirstName} {c.AssignedUser.LastName}".Trim()
             : null,
+        ExpirationDate = c.ExpirationDate,
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt
     };

@@ -110,7 +110,7 @@ public sealed class SaasSyncJob
                 return response.Data.Count;
             });
 
-        // Subscriptions (logged as ContactHistory notes for now)
+        // Subscriptions — update ExpirationDate on matching customers
         await SyncWithRetryAsync(
             source: SyncSource.SaasA,
             entityType: "Subscription",
@@ -118,7 +118,8 @@ public sealed class SaasSyncJob
             action: async () =>
             {
                 var response = await _saasAClient.GetSubscriptionsAsync(ct);
-                return response.Data.Count; // mapping to be extended per business rules
+                await UpdateSaasAExpirationDatesAsync(response.Data, ct);
+                return response.Data.Count;
             });
 
         // Orders
@@ -160,7 +161,7 @@ public sealed class SaasSyncJob
                 return response.Customers.Count;
             });
 
-        // Subscriptions
+        // Subscriptions — update ExpirationDate on matching customers
         await SyncWithRetryAsync(
             source: SyncSource.SaasB,
             entityType: "Subscription",
@@ -168,6 +169,7 @@ public sealed class SaasSyncJob
             action: async () =>
             {
                 var response = await _saasBClient.GetSubscriptionsAsync(ct);
+                await UpdateSaasBExpirationDatesAsync(response.Subscriptions, ct);
                 return response.Subscriptions.Count;
             });
 
@@ -351,6 +353,74 @@ public sealed class SaasSyncJob
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 });
+            }
+        }
+
+        await context.SaveChangesAsync(ct);
+    }
+
+    // ── Subscription expiration sync ──────────────────────────────────────────
+
+    private async Task UpdateSaasAExpirationDatesAsync(
+        List<SaasASubscription> subscriptions,
+        CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        // Group by customer, take the latest ExpiresAt per customer (active subs first)
+        var byCustomer = subscriptions
+            .Where(s => s.ExpiresAt.HasValue)
+            .GroupBy(s => s.CustomerId)
+            .ToDictionary(
+                g => $"SAASA-{g.Key}",
+                g => g.OrderByDescending(s => s.ExpiresAt).First().ExpiresAt!.Value);
+
+        foreach (var (legacyId, expiresAt) in byCustomer)
+        {
+            var customer = await context.Customers
+                .IgnoreQueryFilters()
+                .Where(c => !c.IsDeleted && c.LegacyId == legacyId)
+                .FirstOrDefaultAsync(ct);
+
+            if (customer is not null && customer.ExpirationDate != expiresAt)
+            {
+                customer.ExpirationDate = expiresAt;
+                customer.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        await context.SaveChangesAsync(ct);
+    }
+
+    private async Task UpdateSaasBExpirationDatesAsync(
+        List<SaasBSubscription> subscriptions,
+        CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        // Group by client, take the latest EndTimestamp per client
+        var byClient = subscriptions
+            .Where(s => s.EndTimestamp.HasValue)
+            .GroupBy(s => s.ClientId)
+            .ToDictionary(
+                g => $"SAASB-{g.Key}",
+                g => DateTimeOffset.FromUnixTimeSeconds(
+                    g.OrderByDescending(s => s.EndTimestamp).First().EndTimestamp!.Value
+                ).UtcDateTime);
+
+        foreach (var (legacyId, expiresAt) in byClient)
+        {
+            var customer = await context.Customers
+                .IgnoreQueryFilters()
+                .Where(c => !c.IsDeleted && c.LegacyId == legacyId)
+                .FirstOrDefaultAsync(ct);
+
+            if (customer is not null && customer.ExpirationDate != expiresAt)
+            {
+                customer.ExpirationDate = expiresAt;
+                customer.UpdatedAt = DateTime.UtcNow;
             }
         }
 

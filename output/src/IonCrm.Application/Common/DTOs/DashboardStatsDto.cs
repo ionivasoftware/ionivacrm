@@ -12,7 +12,8 @@ public record DashboardStatsDto(
     IReadOnlyList<MonthlyActivityDto> MonthlyActivity,
     IReadOnlyList<StatusBreakdownDto> CustomersByStatus,
     IReadOnlyList<StageBreakdownDto> OpportunitiesByStage,
-    IReadOnlyList<RecentActivityDto> RecentActivities
+    IReadOnlyList<RecentActivityDto> RecentActivities,
+    IReadOnlyList<ExpiringCustomerDto> ExpiringCustomers
 );
 
 public record MonthlyActivityDto(string Month, int Calls, int Meetings, int Emails);
@@ -28,4 +29,13 @@ public record RecentActivityDto(
     string? Subject,
     string? CreatedByUserName,
     DateTime ContactedAt
+);
+
+public record ExpiringCustomerDto(
+    Guid Id,
+    string CompanyName,
+    string? ContactName,
+    string? Phone,
+    DateTime ExpirationDate,
+    int DaysLeft
 );

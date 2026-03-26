@@ -22,6 +22,7 @@ public class CustomerDto
     public CustomerLabel? Label { get; set; }
     public Guid? AssignedUserId { get; set; }
     public string? AssignedUserName { get; set; }
+    public DateTime? ExpirationDate { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

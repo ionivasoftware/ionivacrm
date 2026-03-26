@@ -51,6 +51,9 @@ public class Customer : BaseEntity
     /// </summary>
     public CustomerLabel? Label { get; set; }
 
+    /// <summary>Gets or sets the subscription expiration date (synced from SaaS).</summary>
+    public DateTime? ExpirationDate { get; set; }
+
     /// <summary>Gets or sets the sales rep assigned to this customer.</summary>
     public Guid? AssignedUserId { get; set; }
 

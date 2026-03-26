@@ -141,6 +141,7 @@ export interface Customer {
   label: CustomerLabel | null;
   assignedUserId: string | null;
   assignedUserName: string | null;
+  expirationDate: string | null;
   legacyId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -288,6 +289,15 @@ export interface SyncLog {
 
 // ----- Dashboard -----
 
+export interface ExpiringCustomer {
+  id: string;
+  companyName: string;
+  contactName: string | null;
+  phone: string | null;
+  expirationDate: string;
+  daysLeft: number;
+}
+
 export interface DashboardStats {
   totalCustomers: number;
   activeCustomers: number;
@@ -299,6 +309,7 @@ export interface DashboardStats {
   customersByStatus: StatusBreakdown[];
   opportunitiesByStage: StageBreakdown[];
   recentActivities: RecentActivity[];
+  expiringCustomers: ExpiringCustomer[];
 }
 
 export interface MonthlyActivity {
