@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Pencil, FolderOpen, Loader2 } from 'lucide-react';
+import { Plus, Pencil, FolderOpen, Loader2, Key, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  useAdminProjects, useCreateProject, useUpdateProject,
+  useAdminProjects, useCreateProject, useUpdateProject, useSetProjectApiKeys,
   type AdminProject,
 } from '@/api/admin';
 import { useToast } from '@/hooks/use-toast';
@@ -108,12 +108,109 @@ function ProjectDialog({
   );
 }
 
+// ── API Key Field ─────────────────────────────────────────────────────────────
+
+function ApiKeyField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [show, setShow] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const handleCopy = async () => {
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    toast({ title: 'Kopyalandı' });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <div className="flex gap-2">
+        <Input
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="API anahtarı girin"
+          className="h-10 font-mono text-xs"
+        />
+        <Button type="button" variant="ghost" size="icon" onClick={() => setShow((s) => !s)} className="flex-shrink-0">
+          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </Button>
+        <Button type="button" variant="ghost" size="icon" onClick={handleCopy} disabled={!value} className="flex-shrink-0">
+          {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── API Keys Dialog ───────────────────────────────────────────────────────────
+
+function ApiKeysDialog({ project, onClose }: { project: AdminProject; onClose: () => void }) {
+  const { toast } = useToast();
+  const mutation = useSetProjectApiKeys();
+  const [emsApiKey, setEmsApiKey] = useState(project.emsApiKey ?? '');
+  const [rezervAlApiKey, setRezervAlApiKey] = useState(project.rezervAlApiKey ?? '');
+
+  const handleSave = async () => {
+    try {
+      await mutation.mutateAsync({
+        id: project.id,
+        emsApiKey: emsApiKey.trim() || null,
+        rezervAlApiKey: rezervAlApiKey.trim() || null,
+      });
+      toast({ title: 'API anahtarları kaydedildi' });
+      onClose();
+    } catch {
+      toast({ title: 'Hata', description: 'Kayıt başarısız oldu.', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Key className="h-4 w-4" />
+            API Anahtarları — {project.name}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="p-3 rounded-lg bg-muted/40 text-xs text-muted-foreground space-y-1">
+            <p><span className="font-semibold text-foreground">EMS</span> → SaaS A — Bearer token ile kimlik doğrulama</p>
+            <p><span className="font-semibold text-foreground">Rezerval</span> → SaaS B — X-Api-Key header ile kimlik doğrulama</p>
+          </div>
+          <ApiKeyField label="EMS API Key (SaaS A)" value={emsApiKey} onChange={setEmsApiKey} />
+          <ApiKeyField label="Rezerval API Key (SaaS B)" value={rezervAlApiKey} onChange={setRezervAlApiKey} />
+        </div>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>İptal</Button>
+          <Button onClick={handleSave} disabled={mutation.isPending}>
+            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Kaydet
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function ProjectsAdminPage() {
   const { data: projects = [], isLoading } = useAdminProjects();
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<AdminProject | null>(null);
+  const [apiKeysTarget, setApiKeysTarget] = useState<AdminProject | null>(null);
 
   return (
     <div className="space-y-6">
@@ -165,18 +262,36 @@ export function ProjectsAdminPage() {
                     {project.description && (
                       <p className="text-xs text-muted-foreground mt-0.5">{project.description}</p>
                     )}
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      ID: <span className="font-mono">{project.id}</span>
-                    </p>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      <p className="text-xs text-muted-foreground">
+                        ID: <span className="font-mono">{project.id}</span>
+                      </p>
+                      <span className={`text-xs flex items-center gap-1 ${project.emsApiKey ? 'text-green-500' : 'text-muted-foreground/50'}`}>
+                        <Key className="h-3 w-3" /> EMS
+                      </span>
+                      <span className={`text-xs flex items-center gap-1 ${project.rezervAlApiKey ? 'text-green-500' : 'text-muted-foreground/50'}`}>
+                        <Key className="h-3 w-3" /> Rezerval
+                      </span>
+                    </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-shrink-0 gap-1.5"
-                    onClick={() => setEditTarget(project)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" /> Düzenle
-                  </Button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setApiKeysTarget(project)}
+                    >
+                      <Key className="h-3.5 w-3.5" /> API Keys
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setEditTarget(project)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" /> Düzenle
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -186,6 +301,7 @@ export function ProjectsAdminPage() {
 
       {showCreate && <ProjectDialog onClose={() => setShowCreate(false)} />}
       {editTarget && <ProjectDialog project={editTarget} onClose={() => setEditTarget(null)} />}
+      {apiKeysTarget && <ApiKeysDialog project={apiKeysTarget} onClose={() => setApiKeysTarget(null)} />}
     </div>
   );
 }

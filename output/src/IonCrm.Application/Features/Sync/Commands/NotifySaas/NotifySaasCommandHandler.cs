@@ -83,7 +83,7 @@ public sealed class NotifySaasCommandHandler : IRequestHandler<NotifySaasCommand
                 Data: request.PayloadJson,
                 OccurredAt: DateTime.UtcNow);
 
-            await _saasAClient.NotifyCallbackAsync(payload, ct);
+            await _saasAClient.NotifyCallbackAsync(payload, cancellationToken: ct);
 
             log.Status = SyncStatus.Success;
             log.SyncedAt = DateTime.UtcNow;
@@ -135,7 +135,7 @@ public sealed class NotifySaasCommandHandler : IRequestHandler<NotifySaasCommand
                 Payload: request.PayloadJson,
                 Timestamp: DateTimeOffset.UtcNow.ToUnixTimeSeconds());
 
-            await _saasBClient.NotifyCallbackAsync(payload, ct);
+            await _saasBClient.NotifyCallbackAsync(payload, cancellationToken: ct);
 
             log.Status = SyncStatus.Success;
             log.SyncedAt = DateTime.UtcNow;

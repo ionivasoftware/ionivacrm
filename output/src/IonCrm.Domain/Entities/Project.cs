@@ -17,6 +17,12 @@ public class Project : BaseEntity
     /// <summary>Gets or sets a value indicating whether this project is active.</summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Gets or sets the API key used to authenticate with EMS (SaaS A).</summary>
+    public string? EmsApiKey { get; set; }
+
+    /// <summary>Gets or sets the API key used to authenticate with Rezerval (SaaS B).</summary>
+    public string? RezervAlApiKey { get; set; }
+
     // Navigation properties
     /// <summary>Gets or sets the user-project role assignments for this project.</summary>
     public ICollection<UserProjectRole> UserProjectRoles { get; set; } = new List<UserProjectRole>();

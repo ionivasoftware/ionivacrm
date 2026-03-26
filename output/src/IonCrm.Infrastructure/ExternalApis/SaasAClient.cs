@@ -3,6 +3,7 @@ using IonCrm.Application.Common.Models.ExternalApis;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -66,12 +67,14 @@ public sealed class SaasAClient : ISaasAClient
     }
 
     /// <inheritdoc />
-    public async Task<SaasACustomersResponse> GetCustomersAsync(CancellationToken cancellationToken = default)
+    public async Task<SaasACustomersResponse> GetCustomersAsync(string? apiKey = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("SaaS A: fetching customers.");
         return await _retryPipeline.ExecuteAsync<SaasACustomersResponse>(async ct =>
         {
-            var response = await _httpClient.GetAsync("api/v1/customers", ct);
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/customers");
+            ApplyAuth(request, apiKey);
+            var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<SaasACustomersResponse>(JsonOpts, ct);
             return result ?? new SaasACustomersResponse(new List<SaasACustomer>(), 0);
@@ -79,12 +82,14 @@ public sealed class SaasAClient : ISaasAClient
     }
 
     /// <inheritdoc />
-    public async Task<SaasASubscriptionsResponse> GetSubscriptionsAsync(CancellationToken cancellationToken = default)
+    public async Task<SaasASubscriptionsResponse> GetSubscriptionsAsync(string? apiKey = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("SaaS A: fetching subscriptions.");
         return await _retryPipeline.ExecuteAsync<SaasASubscriptionsResponse>(async ct =>
         {
-            var response = await _httpClient.GetAsync("api/v1/subscriptions", ct);
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/subscriptions");
+            ApplyAuth(request, apiKey);
+            var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<SaasASubscriptionsResponse>(JsonOpts, ct);
             return result ?? new SaasASubscriptionsResponse(new List<SaasASubscription>(), 0);
@@ -92,12 +97,14 @@ public sealed class SaasAClient : ISaasAClient
     }
 
     /// <inheritdoc />
-    public async Task<SaasAOrdersResponse> GetOrdersAsync(CancellationToken cancellationToken = default)
+    public async Task<SaasAOrdersResponse> GetOrdersAsync(string? apiKey = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("SaaS A: fetching orders.");
         return await _retryPipeline.ExecuteAsync<SaasAOrdersResponse>(async ct =>
         {
-            var response = await _httpClient.GetAsync("api/v1/orders", ct);
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/orders");
+            ApplyAuth(request, apiKey);
+            var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<SaasAOrdersResponse>(JsonOpts, ct);
             return result ?? new SaasAOrdersResponse(new List<SaasAOrder>(), 0);
@@ -105,7 +112,7 @@ public sealed class SaasAClient : ISaasAClient
     }
 
     /// <inheritdoc />
-    public async Task NotifyCallbackAsync(SaasACallbackPayload payload, CancellationToken cancellationToken = default)
+    public async Task NotifyCallbackAsync(SaasACallbackPayload payload, string? apiKey = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug(
             "SaaS A: posting callback. EventType={EventType} EntityType={EntityType} EntityId={EntityId}",
@@ -113,8 +120,21 @@ public sealed class SaasAClient : ISaasAClient
 
         await _retryPipeline.ExecuteAsync(async ct =>
         {
-            var response = await _httpClient.PostAsJsonAsync("api/v1/crm-callbacks", payload, JsonOpts, ct);
+            var request = new HttpRequestMessage(HttpMethod.Post, "api/v1/crm-callbacks");
+            ApplyAuth(request, apiKey);
+            request.Content = JsonContent.Create(payload, options: JsonOpts);
+            var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Overrides the default Authorization header with a project-specific Bearer token when provided.
+    /// Falls back to the header pre-configured in DI (appsettings SaasA:ApiKey) when apiKey is null/empty.
+    /// </summary>
+    private static void ApplyAuth(HttpRequestMessage request, string? apiKey)
+    {
+        if (!string.IsNullOrWhiteSpace(apiKey))
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
     }
 }

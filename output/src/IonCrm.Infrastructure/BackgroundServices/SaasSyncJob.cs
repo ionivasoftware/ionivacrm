@@ -25,6 +25,7 @@ public sealed class SaasSyncJob
 {
     private readonly ISaasAClient _saasAClient;
     private readonly ISaasBClient _saasBClient;
+    private readonly IProjectRepository _projectRepository;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<SaasSyncJob> _logger;
@@ -60,12 +61,14 @@ public sealed class SaasSyncJob
     public SaasSyncJob(
         ISaasAClient saasAClient,
         ISaasBClient saasBClient,
+        IProjectRepository projectRepository,
         IServiceScopeFactory scopeFactory,
         IConfiguration configuration,
         ILogger<SaasSyncJob> logger)
     {
         _saasAClient = saasAClient;
         _saasBClient = saasBClient;
+        _projectRepository = projectRepository;
         _scopeFactory = scopeFactory;
         _configuration = configuration;
         _logger = logger;
@@ -96,7 +99,12 @@ public sealed class SaasSyncJob
             return;
         }
 
-        _logger.LogInformation("Starting SaaS A sync for project {ProjectId}.", projectId);
+        var project = await _projectRepository.GetByIdAsync(projectId, ct);
+        var emsApiKey = project?.EmsApiKey;
+
+        _logger.LogInformation(
+            "Starting SaaS A (EMS) sync for project {ProjectId}. ApiKey configured: {HasKey}",
+            projectId, emsApiKey is not null);
 
         // Customers
         await SyncWithRetryAsync(
@@ -105,7 +113,7 @@ public sealed class SaasSyncJob
             projectId: projectId,
             action: async () =>
             {
-                var response = await _saasAClient.GetCustomersAsync(ct);
+                var response = await _saasAClient.GetCustomersAsync(emsApiKey, ct);
                 await UpsertSaasACustomersAsync(response.Data, projectId, ct);
                 return response.Data.Count;
             });
@@ -117,7 +125,7 @@ public sealed class SaasSyncJob
             projectId: projectId,
             action: async () =>
             {
-                var response = await _saasAClient.GetSubscriptionsAsync(ct);
+                var response = await _saasAClient.GetSubscriptionsAsync(emsApiKey, ct);
                 await UpdateSaasAExpirationDatesAsync(response.Data, ct);
                 return response.Data.Count;
             });
@@ -129,11 +137,11 @@ public sealed class SaasSyncJob
             projectId: projectId,
             action: async () =>
             {
-                var response = await _saasAClient.GetOrdersAsync(ct);
+                var response = await _saasAClient.GetOrdersAsync(emsApiKey, ct);
                 return response.Data.Count;
             });
 
-        _logger.LogInformation("SaaS A sync completed.");
+        _logger.LogInformation("SaaS A (EMS) sync completed.");
     }
 
     // ── SaaS B sync ───────────────────────────────────────────────────────────
@@ -147,7 +155,12 @@ public sealed class SaasSyncJob
             return;
         }
 
-        _logger.LogInformation("Starting SaaS B sync for project {ProjectId}.", projectId);
+        var project = await _projectRepository.GetByIdAsync(projectId, ct);
+        var rezervAlApiKey = project?.RezervAlApiKey;
+
+        _logger.LogInformation(
+            "Starting SaaS B (Rezerval) sync for project {ProjectId}. ApiKey configured: {HasKey}",
+            projectId, rezervAlApiKey is not null);
 
         // Customers
         await SyncWithRetryAsync(
@@ -156,7 +169,7 @@ public sealed class SaasSyncJob
             projectId: projectId,
             action: async () =>
             {
-                var response = await _saasBClient.GetCustomersAsync(ct);
+                var response = await _saasBClient.GetCustomersAsync(rezervAlApiKey, ct);
                 await UpsertSaasBCustomersAsync(response.Customers, projectId, ct);
                 return response.Customers.Count;
             });
@@ -168,7 +181,7 @@ public sealed class SaasSyncJob
             projectId: projectId,
             action: async () =>
             {
-                var response = await _saasBClient.GetSubscriptionsAsync(ct);
+                var response = await _saasBClient.GetSubscriptionsAsync(rezervAlApiKey, ct);
                 await UpdateSaasBExpirationDatesAsync(response.Subscriptions, ct);
                 return response.Subscriptions.Count;
             });
@@ -180,7 +193,7 @@ public sealed class SaasSyncJob
             projectId: projectId,
             action: async () =>
             {
-                var response = await _saasBClient.GetOrdersAsync(ct);
+                var response = await _saasBClient.GetOrdersAsync(rezervAlApiKey, ct);
                 return response.Orders.Count;
             });
 

@@ -6,6 +6,7 @@ using IonCrm.Infrastructure.BackgroundServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Moq;
 
 namespace IonCrm.Tests.Sync;
 
@@ -24,6 +25,7 @@ public class SaasSyncJobTests
 {
     private readonly Mock<ISaasAClient> _saasAClientMock = new();
     private readonly Mock<ISaasBClient> _saasBClientMock = new();
+    private readonly Mock<IProjectRepository> _projectRepoMock = new();
     private readonly Mock<ILogger<SaasSyncJob>> _loggerMock = new();
     private readonly Mock<IServiceScopeFactory> _scopeFactoryMock = new();
     private readonly Mock<IConfiguration> _configMock = new();
@@ -31,6 +33,7 @@ public class SaasSyncJobTests
     private SaasSyncJob CreateJob() => new(
         _saasAClientMock.Object,
         _saasBClientMock.Object,
+        _projectRepoMock.Object,
         _scopeFactoryMock.Object,
         _configMock.Object,
         _loggerMock.Object);
@@ -49,11 +52,11 @@ public class SaasSyncJobTests
 
         // Assert — no API calls made; ScopeFactory not used
         _saasAClientMock.Verify(
-            c => c.GetCustomersAsync(It.IsAny<CancellationToken>()),
+            c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never,
             "SaaS A sync should be skipped when ProjectId is not configured");
         _saasBClientMock.Verify(
-            c => c.GetCustomersAsync(It.IsAny<CancellationToken>()),
+            c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never,
             "SaaS B sync should be skipped when ProjectId is not configured");
     }
@@ -70,10 +73,10 @@ public class SaasSyncJobTests
 
         // Assert
         _saasAClientMock.Verify(
-            c => c.GetCustomersAsync(It.IsAny<CancellationToken>()),
+            c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _saasBClientMock.Verify(
-            c => c.GetCustomersAsync(It.IsAny<CancellationToken>()),
+            c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _scopeFactoryMock.Verify(
             f => f.CreateScope(),
@@ -89,19 +92,24 @@ public class SaasSyncJobTests
         _configMock.Setup(c => c["SaasA:ProjectId"]).Returns(projectAId.ToString());
         _configMock.Setup(c => c["SaasB:ProjectId"]).Returns((string?)null);
 
+        // Set up project repository to return a project for SaaS A
+        _projectRepoMock
+            .Setup(r => r.GetByIdAsync(projectAId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Project { Id = projectAId, Name = "Test Project" });
+
         // Set up scope factory to return a mock sync log repo (needed for SaaS A path)
         SetupScopeFactory();
 
         _saasAClientMock
-            .Setup(c => c.GetCustomersAsync(It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Application.Common.Models.ExternalApis.SaasACustomersResponse(
                 new List<Application.Common.Models.ExternalApis.SaasACustomer>(), 0));
         _saasAClientMock
-            .Setup(c => c.GetSubscriptionsAsync(It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetSubscriptionsAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Application.Common.Models.ExternalApis.SaasASubscriptionsResponse(
                 new List<Application.Common.Models.ExternalApis.SaasASubscription>(), 0));
         _saasAClientMock
-            .Setup(c => c.GetOrdersAsync(It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetOrdersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Application.Common.Models.ExternalApis.SaasAOrdersResponse(
                 new List<Application.Common.Models.ExternalApis.SaasAOrder>(), 0));
 
@@ -110,7 +118,7 @@ public class SaasSyncJobTests
 
         // Assert — SaaS B entirely skipped
         _saasBClientMock.Verify(
-            c => c.GetCustomersAsync(It.IsAny<CancellationToken>()),
+            c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never,
             "SaaS B sync should be skipped when its ProjectId is not configured");
     }

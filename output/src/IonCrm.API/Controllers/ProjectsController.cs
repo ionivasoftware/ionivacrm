@@ -1,4 +1,5 @@
 using IonCrm.Application.Projects.Commands.CreateProject;
+using IonCrm.Application.Projects.Commands.SetProjectApiKeys;
 using IonCrm.Application.Projects.Commands.UpdateProject;
 using IonCrm.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -14,8 +15,9 @@ public class ProjectsController : ApiControllerBase
     public ProjectsController(IProjectRepository projectRepository)
         => _projectRepository = projectRepository;
 
-    /// <summary>Returns all projects (active and inactive).</summary>
+    /// <summary>Returns all projects (active and inactive). SuperAdmin only.</summary>
     [HttpGet]
+    [Authorize(Policy = "SuperAdmin")]
     public async Task<IActionResult> GetProjects(CancellationToken cancellationToken = default)
     {
         var projects = await _projectRepository.GetAllAsync(cancellationToken);
@@ -26,7 +28,9 @@ public class ProjectsController : ApiControllerBase
             description = p.Description,
             isActive = p.IsActive,
             createdAt = p.CreatedAt,
-            updatedAt = p.UpdatedAt
+            updatedAt = p.UpdatedAt,
+            emsApiKey = p.EmsApiKey,
+            rezervAlApiKey = p.RezervAlApiKey
         });
         return OkResponse(dtos);
     }
@@ -48,6 +52,18 @@ public class ProjectsController : ApiControllerBase
     public async Task<IActionResult> UpdateProject(
         Guid id,
         [FromBody] UpdateProjectCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(command with { Id = id }, cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>Sets EMS and Rezerval API keys for a project. SuperAdmin only.</summary>
+    [HttpPut("{id:guid}/api-keys")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> SetApiKeys(
+        Guid id,
+        [FromBody] SetProjectApiKeysCommand command,
         CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(command with { Id = id }, cancellationToken);

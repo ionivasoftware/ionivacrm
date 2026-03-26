@@ -67,12 +67,14 @@ public sealed class SaasBClient : ISaasBClient
     }
 
     /// <inheritdoc />
-    public async Task<SaasBCustomersResponse> GetCustomersAsync(CancellationToken cancellationToken = default)
+    public async Task<SaasBCustomersResponse> GetCustomersAsync(string? apiKey = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("SaaS B: fetching customers.");
         return await _retryPipeline.ExecuteAsync<SaasBCustomersResponse>(async ct =>
         {
-            var response = await _httpClient.GetAsync("customers/list", ct);
+            var request = new HttpRequestMessage(HttpMethod.Get, "customers/list");
+            ApplyAuth(request, apiKey);
+            var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<SaasBCustomersResponse>(JsonOpts, ct);
             return result ?? new SaasBCustomersResponse(new List<SaasBCustomer>(), 0);
@@ -80,12 +82,14 @@ public sealed class SaasBClient : ISaasBClient
     }
 
     /// <inheritdoc />
-    public async Task<SaasBSubscriptionsResponse> GetSubscriptionsAsync(CancellationToken cancellationToken = default)
+    public async Task<SaasBSubscriptionsResponse> GetSubscriptionsAsync(string? apiKey = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("SaaS B: fetching subscriptions.");
         return await _retryPipeline.ExecuteAsync<SaasBSubscriptionsResponse>(async ct =>
         {
-            var response = await _httpClient.GetAsync("subscriptions/all", ct);
+            var request = new HttpRequestMessage(HttpMethod.Get, "subscriptions/all");
+            ApplyAuth(request, apiKey);
+            var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<SaasBSubscriptionsResponse>(JsonOpts, ct);
             return result ?? new SaasBSubscriptionsResponse(new List<SaasBSubscription>(), 0);
@@ -93,12 +97,14 @@ public sealed class SaasBClient : ISaasBClient
     }
 
     /// <inheritdoc />
-    public async Task<SaasBOrdersResponse> GetOrdersAsync(CancellationToken cancellationToken = default)
+    public async Task<SaasBOrdersResponse> GetOrdersAsync(string? apiKey = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("SaaS B: fetching orders.");
         return await _retryPipeline.ExecuteAsync<SaasBOrdersResponse>(async ct =>
         {
-            var response = await _httpClient.GetAsync("orders/all", ct);
+            var request = new HttpRequestMessage(HttpMethod.Get, "orders/all");
+            ApplyAuth(request, apiKey);
+            var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<SaasBOrdersResponse>(JsonOpts, ct);
             return result ?? new SaasBOrdersResponse(new List<SaasBOrder>(), 0);
@@ -106,7 +112,7 @@ public sealed class SaasBClient : ISaasBClient
     }
 
     /// <inheritdoc />
-    public async Task NotifyCallbackAsync(SaasBCallbackPayload payload, CancellationToken cancellationToken = default)
+    public async Task NotifyCallbackAsync(SaasBCallbackPayload payload, string? apiKey = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug(
             "SaaS B: posting callback. Event={Event} Type={Type} Id={Id}",
@@ -114,8 +120,21 @@ public sealed class SaasBClient : ISaasBClient
 
         await _retryPipeline.ExecuteAsync(async ct =>
         {
-            var response = await _httpClient.PostAsJsonAsync("webhooks/crm", payload, JsonOpts, ct);
+            var request = new HttpRequestMessage(HttpMethod.Post, "webhooks/crm");
+            ApplyAuth(request, apiKey);
+            request.Content = JsonContent.Create(payload, options: JsonOpts);
+            var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Overrides the default X-Api-Key header with a project-specific key when provided.
+    /// Falls back to the header pre-configured in DI (appsettings SaasB:ApiKey) when apiKey is null/empty.
+    /// </summary>
+    private static void ApplyAuth(HttpRequestMessage request, string? apiKey)
+    {
+        if (!string.IsNullOrWhiteSpace(apiKey))
+            request.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
     }
 }

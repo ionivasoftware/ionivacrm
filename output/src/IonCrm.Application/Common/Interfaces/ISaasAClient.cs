@@ -9,18 +9,19 @@ namespace IonCrm.Application.Common.Interfaces;
 /// </summary>
 public interface ISaasAClient
 {
-    /// <summary>Fetches all customers from SaaS A.</summary>
-    Task<SaasACustomersResponse> GetCustomersAsync(CancellationToken cancellationToken = default);
+    /// <summary>Fetches all customers from SaaS A (EMS).</summary>
+    /// <param name="apiKey">Project-specific EMS API key. Overrides the default configured key when provided.</param>
+    Task<SaasACustomersResponse> GetCustomersAsync(string? apiKey = null, CancellationToken cancellationToken = default);
 
-    /// <summary>Fetches all subscriptions from SaaS A.</summary>
-    Task<SaasASubscriptionsResponse> GetSubscriptionsAsync(CancellationToken cancellationToken = default);
+    /// <summary>Fetches all subscriptions from SaaS A (EMS).</summary>
+    Task<SaasASubscriptionsResponse> GetSubscriptionsAsync(string? apiKey = null, CancellationToken cancellationToken = default);
 
-    /// <summary>Fetches all orders from SaaS A.</summary>
-    Task<SaasAOrdersResponse> GetOrdersAsync(CancellationToken cancellationToken = default);
+    /// <summary>Fetches all orders from SaaS A (EMS).</summary>
+    Task<SaasAOrdersResponse> GetOrdersAsync(string? apiKey = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sends an outbound CRM event to SaaS A's callback endpoint.
     /// Called instantly when: subscription extended, status changed, etc.
     /// </summary>
-    Task NotifyCallbackAsync(SaasACallbackPayload payload, CancellationToken cancellationToken = default);
+    Task NotifyCallbackAsync(SaasACallbackPayload payload, string? apiKey = null, CancellationToken cancellationToken = default);
 }

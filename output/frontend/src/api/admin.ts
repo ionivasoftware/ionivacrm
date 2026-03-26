@@ -43,10 +43,13 @@ export interface AdminProject {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  emsApiKey: string | null;
+  rezervAlApiKey: string | null;
 }
 
 export interface CreateProjectRequest { name: string; description?: string }
 export interface UpdateProjectRequest { name: string; description?: string; isActive: boolean }
+export interface SetProjectApiKeysRequest { emsApiKey: string | null; rezervAlApiKey: string | null }
 
 // ── Users ──────────────────────────────────────────────────────────────────────
 
@@ -130,6 +133,17 @@ export function useUpdateProject() {
   return useMutation({
     mutationFn: async ({ id, ...data }: UpdateProjectRequest & { id: string }) => {
       const res = await apiClient.put<ApiResponse<AdminProject>>(`/projects/${id}`, data);
+      return res.data.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['adminProjects'] }),
+  });
+}
+
+export function useSetProjectApiKeys() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: SetProjectApiKeysRequest & { id: string }) => {
+      const res = await apiClient.put<ApiResponse<AdminProject>>(`/projects/${id}/api-keys`, data);
       return res.data.data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['adminProjects'] }),

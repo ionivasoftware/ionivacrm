@@ -63,10 +63,10 @@ public class NotifySaasCommandHandlerTests
         SetupSyncLogRepo();
 
         _saasAClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _saasBClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var command = BuildCommand(notifyA: true, notifyB: true);
@@ -77,10 +77,10 @@ public class NotifySaasCommandHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _saasAClientMock.Verify(
-            c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()),
+            c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
         _saasBClientMock.Verify(
-            c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()),
+            c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -91,7 +91,7 @@ public class NotifySaasCommandHandlerTests
         SetupSyncLogRepo();
 
         _saasAClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var command = BuildCommand(notifyA: true, notifyB: false);
@@ -102,10 +102,10 @@ public class NotifySaasCommandHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _saasAClientMock.Verify(
-            c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()),
+            c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
         _saasBClientMock.Verify(
-            c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()),
+            c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -116,7 +116,7 @@ public class NotifySaasCommandHandlerTests
         SetupSyncLogRepo();
 
         _saasBClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var command = BuildCommand(notifyA: false, notifyB: true);
@@ -127,10 +127,10 @@ public class NotifySaasCommandHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _saasAClientMock.Verify(
-            c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()),
+            c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _saasBClientMock.Verify(
-            c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()),
+            c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -148,10 +148,10 @@ public class NotifySaasCommandHandlerTests
         // Assert — no errors when nothing is notified
         result.IsSuccess.Should().BeTrue();
         _saasAClientMock.Verify(
-            c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()),
+            c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _saasBClientMock.Verify(
-            c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()),
+            c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -164,7 +164,7 @@ public class NotifySaasCommandHandlerTests
         SetupSyncLogRepo();
 
         _saasAClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("SaaS A unreachable"));
 
         var command = BuildCommand(notifyA: true, notifyB: false);
@@ -184,7 +184,7 @@ public class NotifySaasCommandHandlerTests
         SetupSyncLogRepo();
 
         _saasBClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("SaaS B unreachable"));
 
         var command = BuildCommand(notifyA: false, notifyB: true);
@@ -204,10 +204,10 @@ public class NotifySaasCommandHandlerTests
         SetupSyncLogRepo();
 
         _saasAClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("SaaS A down"));
         _saasBClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("SaaS B down"));
 
         var command = BuildCommand(notifyA: true, notifyB: true);
@@ -229,10 +229,10 @@ public class NotifySaasCommandHandlerTests
         SetupSyncLogRepo();
 
         _saasAClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("SaaS A error"));
         _saasBClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var command = BuildCommand(notifyA: true, notifyB: true);
@@ -242,7 +242,7 @@ public class NotifySaasCommandHandlerTests
 
         // Assert — SaaS B was still called despite SaaS A failure
         _saasBClientMock.Verify(
-            c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()),
+            c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -262,7 +262,7 @@ public class NotifySaasCommandHandlerTests
             .ReturnsAsync((SyncLog log, CancellationToken _) => log);
 
         _saasAClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var command = BuildCommand(projectId: projectId, notifyA: true, notifyB: false,
@@ -294,7 +294,7 @@ public class NotifySaasCommandHandlerTests
             .ReturnsAsync((SyncLog log, CancellationToken _) => log);
 
         _saasBClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var command = BuildCommand(notifyA: false, notifyB: true);
@@ -320,7 +320,7 @@ public class NotifySaasCommandHandlerTests
             .ReturnsAsync((SyncLog log, CancellationToken _) => log);
 
         _saasAClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("timeout"));
 
         var command = BuildCommand(notifyA: true, notifyB: false);
@@ -347,10 +347,10 @@ public class NotifySaasCommandHandlerTests
             .ReturnsAsync((SyncLog log, CancellationToken _) => log);
 
         _saasAClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _saasBClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasBCallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var command = BuildCommand(notifyA: true, notifyB: true);
@@ -378,7 +378,7 @@ public class NotifySaasCommandHandlerTests
             .ReturnsAsync((SyncLog log, CancellationToken _) => log);
 
         _saasAClientMock
-            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.NotifyCallbackAsync(It.IsAny<SaasACallbackPayload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var command = BuildCommand(notifyA: true, notifyB: false, payload: expectedPayload);
