@@ -24,7 +24,9 @@ import {
 import { useCreateCustomer, useUpdateCustomer } from '@/api/customers';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { Customer, CustomerStatus, CustomerSegment, CustomerLabel, UpdateCustomerRequest } from '@/types';
+import { useAuthStore } from '@/stores/authStore';
+import { getSegmentsForProject } from '@/config/projectSegments';
+import type { Customer, CustomerStatus, CustomerLabel, UpdateCustomerRequest } from '@/types';
 
 // ── Schema ──────────────────────────────────────────────────────────────────
 
@@ -36,7 +38,8 @@ const schema = z.object({
   address: z.string(),
   taxNumber: z.string(),
   taxUnit: z.string(),
-  status: z.enum(['Lead', 'Active', 'Inactive', 'Churned'] as const),
+  // Active is excluded — it can only be set by SaaS sync, not manually
+  status: z.enum(['Lead', 'Demo', 'Churned'] as const),
   segment: z.string(),
   label: z.string(),
   code: z.string(),
@@ -65,6 +68,9 @@ export function CustomerFormDialog({
   const createMutation = useCreateCustomer();
   const updateMutation = useUpdateCustomer();
   const isEdit = !!customer;
+  const { currentProjectId, projectNames } = useAuthStore();
+  const projectName = currentProjectId ? projectNames[currentProjectId] : undefined;
+  const segments = getSegmentsForProject(projectName);
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   const {
@@ -97,7 +103,7 @@ export function CustomerFormDialog({
       taxUnit: data.taxUnit || undefined,
       status: data.status as CustomerStatus,
       // Convert "none" sentinel back to undefined for the API
-      segment: (data.segment === 'none' || !data.segment ? undefined : data.segment) as CustomerSegment | undefined,
+      segment: (data.segment === 'none' || !data.segment ? undefined : data.segment) as string | undefined,
       label: (data.label === 'none' || !data.label ? undefined : data.label) as CustomerLabel | undefined,
       code: data.code || undefined,
     };
@@ -189,9 +195,12 @@ export function CustomerFormDialog({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Lead">🔵 Lead</SelectItem>
-                        <SelectItem value="Active">🟢 Aktif</SelectItem>
-                        <SelectItem value="Inactive">🟡 Pasif</SelectItem>
+                        <SelectItem value="Demo">🟣 Demo</SelectItem>
                         <SelectItem value="Churned">🔴 Kayıp</SelectItem>
+                        {/* Active is read-only — set only by SaaS sync */}
+                        {customer?.status === 'Active' && (
+                          <SelectItem value="Active" disabled>🟢 Aktif (SaaS)</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   )}
@@ -209,11 +218,9 @@ export function CustomerFormDialog({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Belirtilmedi</SelectItem>
-                        <SelectItem value="SME">KOBİ</SelectItem>
-                        <SelectItem value="Enterprise">Kurumsal</SelectItem>
-                        <SelectItem value="Startup">Startup</SelectItem>
-                        <SelectItem value="Government">Kamu</SelectItem>
-                        <SelectItem value="Individual">Bireysel</SelectItem>
+                        {segments.map((seg) => (
+                          <SelectItem key={seg} value={seg}>{seg}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}
@@ -355,7 +362,8 @@ function getDefaultValues(customer?: Customer): FormData {
       address: customer.address ?? '',
       taxNumber: customer.taxNumber ?? '',
       taxUnit: customer.taxUnit ?? '',
-      status: customer.status,
+      // Active is set by sync — map to Lead for form (user can't save Active anyway)
+      status: (customer.status === 'Active' ? 'Lead' : customer.status) as 'Lead' | 'Demo' | 'Churned',
       // Use "none" sentinel so Radix Select doesn't have empty-string value issues
       segment: customer.segment ?? 'none',
       label: customer.label ?? 'none',

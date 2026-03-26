@@ -28,7 +28,7 @@ public class GetCustomersQueryHandlerTests
                 It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CustomerStatus?>(),
-                It.IsAny<CustomerSegment?>(),
+                It.IsAny<string?>(),
                 It.IsAny<CustomerLabel?>(),
                 It.IsAny<Guid?>(),
                 It.IsAny<int>(),

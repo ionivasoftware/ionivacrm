@@ -11,7 +11,7 @@ public interface ICustomerRepository : IRepository<Customer>
         Guid? projectId,
         string? search,
         CustomerStatus? status,
-        CustomerSegment? segment,
+        string? segment,
         CustomerLabel? label,
         Guid? assignedUserId,
         int page,

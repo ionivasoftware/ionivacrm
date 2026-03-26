@@ -19,7 +19,7 @@ public class CustomerWithDetailsDto
     public string? TaxNumber { get; set; }
     public string? TaxUnit { get; set; }
     public CustomerStatus Status { get; set; }
-    public CustomerSegment? Segment { get; set; }
+    public string? Segment { get; set; }
     public CustomerLabel? Label { get; set; }
     public Guid? AssignedUserId { get; set; }
     public string? AssignedUserName { get; set; }

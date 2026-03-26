@@ -28,7 +28,9 @@ import { CustomerCard } from '@/components/customers/CustomerCard';
 import { CustomerFormDialog } from '@/components/customers/CustomerForm';
 import { AddContactHistoryDialog } from '@/components/customers/AddContactHistoryDialog';
 import { useToast } from '@/hooks/use-toast';
-import type { CustomerStatus, CustomerSegment, CustomerLabel, ContactType } from '@/types';
+import { useAuthStore } from '@/stores/authStore';
+import { getSegmentsForProject } from '@/config/projectSegments';
+import type { CustomerStatus, CustomerLabel, ContactType } from '@/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -46,7 +48,10 @@ export function CustomersPage() {
   // Search & filter state
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | 'all'>('all');
-  const [segmentFilter, setSegmentFilter] = useState<CustomerSegment | 'all'>('all');
+  const [segmentFilter, setSegmentFilter] = useState<string>('all');
+  const { currentProjectId, projectNames } = useAuthStore();
+  const projectName = currentProjectId ? projectNames[currentProjectId] : undefined;
+  const segments = getSegmentsForProject(projectName);
   const [labelFilter, setLabelFilter] = useState<CustomerLabel | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
 
@@ -85,7 +90,7 @@ export function CustomersPage() {
   }
 
   function handleSegmentChange(value: string) {
-    setSegmentFilter(value as CustomerSegment | 'all');
+    setSegmentFilter(value);
     setPage(1);
   }
 
@@ -217,7 +222,7 @@ export function CustomersPage() {
                     <SelectItem value="all">Tüm Durumlar</SelectItem>
                     <SelectItem value="Lead">🔵 Lead</SelectItem>
                     <SelectItem value="Active">🟢 Aktif</SelectItem>
-                    <SelectItem value="Inactive">🟡 Pasif</SelectItem>
+                    <SelectItem value="Demo">🟣 Demo</SelectItem>
                     <SelectItem value="Churned">🔴 Kayıp</SelectItem>
                   </SelectContent>
                 </Select>
@@ -229,11 +234,9 @@ export function CustomersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tüm Segmentler</SelectItem>
-                    <SelectItem value="SME">KOBİ</SelectItem>
-                    <SelectItem value="Enterprise">Kurumsal</SelectItem>
-                    <SelectItem value="Startup">Startup</SelectItem>
-                    <SelectItem value="Government">Kamu</SelectItem>
-                    <SelectItem value="Individual">Bireysel</SelectItem>
+                    {segments.map((seg) => (
+                      <SelectItem key={seg} value={seg}>{seg}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

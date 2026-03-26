@@ -70,7 +70,7 @@ public class GetCustomersWithFiltersTests
                 _projectId,
                 "test search",
                 CustomerStatus.Active,
-                CustomerSegment.Enterprise,
+                "Enterprise",
                 CustomerLabel.Potansiyel,
                 assignedUserId,
                 2, 15,
@@ -82,7 +82,7 @@ public class GetCustomersWithFiltersTests
             ProjectId = _projectId,
             Search = "test search",
             Status = CustomerStatus.Active,
-            Segment = CustomerSegment.Enterprise,
+            Segment = "Enterprise",
             Label = CustomerLabel.Potansiyel,
             AssignedUserId = assignedUserId,
             Page = 2,
@@ -95,7 +95,7 @@ public class GetCustomersWithFiltersTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _customerRepoMock.Verify(r => r.GetPagedAsync(
-            _projectId, "test search", CustomerStatus.Active, CustomerSegment.Enterprise,
+            _projectId, "test search", CustomerStatus.Active, "Enterprise",
             CustomerLabel.Potansiyel, assignedUserId, 2, 15, It.IsAny<CancellationToken>()),
             Times.Once);
     }

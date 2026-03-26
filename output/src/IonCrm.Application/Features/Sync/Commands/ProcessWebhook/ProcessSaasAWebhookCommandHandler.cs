@@ -109,7 +109,7 @@ public sealed class ProcessSaasAWebhookCommandHandler
             existing.Address = saasCustomer.Address;
             existing.TaxNumber = saasCustomer.TaxNumber;
             existing.Status = MapSaasAStatus(saasCustomer.Status);
-            existing.Segment = MapSaasASegment(saasCustomer.Segment);
+            existing.Segment = saasCustomer.Segment; // free string, project-specific
             await _customerRepository.UpdateAsync(existing, ct);
         }
         else
@@ -126,7 +126,7 @@ public sealed class ProcessSaasAWebhookCommandHandler
                 Address = saasCustomer.Address,
                 TaxNumber = saasCustomer.TaxNumber,
                 Status = MapSaasAStatus(saasCustomer.Status),
-                Segment = MapSaasASegment(saasCustomer.Segment)
+                Segment = saasCustomer.Segment // free string, project-specific
             };
             await _customerRepository.AddAsync(customer, ct);
         }
@@ -136,17 +136,9 @@ public sealed class ProcessSaasAWebhookCommandHandler
     {
         "active" => CustomerStatus.Active,
         "lead" => CustomerStatus.Lead,
-        "passive" or "inactive" => CustomerStatus.Inactive,
+        "demo" or "trial" => CustomerStatus.Demo,
+        "passive" or "inactive" => CustomerStatus.Demo, // legacy mapping → Demo
         "churned" => CustomerStatus.Churned,
         _ => CustomerStatus.Lead
     };
-
-    private static CustomerSegment? MapSaasASegment(string? segment) =>
-        segment?.ToLower() switch
-        {
-            "enterprise" => CustomerSegment.Enterprise,
-            "sme" => CustomerSegment.SME,
-            "individual" => CustomerSegment.Individual,
-            _ => null
-        };
 }

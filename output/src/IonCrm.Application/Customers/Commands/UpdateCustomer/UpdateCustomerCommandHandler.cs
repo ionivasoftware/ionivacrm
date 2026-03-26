@@ -2,6 +2,7 @@ using IonCrm.Application.Common.DTOs;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models;
 using IonCrm.Application.Customers.Mappings;
+using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -34,6 +35,10 @@ public class UpdateCustomerCommandHandler : IRequestHandler<UpdateCustomerComman
 
         if (!_currentUser.IsSuperAdmin && !_currentUser.ProjectIds.Contains(customer.ProjectId))
             return Result<CustomerDto>.Failure("Access denied to this customer.");
+
+        // Active status can only be set by SaaS sync — CRM users cannot select it manually
+        if (request.Status == CustomerStatus.Active)
+            return Result<CustomerDto>.Failure("'Aktif' durumu yalnızca SaaS senkronizasyonu tarafından atanabilir.");
 
         customer.Code = request.Code;
         customer.CompanyName = request.CompanyName;

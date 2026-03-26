@@ -109,7 +109,7 @@ public sealed class ProcessSaasBWebhookCommandHandler
             existing.Address = saasCustomer.StreetAddress;
             existing.TaxNumber = saasCustomer.TaxId;
             existing.Status = MapSaasBStatus(saasCustomer.AccountState);
-            existing.Segment = MapSaasBTier(saasCustomer.Tier);
+            existing.Segment = saasCustomer.Tier; // free string, project-specific
             await _customerRepository.UpdateAsync(existing, ct);
         }
         else
@@ -125,7 +125,7 @@ public sealed class ProcessSaasBWebhookCommandHandler
                 Address = saasCustomer.StreetAddress,
                 TaxNumber = saasCustomer.TaxId,
                 Status = MapSaasBStatus(saasCustomer.AccountState),
-                Segment = MapSaasBTier(saasCustomer.Tier)
+                Segment = saasCustomer.Tier // free string, project-specific
             };
             await _customerRepository.AddAsync(customer, ct);
         }
@@ -135,17 +135,9 @@ public sealed class ProcessSaasBWebhookCommandHandler
     {
         "ACTIVE" => CustomerStatus.Active,
         "LEAD" => CustomerStatus.Lead,
-        "PASSIVE" or "INACTIVE" => CustomerStatus.Inactive,
+        "DEMO" or "TRIAL" => CustomerStatus.Demo,
+        "PASSIVE" or "INACTIVE" => CustomerStatus.Demo, // legacy mapping → Demo
         "CHURNED" => CustomerStatus.Churned,
         _ => CustomerStatus.Lead
     };
-
-    private static CustomerSegment? MapSaasBTier(string? tier) =>
-        tier?.ToUpper() switch
-        {
-            "ENTERPRISE" => CustomerSegment.Enterprise,
-            "SME" => CustomerSegment.SME,
-            "INDIVIDUAL" => CustomerSegment.Individual,
-            _ => null
-        };
 }

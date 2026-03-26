@@ -6,9 +6,10 @@
 
 export type UserRole = 'ProjectAdmin' | 'SalesManager' | 'SalesRep' | 'Accounting';
 
-export type CustomerStatus = 'Lead' | 'Active' | 'Inactive' | 'Churned';
+export type CustomerStatus = 'Lead' | 'Active' | 'Demo' | 'Churned';
 
-export type CustomerSegment = 'SME' | 'Enterprise' | 'Startup' | 'Government' | 'Individual';
+/** Segment is a free string — project-specific values defined in projectSegments config */
+export type CustomerSegment = string;
 
 export type CustomerLabel =
   | 'YuksekPotansiyel'

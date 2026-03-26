@@ -236,7 +236,7 @@ public class MultiTenantIsolationTests
         var projectId = Guid.NewGuid();
         var search = "Acme";
         var status = CustomerStatus.Active;
-        var segment = CustomerSegment.Enterprise;
+        var segment = "Enterprise";
 
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(

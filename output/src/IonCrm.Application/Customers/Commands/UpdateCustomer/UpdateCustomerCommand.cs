@@ -18,7 +18,8 @@ public record UpdateCustomerCommand : IRequest<Result<CustomerDto>>
     public string? TaxNumber { get; init; }
     public string? TaxUnit { get; init; }
     public CustomerStatus Status { get; init; }
-    public CustomerSegment? Segment { get; init; }
+    /// <summary>Project-specific segment string. Cannot change status to Active — only SaaS sync may do that.</summary>
+    public string? Segment { get; init; }
     public CustomerLabel? Label { get; init; }
     public Guid? AssignedUserId { get; init; }
 }

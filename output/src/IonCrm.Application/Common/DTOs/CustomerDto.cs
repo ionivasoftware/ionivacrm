@@ -17,7 +17,8 @@ public class CustomerDto
     public string? TaxNumber { get; set; }
     public string? TaxUnit { get; set; }
     public CustomerStatus Status { get; set; }
-    public CustomerSegment? Segment { get; set; }
+    /// <summary>Project-specific segment string (e.g. "Asansör Firması", "Tekil Restoran").</summary>
+    public string? Segment { get; set; }
     public CustomerLabel? Label { get; set; }
     public Guid? AssignedUserId { get; set; }
     public string? AssignedUserName { get; set; }

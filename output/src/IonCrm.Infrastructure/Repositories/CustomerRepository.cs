@@ -20,7 +20,7 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
         Guid? projectId,
         string? search,
         CustomerStatus? status,
-        CustomerSegment? segment,
+        string? segment,
         CustomerLabel? label,
         Guid? assignedUserId,
         int page,
@@ -52,8 +52,8 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
         if (status.HasValue)
             query = query.Where(c => c.Status == status.Value);
 
-        if (segment.HasValue)
-            query = query.Where(c => c.Segment == segment.Value);
+        if (!string.IsNullOrWhiteSpace(segment))
+            query = query.Where(c => c.Segment == segment);
 
         if (label.HasValue)
             query = query.Where(c => c.Label == label.Value);

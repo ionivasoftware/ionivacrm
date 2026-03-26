@@ -39,8 +39,11 @@ public class Customer : BaseEntity
     /// <summary>Gets or sets the customer lifecycle status.</summary>
     public CustomerStatus Status { get; set; } = CustomerStatus.Lead;
 
-    /// <summary>Gets or sets the business segment classification.</summary>
-    public CustomerSegment? Segment { get; set; }
+    /// <summary>
+    /// Gets or sets the business segment classification.
+    /// Project-specific string value (e.g. "Asansör Firması" for EMS, "Tekil Restoran" for Rezerval).
+    /// </summary>
+    public string? Segment { get; set; }
 
     /// <summary>
     /// Gets or sets the quality/potential label for this customer.

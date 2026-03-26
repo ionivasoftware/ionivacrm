@@ -28,7 +28,7 @@ public class CustomersController : ApiControllerBase
         [FromQuery] Guid? projectId,
         [FromQuery] string? search,
         [FromQuery] CustomerStatus? status,
-        [FromQuery] CustomerSegment? segment,
+        [FromQuery] string? segment,
         [FromQuery] CustomerLabel? label,
         [FromQuery] Guid? assignedUserId,
         [FromQuery] int page = 1,

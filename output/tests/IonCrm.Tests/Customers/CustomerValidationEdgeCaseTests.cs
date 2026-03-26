@@ -251,7 +251,7 @@ public class CustomerValidationEdgeCaseTests
             TaxNumber = "TX-9999",
             TaxUnit = "Main Tax Office",
             Code = "NEW-01",
-            Segment = CustomerSegment.Enterprise,
+            Segment = "Enterprise",
             Status = CustomerStatus.Active,
             AssignedUserId = Guid.NewGuid()
         };
@@ -269,7 +269,7 @@ public class CustomerValidationEdgeCaseTests
         customer.TaxNumber.Should().Be("TX-9999");
         customer.TaxUnit.Should().Be("Main Tax Office");
         customer.Code.Should().Be("NEW-01");
-        customer.Segment.Should().Be(CustomerSegment.Enterprise);
+        customer.Segment.Should().Be("Enterprise");
         customer.Status.Should().Be(CustomerStatus.Active);
         customer.AssignedUserId.Should().Be(command.AssignedUserId);
     }
@@ -297,7 +297,7 @@ public class CustomerValidationEdgeCaseTests
             Address = "DTO Street",
             TaxNumber = "DTO-TAX",
             Status = CustomerStatus.Active,
-            Segment = CustomerSegment.SME,
+            Segment = "SME",
             AssignedUserId = assignedUserId
         };
 
@@ -314,7 +314,7 @@ public class CustomerValidationEdgeCaseTests
         dto.Address.Should().Be("DTO Street");
         dto.TaxNumber.Should().Be("DTO-TAX");
         dto.Status.Should().Be(CustomerStatus.Active);
-        dto.Segment.Should().Be(CustomerSegment.SME);
+        dto.Segment.Should().Be("SME");
         dto.AssignedUserId.Should().Be(assignedUserId);
         dto.ProjectId.Should().Be(projectId);
         dto.Id.Should().NotBe(Guid.Empty);

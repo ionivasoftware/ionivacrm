@@ -12,7 +12,7 @@ public record GetCustomersQuery : IRequest<Result<PagedResult<CustomerDto>>>
     public Guid? ProjectId { get; init; }
     public string? Search { get; init; }
     public CustomerStatus? Status { get; init; }
-    public CustomerSegment? Segment { get; init; }
+    public string? Segment { get; init; }
     public CustomerLabel? Label { get; init; }
     public Guid? AssignedUserId { get; init; }
     public int Page { get; init; } = 1;

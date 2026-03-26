@@ -4,14 +4,14 @@ import type { CustomerStatus, CustomerLabel } from '@/types';
 export const STATUS_LABELS: Record<CustomerStatus, string> = {
   Lead: 'Lead',
   Active: 'Aktif',
-  Inactive: 'Pasif',
+  Demo: 'Demo',
   Churned: 'Kayıp',
 };
 
 const STATUS_CLASSES: Record<CustomerStatus, string> = {
   Lead: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
   Active: 'bg-green-500/15 text-green-400 border-green-500/30',
-  Inactive: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  Demo: 'bg-violet-500/15 text-violet-400 border-violet-500/30',
   Churned: 'bg-red-500/15 text-red-400 border-red-500/30',
 };
 

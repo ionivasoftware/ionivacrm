@@ -134,7 +134,7 @@ public class ProcessSaasBWebhookCommandHandlerTests
         added.Address.Should().Be("42 Beta Street");            // StreetAddress → Address
         added.TaxNumber.Should().Be("BETA-TAX");                // TaxId → TaxNumber
         added.Status.Should().Be(CustomerStatus.Active);
-        added.Segment.Should().Be(CustomerSegment.Enterprise);
+        added.Segment.Should().Be("Enterprise");
     }
 
     // ── Upsert existing customer ──────────────────────────────────────────────
@@ -187,7 +187,7 @@ public class ProcessSaasBWebhookCommandHandlerTests
         existing.Address.Should().Be("New Street");
         existing.TaxNumber.Should().Be("NEW-TAX");
         existing.Status.Should().Be(CustomerStatus.Active);
-        existing.Segment.Should().Be(CustomerSegment.SME);
+        existing.Segment.Should().Be("SME");
 
         _customerRepoMock.Verify(r => r.AddAsync(It.IsAny<Customer>(), It.IsAny<CancellationToken>()), Times.Never);
         _customerRepoMock.Verify(r => r.UpdateAsync(existing, It.IsAny<CancellationToken>()), Times.Once);
@@ -357,8 +357,8 @@ public class ProcessSaasBWebhookCommandHandlerTests
     [InlineData("ACTIVE", CustomerStatus.Active)]
     [InlineData("active", CustomerStatus.Active)]   // case-insensitive mapping check
     [InlineData("LEAD", CustomerStatus.Lead)]
-    [InlineData("INACTIVE", CustomerStatus.Inactive)]
-    [InlineData("PASSIVE", CustomerStatus.Inactive)]
+    [InlineData("INACTIVE", CustomerStatus.Demo)]
+    [InlineData("PASSIVE", CustomerStatus.Demo)]
     [InlineData("CHURNED", CustomerStatus.Churned)]
     [InlineData("UNKNOWN_STATE", CustomerStatus.Lead)]  // unknown defaults to Lead
     public async Task Handle_StatusMapping_MapsCorrectly(string accountState, CustomerStatus expected)
@@ -391,12 +391,12 @@ public class ProcessSaasBWebhookCommandHandlerTests
     // ── Tier/Segment mapping ──────────────────────────────────────────────────
 
     [Theory]
-    [InlineData("ENTERPRISE", CustomerSegment.Enterprise)]
-    [InlineData("SME", CustomerSegment.SME)]
-    [InlineData("INDIVIDUAL", CustomerSegment.Individual)]
-    public async Task Handle_TierMapping_MapsToSegmentCorrectly(string tier, CustomerSegment expected)
+    [InlineData("ENTERPRISE")]
+    [InlineData("SME")]
+    [InlineData("Tekil Restoran")]
+    public async Task Handle_TierMapping_PassesThroughAsString(string tier)
     {
-        // Arrange
+        // Segment is now a free string passed through as-is from SaaS
         SetupSyncLogRepo();
         var projectId = Guid.NewGuid();
         Customer? added = null;
@@ -417,7 +417,7 @@ public class ProcessSaasBWebhookCommandHandlerTests
         await CreateHandler().Handle(command, CancellationToken.None);
 
         // Assert
-        added!.Segment.Should().Be(expected, $"Tier '{tier}' should map to {expected}");
+        added!.Segment.Should().Be(tier, $"Tier '{tier}' should be passed through as-is");
     }
 
     [Fact]

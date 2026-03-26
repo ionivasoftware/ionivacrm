@@ -360,6 +360,6 @@ public class ProcessSaasAWebhookCommandHandlerTests
         await CreateHandler().Handle(command, CancellationToken.None);
 
         // Assert
-        addedCustomer!.Segment.Should().Be(CustomerSegment.Enterprise);
+        addedCustomer!.Segment.Should().Be("Enterprise");
     }
 }

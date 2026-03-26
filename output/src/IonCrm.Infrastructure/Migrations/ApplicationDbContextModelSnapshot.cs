@@ -131,8 +131,8 @@ namespace IonCrm.Infrastructure.Migrations
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid");
 
-                    b.Property<int?>("Segment")
-                        .HasColumnType("integer");
+                    b.Property<string>("Segment")
+                        .HasColumnType("text");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");

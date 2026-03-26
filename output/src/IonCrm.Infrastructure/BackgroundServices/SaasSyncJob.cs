@@ -258,6 +258,8 @@ public sealed class SaasSyncJob
         foreach (var saasCustomer in customers)
         {
             var legacyId = $"SAASA-{saasCustomer.Id}";
+            var newStatus  = MapSaasAStatus(saasCustomer.Status);
+            var newSegment = saasCustomer.Segment; // pass through as-is from SaaS
 
             var existing = await context.Customers
                 .IgnoreQueryFilters()
@@ -266,14 +268,16 @@ public sealed class SaasSyncJob
 
             if (existing is not null)
             {
-                existing.CompanyName = saasCustomer.Name;
-                existing.Email = saasCustomer.Email;
-                existing.Phone = saasCustomer.Phone;
-                existing.Address = saasCustomer.Address;
-                existing.TaxNumber = saasCustomer.TaxNumber;
-                existing.Status = MapSaasAStatus(saasCustomer.Status);
-                existing.Segment = MapSaasASegment(saasCustomer.Segment);
-                existing.UpdatedAt = DateTime.UtcNow;
+                // Only update fields that have actually changed (delta detection)
+                bool changed = false;
+                if (existing.CompanyName != saasCustomer.Name)           { existing.CompanyName = saasCustomer.Name;           changed = true; }
+                if (existing.Email       != saasCustomer.Email)          { existing.Email       = saasCustomer.Email;          changed = true; }
+                if (existing.Phone       != saasCustomer.Phone)          { existing.Phone       = saasCustomer.Phone;          changed = true; }
+                if (existing.Address     != saasCustomer.Address)        { existing.Address     = saasCustomer.Address;        changed = true; }
+                if (existing.TaxNumber   != saasCustomer.TaxNumber)      { existing.TaxNumber   = saasCustomer.TaxNumber;      changed = true; }
+                if (existing.Status      != newStatus)                   { existing.Status      = newStatus;                   changed = true; }
+                if (existing.Segment     != newSegment)                  { existing.Segment     = newSegment;                  changed = true; }
+                if (changed) existing.UpdatedAt = DateTime.UtcNow;
             }
             else
             {
@@ -287,8 +291,8 @@ public sealed class SaasSyncJob
                     Phone = saasCustomer.Phone,
                     Address = saasCustomer.Address,
                     TaxNumber = saasCustomer.TaxNumber,
-                    Status = MapSaasAStatus(saasCustomer.Status),
-                    Segment = MapSaasASegment(saasCustomer.Segment),
+                    Status = newStatus,
+                    Segment = newSegment,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 });
@@ -309,6 +313,8 @@ public sealed class SaasSyncJob
         foreach (var saasCustomer in customers)
         {
             var legacyId = $"SAASB-{saasCustomer.CustomerId}";
+            var newStatus  = MapSaasBStatus(saasCustomer.AccountState);
+            var newSegment = saasCustomer.Tier; // pass through as-is from SaaS
 
             var existing = await context.Customers
                 .IgnoreQueryFilters()
@@ -317,14 +323,16 @@ public sealed class SaasSyncJob
 
             if (existing is not null)
             {
-                existing.CompanyName = saasCustomer.FullName;
-                existing.Email = saasCustomer.ContactEmail;
-                existing.Phone = saasCustomer.Mobile;
-                existing.Address = saasCustomer.StreetAddress;
-                existing.TaxNumber = saasCustomer.TaxId;
-                existing.Status = MapSaasBStatus(saasCustomer.AccountState);
-                existing.Segment = MapSaasBTier(saasCustomer.Tier);
-                existing.UpdatedAt = DateTime.UtcNow;
+                // Only update fields that have actually changed (delta detection)
+                bool changed = false;
+                if (existing.CompanyName != saasCustomer.FullName)         { existing.CompanyName = saasCustomer.FullName;         changed = true; }
+                if (existing.Email       != saasCustomer.ContactEmail)     { existing.Email       = saasCustomer.ContactEmail;     changed = true; }
+                if (existing.Phone       != saasCustomer.Mobile)           { existing.Phone       = saasCustomer.Mobile;           changed = true; }
+                if (existing.Address     != saasCustomer.StreetAddress)    { existing.Address     = saasCustomer.StreetAddress;    changed = true; }
+                if (existing.TaxNumber   != saasCustomer.TaxId)            { existing.TaxNumber   = saasCustomer.TaxId;            changed = true; }
+                if (existing.Status      != newStatus)                     { existing.Status      = newStatus;                     changed = true; }
+                if (existing.Segment     != newSegment)                    { existing.Segment     = newSegment;                    changed = true; }
+                if (changed) existing.UpdatedAt = DateTime.UtcNow;
             }
             else
             {
@@ -338,8 +346,8 @@ public sealed class SaasSyncJob
                     Phone = saasCustomer.Mobile,
                     Address = saasCustomer.StreetAddress,
                     TaxNumber = saasCustomer.TaxId,
-                    Status = MapSaasBStatus(saasCustomer.AccountState),
-                    Segment = MapSaasBTier(saasCustomer.Tier),
+                    Status = newStatus,
+                    Segment = newSegment,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 });
@@ -355,37 +363,24 @@ public sealed class SaasSyncJob
     {
         "active" => CustomerStatus.Active,
         "lead" => CustomerStatus.Lead,
-        "inactive" or "passive" => CustomerStatus.Inactive,
+        "demo" or "trial" => CustomerStatus.Demo,
+        "inactive" or "passive" => CustomerStatus.Demo, // legacy mapping → Demo
         "churned" => CustomerStatus.Churned,
         _ => CustomerStatus.Lead
     };
 
-    private static CustomerSegment? MapSaasASegment(string? segment) =>
-        segment?.ToLower() switch
-        {
-            "enterprise" => CustomerSegment.Enterprise,
-            "sme" => CustomerSegment.SME,
-            "individual" => CustomerSegment.Individual,
-            _ => null
-        };
+    // Segment is passed through as-is from SaaS as a free string (project-specific)
 
     private static CustomerStatus MapSaasBStatus(string state) => state.ToUpper() switch
     {
         "ACTIVE" => CustomerStatus.Active,
         "LEAD" => CustomerStatus.Lead,
-        "INACTIVE" or "PASSIVE" => CustomerStatus.Inactive,
+        "DEMO" or "TRIAL" => CustomerStatus.Demo,
+        "INACTIVE" or "PASSIVE" => CustomerStatus.Demo, // legacy mapping → Demo
         "CHURNED" => CustomerStatus.Churned,
         _ => CustomerStatus.Lead
     };
 
-    private static CustomerSegment? MapSaasBTier(string? tier) =>
-        tier?.ToUpper() switch
-        {
-            "ENTERPRISE" => CustomerSegment.Enterprise,
-            "SME" => CustomerSegment.SME,
-            "INDIVIDUAL" => CustomerSegment.Individual,
-            _ => null
-        };
 
     private Guid GetProjectId(string configKey)
     {

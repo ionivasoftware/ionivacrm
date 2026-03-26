@@ -148,7 +148,7 @@ public class ConvertLeadToCustomerCommandHandlerTests
             Id = customerId,
             ProjectId = _projectId,
             CompanyName = "Inactive Corp",
-            Status = CustomerStatus.Inactive
+            Status = CustomerStatus.Demo
         };
 
         _currentUserMock.Setup(u => u.IsSuperAdmin).Returns(false);
