@@ -71,10 +71,11 @@ public class ApplicationDbContext : DbContext
                 (_currentUser.IsSuperAdmin ||
                  _currentUser.ProjectIds.Contains(e.Id)));
 
+        // UserProjectRole must NOT be filtered by project membership — it IS the table
+        // that establishes membership. Filtering it by ProjectIds would prevent roles from
+        // being loaded during login (when the user has no JWT yet), breaking all auth.
         modelBuilder.Entity<UserProjectRole>()
-            .HasQueryFilter(e => !e.IsDeleted &&
-                (_currentUser.IsSuperAdmin ||
-                 _currentUser.ProjectIds.Contains(e.ProjectId)));
+            .HasQueryFilter(e => !e.IsDeleted);
 
         modelBuilder.Entity<RefreshToken>()
             .HasQueryFilter(e => !e.IsDeleted);
