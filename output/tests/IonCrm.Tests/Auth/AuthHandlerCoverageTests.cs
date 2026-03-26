@@ -31,7 +31,7 @@ public class AuthHandlerCoverageTests
         _userRepoMock.Object, _passwordHasherMock.Object, _registerLoggerMock.Object);
 
     private GetCurrentUserQueryHandler CreateGetCurrentUserHandler() => new(
-        _userRepoMock.Object, _currentUserMock.Object, _getCurrentUserLoggerMock.Object);
+        _userRepoMock.Object, _currentUserMock.Object, _tokenServiceMock.Object, _getCurrentUserLoggerMock.Object);
 
     // ── Logout ────────────────────────────────────────────────────────────────
 
@@ -236,6 +236,12 @@ public class AuthHandlerCoverageTests
         _userRepoMock
             .Setup(r => r.GetByIdWithRolesAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
+        _tokenServiceMock
+            .Setup(t => t.GenerateAccessToken(user))
+            .Returns("fresh-token");
+        _tokenServiceMock
+            .Setup(t => t.GetAccessTokenExpiresAt())
+            .Returns(DateTime.UtcNow.AddMinutes(15));
 
         var query = new GetCurrentUserQuery();
 
@@ -244,7 +250,8 @@ public class AuthHandlerCoverageTests
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value!.Email.Should().Be("me@example.com");
+        result.Value!.User.Email.Should().Be("me@example.com");
+        result.Value!.AccessToken.Should().Be("fresh-token");
     }
 
     [Fact]

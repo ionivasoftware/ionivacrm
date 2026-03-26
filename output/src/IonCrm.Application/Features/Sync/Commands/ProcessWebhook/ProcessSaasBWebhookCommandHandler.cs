@@ -131,7 +131,7 @@ public sealed class ProcessSaasBWebhookCommandHandler
         }
     }
 
-    private static CustomerStatus MapSaasBStatus(string state) => state.ToUpper() switch
+    private static CustomerStatus MapSaasBStatus(string state) => state.ToUpperInvariant() switch
     {
         "ACTIVE" => CustomerStatus.Active,
         "LEAD" => CustomerStatus.Lead,
