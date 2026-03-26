@@ -33,8 +33,11 @@ public class UserRepository : GenericRepository<User>, IUserRepository
         if (id == Guid.Empty)
             return null;
 
+        // Use filtered Include (.Where) to bypass the global query filter on UserProjectRole.
+        // The global filter requires ProjectIds from the JWT, which is unavailable during login.
+        // We only need !IsDeleted here — tenant isolation is handled at the JWT claim level.
         return await DbSet
-            .Include(u => u.UserProjectRoles)
+            .Include(u => u.UserProjectRoles.Where(upr => !upr.IsDeleted))
                 .ThenInclude(upr => upr.Project)
             .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
     }
