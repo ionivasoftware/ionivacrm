@@ -141,19 +141,22 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
+        // Temporarily set old token so requests don't appear unauthenticated
         setAccessToken(savedToken);
 
-        // Always call /auth/me to get fresh user data from DB.
-        // This ensures roles are up-to-date even if the stored token was issued
-        // before roles were assigned or before a backend bug was fixed.
-        const meRes = await apiClient.get<ApiResponse<{ id: string; email: string; firstName: string; lastName: string; isSuperAdmin: boolean; isActive: boolean; projectRoles: unknown }>>(
-          '/auth/me'
-        );
-        const rawUser = meRes.data.data;
+        // Call POST /auth/refresh — uses the HttpOnly cookie, returns a FRESH JWT.
+        // This guarantees the new access token has up-to-date projectIds from the DB,
+        // even if the stored token was issued before roles were assigned.
+        const refreshRes = await apiClient.post<ApiResponse<LoginResponse>>('/auth/refresh');
+        const { accessToken, user: rawUser } = refreshRes.data.data;
 
-        const rawRoles = rawUser.projectRoles;
+        // Immediately switch to the fresh token
+        setAccessToken(accessToken);
+        localStorage.setItem('accessToken', accessToken);
+
+        const rawRoles = (rawUser as any).projectRoles;
         const projectRoles = normalizeProjectRoles(rawRoles);
-        const user: AuthUser = { ...(rawUser as any), projectRoles };
+        const user: AuthUser = { ...rawUser, projectRoles };
 
         let projectNames = projectNamesFromRoles(rawRoles);
         let allProjectIds = Object.keys(projectRoles);
@@ -166,9 +169,7 @@ export const useAuthStore = create<AuthState>()(
           }
         }
 
-        const defaultProject = Object.keys(projectRoles)[0] ?? allProjectIds[0] ?? null;
-
-        // Persist normalised user data so next refresh has the correct format
+        const defaultProject = allProjectIds[0] ?? null;
         localStorage.setItem('user', JSON.stringify(user));
 
         set({
@@ -180,7 +181,7 @@ export const useAuthStore = create<AuthState>()(
           isLoading: false,
         });
       } catch {
-        // Token expired or invalid — force re-login
+        // Refresh token expired/invalid or cookie missing — force re-login
         setAccessToken(null);
         localStorage.removeItem('accessToken');
         localStorage.removeItem('user');
