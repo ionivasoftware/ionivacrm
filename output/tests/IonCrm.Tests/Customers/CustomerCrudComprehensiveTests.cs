@@ -108,7 +108,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
             TaxNumber    = "TAX-9876",
             TaxUnit      = "IRS Office NYC",
             Status       = CustomerStatus.Active,
-            Segment      = CustomerSegment.Enterprise,
+            Segment      = "Enterprise",
             Label        = CustomerLabel.YuksekPotansiyel,
             AssignedUserId = assignedUserId
         };
@@ -128,7 +128,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
         dto.TaxNumber.Should().Be("TAX-9876");
         dto.TaxUnit.Should().Be("IRS Office NYC");
         dto.Status.Should().Be(CustomerStatus.Active);
-        dto.Segment.Should().Be(CustomerSegment.Enterprise);
+        dto.Segment.Should().Be("Enterprise");
         dto.Label.Should().Be(CustomerLabel.YuksekPotansiyel);
         dto.AssignedUserId.Should().Be(assignedUserId);
         dto.ProjectId.Should().Be(ProjectId);
@@ -289,7 +289,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
             TaxNumber      = "NEW-TAX",
             TaxUnit        = "New Tax Unit",
             Status         = CustomerStatus.Active,
-            Segment        = CustomerSegment.SME,
+            Segment        = "SME",
             Label          = CustomerLabel.Potansiyel,
             AssignedUserId = newAssignee
         };
@@ -309,7 +309,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
         dto.TaxNumber.Should().Be("NEW-TAX");
         dto.TaxUnit.Should().Be("New Tax Unit");
         dto.Status.Should().Be(CustomerStatus.Active);
-        dto.Segment.Should().Be(CustomerSegment.SME);
+        dto.Segment.Should().Be("SME");
         dto.Label.Should().Be(CustomerLabel.Potansiyel);
         dto.AssignedUserId.Should().Be(newAssignee);
     }
@@ -587,7 +587,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
     [Theory]
     [InlineData(CustomerStatus.Lead)]
     [InlineData(CustomerStatus.Active)]
-    [InlineData(CustomerStatus.Inactive)]
+    [InlineData(CustomerStatus.Demo)]
     [InlineData(CustomerStatus.Churned)]
     public async Task CreateCustomer_AllStatusValues_PersistedCorrectly(CustomerStatus status)
     {
@@ -611,12 +611,12 @@ public class CustomerCrudComprehensiveTests : IDisposable
     }
 
     [Theory]
-    [InlineData(CustomerSegment.Enterprise)]
-    [InlineData(CustomerSegment.SME)]
-    [InlineData(CustomerSegment.Individual)]
-    public async Task CreateCustomer_AllSegmentValues_PersistedCorrectly(CustomerSegment segment)
+    [InlineData("Asansör Firması")]
+    [InlineData("Tekil Restoran")]
+    [InlineData("Zincir Restoran")]
+    public async Task CreateCustomer_AllSegmentStrings_PersistedCorrectly(string segment)
     {
-        // Arrange
+        // Arrange – Segment is a free string per project config (CustomerSegment enum is obsolete)
         SetupAuthorizedUser();
         SetupRepoAdd();
 
@@ -632,7 +632,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value!.Segment.Should().Be(segment, $"segment {segment} must survive the round-trip");
+        result.Value!.Segment.Should().Be(segment, $"segment '{segment}' must survive the round-trip");
     }
 
     [Theory]
