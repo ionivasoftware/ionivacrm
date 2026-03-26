@@ -123,15 +123,19 @@ public class AuthController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { message = "Logged out successfully" }));
     }
 
-    /// <summary>Get current authenticated user.</summary>
+    /// <summary>
+    /// Get current authenticated user and a fresh access token.
+    /// The fresh token is guaranteed to have up-to-date projectIds from the DB,
+    /// even when the caller's current JWT was issued before roles were assigned.
+    /// </summary>
     [HttpGet("me")]
     [Authorize]
     public async Task<IActionResult> Me()
     {
         var result = await _mediator.Send(new GetCurrentUserQuery());
         if (result.IsFailure)
-            return Unauthorized(ApiResponse<UserDto>.Fail(result.Errors, 401));
-        return Ok(ApiResponse<UserDto>.Ok(result.Value!));
+            return Unauthorized(ApiResponse<AuthResponseDto>.Fail(result.Errors, 401));
+        return Ok(ApiResponse<AuthResponseDto>.Ok(result.Value!));
     }
 
     /// <summary>Update the current user's profile (name + optional password).</summary>

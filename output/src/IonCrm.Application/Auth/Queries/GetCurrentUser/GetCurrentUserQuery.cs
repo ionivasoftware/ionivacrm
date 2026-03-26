@@ -9,4 +9,4 @@ namespace IonCrm.Application.Auth.Queries.GetCurrentUser;
 /// including their project-role assignments.
 /// The user ID is resolved from <see cref="ICurrentUserService"/> inside the handler.
 /// </summary>
-public record GetCurrentUserQuery : IRequest<Result<UserDto>>;
+public record GetCurrentUserQuery : IRequest<Result<AuthResponseDto>>;

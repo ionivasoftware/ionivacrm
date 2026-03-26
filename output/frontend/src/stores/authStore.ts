@@ -141,16 +141,14 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
-        // Temporarily set old token so requests don't appear unauthenticated
         setAccessToken(savedToken);
 
-        // Call POST /auth/refresh — uses the HttpOnly cookie, returns a FRESH JWT.
-        // This guarantees the new access token has up-to-date projectIds from the DB,
-        // even if the stored token was issued before roles were assigned.
-        const refreshRes = await apiClient.post<ApiResponse<LoginResponse>>('/auth/refresh');
-        const { accessToken, user: rawUser } = refreshRes.data.data;
+        // GET /auth/me now returns a FRESH access token (with up-to-date projectIds from DB)
+        // in addition to the user data. This solves stale JWT issues without needing cookies.
+        const meRes = await apiClient.get<ApiResponse<LoginResponse>>('/auth/me');
+        const { accessToken, user: rawUser } = meRes.data.data;
 
-        // Immediately switch to the fresh token
+        // Switch to the fresh token immediately so all subsequent requests use it
         setAccessToken(accessToken);
         localStorage.setItem('accessToken', accessToken);
 
@@ -181,7 +179,7 @@ export const useAuthStore = create<AuthState>()(
           isLoading: false,
         });
       } catch {
-        // Refresh token expired/invalid or cookie missing — force re-login
+        // Token expired or invalid — force re-login
         setAccessToken(null);
         localStorage.removeItem('accessToken');
         localStorage.removeItem('user');
