@@ -107,7 +107,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
             Address      = "123 Main Street, NY",
             TaxNumber    = "TAX-9876",
             TaxUnit      = "IRS Office NYC",
-            Status       = CustomerStatus.Active,
+            Status       = CustomerStatus.Demo,
             Segment      = "Enterprise",
             Label        = CustomerLabel.YuksekPotansiyel,
             AssignedUserId = assignedUserId
@@ -127,7 +127,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
         dto.Address.Should().Be("123 Main Street, NY");
         dto.TaxNumber.Should().Be("TAX-9876");
         dto.TaxUnit.Should().Be("IRS Office NYC");
-        dto.Status.Should().Be(CustomerStatus.Active);
+        dto.Status.Should().Be(CustomerStatus.Demo);
         dto.Segment.Should().Be("Enterprise");
         dto.Label.Should().Be(CustomerLabel.YuksekPotansiyel);
         dto.AssignedUserId.Should().Be(assignedUserId);
@@ -228,7 +228,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
             ProjectId   = ProjectId,
             CompanyName = "Capture Corp",
             Phone       = "555-1234",
-            Status      = CustomerStatus.Active
+            Status      = CustomerStatus.Lead
         };
 
         // Act
@@ -239,7 +239,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
         addedEntity!.ProjectId.Should().Be(ProjectId);
         addedEntity.CompanyName.Should().Be("Capture Corp");
         addedEntity.Phone.Should().Be("555-1234");
-        addedEntity.Status.Should().Be(CustomerStatus.Active);
+        addedEntity.Status.Should().Be(CustomerStatus.Lead);
     }
 
     // ── Update: all fields ────────────────────────────────────────────────────
@@ -288,7 +288,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
             Address        = "New Street",
             TaxNumber      = "NEW-TAX",
             TaxUnit        = "New Tax Unit",
-            Status         = CustomerStatus.Active,
+            Status         = CustomerStatus.Demo,
             Segment        = "SME",
             Label          = CustomerLabel.Potansiyel,
             AssignedUserId = newAssignee
@@ -308,7 +308,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
         dto.Address.Should().Be("New Street");
         dto.TaxNumber.Should().Be("NEW-TAX");
         dto.TaxUnit.Should().Be("New Tax Unit");
-        dto.Status.Should().Be(CustomerStatus.Active);
+        dto.Status.Should().Be(CustomerStatus.Demo);
         dto.Segment.Should().Be("SME");
         dto.Label.Should().Be(CustomerLabel.Potansiyel);
         dto.AssignedUserId.Should().Be(newAssignee);
@@ -586,7 +586,6 @@ public class CustomerCrudComprehensiveTests : IDisposable
 
     [Theory]
     [InlineData(CustomerStatus.Lead)]
-    [InlineData(CustomerStatus.Active)]
     [InlineData(CustomerStatus.Demo)]
     [InlineData(CustomerStatus.Churned)]
     public async Task CreateCustomer_AllStatusValues_PersistedCorrectly(CustomerStatus status)

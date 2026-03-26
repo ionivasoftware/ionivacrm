@@ -76,6 +76,9 @@ public class AuthEdgeCaseTests
                 ExpiresAt = DateTime.UtcNow.AddDays(7),
                 UserId = user.Id
             }));
+        _tokenServiceMock
+            .Setup(t => t.GetAccessTokenExpiresAt())
+            .Returns(() => DateTime.UtcNow.AddMinutes(15));
     }
 
     // ── SuperAdmin login ──────────────────────────────────────────────────────

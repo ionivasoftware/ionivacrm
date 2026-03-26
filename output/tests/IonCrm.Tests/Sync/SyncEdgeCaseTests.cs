@@ -175,11 +175,13 @@ public class SyncEdgeCaseTests
 
     // ── SaaS A: segment fallback ──────────────────────────────────────────────
 
+    // Segment is now a free-text field (project-specific). Any value from SaaS is stored as-is.
+    // Tests verify pass-through behaviour rather than null-fallback.
     [Theory]
     [InlineData("unknown_tier")]
     [InlineData("CORPORATE")]
     [InlineData("micro")]
-    public async Task SaasA_UnknownSegment_DefaultsToNull(string unknownSegment)
+    public async Task SaasA_Segment_PassedThroughAsIs(string unknownSegment)
     {
         // Arrange
         SetupSyncLogRepo();
@@ -200,10 +202,10 @@ public class SyncEdgeCaseTests
         // Act
         var result = await CreateSaasAHandler().Handle(command, CancellationToken.None);
 
-        // Assert
+        // Assert — Segment is free-text; any value from SaaS is stored as-is
         result.IsSuccess.Should().BeTrue();
-        added!.Segment.Should().BeNull(
-            $"unknown segment '{unknownSegment}' must map to null, not throw");
+        added!.Segment.Should().Be(unknownSegment,
+            $"segment '{unknownSegment}' must be stored as-is (free-text pass-through)");
     }
 
     // ── SaaS A: LegacyId format ───────────────────────────────────────────────
@@ -498,13 +500,14 @@ public class SyncEdgeCaseTests
             $"unknown AccountState '{unknownState}' must default to Lead");
     }
 
-    // ── SaaS B: unknown tier defaults to null segment ─────────────────────────
+    // ── SaaS B: tier passed through as free-text segment ─────────────────────────
+    // Segment is a free-text field; any tier value from SaaS B is stored as-is.
 
     [Theory]
     [InlineData("PREMIUM")]
     [InlineData("STARTER")]
     [InlineData("gold")]
-    public async Task SaasB_UnknownTier_DefaultsToNullSegment(string unknownTier)
+    public async Task SaasB_Tier_StoredAsSegmentPassThrough(string unknownTier)
     {
         // Arrange
         SetupSyncLogRepo();
@@ -525,10 +528,10 @@ public class SyncEdgeCaseTests
         // Act
         var result = await CreateSaasBHandler().Handle(command, CancellationToken.None);
 
-        // Assert
+        // Assert — Segment is free-text; tier value from SaaS B is stored as-is
         result.IsSuccess.Should().BeTrue();
-        added!.Segment.Should().BeNull(
-            $"unknown Tier '{unknownTier}' must map to null segment");
+        added!.Segment.Should().Be(unknownTier,
+            $"tier '{unknownTier}' must be stored as segment as-is (free-text pass-through)");
     }
 
     // ── SaaS B: SyncLog source is SaasB ──────────────────────────────────────
