@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Users, TrendingUp, CheckSquare, Activity, AlertCircle, Clock, Phone } from 'lucide-react';
+import { Users, TrendingUp, CheckSquare, AlertCircle, Clock, Phone } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,6 +29,14 @@ const STATUS_LABELS: Record<string, string> = {
   Active: 'Aktif',
   Demo: 'Demo',
   Churned: 'Kaybedildi',
+};
+
+const STAGE_COLORS: Record<string, string> = {
+  YeniArama: '#6366f1',
+  Potansiyel: '#f59e0b',
+  Demo: '#8b5cf6',
+  Musteri: '#22c55e',
+  Kayip: '#ef4444',
 };
 
 const STAGE_LABELS: Record<string, string> = {
@@ -135,7 +143,7 @@ export function DashboardPage() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           title="Toplam Müşteri"
           value={stats?.totalCustomers ?? 0}
@@ -155,17 +163,10 @@ export function DashboardPage() {
           icon={CheckSquare}
           isLoading={isLoading}
         />
-        <StatCard
-          title="Pipeline Değeri"
-          value={stats ? formatCurrency(stats.pipelineValue) : '₺0'}
-          icon={Activity}
-          description={stats ? `${stats.openOpportunities} açık fırsat` : undefined}
-          isLoading={isLoading}
-        />
       </div>
 
       {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         {/* Activity chart */}
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -283,6 +284,70 @@ export function DashboardPage() {
                         />
                         <span className="text-muted-foreground">
                           {STATUS_LABELS[item.status] ?? item.status}
+                        </span>
+                      </div>
+                      <span className="font-medium text-foreground">{item.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Sales pipeline pie chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Satış Pipeline</CardTitle>
+            <CardDescription>Aşamaya göre dağılım</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-[220px] w-full" />
+            ) : !stats?.opportunitiesByStage?.length ? (
+              <div className="flex items-center justify-center h-[220px]">
+                <p className="text-sm text-muted-foreground">Veri yok</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <ResponsiveContainer width="100%" height={140}>
+                  <PieChart>
+                    <Pie
+                      data={stats.opportunitiesByStage}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={65}
+                      dataKey="count"
+                      nameKey="stage"
+                    >
+                      {stats.opportunitiesByStage.map((entry) => (
+                        <Cell
+                          key={entry.stage}
+                          fill={STAGE_COLORS[entry.stage] ?? '#64748b'}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                      formatter={(value, name) => [value, STAGE_LABELS[name as string] ?? name]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-2">
+                  {stats.opportunitiesByStage.map((item) => (
+                    <div key={item.stage} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: STAGE_COLORS[item.stage] ?? '#64748b' }}
+                        />
+                        <span className="text-muted-foreground">
+                          {STAGE_LABELS[item.stage] ?? item.stage}
                         </span>
                       </div>
                       <span className="font-medium text-foreground">{item.count}</span>
@@ -437,35 +502,6 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Mini pipeline summary */}
-      {(stats?.opportunitiesByStage?.length ?? 0) > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Satış Pipeline Özeti</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-10 w-full" />
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                {stats!.opportunitiesByStage.map((item) => (
-                  <div
-                    key={item.stage}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border border-border/50"
-                  >
-                    <span className="text-xs text-muted-foreground">
-                      {STAGE_LABELS[item.stage] ?? item.stage}
-                    </span>
-                    <Badge variant="outline" className="text-xs">
-                      {item.count}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
