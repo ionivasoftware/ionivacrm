@@ -33,12 +33,13 @@ public class UserRepository : GenericRepository<User>, IUserRepository
         if (id == Guid.Empty)
             return null;
 
-        // Use filtered Include (.Where) to bypass the global query filter on UserProjectRole.
-        // The global filter requires ProjectIds from the JWT, which is unavailable during login.
-        // We only need !IsDeleted here — tenant isolation is handled at the JWT claim level.
+        // Do NOT use ThenInclude(upr => upr.Project) here.
+        // Project has a global query filter (ProjectIds.Contains) that returns nothing during
+        // login (no JWT yet). Because Project is a non-nullable nav prop, EF Core uses an
+        // INNER JOIN, which eliminates the UserProjectRole row when Project is filtered out.
+        // We only need ProjectId (FK) and Role for JWT generation — ProjectName is not needed.
         return await DbSet
             .Include(u => u.UserProjectRoles.Where(upr => !upr.IsDeleted))
-                .ThenInclude(upr => upr.Project)
             .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
     }
 
