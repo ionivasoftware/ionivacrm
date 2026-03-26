@@ -150,15 +150,32 @@ var app = builder.Build();
 // ── Auto-apply pending EF Core migrations on startup ─────────────────────────
 using (var scope = app.Services.CreateScope())
 {
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
     try
     {
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         db.Database.Migrate();
         Log.Information("EF Core migrations applied successfully");
     }
     catch (Exception ex)
     {
-        Log.Warning(ex, "Auto-migration failed on startup — app will continue, apply migration manually if needed");
+        Log.Warning(ex, "EF Core auto-migration failed — attempting raw SQL column fallback");
+    }
+
+    // Idempotent fallback: ensure columns added in later sprints exist regardless of EF migration state.
+    // Uses IF NOT EXISTS so it is safe to run on every startup.
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(@"
+            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ExpirationDate"" timestamp with time zone;
+            ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsApiKey""      text;
+            ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlApiKey"" text;
+        ");
+        Log.Information("Column existence check complete");
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Raw SQL column fallback failed — some endpoints may return 500 until DB is updated");
     }
 }
 
