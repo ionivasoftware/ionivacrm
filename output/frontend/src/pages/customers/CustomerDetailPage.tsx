@@ -149,21 +149,19 @@ const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
 };
 
 const STAGE_LABELS: Record<OpportunityStage, string> = {
-  Prospecting: 'Araştırma',
-  Qualification: 'Nitelendirme',
-  Proposal: 'Teklif',
-  Negotiation: 'Müzakere',
-  ClosedWon: 'Kazanıldı',
-  ClosedLost: 'Kaybedildi',
+  YeniArama:  'Yeni Arama',
+  Potansiyel: 'Potansiyel',
+  Demo:       'Demo',
+  Musteri:    'Müşteri',
+  Kayip:      'Kayıp',
 };
 
 const STAGE_CLASSES: Record<OpportunityStage, string> = {
-  Prospecting: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
-  Qualification: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  Proposal: 'bg-violet-500/15 text-violet-400 border-violet-500/30',
-  Negotiation: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-  ClosedWon: 'bg-green-500/15 text-green-400 border-green-500/30',
-  ClosedLost: 'bg-red-500/15 text-red-400 border-red-500/30',
+  YeniArama:  'bg-slate-500/15 text-slate-400 border-slate-500/30',
+  Potansiyel: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  Demo:       'bg-violet-500/15 text-violet-400 border-violet-500/30',
+  Musteri:    'bg-green-500/15 text-green-400 border-green-500/30',
+  Kayip:      'bg-red-500/15 text-red-400 border-red-500/30',
 };
 
 const CONTACT_TYPE_BG: Record<ContactType, string> = {
@@ -202,12 +200,11 @@ const createOpportunitySchema = z.object({
   title: z.string().min(1, 'Başlık gereklidir'),
   value: z.string(),
   stage: z.enum([
-    'Prospecting',
-    'Qualification',
-    'Proposal',
-    'Negotiation',
-    'ClosedWon',
-    'ClosedLost',
+    'YeniArama',
+    'Potansiyel',
+    'Demo',
+    'Musteri',
+    'Kayip',
   ] as const),
   probability: z.string(),
   expectedCloseDate: z.string(),
@@ -336,7 +333,7 @@ function CreateOpportunityDialog({ isOpen, onClose, customerId }: CreateOpportun
     defaultValues: {
       title: '',
       value: '',
-      stage: 'Prospecting',
+      stage: 'YeniArama',
       probability: '',
       expectedCloseDate: '',
     },
