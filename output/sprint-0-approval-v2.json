@@ -1,0 +1,232 @@
+{
+  "meta": {
+    "generated_by": "Orchestrator Agent (Claude PM)",
+    "generated_at": "2026-03-26",
+    "version": "2.0",
+    "note": "Sprint 0 is COMPLETED. This document serves as the official Sprint 0 record for audit and approval. All deliverables confirmed present in /root/ems-team/output/docs/."
+  },
+
+  "name": "Sprint 0 — Analysis & Architecture",
+  "status": "COMPLETED ✅",
+  "goal": "Analyze the legacy MSSQL .bak database, design the target PostgreSQL schema, define all API contracts, and document the solution structure. Zero production code written. All output is documentation for human review before Sprint 1 begins.",
+
+  "story_count": 4,
+  "total_story_points": 21,
+  "agents": "Architect Agent",
+  "duration": "2–3 days",
+  "token_cost_estimate": "~$8–14",
+
+  "inputs": {
+    "database_file": "/root/ems-team/input/database/crm.bak",
+    "database_size_mb": 4.4,
+    "database_type": "MSSQL backup (SQL Server)"
+  },
+
+  "deliverables_confirmed": {
+    "legacy_schema": "/root/ems-team/output/docs/schema.md",
+    "api_contracts": "/root/ems-team/output/docs/api-contracts.md",
+    "security_report": "/root/ems-team/output/docs/security_report.md",
+    "entity_stubs": "/root/ems-team/output/src/IonCrm.Domain/Entities/",
+    "solution_structure": "/root/ems-team/output/IonCrm.sln"
+  },
+
+  "migration_facts_confirmed": {
+    "customers_migrated": 639,
+    "contact_histories_migrated": 892,
+    "migration_status": "✅ Completed in Sprint 1"
+  },
+
+  "stories": [
+    {
+      "id": "ION-001",
+      "title": "[ARCHITECT] Analyze MSSQL .bak file and extract legacy schema",
+      "status": "DONE ✅",
+      "points": 5,
+      "labels": ["backend", "migration", "analysis"],
+      "inputs": ["/root/ems-team/input/database/crm.bak"],
+      "outputs": [
+        "/root/ems-team/output/docs/schema.md"
+      ],
+      "description": "Mount or restore the 4.4 MB MSSQL backup using Docker SQL Server Developer Edition. Extract all DDL. Document every table, column, FK, and index. Map legacy customers + contact history columns to new schema. Flag PII fields. Map MSSQL types (NVARCHAR, UNIQUEIDENTIFIER, BIT, DATETIME2) to PostgreSQL equivalents (VARCHAR, UUID, BOOLEAN, TIMESTAMPTZ).",
+      "acceptance_criteria": [
+        "✅ All legacy tables documented with estimated row counts",
+        "✅ Column mapping old → new defined for customers and contact history",
+        "✅ PII fields flagged (email, phone, address)",
+        "✅ MSSQL-specific types mapped to PostgreSQL equivalents",
+        "✅ Source row counts confirmed: 639 customers, 892 contact histories"
+      ]
+    },
+    {
+      "id": "ION-002",
+      "title": "[ARCHITECT] Design PostgreSQL target schema",
+      "status": "DONE ✅",
+      "points": 8,
+      "labels": ["backend", "database", "architecture"],
+      "inputs": ["ION-001 output"],
+      "outputs": [
+        "/root/ems-team/output/src/IonCrm.Domain/Entities/"
+      ],
+      "description": "Design full PostgreSQL schema for all entities. Base fields on every table: Id(UUID), CreatedAt, UpdatedAt, IsDeleted. Tenant field on every business table: ProjectId(UUID FK). Full entity list: Projects, Users, UserProjectRoles, RefreshTokens, Customers, ContactHistories, CustomerTasks, Pipelines, Opportunities, Notifications, SyncLogs, AuditLogs. All enums, indexes, and FK relationships defined.",
+      "tables_designed": [
+        "Projects (SaasCode, WebhookUrl, SyncIntervalMinutes)",
+        "Users (Email, PasswordHash, FullName, IsActive, IsSuperAdmin)",
+        "UserProjectRoles (UserId × ProjectId × Role enum)",
+        "RefreshTokens (UserId, Token, ExpiresAt, Revoked)",
+        "Customers (ProjectId, FullName, Email, Phone, Company, ExternalId, SaasSource, Label enum, Status enum, LastContactDate)",
+        "ContactHistories (CustomerId, ProjectId, Type enum, Date, Notes, ContactResult enum)",
+        "CustomerTasks (CustomerId, ProjectId, AssignedUserId, Title, DueDate, IsCompleted)",
+        "Pipelines (CustomerId, ProjectId, PlannedDate, Notes, Status enum)",
+        "Opportunities (CustomerId, ProjectId, OwnerId, Title, Value, Stage enum, ExpectedCloseDate)",
+        "Notifications (UserId, ProjectId, Type enum, Message, EntityType, EntityId, IsRead)",
+        "SyncLogs (ProjectId, SaasSource, Direction, Status, Payload jsonb, RecordCount, AttemptCount, NextRetryAt)",
+        "AuditLogs (UserId, ProjectId, EntityType, EntityId, Action, OldValues jsonb, NewValues jsonb)"
+      ],
+      "acceptance_criteria": [
+        "✅ All entities have base fields (Id, CreatedAt, UpdatedAt, IsDeleted)",
+        "✅ Foreign key relationships fully defined",
+        "✅ Indexes on ProjectId, Email, ExternalId, CreatedAt DESC",
+        "✅ All enum values listed and finalized",
+        "✅ Schema validated against legacy migration mapping"
+      ]
+    },
+    {
+      "id": "ION-003",
+      "title": "[ARCHITECT] Define API contracts and OpenAPI spec",
+      "status": "DONE ✅",
+      "points": 5,
+      "labels": ["backend", "api", "architecture"],
+      "inputs": ["ION-002 output"],
+      "outputs": [
+        "/root/ems-team/output/docs/api-contracts.md"
+      ],
+      "description": "Define all REST endpoints: Auth, SuperAdmin, Customers, ContactHistory, Notes, Tasks, Opportunities, Sync, Dashboard, Reports. Specify request/response schemas, required roles, error codes. Define SaaS A and SaaS B inbound payload formats. Define outbound callback payload format to SaaS.",
+      "api_response_envelope": {
+        "success": "bool",
+        "data": "T | null",
+        "message": "string | null",
+        "statusCode": "int",
+        "errors": "string[]"
+      },
+      "auth_config": {
+        "access_token_expiry": "15 minutes",
+        "refresh_token_expiry": "7 days",
+        "scheme": "JWT Bearer",
+        "roles": ["SuperAdmin", "ProjectAdmin", "SalesManager", "SalesRep", "Accounting"]
+      },
+      "saas_outbound_callback_format": {
+        "event": "string (e.g. customer.status_changed)",
+        "projectId": "uuid",
+        "customerId": "uuid",
+        "externalId": "string",
+        "timestamp": "ISO8601",
+        "data": "object (event-specific payload)"
+      },
+      "acceptance_criteria": [
+        "✅ All endpoints listed with method, path, auth requirement, allowed roles",
+        "✅ Request/response body schemas defined",
+        "✅ Standardized error codes documented (401, 403, 404, 422, 500)",
+        "✅ Sync payload formats for SaaS A, SaaS B, and outbound callbacks defined",
+        "✅ ApiResponse<T> wrapper format documented",
+        "✅ Base URLs for dev and prod specified"
+      ]
+    },
+    {
+      "id": "ION-004",
+      "title": "[ARCHITECT] Define solution folder structure and project scaffold plan",
+      "status": "DONE ✅",
+      "points": 3,
+      "labels": ["backend", "devops", "architecture"],
+      "inputs": [],
+      "outputs": [
+        "/root/ems-team/output/IonCrm.sln",
+        "/root/ems-team/output/src/",
+        "/root/ems-team/output/tests/"
+      ],
+      "description": "Document the exact .NET solution folder structure (Domain, Application, Infrastructure, API, Tests), frontend folder structure, CI/CD workflow layout, and environment variable template. The actual scaffold was created as part of Sprint 0 output.",
+      "solution_structure": {
+        "IonCrm.sln": "Visual Studio solution — 5 projects",
+        "src/IonCrm.Domain": "Entities, Enums, Domain Events — no external dependencies",
+        "src/IonCrm.Application": "CQRS commands/queries (MediatR), DTOs, Interfaces, Validators (FluentValidation)",
+        "src/IonCrm.Infrastructure": "EF Core DbContext, Neon PostgreSQL, Repository implementations, External service clients",
+        "src/IonCrm.API": "ASP.NET Core 8 Web API — Controllers, Middleware (Tenant, Auth, GlobalException), Program.cs",
+        "tests/IonCrm.Tests": "xUnit unit + integration tests"
+      },
+      "di_strategy": {
+        "Domain": "No DI — pure C# classes",
+        "Application": "MediatR, FluentValidation registered in IServiceCollection extension",
+        "Infrastructure": "EF Core DbContext, Repository implementations, HttpClients registered",
+        "API": "Controllers, Middleware, JWT Bearer, CORS, Rate Limiting, Health Checks"
+      },
+      "acceptance_criteria": [
+        "✅ Every project layer mapped to Clean Architecture purpose",
+        "✅ DI registration strategy described per layer",
+        "✅ IonCrm.sln created with all 5 projects",
+        "✅ .env.example contains all required variable names (no real values)"
+      ]
+    }
+  ],
+
+  "architecture_decisions": [
+    {
+      "decision": "PostgreSQL via Neon (serverless) for both dev and prod",
+      "rationale": "No server management, scales to zero, Railway-compatible, free tier sufficient for MVP"
+    },
+    {
+      "decision": "UUID primary keys (not int IDENTITY)",
+      "rationale": "Avoids enumeration attacks, compatible with multi-source sync (ExternalId from SaaS can coexist)"
+    },
+    {
+      "decision": "Soft deletes on all entities (IsDeleted boolean)",
+      "rationale": "Audit trail preservation, SaaS sync re-creation safety (re-activate instead of re-insert)"
+    },
+    {
+      "decision": "ProjectId on every tenant entity (not schema-per-tenant)",
+      "rationale": "Simpler ops, single DB, row-level isolation via TenantMiddleware — sufficient for MVP scale"
+    },
+    {
+      "decision": "MediatR CQRS in Application layer",
+      "rationale": "Clean separation of reads and writes, built-in pipeline behaviors (validation, logging)"
+    },
+    {
+      "decision": "Background sync via IHostedService (not Hangfire for now)",
+      "rationale": "Zero additional infrastructure; Hangfire can replace if persistence/retry dashboard needed in future"
+    }
+  ],
+
+  "risks": [
+    {
+      "risk": "MSSQL .bak file required full SQL Server to restore",
+      "mitigation": "Used SQL Server Developer Edition Docker image (free for dev); confirmed row counts",
+      "status": "✅ Resolved"
+    },
+    {
+      "risk": "Legacy schema had unexpected tables/naming",
+      "mitigation": "ION-001 full discovery completed first; mapping validated before schema design",
+      "status": "✅ Resolved"
+    },
+    {
+      "risk": "SaaS A and SaaS B payload formats unknown",
+      "mitigation": "API contracts defined with placeholder schemas; finalized when credentials provided in Sprint 3",
+      "status": "⚠️ Partially open — creds needed for Sprint 3"
+    }
+  ],
+
+  "next_sprint": {
+    "id": "sprint-1",
+    "name": "Sprint 1 — Foundation",
+    "status": "COMPLETED ✅",
+    "note": "Sprint 1 is done. Dev environments live. 639 customers migrated. Sprint 2 is currently ACTIVE."
+  },
+
+  "current_sprint": {
+    "id": "sprint-2",
+    "name": "Sprint 2 — Customer Core Enhancement",
+    "status": "🔄 ACTIVE — Backend IN PROGRESS",
+    "stories_completed": ["ION-014", "ION-017", "ION-022"],
+    "stories_pending": ["ION-015", "ION-016", "ION-018", "ION-019", "ION-020", "ION-021", "ION-023", "ION-024", "ION-025", "ION-026"],
+    "next_action": "Frontend Agent should begin ION-015, ION-016. Backend Agent should continue ION-018 → ION-020 → ION-024."
+  },
+
+  "approval_gate": "Sprint 0 is COMPLETED and this document serves as the official record. Sprint 2 completion approval is the NEXT required gate before Sprint 3 begins.",
+  "status": "COMPLETED — NO FURTHER APPROVAL REQUIRED FOR SPRINT 0"
+}
