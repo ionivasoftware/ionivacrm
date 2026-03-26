@@ -97,7 +97,7 @@ public class CustomerLabelTests
             ProjectId = _projectId,
             CompanyName = "Corp",
             Label = CustomerLabel.Notr,
-            Status = CustomerStatus.Active
+            Status = CustomerStatus.Lead
         };
 
         _currentUserMock.Setup(u => u.IsSuperAdmin).Returns(false);
@@ -113,7 +113,7 @@ public class CustomerLabelTests
         {
             Id = customerId,
             CompanyName = "Corp",
-            Status = CustomerStatus.Active,
+            Status = CustomerStatus.Lead,
             Label = CustomerLabel.YuksekPotansiyel
         };
 

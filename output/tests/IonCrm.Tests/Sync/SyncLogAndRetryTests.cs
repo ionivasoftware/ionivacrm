@@ -217,7 +217,7 @@ public class SyncLogAndRetryTests
         added.Address.Should().Be("99 Full St");
         added.TaxNumber.Should().Be("TAX123");
         added.Status.Should().Be(CustomerStatus.Active);
-        added.Segment.Should().Be("SME");
+        added.Segment.Should().Be("sme");
         added.LegacyId.Should().Be("SAASA-full-map");
         added.ProjectId.Should().Be(projectId);
     }
@@ -271,7 +271,7 @@ public class SyncLogAndRetryTests
         existing.Address.Should().Be("New Street");
         existing.TaxNumber.Should().Be("VAT999");
         existing.Status.Should().Be(CustomerStatus.Active);
-        existing.Segment.Should().Be("Enterprise");
+        existing.Segment.Should().Be("enterprise");
     }
 
     // ── Status mapping edge cases ─────────────────────────────────────────────
@@ -383,7 +383,7 @@ public class SyncLogAndRetryTests
         await CreateHandler().Handle(command, CancellationToken.None);
 
         // Assert
-        added!.Segment.Should().Be("SME");
+        added!.Segment.Should().Be("sme");
     }
 
     [Fact]
@@ -410,7 +410,7 @@ public class SyncLogAndRetryTests
         await CreateHandler().Handle(command, CancellationToken.None);
 
         // Assert
-        added!.Segment.Should().Be("Individual");
+        added!.Segment.Should().Be("individual");
     }
 
     [Fact]

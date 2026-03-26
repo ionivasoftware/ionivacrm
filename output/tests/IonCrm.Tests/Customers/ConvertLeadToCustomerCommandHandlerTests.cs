@@ -164,7 +164,7 @@ public class ConvertLeadToCustomerCommandHandlerTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        result.FirstError.Should().Contain("Inactive");
+        result.FirstError.Should().Contain("already converted");
     }
 
     [Fact]

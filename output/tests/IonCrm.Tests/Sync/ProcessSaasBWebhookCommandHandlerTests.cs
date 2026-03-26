@@ -134,7 +134,7 @@ public class ProcessSaasBWebhookCommandHandlerTests
         added.Address.Should().Be("42 Beta Street");            // StreetAddress → Address
         added.TaxNumber.Should().Be("BETA-TAX");                // TaxId → TaxNumber
         added.Status.Should().Be(CustomerStatus.Active);
-        added.Segment.Should().Be("Enterprise");
+        added.Segment.Should().Be("ENTERPRISE");
     }
 
     // ── Upsert existing customer ──────────────────────────────────────────────

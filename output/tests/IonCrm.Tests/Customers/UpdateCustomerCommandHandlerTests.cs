@@ -67,7 +67,7 @@ public class UpdateCustomerCommandHandlerTests
             Id = customerId,
             CompanyName = "Updated Corp",
             ContactName = "New Contact",
-            Status = CustomerStatus.Active
+            Status = CustomerStatus.Demo
         };
 
         // Act
@@ -77,7 +77,7 @@ public class UpdateCustomerCommandHandlerTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.CompanyName.Should().Be("Updated Corp");
         result.Value.ContactName.Should().Be("New Contact");
-        result.Value.Status.Should().Be(CustomerStatus.Active);
+        result.Value.Status.Should().Be(CustomerStatus.Demo);
     }
 
     [Fact]

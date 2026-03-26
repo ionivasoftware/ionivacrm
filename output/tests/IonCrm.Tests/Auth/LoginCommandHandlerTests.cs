@@ -49,6 +49,9 @@ public class LoginCommandHandlerTests
             .Setup(t => t.GenerateAccessToken(It.IsAny<User>()))
             .Returns(accessToken);
         _tokenServiceMock
+            .Setup(t => t.GetAccessTokenExpiresAt())
+            .Returns(DateTime.UtcNow.AddHours(1));
+        _tokenServiceMock
             .Setup(t => t.CreateRefreshTokenAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((refreshToken, new RefreshToken { Token = refreshToken, ExpiresAt = DateTime.UtcNow.AddDays(7) }));
     }
