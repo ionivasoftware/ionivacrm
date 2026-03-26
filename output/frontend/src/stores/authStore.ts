@@ -136,42 +136,51 @@ export const useAuthStore = create<AuthState>()(
       set({ isLoading: true });
       try {
         const savedToken = localStorage.getItem('accessToken');
-        const savedUser = localStorage.getItem('user');
-        if (savedToken && savedUser) {
-          const rawUser = JSON.parse(savedUser);
-          setAccessToken(savedToken);
-
-          // Handle both old (array) and new (dict) formats stored in localStorage
-          const rawRoles = rawUser.projectRoles;
-          const projectRoles = normalizeProjectRoles(rawRoles);
-          const user: AuthUser = { ...rawUser, projectRoles };
-
-          let projectNames = projectNamesFromRoles(rawRoles);
-          let allProjectIds = Object.keys(projectRoles);
-
-          if (user.isSuperAdmin) {
-            const projects = await fetchAllProjects();
-            if (projects.length > 0) {
-              projectNames = Object.fromEntries(projects.map((p) => [p.id, p.name]));
-              allProjectIds = projects.map((p) => p.id);
-            }
-          }
-
-          const projectIds = Object.keys(projectRoles);
-          const defaultProject = projectIds[0] ?? allProjectIds[0] ?? null;
-
-          set({
-            user,
-            isAuthenticated: true,
-            currentProjectId: defaultProject,
-            projectNames,
-            allProjectIds,
-            isLoading: false,
-          });
-        } else {
+        if (!savedToken) {
           set({ user: null, isAuthenticated: false, isLoading: false });
+          return;
         }
+
+        setAccessToken(savedToken);
+
+        // Always call /auth/me to get fresh user data from DB.
+        // This ensures roles are up-to-date even if the stored token was issued
+        // before roles were assigned or before a backend bug was fixed.
+        const meRes = await apiClient.get<ApiResponse<{ id: string; email: string; firstName: string; lastName: string; isSuperAdmin: boolean; isActive: boolean; projectRoles: unknown }>>(
+          '/auth/me'
+        );
+        const rawUser = meRes.data.data;
+
+        const rawRoles = rawUser.projectRoles;
+        const projectRoles = normalizeProjectRoles(rawRoles);
+        const user: AuthUser = { ...(rawUser as any), projectRoles };
+
+        let projectNames = projectNamesFromRoles(rawRoles);
+        let allProjectIds = Object.keys(projectRoles);
+
+        if (user.isSuperAdmin) {
+          const projects = await fetchAllProjects();
+          if (projects.length > 0) {
+            projectNames = Object.fromEntries(projects.map((p) => [p.id, p.name]));
+            allProjectIds = projects.map((p) => p.id);
+          }
+        }
+
+        const defaultProject = Object.keys(projectRoles)[0] ?? allProjectIds[0] ?? null;
+
+        // Persist normalised user data so next refresh has the correct format
+        localStorage.setItem('user', JSON.stringify(user));
+
+        set({
+          user,
+          isAuthenticated: true,
+          currentProjectId: defaultProject,
+          projectNames,
+          allProjectIds,
+          isLoading: false,
+        });
       } catch {
+        // Token expired or invalid — force re-login
         setAccessToken(null);
         localStorage.removeItem('accessToken');
         localStorage.removeItem('user');
