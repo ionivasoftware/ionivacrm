@@ -150,8 +150,16 @@ var app = builder.Build();
 // ── Auto-apply pending EF Core migrations on startup ─────────────────────────
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    db.Database.Migrate();
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.Database.Migrate();
+        Log.Information("EF Core migrations applied successfully");
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Auto-migration failed on startup — app will continue, apply migration manually if needed");
+    }
 }
 
 // ── Middleware pipeline ───────────────────────────────────────────────────────

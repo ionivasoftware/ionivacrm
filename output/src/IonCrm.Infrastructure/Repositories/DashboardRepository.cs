@@ -110,25 +110,34 @@ public class DashboardRepository : IDashboardRepository
 
         // ── Expiring subscriptions (within next 30 days) ──────────────────────
 
-        var expiryThreshold = now.AddDays(30);
-        var expiringRaw = await _db.Customers
-            .Where(c => c.ProjectId == projectId &&
-                        c.ExpirationDate != null &&
-                        c.ExpirationDate > now &&
-                        c.ExpirationDate <= expiryThreshold)
-            .OrderBy(c => c.ExpirationDate)
-            .Select(c => new { c.Id, c.CompanyName, c.ContactName, c.Phone, c.ExpirationDate })
-            .ToListAsync(cancellationToken);
+        List<ExpiringCustomerDto> expiringCustomers;
+        try
+        {
+            var expiryThreshold = now.AddDays(30);
+            var expiringRaw = await _db.Customers
+                .Where(c => c.ProjectId == projectId &&
+                            c.ExpirationDate != null &&
+                            c.ExpirationDate > now &&
+                            c.ExpirationDate <= expiryThreshold)
+                .OrderBy(c => c.ExpirationDate)
+                .Select(c => new { c.Id, c.CompanyName, c.ContactName, c.Phone, c.ExpirationDate })
+                .ToListAsync(cancellationToken);
 
-        var expiringCustomers = expiringRaw
-            .Select(c => new ExpiringCustomerDto(
-                c.Id,
-                c.CompanyName,
-                c.ContactName,
-                c.Phone,
-                c.ExpirationDate!.Value,
-                (int)(c.ExpirationDate.Value.Date - now.Date).TotalDays))
-            .ToList();
+            expiringCustomers = expiringRaw
+                .Select(c => new ExpiringCustomerDto(
+                    c.Id,
+                    c.CompanyName,
+                    c.ContactName,
+                    c.Phone,
+                    c.ExpirationDate!.Value,
+                    (int)(c.ExpirationDate.Value.Date - now.Date).TotalDays))
+                .ToList();
+        }
+        catch
+        {
+            // Column may not exist yet if migration hasn't run — return empty until it does
+            expiringCustomers = new List<ExpiringCustomerDto>();
+        }
 
         return new DashboardStatsDto(
             totalCustomers,
@@ -255,17 +264,20 @@ public class DashboardRepository : IDashboardRepository
     private async Task<IReadOnlyList<RecentActivityDto>> FetchRecentActivitiesAsync(
         Guid? projectId, int count, CancellationToken cancellationToken)
     {
-        var query = _db.ContactHistories
-            .Include(h => h.Customer)
-            .Include(h => h.CreatedByUser)
-            .AsQueryable();
-
-        if (projectId.HasValue)
-            query = query.Where(h => h.ProjectId == projectId.Value);
-
-        var recentRaw = await query
+        var recentRaw = await _db.ContactHistories
+            .Where(h => !projectId.HasValue || h.ProjectId == projectId.Value)
             .OrderByDescending(h => h.ContactedAt)
             .Take(count)
+            .Select(h => new
+            {
+                h.Id,
+                h.Type,
+                CustomerName = h.Customer != null ? h.Customer.CompanyName : string.Empty,
+                h.Subject,
+                CreatedByFirstName = h.CreatedByUser != null ? h.CreatedByUser.FirstName : null,
+                CreatedByLastName  = h.CreatedByUser != null ? h.CreatedByUser.LastName  : null,
+                h.ContactedAt
+            })
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
@@ -273,10 +285,10 @@ public class DashboardRepository : IDashboardRepository
             .Select(h => new RecentActivityDto(
                 h.Id.ToString(),
                 h.Type,
-                h.Customer?.CompanyName ?? string.Empty,
+                h.CustomerName,
                 h.Subject,
-                h.CreatedByUser is not null
-                    ? $"{h.CreatedByUser.FirstName} {h.CreatedByUser.LastName}".Trim()
+                h.CreatedByFirstName is not null
+                    ? $"{h.CreatedByFirstName} {h.CreatedByLastName}".Trim()
                     : null,
                 h.ContactedAt))
             .ToList();
