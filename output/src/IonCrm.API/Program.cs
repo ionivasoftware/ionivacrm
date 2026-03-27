@@ -154,7 +154,7 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        db.Database.Migrate();
+        await db.Database.MigrateAsync();
         Log.Information("EF Core migrations applied successfully");
     }
     catch (Exception ex)
