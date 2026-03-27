@@ -24,11 +24,13 @@ namespace IonCrm.API.Controllers;
 public sealed class SyncController : ApiControllerBase
 {
     private readonly IConfiguration _configuration;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     /// <summary>Initialises a new instance of <see cref="SyncController"/>.</summary>
-    public SyncController(IConfiguration configuration)
+    public SyncController(IConfiguration configuration, IServiceScopeFactory scopeFactory)
     {
         _configuration = configuration;
+        _scopeFactory  = scopeFactory;
     }
 
     // ── Inbound webhooks (SaaS pushes to CRM) ─────────────────────────────────
@@ -173,7 +175,8 @@ public sealed class SyncController : ApiControllerBase
     }
 
     /// <summary>
-    /// Manually triggers a full SaaS A + SaaS B synchronisation cycle.
+    /// Manually triggers a full SaaS sync cycle (fire-and-forget).
+    /// Uses Hangfire when enabled; falls back to Task.Run otherwise.
     /// SuperAdmin only.
     /// </summary>
     [HttpPost("trigger")]
@@ -182,10 +185,24 @@ public sealed class SyncController : ApiControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
     public IActionResult TriggerSync()
     {
-        // Enqueue as a Hangfire background job (fire-and-forget)
-        var jobId = BackgroundJob.Enqueue<SaasSyncJob>(job => job.RunAsync(CancellationToken.None));
+        var hangfireEnabled = _configuration.GetValue<bool>("Hangfire:Enabled", false);
 
-        return OkResponse(new { JobId = jobId },
-            "Sync job enqueued. It will run in the background shortly.");
+        if (hangfireEnabled)
+        {
+            var jobId = BackgroundJob.Enqueue<SaasSyncJob>(job => job.RunAsync(CancellationToken.None));
+            return OkResponse(new { JobId = jobId, Mode = "hangfire" },
+                "Sync job enqueued via Hangfire.");
+        }
+
+        // Hangfire disabled — run directly in a background thread
+        _ = Task.Run(async () =>
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var job = scope.ServiceProvider.GetRequiredService<SaasSyncJob>();
+            await job.RunAsync(CancellationToken.None);
+        });
+
+        return OkResponse(new { JobId = (string?)null, Mode = "direct" },
+            "Sync job started in background.");
     }
 }

@@ -72,6 +72,10 @@ public static class DependencyInjection
         RegisterSaasAClient(services, configuration);
         RegisterSaasBClient(services, configuration);
 
+        // SaasSyncJob is always registered so the trigger endpoint can run it directly
+        // regardless of whether Hangfire is enabled.
+        services.AddScoped<SaasSyncJob>();
+
         // ── Hangfire (background job scheduler + server) ──────────────────────
         var enableHangfire = configuration.GetValue<bool>("Hangfire:Enabled", false);
         if (enableHangfire)
@@ -95,9 +99,6 @@ public static class DependencyInjection
 
             // ── Background service: registers Hangfire recurring jobs ─────────────
             services.AddHostedService<SyncBackgroundService>();
-
-            // Register the sync job class for Hangfire DI activation
-            services.AddScoped<SaasSyncJob>();
         }
 
         return services;
