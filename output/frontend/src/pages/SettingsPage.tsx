@@ -2,16 +2,22 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, Lock, Loader2, CheckCircle } from 'lucide-react';
+import { User, Lock, Loader2, CheckCircle, Link2, Link2Off, Building2, Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { useAuthStore } from '@/stores/authStore';
 import { apiClient } from '@/api/client';
 import type { ApiResponse } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import {
+  useParasutStatus,
+  useConnectParasut,
+  useDisconnectParasut,
+} from '@/api/parasut';
 
 // ── Profile form ──────────────────────────────────────────────────────────────
 
@@ -36,13 +42,36 @@ const passwordSchema = z.object({
 });
 type PasswordForm = z.infer<typeof passwordSchema>;
 
+// ── Paraşüt form ──────────────────────────────────────────────────────────────
+
+const parasutSchema = z.object({
+  companyId: z.string().min(1, 'Firma ID gereklidir').regex(/^\d+$/, 'Sayısal olmalıdır'),
+  clientId: z.string().min(1, 'Client ID gereklidir'),
+  clientSecret: z.string().min(1, 'Client Secret gereklidir'),
+  username: z.string().email('Geçerli e-posta giriniz'),
+  password: z.string().min(1, 'Şifre gereklidir'),
+});
+type ParasutForm = z.infer<typeof parasutSchema>;
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
-  const { user } = useAuthStore();
+  const { user, currentProjectId } = useAuthStore();
   const { toast } = useToast();
   const [profileSaved, setProfileSaved] = useState(false);
   const [passwordSaved, setPasswordSaved] = useState(false);
+  const [showParasutSecret, setShowParasutSecret] = useState(false);
+  const [showParasutPassword, setShowParasutPassword] = useState(false);
+
+  // Paraşüt
+  const parasutStatus = useParasutStatus(currentProjectId);
+  const connectParasut = useConnectParasut();
+  const disconnectParasut = useDisconnectParasut();
+
+  const parasutForm = useForm<ParasutForm>({
+    resolver: zodResolver(parasutSchema),
+    defaultValues: { companyId: '', clientId: '', clientSecret: '', username: '', password: '' },
+  });
 
   const profileForm = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -85,6 +114,34 @@ export function SettingsPage() {
     }
   }
 
+  async function handleParasutConnect(data: ParasutForm) {
+    if (!currentProjectId) return;
+    try {
+      await connectParasut.mutateAsync({
+        projectId: currentProjectId,
+        companyId: Number(data.companyId),
+        clientId: data.clientId,
+        clientSecret: data.clientSecret,
+        username: data.username,
+        password: data.password,
+      });
+      parasutForm.reset();
+      toast({ title: 'Paraşüt bağlandı', description: 'Muhasebe entegrasyonu aktif.' });
+    } catch {
+      toast({ title: 'Bağlantı hatası', description: 'Bilgileri kontrol edip tekrar deneyin.', variant: 'destructive' });
+    }
+  }
+
+  async function handleParasutDisconnect() {
+    if (!currentProjectId) return;
+    try {
+      await disconnectParasut.mutateAsync(currentProjectId);
+      toast({ title: 'Paraşüt bağlantısı kaldırıldı' });
+    } catch {
+      toast({ title: 'Hata', description: 'Bağlantı kaldırılamadı.', variant: 'destructive' });
+    }
+  }
+
   async function handlePasswordSubmit(data: PasswordForm) {
     setPasswordLoading(true);
     setPasswordSaved(false);
@@ -104,12 +161,170 @@ export function SettingsPage() {
     }
   }
 
+  const isConnected = parasutStatus.data?.isConnected ?? false;
+
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Ayarlar</h1>
-        <p className="text-muted-foreground text-sm mt-1">Profil bilgilerinizi ve şifrenizi yönetin.</p>
+        <p className="text-muted-foreground text-sm mt-1">Profil, şifre ve entegrasyon ayarlarını yönetin.</p>
       </div>
+
+      {/* ── Paraşüt Integration (SuperAdmin only) ── */}
+      {user?.isSuperAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Building2 className="h-4 w-4" /> Paraşüt Entegrasyonu
+            </CardTitle>
+            <CardDescription>
+              Muhasebe yazılımı Paraşüt ile bağlantı kurun. Fatura ve cari yönetimi bu entegrasyon üzerinden yapılır.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Connection status banner */}
+            {parasutStatus.isLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Durum kontrol ediliyor...
+              </div>
+            ) : isConnected ? (
+              <div className="flex items-center justify-between p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Bağlı</p>
+                    <p className="text-xs text-muted-foreground">
+                      {parasutStatus.data?.username} · Firma #{parasutStatus.data?.companyId}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={handleParasutDisconnect}
+                  disabled={disconnectParasut.isPending}
+                >
+                  {disconnectParasut.isPending
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Link2Off className="h-3.5 w-3.5" />}
+                  Bağlantıyı Kes
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/30 border border-border">
+                <div className="w-2 h-2 rounded-full bg-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">Henüz bağlantı kurulmamış.</p>
+              </div>
+            )}
+
+            {/* Connect form — only shown when not connected */}
+            {!isConnected && !parasutStatus.isLoading && (
+              <>
+                <Separator />
+                <form onSubmit={parasutForm.handleSubmit(handleParasutConnect)} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Firma ID (Company ID) *</Label>
+                      <Input
+                        {...parasutForm.register('companyId')}
+                        className="h-10"
+                        placeholder="123456"
+                      />
+                      {parasutForm.formState.errors.companyId && (
+                        <p className="text-xs text-destructive">{parasutForm.formState.errors.companyId.message}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Paraşüt E-postası *</Label>
+                      <Input
+                        {...parasutForm.register('username')}
+                        className="h-10"
+                        placeholder="hesap@firma.com"
+                        type="email"
+                      />
+                      {parasutForm.formState.errors.username && (
+                        <p className="text-xs text-destructive">{parasutForm.formState.errors.username.message}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Paraşüt Şifresi *</Label>
+                    <div className="relative">
+                      <Input
+                        {...parasutForm.register('password')}
+                        type={showParasutPassword ? 'text' : 'password'}
+                        className="h-10 pr-10"
+                        placeholder="Paraşüt hesap şifresi"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowParasutPassword(v => !v)}
+                      >
+                        {showParasutPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {parasutForm.formState.errors.password && (
+                      <p className="text-xs text-destructive">{parasutForm.formState.errors.password.message}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Client ID *</Label>
+                    <Input
+                      {...parasutForm.register('clientId')}
+                      className="h-10 font-mono text-sm"
+                      placeholder="OAuth client ID"
+                    />
+                    {parasutForm.formState.errors.clientId && (
+                      <p className="text-xs text-destructive">{parasutForm.formState.errors.clientId.message}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Client Secret *</Label>
+                    <div className="relative">
+                      <Input
+                        {...parasutForm.register('clientSecret')}
+                        type={showParasutSecret ? 'text' : 'password'}
+                        className="h-10 pr-10 font-mono text-sm"
+                        placeholder="OAuth client secret"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowParasutSecret(v => !v)}
+                      >
+                        {showParasutSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {parasutForm.formState.errors.clientSecret && (
+                      <p className="text-xs text-destructive">{parasutForm.formState.errors.clientSecret.message}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Client ID ve Secret için Paraşüt destek ekibine başvurun: support@parasut.com
+                    </p>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={connectParasut.isPending}
+                    className="gap-2"
+                  >
+                    {connectParasut.isPending
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Link2 className="h-4 w-4" />}
+                    Paraşüt'e Bağlan
+                  </Button>
+                </form>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
 
       {/* Profile section */}
       <Card>
