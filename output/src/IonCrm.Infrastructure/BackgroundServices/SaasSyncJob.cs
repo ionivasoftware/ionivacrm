@@ -93,8 +93,8 @@ public sealed class SaasSyncJob
 
     /// <summary>
     /// Syncs customers from the EMS /api/v1/crm/customers endpoint.
-    /// Uses delta sync (updatedSince = now - 20 min) to fetch only changed records.
-    /// Fetches all pages in a loop, upserts each customer, and computes status from ExpirationDate.
+    /// Delta sync: uses the last successful CrmCustomer sync time as updatedSince (with 5-min buffer).
+    /// First-ever sync (or if last sync was >24 h ago): full sync with no updatedSince filter.
     /// </summary>
     private async Task SyncEmsCrmCustomersAsync(CancellationToken ct)
     {
@@ -108,13 +108,41 @@ public sealed class SaasSyncJob
         var project = await _projectRepository.GetByIdAsync(projectId, ct);
         var emsApiKey = project?.EmsApiKey;
 
+        // Determine delta window: find the last successful sync time in SyncLogs
+        DateTime? updatedSince = null;
+        using (var scope = _scopeFactory.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var lastSync = await context.Set<SyncLog>()
+                .Where(l => l.ProjectId == projectId
+                         && l.Source == SyncSource.SaasA
+                         && l.EntityType == "CrmCustomer"
+                         && l.Status == SyncStatus.Success
+                         && l.SyncedAt != null)
+                .OrderByDescending(l => l.SyncedAt)
+                .Select(l => l.SyncedAt)
+                .FirstOrDefaultAsync(ct);
+
+            if (lastSync.HasValue && lastSync.Value > DateTime.UtcNow.AddHours(-24))
+            {
+                // Delta: fetch only records updated since last sync minus 5-min buffer
+                updatedSince = lastSync.Value.AddMinutes(-5);
+                _logger.LogInformation(
+                    "EMS CRM delta sync: updatedSince={Since:u}", updatedSince);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "EMS CRM full sync: no recent successful sync found, fetching all records.");
+            }
+        }
+
         await SyncWithRetryAsync(
             source: SyncSource.SaasA,
             entityType: "CrmCustomer",
             projectId: projectId,
             action: async () =>
             {
-                var updatedSince = DateTime.UtcNow.AddMinutes(-20); // 20-min window for safety
                 const int pageSize = 500;
                 int page = 1, totalSynced = 0;
 
@@ -149,17 +177,26 @@ public sealed class SaasSyncJob
 
         foreach (var src in customers)
         {
-            var legacyId = $"SAASA-{src.Id}";
+            // Canonical LegacyId = plain numeric EMS company ID (matches original DB migration).
+            // Also check the old "SAASA-{id}" prefix format in case records were created by a
+            // previous sync run before this normalization was applied.
+            var legacyId         = src.Id;              // "3"
+            var legacyIdPrefixed = $"SAASA-{src.Id}";  // "SAASA-3" (legacy)
             var newStatus = ComputeStatusFromExpiration(src.ExpirationDate, src.CreatedOn);
 
             var existing = await context.Customers
                 .IgnoreQueryFilters()
-                .Where(c => !c.IsDeleted && c.LegacyId == legacyId)
+                .Where(c => !c.IsDeleted
+                         && (c.LegacyId == legacyId || c.LegacyId == legacyIdPrefixed))
                 .FirstOrDefaultAsync(ct);
 
             if (existing is not null)
             {
-                bool changed = false;
+                // Normalize to canonical format if it was stored with old prefix
+                if (existing.LegacyId == legacyIdPrefixed)
+                    existing.LegacyId = legacyId;
+
+                bool changed = existing.LegacyId != legacyIdPrefixed; // true if we just normalized
                 if (existing.CompanyName    != src.Name)           { existing.CompanyName    = src.Name;           changed = true; }
                 if (existing.Email          != src.Email)          { existing.Email          = src.Email;          changed = true; }
                 if (existing.Phone          != src.Phone)          { existing.Phone          = src.Phone;          changed = true; }
@@ -176,7 +213,7 @@ public sealed class SaasSyncJob
                 {
                     Id             = Guid.NewGuid(),
                     ProjectId      = projectId,
-                    LegacyId       = legacyId,
+                    LegacyId       = legacyId,   // plain numeric — canonical format
                     CompanyName    = src.Name,
                     Email          = src.Email,
                     Phone          = src.Phone,

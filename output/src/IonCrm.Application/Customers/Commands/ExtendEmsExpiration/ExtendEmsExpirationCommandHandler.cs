@@ -52,10 +52,23 @@ public sealed class ExtendEmsExpirationCommandHandler
         if (!_currentUser.IsSuperAdmin && !_currentUser.ProjectIds.Contains(customer.ProjectId))
             return Result<ExtendEmsExpirationDto>.Failure("Bu müşteriye erişim yetkiniz yok.");
 
-        // 2. Verify this is an EMS customer (LegacyId is numeric — EMS company ID)
+        // 2. Verify this is an EMS customer and extract the numeric EMS company ID.
+        //    LegacyId formats:
+        //      "3"        → plain numeric (original DB migration + new EMS CRM sync canonical format)
+        //      "SAASA-3"  → prefixed (created by earlier sync runs before normalization)
+        //      "PC-123"   → PotentialCustomer (not EMS — skip)
         if (string.IsNullOrEmpty(customer.LegacyId)
-            || customer.LegacyId.StartsWith("PC-", StringComparison.OrdinalIgnoreCase)
-            || !int.TryParse(customer.LegacyId, out var emsCompanyId))
+            || customer.LegacyId.StartsWith("PC-", StringComparison.OrdinalIgnoreCase))
+        {
+            return Result<ExtendEmsExpirationDto>.Failure(
+                "Bu müşteri EMS'ten gelmemiş. Süre uzatma yalnızca EMS kaynaklı müşteriler için geçerlidir.");
+        }
+
+        string rawId = customer.LegacyId.StartsWith("SAASA-", StringComparison.OrdinalIgnoreCase)
+            ? customer.LegacyId["SAASA-".Length..]
+            : customer.LegacyId;
+
+        if (!int.TryParse(rawId, out var emsCompanyId))
         {
             return Result<ExtendEmsExpirationDto>.Failure(
                 "Bu müşteri EMS'ten gelmemiş. Süre uzatma yalnızca EMS kaynaklı müşteriler için geçerlidir.");

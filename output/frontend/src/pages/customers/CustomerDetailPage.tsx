@@ -928,8 +928,8 @@ export function CustomerDetailPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {/* EMS-only: extend expiration */}
-          {customer?.legacyId && !customer.legacyId.startsWith('PC-') && (
+          {/* EMS-only: extend expiration (plain numeric ID or SAASA-{id} prefix, not PC-) */}
+          {customer?.legacyId && !customer.legacyId.startsWith('PC-') && (/^\d/.test(customer.legacyId) || customer.legacyId.startsWith('SAASA-')) && (
             <Button
               variant="outline"
               className="gap-2 h-10 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
