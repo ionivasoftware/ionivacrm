@@ -167,9 +167,10 @@ using (var scope = app.Services.CreateScope())
     try
     {
         await db.Database.ExecuteSqlRawAsync(@"
-            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ExpirationDate"" timestamp with time zone;
-            ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsApiKey""      text;
-            ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlApiKey"" text;
+            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ExpirationDate""    timestamp with time zone;
+            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ParasutContactId""  text;
+            ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsApiKey""         text;
+            ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlApiKey""    text;
         ");
         Log.Information("Column existence check complete");
     }
