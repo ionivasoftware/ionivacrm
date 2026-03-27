@@ -224,6 +224,7 @@ export function CustomersPage() {
                     <SelectItem value="Active">🟢 Aktif</SelectItem>
                     <SelectItem value="Demo">🟣 Demo</SelectItem>
                     <SelectItem value="Churned">🔴 Kayıp</SelectItem>
+                    <SelectItem value="Passive">⚫ Pasif</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

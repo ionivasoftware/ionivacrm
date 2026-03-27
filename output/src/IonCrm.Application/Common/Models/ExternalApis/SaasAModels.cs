@@ -57,6 +57,29 @@ public record SaasACallbackPayload(
     object Data,
     DateTime OccurredAt);
 
+// ── EMS CRM endpoint — /api/v1/crm/customers ─────────────────────────────────
+
+/// <summary>Paginated response from EMS GET /api/v1/crm/customers.</summary>
+public record EmsCrmCustomersResponse(
+    List<EmsCrmCustomer> Data,
+    int Total,
+    int Page,
+    int PageSize,
+    int TotalPages);
+
+/// <summary>A single customer record from the EMS CRM customers endpoint.</summary>
+public record EmsCrmCustomer(
+    string Id,
+    string Name,
+    string? Email,
+    string? Phone,
+    string? Address,
+    string? TaxNumber,
+    string? Segment,
+    DateTime CreatedOn,
+    DateTime UpdatedAt,
+    DateTime? ExpirationDate);
+
 /// <summary>Incoming webhook payload pushed by SaaS A to POST /api/v1/sync/saas-a.</summary>
 public record SaasAWebhookPayload(
     string EventType,

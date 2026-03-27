@@ -6,6 +6,7 @@ export const STATUS_LABELS: Record<CustomerStatus, string> = {
   Active: 'Aktif',
   Demo: 'Demo',
   Churned: 'Kayıp',
+  Passive: 'Pasif',
 };
 
 const STATUS_CLASSES: Record<CustomerStatus, string> = {
@@ -13,6 +14,7 @@ const STATUS_CLASSES: Record<CustomerStatus, string> = {
   Active: 'bg-green-500/15 text-green-400 border-green-500/30',
   Demo: 'bg-violet-500/15 text-violet-400 border-violet-500/30',
   Churned: 'bg-red-500/15 text-red-400 border-red-500/30',
+  Passive: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
 };
 
 interface CustomerStatusBadgeProps {

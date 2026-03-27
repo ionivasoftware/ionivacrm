@@ -82,10 +82,154 @@ public sealed class SaasSyncJob
     {
         _logger.LogInformation("SaaS sync job started at {Time:O}", DateTime.UtcNow);
 
+        await SyncEmsCrmCustomersAsync(cancellationToken);
         await SyncSaasAAsync(cancellationToken);
         await SyncSaasBAsync(cancellationToken);
 
         _logger.LogInformation("SaaS sync job completed at {Time:O}", DateTime.UtcNow);
+    }
+
+    // ── EMS CRM customers sync (new paginated endpoint) ───────────────────────
+
+    /// <summary>
+    /// Syncs customers from the EMS /api/v1/crm/customers endpoint.
+    /// Uses delta sync (updatedSince = now - 20 min) to fetch only changed records.
+    /// Fetches all pages in a loop, upserts each customer, and computes status from ExpirationDate.
+    /// </summary>
+    private async Task SyncEmsCrmCustomersAsync(CancellationToken ct)
+    {
+        var projectId = GetProjectId("SaasA:ProjectId");
+        if (projectId == Guid.Empty)
+        {
+            _logger.LogWarning("SaaS A ProjectId not configured. Skipping EMS CRM sync.");
+            return;
+        }
+
+        var project = await _projectRepository.GetByIdAsync(projectId, ct);
+        var emsApiKey = project?.EmsApiKey;
+
+        await SyncWithRetryAsync(
+            source: SyncSource.SaasA,
+            entityType: "CrmCustomer",
+            projectId: projectId,
+            action: async () =>
+            {
+                var updatedSince = DateTime.UtcNow.AddMinutes(-20); // 20-min window for safety
+                const int pageSize = 500;
+                int page = 1, totalSynced = 0;
+
+                while (true)
+                {
+                    var response = await _saasAClient.GetCrmCustomersPageAsync(
+                        emsApiKey, page, pageSize, updatedSince, ct);
+
+                    if (response.Data.Count == 0)
+                        break;
+
+                    await UpsertEmsCrmCustomersAsync(response.Data, projectId, ct);
+                    totalSynced += response.Data.Count;
+
+                    if (page >= response.TotalPages || response.TotalPages == 0)
+                        break;
+
+                    page++;
+                }
+
+                return totalSynced;
+            });
+    }
+
+    private async Task UpsertEmsCrmCustomersAsync(
+        List<EmsCrmCustomer> customers,
+        Guid projectId,
+        CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        foreach (var src in customers)
+        {
+            var legacyId = $"SAASA-{src.Id}";
+            var newStatus = ComputeStatusFromExpiration(src.ExpirationDate, src.CreatedOn);
+
+            var existing = await context.Customers
+                .IgnoreQueryFilters()
+                .Where(c => !c.IsDeleted && c.LegacyId == legacyId)
+                .FirstOrDefaultAsync(ct);
+
+            if (existing is not null)
+            {
+                bool changed = false;
+                if (existing.CompanyName    != src.Name)           { existing.CompanyName    = src.Name;           changed = true; }
+                if (existing.Email          != src.Email)          { existing.Email          = src.Email;          changed = true; }
+                if (existing.Phone          != src.Phone)          { existing.Phone          = src.Phone;          changed = true; }
+                if (existing.Address        != src.Address)        { existing.Address        = src.Address;        changed = true; }
+                if (existing.TaxNumber      != src.TaxNumber)      { existing.TaxNumber      = src.TaxNumber;      changed = true; }
+                if (existing.Segment        != src.Segment)        { existing.Segment        = src.Segment;        changed = true; }
+                if (existing.ExpirationDate != src.ExpirationDate) { existing.ExpirationDate = src.ExpirationDate; changed = true; }
+                if (existing.Status         != newStatus)          { existing.Status         = newStatus;          changed = true; }
+                if (changed) existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                context.Customers.Add(new Customer
+                {
+                    Id             = Guid.NewGuid(),
+                    ProjectId      = projectId,
+                    LegacyId       = legacyId,
+                    CompanyName    = src.Name,
+                    Email          = src.Email,
+                    Phone          = src.Phone,
+                    Address        = src.Address,
+                    TaxNumber      = src.TaxNumber,
+                    Segment        = src.Segment,
+                    ExpirationDate = src.ExpirationDate,
+                    Status         = newStatus,
+                    CreatedAt      = src.CreatedOn,
+                    UpdatedAt      = DateTime.UtcNow
+                });
+            }
+        }
+
+        await context.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Computes customer status based on ExpirationDate rules:
+    /// <list type="bullet">
+    ///   <item>Active:   not expired AND (created &gt;30 days ago OR expires &gt;30 days from now)</item>
+    ///   <item>Demo:     not expired AND expires within 30 days AND created within last 30 days</item>
+    ///   <item>Churned:  expired AND had subscription for &gt;40 days</item>
+    ///   <item>Passive:  expired AND had subscription for ≤40 days</item>
+    /// </list>
+    /// </summary>
+    private static CustomerStatus ComputeStatusFromExpiration(DateTime? expirationDate, DateTime createdOn)
+    {
+        if (!expirationDate.HasValue)
+            return CustomerStatus.Lead;
+
+        var today   = DateTime.UtcNow.Date;
+        var exp     = expirationDate.Value.Date;
+        var created = createdOn.Date;
+
+        if (exp >= today)
+        {
+            // Not expired
+            bool expiresWithin30Days  = exp < today.AddDays(30);
+            bool createdWithinLast30  = created > today.AddDays(-30);
+
+            if (expiresWithin30Days && createdWithinLast30)
+                return CustomerStatus.Demo;
+
+            return CustomerStatus.Active;
+        }
+        else
+        {
+            // Expired
+            return created.AddDays(40) < exp
+                ? CustomerStatus.Churned   // had subscription for >40 days
+                : CustomerStatus.Passive;  // never fully onboarded (≤40 days)
+        }
     }
 
     // ── SaaS A sync ───────────────────────────────────────────────────────────

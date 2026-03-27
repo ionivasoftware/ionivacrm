@@ -82,6 +82,32 @@ public sealed class SaasAClient : ISaasAClient
     }
 
     /// <inheritdoc />
+    public async Task<EmsCrmCustomersResponse> GetCrmCustomersPageAsync(
+        string? apiKey,
+        int page,
+        int pageSize,
+        DateTime? updatedSince = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("SaaS A: fetching CRM customers page={Page} pageSize={PageSize} updatedSince={Since:O}",
+            page, pageSize, updatedSince);
+
+        return await _retryPipeline.ExecuteAsync<EmsCrmCustomersResponse>(async ct =>
+        {
+            var url = $"api/v1/crm/customers?page={page}&pageSize={pageSize}";
+            if (updatedSince.HasValue)
+                url += $"&updatedSince={Uri.EscapeDataString(updatedSince.Value.ToString("O"))}";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            ApplyAuth(request, apiKey);
+            var response = await _httpClient.SendAsync(request, ct);
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadFromJsonAsync<EmsCrmCustomersResponse>(JsonOpts, ct);
+            return result ?? new EmsCrmCustomersResponse(new List<EmsCrmCustomer>(), 0, page, pageSize, 0);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<SaasASubscriptionsResponse> GetSubscriptionsAsync(string? apiKey = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("SaaS A: fetching subscriptions.");

@@ -9,9 +9,20 @@ namespace IonCrm.Application.Common.Interfaces;
 /// </summary>
 public interface ISaasAClient
 {
-    /// <summary>Fetches all customers from SaaS A (EMS).</summary>
+    /// <summary>Fetches all customers from SaaS A (EMS) legacy endpoint.</summary>
     /// <param name="apiKey">Project-specific EMS API key. Overrides the default configured key when provided.</param>
     Task<SaasACustomersResponse> GetCustomersAsync(string? apiKey = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches a page of customers from the EMS CRM endpoint with optional delta sync.
+    /// GET /api/v1/crm/customers?page={page}&amp;pageSize={pageSize}[&amp;updatedSince={updatedSince:O}]
+    /// </summary>
+    Task<EmsCrmCustomersResponse> GetCrmCustomersPageAsync(
+        string? apiKey,
+        int page,
+        int pageSize,
+        DateTime? updatedSince = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Fetches all subscriptions from SaaS A (EMS).</summary>
     Task<SaasASubscriptionsResponse> GetSubscriptionsAsync(string? apiKey = null, CancellationToken cancellationToken = default);

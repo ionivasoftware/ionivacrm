@@ -13,5 +13,8 @@ public enum CustomerStatus
     Demo = 3,
 
     /// <summary>Customer has churned / ended relationship.</summary>
-    Churned = 4
+    Churned = 4,
+
+    /// <summary>Customer's subscription expired within 40 days of creation (never fully onboarded).</summary>
+    Passive = 5
 }

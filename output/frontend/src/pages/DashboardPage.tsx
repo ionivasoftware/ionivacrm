@@ -22,6 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
   Active: '#22c55e',
   Demo: '#8b5cf6',
   Churned: '#ef4444',
+  Passive: '#64748b',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -29,6 +30,7 @@ const STATUS_LABELS: Record<string, string> = {
   Active: 'Aktif',
   Demo: 'Demo',
   Churned: 'Kaybedildi',
+  Passive: 'Pasif',
 };
 
 const STAGE_COLORS: Record<string, string> = {
