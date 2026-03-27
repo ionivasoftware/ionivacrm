@@ -190,7 +190,16 @@ public sealed class SaasSyncJob
             // previous sync run before this normalization was applied.
             var legacyId         = src.Id;              // "3"
             var legacyIdPrefixed = $"SAASA-{src.Id}";  // "SAASA-3" (legacy)
-            var newStatus = ComputeStatusFromExpiration(src.ExpirationDate, src.CreatedOn);
+
+            // All DateTimes from external APIs must be forced to UTC before storing in
+            // PostgreSQL timestamp with time zone columns. System.Text.Json deserialises
+            // dates without a timezone offset as Kind=Unspecified; Npgsql rejects these.
+            var expDate    = src.ExpirationDate.HasValue
+                ? DateTime.SpecifyKind(src.ExpirationDate.Value, DateTimeKind.Utc)
+                : (DateTime?)null;
+            var createdOn  = DateTime.SpecifyKind(src.CreatedOn, DateTimeKind.Utc);
+
+            var newStatus = ComputeStatusFromExpiration(expDate, createdOn);
 
             var existing = await context.Customers
                 .IgnoreQueryFilters()
@@ -201,18 +210,17 @@ public sealed class SaasSyncJob
             if (existing is not null)
             {
                 // Normalize to canonical format if it was stored with old prefix
-                if (existing.LegacyId == legacyIdPrefixed)
-                    existing.LegacyId = legacyId;
+                bool changed = false;
+                if (existing.LegacyId == legacyIdPrefixed) { existing.LegacyId = legacyId; changed = true; }
 
-                bool changed = existing.LegacyId != legacyIdPrefixed; // true if we just normalized
-                if (existing.CompanyName    != src.Name)           { existing.CompanyName    = src.Name;           changed = true; }
-                if (existing.Email          != src.Email)          { existing.Email          = src.Email;          changed = true; }
-                if (existing.Phone          != src.Phone)          { existing.Phone          = src.Phone;          changed = true; }
-                if (existing.Address        != src.Address)        { existing.Address        = src.Address;        changed = true; }
-                if (existing.TaxNumber      != src.TaxNumber)      { existing.TaxNumber      = src.TaxNumber;      changed = true; }
-                if (existing.Segment        != src.Segment)        { existing.Segment        = src.Segment;        changed = true; }
-                if (existing.ExpirationDate != src.ExpirationDate) { existing.ExpirationDate = src.ExpirationDate; changed = true; }
-                if (existing.Status         != newStatus)          { existing.Status         = newStatus;          changed = true; }
+                if (existing.CompanyName    != src.Name)    { existing.CompanyName    = src.Name;    changed = true; }
+                if (existing.Email          != src.Email)   { existing.Email          = src.Email;   changed = true; }
+                if (existing.Phone          != src.Phone)   { existing.Phone          = src.Phone;   changed = true; }
+                if (existing.Address        != src.Address) { existing.Address        = src.Address; changed = true; }
+                if (existing.TaxNumber      != src.TaxNumber) { existing.TaxNumber   = src.TaxNumber; changed = true; }
+                if (existing.Segment        != src.Segment) { existing.Segment        = src.Segment; changed = true; }
+                if (existing.ExpirationDate != expDate)     { existing.ExpirationDate = expDate;     changed = true; }
+                if (existing.Status         != newStatus)   { existing.Status         = newStatus;   changed = true; }
                 if (changed) existing.UpdatedAt = DateTime.UtcNow;
             }
             else
@@ -221,22 +229,35 @@ public sealed class SaasSyncJob
                 {
                     Id             = Guid.NewGuid(),
                     ProjectId      = projectId,
-                    LegacyId       = legacyId,   // plain numeric — canonical format
+                    LegacyId       = legacyId,
                     CompanyName    = src.Name,
                     Email          = src.Email,
                     Phone          = src.Phone,
                     Address        = src.Address,
                     TaxNumber      = src.TaxNumber,
                     Segment        = src.Segment,
-                    ExpirationDate = src.ExpirationDate,
+                    ExpirationDate = expDate,
                     Status         = newStatus,
-                    CreatedAt      = src.CreatedOn,
                     UpdatedAt      = DateTime.UtcNow
+                    // CreatedAt intentionally omitted — ApplicationDbContext.SaveChangesAsync
+                    // auto-sets it to DateTime.UtcNow for Added entities (BaseEntity intercept)
                 });
             }
         }
 
-        await context.SaveChangesAsync(ct);
+        // SaveChanges per page-batch — if it fails log the error and continue
+        // rather than losing the entire batch due to one bad record.
+        try
+        {
+            await context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "EMS CRM upsert SaveChanges failed for a batch of {Count} records. Inner: {Inner}",
+                customers.Count, ex.InnerException?.Message ?? ex.Message);
+            throw; // let SyncWithRetryAsync handle retries / Failed status
+        }
     }
 
     /// <summary>
