@@ -1,8 +1,11 @@
 using IonCrm.Application.Common.Interfaces;
+using IonCrm.Application.Common.Models.ExternalApis;
 using IonCrm.Domain.Entities;
 using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
 using IonCrm.Infrastructure.BackgroundServices;
+using IonCrm.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -38,6 +41,23 @@ public class SaasSyncJobTests
         _configMock.Object,
         _loggerMock.Object);
 
+    /// <summary>
+    /// Creates an in-memory ApplicationDbContext suitable for unit tests.
+    /// Uses a unique database name per call to ensure test isolation.
+    /// </summary>
+    private static ApplicationDbContext CreateInMemoryDbContext(string dbName)
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(dbName)
+            .Options;
+
+        var currentUserMock = new Mock<ICurrentUserService>();
+        currentUserMock.Setup(u => u.IsSuperAdmin).Returns(true);
+        currentUserMock.Setup(u => u.ProjectIds).Returns(new List<Guid>());
+
+        return new ApplicationDbContext(options, currentUserMock.Object);
+    }
+
     // ── Early-return when not configured ─────────────────────────────────────
 
     [Fact]
@@ -47,10 +67,13 @@ public class SaasSyncJobTests
         _configMock.Setup(c => c["SaasA:ProjectId"]).Returns((string?)null);
         _configMock.Setup(c => c["SaasB:ProjectId"]).Returns((string?)null);
 
+        // Empty in-memory DB — no projects → ResolveProjectAsync returns Guid.Empty → skip
+        SetupScopeFactory(CreateInMemoryDbContext("db_notconfigured_a"));
+
         // Act
         await CreateJob().RunAsync(CancellationToken.None);
 
-        // Assert — no API calls made; ScopeFactory not used
+        // Assert — no API calls made
         _saasAClientMock.Verify(
             c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never,
@@ -68,6 +91,9 @@ public class SaasSyncJobTests
         _configMock.Setup(c => c["SaasA:ProjectId"]).Returns("");
         _configMock.Setup(c => c["SaasB:ProjectId"]).Returns("");
 
+        // Empty in-memory DB — no projects with API keys → skip both
+        SetupScopeFactory(CreateInMemoryDbContext("db_emptyguid"));
+
         // Act
         await CreateJob().RunAsync(CancellationToken.None);
 
@@ -78,10 +104,6 @@ public class SaasSyncJobTests
         _saasBClientMock.Verify(
             c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        _scopeFactoryMock.Verify(
-            f => f.CreateScope(),
-            Times.Never,
-            "No DI scopes should be created when both ProjectIds are missing");
     }
 
     [Fact]
@@ -92,26 +114,37 @@ public class SaasSyncJobTests
         _configMock.Setup(c => c["SaasA:ProjectId"]).Returns(projectAId.ToString());
         _configMock.Setup(c => c["SaasB:ProjectId"]).Returns((string?)null);
 
-        // Set up project repository to return a project for SaaS A
-        _projectRepoMock
-            .Setup(r => r.GetByIdAsync(projectAId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Project { Id = projectAId, Name = "Test Project" });
+        // Seed in-memory DB with a project that has EmsApiKey but NOT RezervAlApiKey.
+        // → SaasA ResolveProjectAsync finds it (config lookup succeeds directly).
+        // → SaasB ResolveProjectAsync falls back to DB; project lacks RezervAlApiKey → skip.
+        var dbContext = CreateInMemoryDbContext("db_saasb_notconfigured");
+        dbContext.Projects.Add(new Project
+        {
+            Id = projectAId,
+            Name = "Test Project",
+            EmsApiKey = "test-ems-key"
+            // RezervAlApiKey intentionally omitted → SaasB skips
+        });
+        await dbContext.SaveChangesAsync();
 
-        // Set up scope factory to return a mock sync log repo (needed for SaaS A path)
-        SetupScopeFactory();
+        // Set up scope factory to return the seeded DB + mock sync log repo
+        SetupScopeFactory(dbContext);
 
+        // Empty API responses — focus is on which calls are made, not the data
+        _saasAClientMock
+            .Setup(c => c.GetCrmCustomersPageAsync(
+                It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>(),
+                It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EmsCrmCustomersResponse(new List<EmsCrmCustomer>(), 0, 1, 20, 0));
         _saasAClientMock
             .Setup(c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Application.Common.Models.ExternalApis.SaasACustomersResponse(
-                new List<Application.Common.Models.ExternalApis.SaasACustomer>(), 0));
+            .ReturnsAsync(new SaasACustomersResponse(new List<SaasACustomer>(), 0));
         _saasAClientMock
             .Setup(c => c.GetSubscriptionsAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Application.Common.Models.ExternalApis.SaasASubscriptionsResponse(
-                new List<Application.Common.Models.ExternalApis.SaasASubscription>(), 0));
+            .ReturnsAsync(new SaasASubscriptionsResponse(new List<SaasASubscription>(), 0));
         _saasAClientMock
             .Setup(c => c.GetOrdersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Application.Common.Models.ExternalApis.SaasAOrdersResponse(
-                new List<Application.Common.Models.ExternalApis.SaasAOrder>(), 0));
+            .ReturnsAsync(new SaasAOrdersResponse(new List<SaasAOrder>(), 0));
 
         // Act
         await CreateJob().RunAsync(CancellationToken.None);
@@ -120,7 +153,7 @@ public class SaasSyncJobTests
         _saasBClientMock.Verify(
             c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never,
-            "SaaS B sync should be skipped when its ProjectId is not configured");
+            "SaaS B sync should be skipped when its ProjectId is not configured and no project has RezervAlApiKey");
     }
 
     // ── SyncLog retry count entity behaviour ─────────────────────────────────
@@ -244,10 +277,11 @@ public class SaasSyncJobTests
     // ── Helper ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Sets up the IServiceScopeFactory mock chain so that SaasSyncJob can
-    /// resolve ISyncLogRepository from a created scope.
+    /// Sets up the IServiceScopeFactory mock so that SaasSyncJob can resolve
+    /// both <see cref="ApplicationDbContext"/> and <see cref="ISyncLogRepository"/>
+    /// from any created scope. All scopes share the same in-memory DbContext instance.
     /// </summary>
-    private void SetupScopeFactory()
+    private void SetupScopeFactory(ApplicationDbContext dbContext)
     {
         var mockSyncLogRepo = new Mock<ISyncLogRepository>();
         mockSyncLogRepo
@@ -261,6 +295,9 @@ public class SaasSyncJobTests
         mockServiceProvider
             .Setup(p => p.GetService(typeof(ISyncLogRepository)))
             .Returns(mockSyncLogRepo.Object);
+        mockServiceProvider
+            .Setup(p => p.GetService(typeof(ApplicationDbContext)))
+            .Returns(dbContext);
 
         var mockScope = new Mock<IServiceScope>();
         mockScope.Setup(s => s.ServiceProvider).Returns(mockServiceProvider.Object);
