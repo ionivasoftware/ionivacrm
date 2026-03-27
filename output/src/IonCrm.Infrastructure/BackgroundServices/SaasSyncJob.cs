@@ -664,29 +664,48 @@ public sealed class SaasSyncJob
 
     /// <summary>
     /// Resolves the project ID for a sync source.
-    /// Falls back to DB lookup when the config key is missing or invalid,
-    /// using the first project that has the corresponding API key set.
+    /// Always queries the DB with <c>IgnoreQueryFilters()</c> because background jobs
+    /// run without an HTTP user context — the global tenant filter would otherwise
+    /// block all project rows (IsSuperAdmin=false, ProjectIds=[]).
+    /// Falls back to the first project with the matching API key when the config key is absent.
     /// </summary>
     private async Task<(Guid ProjectId, Project? Project)> ResolveProjectAsync(
         string configKey,
         Func<Project, bool> hasApiKey,
         CancellationToken ct)
     {
+        // All project queries use a fresh scope + IgnoreQueryFilters to bypass the
+        // tenant filter that blocks results when there is no active HTTP user context.
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
         var projectId = GetProjectId(configKey);
 
         if (projectId != Guid.Empty)
         {
-            var project = await _projectRepository.GetByIdAsync(projectId, ct);
+            var project = await context.Projects
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(p => !p.IsDeleted && p.Id == projectId, ct);
+
             if (project is not null)
+            {
+                _logger.LogDebug(
+                    "Resolved project {ProjectId} ({Name}) via config key '{Key}'.",
+                    project.Id, project.Name, configKey);
                 return (projectId, project);
+            }
 
             _logger.LogWarning(
                 "Project {ProjectId} from config key '{Key}' not found in DB. Searching for fallback.",
                 projectId, configKey);
         }
 
-        // Config key missing or project not found — search all projects for one with this API key
-        var allProjects = await _projectRepository.GetAllAsync(ct);
+        // Config key missing or project not found — pick first project with this API key
+        var allProjects = await context.Projects
+            .IgnoreQueryFilters()
+            .Where(p => !p.IsDeleted)
+            .ToListAsync(ct);
+
         var fallback = allProjects.FirstOrDefault(hasApiKey) ?? allProjects.FirstOrDefault();
 
         if (fallback is null)
