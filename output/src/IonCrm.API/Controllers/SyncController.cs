@@ -8,6 +8,7 @@ using IonCrm.Domain.Enums;
 using IonCrm.Infrastructure.BackgroundServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 namespace IonCrm.API.Controllers;
@@ -197,9 +198,22 @@ public sealed class SyncController : ApiControllerBase
         // Hangfire disabled — run directly in a background thread
         _ = Task.Run(async () =>
         {
-            using var scope = _scopeFactory.CreateScope();
-            var job = scope.ServiceProvider.GetRequiredService<SaasSyncJob>();
-            await job.RunAsync(CancellationToken.None);
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var logger = scope.ServiceProvider.GetRequiredService<ILogger<SyncController>>();
+                var job    = scope.ServiceProvider.GetRequiredService<SaasSyncJob>();
+                logger.LogInformation("Manual sync trigger: starting background job.");
+                await job.RunAsync(CancellationToken.None);
+                logger.LogInformation("Manual sync trigger: background job completed.");
+            }
+            catch (Exception ex)
+            {
+                // Log via a fresh scope since the original scope may be disposed
+                using var errScope = _scopeFactory.CreateScope();
+                var logger = errScope.ServiceProvider.GetRequiredService<ILogger<SyncController>>();
+                logger.LogError(ex, "Manual sync trigger: background job failed with unhandled exception.");
+            }
         });
 
         return OkResponse(new { JobId = (string?)null, Mode = "direct" },

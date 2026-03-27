@@ -98,22 +98,27 @@ public sealed class SaasSyncJob
     /// </summary>
     private async Task SyncEmsCrmCustomersAsync(CancellationToken ct)
     {
-        var projectId = GetProjectId("SaasA:ProjectId");
+        var (projectId, project) = await ResolveProjectAsync(
+            "SaasA:ProjectId", p => !string.IsNullOrEmpty(p.EmsApiKey), ct);
+
         if (projectId == Guid.Empty)
         {
-            _logger.LogWarning("SaaS A ProjectId not configured. Skipping EMS CRM sync.");
+            _logger.LogWarning("No project found for EMS CRM sync. Skipping.");
             return;
         }
 
-        var project = await _projectRepository.GetByIdAsync(projectId, ct);
         var emsApiKey = project?.EmsApiKey;
 
-        // Determine delta window: find the last successful sync time in SyncLogs
+        // Determine delta window: find the last successful sync time in SyncLogs.
+        // Use IgnoreQueryFilters() — background job has no HTTP user context, so the
+        // tenant query filter would block all rows otherwise.
         DateTime? updatedSince = null;
-        using (var scope = _scopeFactory.CreateScope())
+        try
         {
+            using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var lastSync = await context.Set<SyncLog>()
+            var lastSync = await context.SyncLogs
+                .IgnoreQueryFilters()
                 .Where(l => l.ProjectId == projectId
                          && l.Source == SyncSource.SaasA
                          && l.EntityType == "CrmCustomer"
@@ -125,16 +130,19 @@ public sealed class SaasSyncJob
 
             if (lastSync.HasValue && lastSync.Value > DateTime.UtcNow.AddHours(-24))
             {
-                // Delta: fetch only records updated since last sync minus 5-min buffer
                 updatedSince = lastSync.Value.AddMinutes(-5);
-                _logger.LogInformation(
-                    "EMS CRM delta sync: updatedSince={Since:u}", updatedSince);
+                _logger.LogInformation("EMS CRM delta sync: updatedSince={Since:u}", updatedSince);
             }
             else
             {
                 _logger.LogInformation(
                     "EMS CRM full sync: no recent successful sync found, fetching all records.");
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not determine last sync time — proceeding with full sync.");
         }
 
         await SyncWithRetryAsync(
@@ -273,14 +281,15 @@ public sealed class SaasSyncJob
 
     private async Task SyncSaasAAsync(CancellationToken ct)
     {
-        var projectId = GetProjectId("SaasA:ProjectId");
+        var (projectId, project) = await ResolveProjectAsync(
+            "SaasA:ProjectId", p => !string.IsNullOrEmpty(p.EmsApiKey), ct);
+
         if (projectId == Guid.Empty)
         {
-            _logger.LogWarning("SaaS A ProjectId is not configured. Skipping SaaS A sync.");
+            _logger.LogWarning("No project found for SaaS A (EMS) sync. Skipping.");
             return;
         }
 
-        var project = await _projectRepository.GetByIdAsync(projectId, ct);
         var emsApiKey = project?.EmsApiKey;
 
         _logger.LogInformation(
@@ -329,14 +338,15 @@ public sealed class SaasSyncJob
 
     private async Task SyncSaasBAsync(CancellationToken ct)
     {
-        var projectId = GetProjectId("SaasB:ProjectId");
+        var (projectId, project) = await ResolveProjectAsync(
+            "SaasB:ProjectId", p => !string.IsNullOrEmpty(p.RezervAlApiKey), ct);
+
         if (projectId == Guid.Empty)
         {
-            _logger.LogWarning("SaaS B ProjectId is not configured. Skipping SaaS B sync.");
+            _logger.LogWarning("No project found for SaaS B (Rezerval) sync. Skipping.");
             return;
         }
 
-        var project = await _projectRepository.GetByIdAsync(projectId, ct);
         var rezervAlApiKey = project?.RezervAlApiKey;
 
         _logger.LogInformation(
@@ -650,5 +660,46 @@ public sealed class SaasSyncJob
     {
         var value = _configuration[configKey];
         return Guid.TryParse(value, out var id) ? id : Guid.Empty;
+    }
+
+    /// <summary>
+    /// Resolves the project ID for a sync source.
+    /// Falls back to DB lookup when the config key is missing or invalid,
+    /// using the first project that has the corresponding API key set.
+    /// </summary>
+    private async Task<(Guid ProjectId, Project? Project)> ResolveProjectAsync(
+        string configKey,
+        Func<Project, bool> hasApiKey,
+        CancellationToken ct)
+    {
+        var projectId = GetProjectId(configKey);
+
+        if (projectId != Guid.Empty)
+        {
+            var project = await _projectRepository.GetByIdAsync(projectId, ct);
+            if (project is not null)
+                return (projectId, project);
+
+            _logger.LogWarning(
+                "Project {ProjectId} from config key '{Key}' not found in DB. Searching for fallback.",
+                projectId, configKey);
+        }
+
+        // Config key missing or project not found — search all projects for one with this API key
+        var allProjects = await _projectRepository.GetAllAsync(ct);
+        var fallback = allProjects.FirstOrDefault(hasApiKey) ?? allProjects.FirstOrDefault();
+
+        if (fallback is null)
+        {
+            _logger.LogWarning(
+                "No projects found in DB. Skipping sync for config key '{Key}'.", configKey);
+            return (Guid.Empty, null);
+        }
+
+        _logger.LogWarning(
+            "Config key '{Key}' not set or invalid. Using fallback project {ProjectId} ({Name}).",
+            configKey, fallback.Id, fallback.Name);
+
+        return (fallback.Id, fallback);
     }
 }
