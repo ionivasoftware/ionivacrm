@@ -109,6 +109,69 @@ export function useDisconnectParasut() {
   });
 }
 
+export interface SyncContactResponse {
+  customerId: string;
+  parasutContactId: string;
+  parasutContactName: string;
+  wasCreated: boolean;
+}
+
+export function useSyncContactToParasut() {
+  return useMutation({
+    mutationFn: async ({ projectId, customerId }: { projectId: string; customerId: string }) => {
+      const res = await apiClient.post<ApiResponse<SyncContactResponse>>('/parasut/contacts/sync', {
+        projectId,
+        customerId,
+      });
+      return res.data.data;
+    },
+  });
+}
+
+export interface InvoiceLine {
+  description?: string;
+  quantity: number;
+  unitPrice: number;
+  vatRate: number;
+  discountValue?: number;
+  discountType?: string;
+  unit?: string;
+}
+
+export interface CreateInvoiceRequest {
+  projectId: string;
+  parasutContactId?: string;
+  issueDate: string;
+  dueDate: string;
+  currency: string;
+  description?: string;
+  invoiceSeries?: string;
+  invoiceId?: number;
+  lines: InvoiceLine[];
+}
+
+export interface CreateInvoiceResponse {
+  parasutInvoiceId: string;
+  issueDate: string;
+  dueDate: string;
+  grossTotal: number;
+  netTotal: number;
+  currency: string;
+}
+
+export function useCreateParasutInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: CreateInvoiceRequest) => {
+      const res = await apiClient.post<ApiResponse<CreateInvoiceResponse>>('/parasut/invoices', data);
+      return res.data.data;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['parasutInvoices', vars.projectId] });
+    },
+  });
+}
+
 export function useParasutContacts(projectId: string | null, page = 1, enabled = false) {
   return useQuery({
     queryKey: ['parasutContacts', projectId, page],

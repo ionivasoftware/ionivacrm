@@ -11,9 +11,11 @@ import {
   FolderKanban,
   ChevronLeft,
   ChevronRight,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
+import { useCanAccessFinance } from '@/lib/roles';
 import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
@@ -28,6 +30,7 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   superAdminOnly?: boolean;
+  financeOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -35,6 +38,7 @@ const navItems: NavItem[] = [
   { label: 'Müşteriler', href: '/customers', icon: Users },
   { label: 'Pipeline', href: '/pipeline', icon: KanbanSquare },
   { label: 'Görevler', href: '/tasks', icon: CheckSquare },
+  { label: 'Faturalar', href: '/invoices', icon: FileText, financeOnly: true },
   { label: 'Raporlar', href: '/reports', icon: BarChart3 },
   { label: 'Ayarlar', href: '/settings', icon: Settings },
 ];
@@ -48,6 +52,11 @@ const adminNavItems: NavItem[] = [
 export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: SidebarProps) {
   const { user } = useAuthStore();
   const location = useLocation();
+  const canAccessFinance = useCanAccessFinance();
+
+  const filteredNavItems = navItems.filter(
+    (item) => !item.financeOnly || canAccessFinance
+  );
 
   const filteredAdminItems = adminNavItems.filter(
     (item) => !item.superAdminOnly || user?.isSuperAdmin
@@ -111,7 +120,7 @@ export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: Si
 
       {/* Nav Items */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
-        {navItems.map((item) => (
+        {filteredNavItems.map((item) => (
           <SidebarNavItem
             key={item.href}
             item={item}

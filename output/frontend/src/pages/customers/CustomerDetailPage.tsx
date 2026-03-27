@@ -73,6 +73,14 @@ import {
 } from '@/components/customers/AddContactHistoryDialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useCanAccessFinance } from '@/lib/roles';
+import { useAuthStore } from '@/stores/authStore';
+import {
+  useParasutStatus,
+  useSyncContactToParasut,
+  useCreateParasutInvoice,
+  type InvoiceLine,
+} from '@/api/parasut';
 import type {
   ContactType,
   TaskPriority,
@@ -182,9 +190,104 @@ const CONTACT_TYPE_TEXT: Record<ContactType, string> = {
   Visit: 'text-rose-400',
 };
 
+// ── Quick Invoice Form (inline in Cari tab) ───────────────────────────────────
+
+interface QuickInvoiceFormProps {
+  projectId: string;
+  contactId: string;
+  customerName: string;
+  onSuccess: () => void;
+  onError: () => void;
+  createInvoice: ReturnType<typeof useCreateParasutInvoice>;
+}
+
+function QuickInvoiceForm({ projectId, contactId, customerName, onSuccess, onError, createInvoice }: QuickInvoiceFormProps) {
+  const today = new Date().toISOString().split('T')[0];
+  const in30 = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+  const [description, setDescription] = useState('');
+  const [issueDate, setIssueDate] = useState(today);
+  const [dueDate, setDueDate] = useState(in30);
+  const [lines, setLines] = useState<InvoiceLine[]>([{ description: '', quantity: 1, unitPrice: 0, vatRate: 20, discountValue: 0, unit: 'Adet' }]);
+
+  const addLine = () => setLines(l => [...l, { description: '', quantity: 1, unitPrice: 0, vatRate: 20, discountValue: 0, unit: 'Adet' }]);
+  const removeLine = (i: number) => setLines(l => l.filter((_, idx) => idx !== i));
+  const updateLine = (i: number, field: keyof InvoiceLine, value: string | number) =>
+    setLines(l => l.map((ln, idx) => idx === i ? { ...ln, [field]: value } : ln));
+
+  const total = lines.reduce((s, l) => {
+    const base = (l.quantity || 0) * (l.unitPrice || 0) * (1 - (l.discountValue || 0) / 100);
+    return s + base * (1 + (l.vatRate || 0) / 100);
+  }, 0);
+
+  async function submit() {
+    try {
+      await createInvoice.mutateAsync({
+        projectId,
+        parasutContactId: contactId || undefined,
+        issueDate,
+        dueDate,
+        currency: 'TRL',
+        description: description || `${customerName} faturası`,
+        lines,
+      });
+      onSuccess();
+    } catch {
+      onError();
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Açıklama</Label>
+          <Input value={description} onChange={e => setDescription(e.target.value)} className="h-8 text-sm" placeholder={`${customerName} faturası`} />
+        </div>
+        <div className="space-y-1" />
+        <div className="space-y-1">
+          <Label className="text-xs">Fatura Tarihi</Label>
+          <Input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} className="h-8 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Vade Tarihi</Label>
+          <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="h-8 text-sm" />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">Kalemler</Label>
+          <Button type="button" variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={addLine}>
+            <Plus className="h-3 w-3" /> Ekle
+          </Button>
+        </div>
+        {lines.map((l, i) => (
+          <div key={i} className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 items-center">
+            <Input value={l.description ?? ''} onChange={e => updateLine(i, 'description', e.target.value)} className="h-8 text-xs" placeholder="Ürün/hizmet" />
+            <Input type="number" value={l.quantity} onChange={e => updateLine(i, 'quantity', Number(e.target.value))} className="h-8 text-xs" placeholder="Miktar" />
+            <Input type="number" value={l.unitPrice} onChange={e => updateLine(i, 'unitPrice', Number(e.target.value))} className="h-8 text-xs" placeholder="Fiyat" />
+            <Input type="number" value={l.vatRate} onChange={e => updateLine(i, 'vatRate', Number(e.target.value))} className="h-8 text-xs" placeholder="KDV%" />
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => removeLine(i)} disabled={lines.length === 1}>
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        ))}
+        <p className="text-xs text-right font-medium text-foreground pt-1">
+          Toplam: {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 2 }).format(total)}
+        </p>
+      </div>
+
+      <Button size="sm" className="gap-2 w-full" onClick={submit} disabled={createInvoice.isPending}>
+        {createInvoice.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        Paraşüt'e Gönder
+      </Button>
+    </div>
+  );
+}
+
 // ── Tab type ──────────────────────────────────────────────────────────────────
 
-type ActiveTab = 'timeline' | 'tasks' | 'opportunities';
+type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari';
 
 // ── Inline Schemas ────────────────────────────────────────────────────────────
 
@@ -534,6 +637,8 @@ export function CustomerDetailPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const customerId = id ?? '';
+  const { currentProjectId } = useAuthStore();
+  const canAccessFinance = useCanAccessFinance();
 
   // UI state
   const [activeTab, setActiveTab] = useState<ActiveTab>('timeline');
@@ -542,6 +647,13 @@ export function CustomerDetailPage() {
   const [addContactType, setAddContactType] = useState<ContactType>('Note');
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [showCreateOpportunity, setShowCreateOpportunity] = useState(false);
+
+  // Cari (Paraşüt) state
+  const [parasutContactId, setParasutContactId] = useState<string | null>(null);
+  const [showCariInvoiceForm, setShowCariInvoiceForm] = useState(false);
+  const parasutStatus = useParasutStatus(currentProjectId);
+  const syncContact = useSyncContactToParasut();
+  const createInvoice = useCreateParasutInvoice();
 
   // Queries
   const {
@@ -637,6 +749,7 @@ export function CustomerDetailPage() {
       label: 'Fırsatlar',
       count: oppsData?.totalCount,
     },
+    ...(canAccessFinance ? [{ id: 'cari' as ActiveTab, label: 'Cari / Fatura' }] : []),
   ];
 
   return (
@@ -1142,6 +1255,108 @@ export function CustomerDetailPage() {
                     </Card>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+          {/* ── Cari Tab ── */}
+          {activeTab === 'cari' && (
+            <div className="space-y-4">
+              {!parasutStatus.data?.isConnected && !parasutStatus.isLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <DollarSign className="h-8 w-8 text-muted-foreground/40" />
+                  </div>
+                  <p className="font-medium text-foreground mb-1">Paraşüt Bağlı Değil</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Fatura oluşturmak için önce Ayarlar'dan Paraşüt'e bağlanın.
+                  </p>
+                  <Button variant="outline" className="gap-2" onClick={() => navigate('/settings')}>
+                    Ayarlara Git
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {/* Paraşüt sync + status */}
+                  <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/20">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Paraşüt Cari Eşleşmesi</p>
+                      {parasutContactId ? (
+                        <p className="text-xs text-emerald-400 mt-0.5">
+                          Cari ID: <span className="font-mono">{parasutContactId}</span>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Müşteriyi Paraşüt'e göndererek cari ID alın.
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={syncContact.isPending || !currentProjectId}
+                      onClick={async () => {
+                        if (!currentProjectId) return;
+                        try {
+                          const res = await syncContact.mutateAsync({ projectId: currentProjectId, customerId });
+                          setParasutContactId(res.parasutContactId);
+                          toast({ title: 'Paraşüt\'e gönderildi', description: `Cari ID: ${res.parasutContactId}` });
+                        } catch {
+                          toast({ title: 'Hata', description: 'Cari gönderilemedi.', variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      {syncContact.isPending
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <Users className="h-3.5 w-3.5" />}
+                      {parasutContactId ? 'Güncelle' : 'Paraşüt\'e Gönder'}
+                    </Button>
+                  </div>
+
+                  {/* Quick invoice form */}
+                  {showCariInvoiceForm ? (
+                    <Card className="border-border/60">
+                      <CardContent className="p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium">Hızlı Fatura Oluştur</p>
+                          <Button variant="ghost" size="sm" onClick={() => setShowCariInvoiceForm(false)}>İptal</Button>
+                        </div>
+                        <QuickInvoiceForm
+                          projectId={currentProjectId!}
+                          contactId={parasutContactId ?? ''}
+                          customerName={customer?.companyName ?? ''}
+                          onSuccess={() => {
+                            setShowCariInvoiceForm(false);
+                            toast({ title: 'Fatura oluşturuldu', description: 'Paraşüt\'e gönderildi.' });
+                          }}
+                          onError={() => toast({ title: 'Hata', description: 'Fatura oluşturulamadı.', variant: 'destructive' })}
+                          createInvoice={createInvoice}
+                        />
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => setShowCariInvoiceForm(true)}
+                        disabled={!parasutStatus.data?.isConnected}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Fatura Oluştur
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 text-muted-foreground"
+                        onClick={() => navigate('/invoices')}
+                      >
+                        Tüm Faturalar →
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

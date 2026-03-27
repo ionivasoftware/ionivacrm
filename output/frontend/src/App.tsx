@@ -19,6 +19,7 @@ const UsersAdminPage    = lazy(() => import('@/pages/admin/UsersAdminPage').then
 const ProjectsAdminPage = lazy(() => import('@/pages/admin/ProjectsAdminPage').then(m => ({ default: m.ProjectsAdminPage })));
 const SettingsPage      = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const ReportsPage       = lazy(() => import('@/pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const InvoicesPage      = lazy(() => import('@/pages/InvoicesPage').then(m => ({ default: m.InvoicesPage })));
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 function PageLoader() {
@@ -89,6 +90,7 @@ export default function App() {
               <Route path="/pipeline" element={<PipelinePage />} />
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/invoices" element={<InvoicesPage />} />
               <Route path="/settings" element={<SettingsPage />} />
 
               {/* SuperAdmin-only routes */}
