@@ -239,3 +239,21 @@ export function useParasutInvoices(projectId: string | null, page = 1, enabled =
     enabled: !!projectId && enabled,
   });
 }
+
+export function useParasutContactInvoices(
+  projectId: string | null,
+  parasutContactId: string | null | undefined,
+  page = 1
+) {
+  return useQuery({
+    queryKey: ['parasutContactInvoices', projectId, parasutContactId, page],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<ParasutInvoicesDto>>(
+        `/parasut/contacts/${encodeURIComponent(parasutContactId!)}/invoices?projectId=${projectId}&page=${page}&pageSize=10`
+      );
+      return res.data.data;
+    },
+    enabled: !!projectId && !!parasutContactId,
+    staleTime: 60_000,
+  });
+}

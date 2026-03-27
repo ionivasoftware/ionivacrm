@@ -4,6 +4,7 @@ using IonCrm.Application.Features.Parasut.Commands.CreateSalesInvoice;
 using IonCrm.Application.Features.Parasut.Commands.DisconnectParasut;
 using IonCrm.Application.Features.Parasut.Commands.LinkParasutContact;
 using IonCrm.Application.Features.Parasut.Commands.SyncContactToParasut;
+using IonCrm.Application.Features.Parasut.Queries.GetParasutContactInvoices;
 using IonCrm.Application.Features.Parasut.Queries.GetParasutContacts;
 using IonCrm.Application.Features.Parasut.Queries.GetParasutInvoices;
 using IonCrm.Application.Features.Parasut.Queries.GetParasutStatus;
@@ -157,5 +158,25 @@ public class ParasutController : ControllerBase
         if (result.IsFailure)
             return BadRequest(ApiResponse<object>.Fail(result.Errors));
         return Ok(ApiResponse<CreateParasutSalesInvoiceDto>.Ok(result.Value!));
+    }
+
+    // ── Contact Invoices (Cari Hareketleri) ──────────────────────────────────
+
+    /// <summary>
+    /// GET /api/v1/parasut/contacts/{parasutContactId}/invoices
+    /// Returns paginated sales invoices for a specific Paraşüt contact (cari hareketleri).
+    /// </summary>
+    [HttpGet("contacts/{parasutContactId}/invoices")]
+    public async Task<IActionResult> GetContactInvoices(
+        string parasutContactId,
+        [FromQuery] Guid projectId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25)
+    {
+        var result = await _mediator.Send(
+            new GetParasutContactInvoicesQuery(projectId, parasutContactId, page, pageSize));
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<object>.Fail(result.Errors));
+        return Ok(ApiResponse<GetParasutInvoicesDto>.Ok(result.Value!));
     }
 }

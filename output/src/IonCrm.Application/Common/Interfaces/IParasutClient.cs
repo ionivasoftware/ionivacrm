@@ -111,4 +111,15 @@ public interface IParasutClient
         string accessToken,
         long companyId,
         CancellationToken cancellationToken = default);
+
+    // ── Contact Invoices (Cari Hareketleri) ───────────────────────────────────
+
+    /// <summary>Returns a paginated list of sales invoices filtered by a specific contact (cari).</summary>
+    Task<JsonApiListResponse<ParasutSalesInvoiceAttributes>> GetContactInvoicesAsync(
+        string accessToken,
+        long companyId,
+        string contactId,
+        int page = 1,
+        int pageSize = 25,
+        CancellationToken cancellationToken = default);
 }

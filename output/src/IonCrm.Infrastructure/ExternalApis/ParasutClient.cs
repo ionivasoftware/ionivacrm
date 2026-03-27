@@ -271,6 +271,20 @@ public sealed class ParasutClient : IParasutClient
         return await GetListAsync<ParasutAccountAttributes>(accessToken, url, cancellationToken);
     }
 
+    // ── Contact Invoices ──────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<JsonApiListResponse<ParasutSalesInvoiceAttributes>> GetContactInvoicesAsync(
+        string accessToken, long companyId, string contactId,
+        int page = 1, int pageSize = 25,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Paraşüt: fetching invoices for contact {ContactId}. Company={CompanyId}", contactId, companyId);
+        var url = $"v4/{companyId}/sales_invoices?filter[contact_id]={Uri.EscapeDataString(contactId)}&page[size]={pageSize}&page[number]={page}&sort=-issue_date";
+
+        return await GetListAsync<ParasutSalesInvoiceAttributes>(accessToken, url, cancellationToken);
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private async Task<JsonApiListResponse<T>> GetListAsync<T>(

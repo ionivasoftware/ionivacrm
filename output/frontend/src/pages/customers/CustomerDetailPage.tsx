@@ -83,6 +83,7 @@ import {
   useCreateParasutInvoice,
   useLinkParasutContact,
   useParasutContacts,
+  useParasutContactInvoices,
   type InvoiceLine,
 } from '@/api/parasut';
 import type {
@@ -775,6 +776,7 @@ export function CustomerDetailPage() {
   const [linkSearch, setLinkSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [linkPage, setLinkPage] = useState(1);
+  const [cariHareketPage, setCariHareketPage] = useState(1);
   const parasutStatus = useParasutStatus(currentProjectId);
   const syncContact = useSyncContactToParasut();
   const linkContact = useLinkParasutContact();
@@ -801,6 +803,13 @@ export function CustomerDetailPage() {
   const { data: tasksData, isLoading: tasksLoading } = useCustomerTasks(customerId);
   const { data: oppsData, isLoading: oppsLoading } = useCustomerOpportunities(customerId);
   const deleteMutation = useDeleteCustomer();
+
+  // Cari hareketleri — enabled only when customer has a linked Paraşüt contact
+  const cariHareketlerQuery = useParasutContactInvoices(
+    currentProjectId,
+    customer?.parasutContactId,
+    cariHareketPage
+  );
 
   function openAddContact(type: ContactType) {
     setAddContactType(type);
@@ -1511,6 +1520,113 @@ export function CustomerDetailPage() {
                       >
                         Tüm Faturalar →
                       </Button>
+                    </div>
+                  )}
+
+                  {/* Cari hareketleri — yalnızca eşleşme varsa göster */}
+                  {customer?.parasutContactId && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-foreground">Cari Hareketleri</p>
+                        {cariHareketlerQuery.data && (
+                          <p className="text-xs text-muted-foreground">
+                            Toplam {cariHareketlerQuery.data.totalCount} hareket
+                          </p>
+                        )}
+                      </div>
+
+                      {cariHareketlerQuery.isLoading && (
+                        <div className="space-y-2">
+                          {Array.from({ length: 3 }).map((_, i) => (
+                            <Skeleton key={i} className="h-14 w-full rounded-lg" />
+                          ))}
+                        </div>
+                      )}
+
+                      {cariHareketlerQuery.isError && (
+                        <div className="flex items-center gap-2 p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm text-destructive">
+                          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                          Cari hareketleri yüklenemedi.
+                        </div>
+                      )}
+
+                      {!cariHareketlerQuery.isLoading && cariHareketlerQuery.data?.items.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-6">
+                          Bu cari için henüz fatura hareketi yok.
+                        </p>
+                      )}
+
+                      {!cariHareketlerQuery.isLoading && (cariHareketlerQuery.data?.items ?? []).length > 0 && (
+                        <div className="rounded-lg border border-border overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-border bg-muted/40">
+                                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Tarih</th>
+                                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground hidden sm:table-cell">Açıklama</th>
+                                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Tutar</th>
+                                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground hidden sm:table-cell">Ödenen</th>
+                                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Kalan</th>
+                                <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground hidden md:table-cell">Durum</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                              {(cariHareketlerQuery.data?.items ?? []).map((inv) => {
+                                const isPaid = inv.remaining <= 0;
+                                const isOverdue = !isPaid && inv.dueDate && new Date(inv.dueDate) < new Date();
+                                return (
+                                  <tr key={inv.id} className="hover:bg-muted/20 transition-colors">
+                                    <td className="px-3 py-2.5 whitespace-nowrap text-foreground">
+                                      {new Date(inv.issueDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-muted-foreground max-w-[180px] truncate hidden sm:table-cell">
+                                      {inv.description ?? '—'}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right font-medium text-foreground whitespace-nowrap">
+                                      {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: inv.currency === 'TRL' ? 'TRY' : (inv.currency || 'TRY'), minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(inv.grossTotal)}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right text-emerald-400 whitespace-nowrap hidden sm:table-cell">
+                                      {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: inv.currency === 'TRL' ? 'TRY' : (inv.currency || 'TRY'), minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(inv.totalPaid)}
+                                    </td>
+                                    <td className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${isOverdue ? 'text-red-400' : isPaid ? 'text-muted-foreground' : 'text-amber-400'}`}>
+                                      {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: inv.currency === 'TRL' ? 'TRY' : (inv.currency || 'TRY'), minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(inv.remaining)}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center hidden md:table-cell">
+                                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${isPaid ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : isOverdue ? 'bg-red-500/15 text-red-400 border-red-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'}`}>
+                                        {isPaid ? 'Ödendi' : isOverdue ? 'Vadesi Geçti' : 'Açık'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Sayfalama */}
+                      {(cariHareketlerQuery.data?.totalPages ?? 0) > 1 && (
+                        <div className="flex items-center justify-between pt-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCariHareketPage(p => Math.max(1, p - 1))}
+                            disabled={cariHareketPage <= 1 || cariHareketlerQuery.isFetching}
+                          >
+                            ‹ Önceki
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            {cariHareketPage} / {cariHareketlerQuery.data?.totalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCariHareketPage(p => p + 1)}
+                            disabled={cariHareketPage >= (cariHareketlerQuery.data?.totalPages ?? 1) || cariHareketlerQuery.isFetching}
+                          >
+                            Sonraki ›
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
