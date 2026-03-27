@@ -187,6 +187,13 @@ app.Lifetime.ApplicationStarted.Register(() =>
                     END IF;
                 END$$;
             ");
+            // Set Status = Lead (1) for all customers with no ExpirationDate.
+            await db.Database.ExecuteSqlRawAsync(@"
+                UPDATE ""Customers""
+                SET ""Status"" = 1
+                WHERE ""ExpirationDate"" IS NULL
+                  AND ""IsDeleted"" = false;
+            ");
             Log.Information("Column existence check complete");
         }
         catch (Exception ex)
