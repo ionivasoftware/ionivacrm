@@ -64,6 +64,10 @@ public static class DependencyInjection
         services.AddScoped<ITokenService, TokenService>();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
 
+        // ── Paraşüt ───────────────────────────────────────────────────────────
+        services.AddScoped<IParasutConnectionRepository, ParasutConnectionRepository>();
+        RegisterParasutClient(services);
+
         // ── External API Clients (Typed HttpClients) ──────────────────────────
         RegisterSaasAClient(services, configuration);
         RegisterSaasBClient(services, configuration);
@@ -125,6 +129,20 @@ public static class DependencyInjection
             .CircuitBreakerAsync(
                 handledEventsAllowedBeforeBreaking: 5,
                 durationOfBreak: TimeSpan.FromSeconds(30));
+
+    private static void RegisterParasutClient(IServiceCollection services)
+    {
+        // ParasutClient manages its own base URL per-call (token endpoint vs company endpoints)
+        // so we register it with a plain HttpClient and no fixed base address.
+        services
+            .AddHttpClient<IParasutClient, ParasutClient>(client =>
+            {
+                client.BaseAddress = new Uri("https://api.parasut.com/");
+                client.DefaultRequestHeaders.Add("Accept", "application/json");
+                client.Timeout = TimeSpan.FromSeconds(60);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
+    }
 
     private static void RegisterSaasAClient(
         IServiceCollection services,

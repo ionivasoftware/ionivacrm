@@ -33,14 +33,30 @@ public class UserRepository : GenericRepository<User>, IUserRepository
         if (id == Guid.Empty)
             return null;
 
-        // Do NOT use ThenInclude(upr => upr.Project) here.
-        // Project has a global query filter (ProjectIds.Contains) that returns nothing during
-        // login (no JWT yet). Because Project is a non-nullable nav prop, EF Core uses an
-        // INNER JOIN, which eliminates the UserProjectRole row when Project is filtered out.
-        // We only need ProjectId (FK) and Role for JWT generation — ProjectName is not needed.
-        return await DbSet
+        // ThenInclude(Project) cannot be used here: Project is non-nullable so EF Core
+        // generates an INNER JOIN. The Project global filter (ProjectIds.Contains) returns
+        // nothing during login (no JWT yet), making the join eliminate all role rows.
+        // Solution: load roles without the join, then fetch project names separately
+        // using IgnoreQueryFilters() so the soft-delete-only filter applies.
+        var user = await DbSet
+            .AsNoTracking()
             .Include(u => u.UserProjectRoles.Where(upr => !upr.IsDeleted))
             .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+
+        if (user is null || user.UserProjectRoles.Count == 0)
+            return user;
+
+        var projectIds = user.UserProjectRoles.Select(r => r.ProjectId).ToList();
+        var projects = await Context.Projects
+            .IgnoreQueryFilters()
+            .Where(p => projectIds.Contains(p.Id) && !p.IsDeleted)
+            .AsNoTracking()
+            .ToDictionaryAsync(p => p.Id, cancellationToken);
+
+        foreach (var role in user.UserProjectRoles)
+            role.Project = projects.GetValueOrDefault(role.ProjectId)!;
+
+        return user;
     }
 
     /// <inheritdoc />

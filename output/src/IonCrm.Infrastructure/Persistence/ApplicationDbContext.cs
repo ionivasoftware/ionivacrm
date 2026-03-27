@@ -50,6 +50,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Gets or sets the SyncLogs table.</summary>
     public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
 
+    /// <summary>Gets or sets the ParasutConnections table (per-project Paraşüt OAuth credentials).</summary>
+    public DbSet<ParasutConnection> ParasutConnections => Set<ParasutConnection>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -104,6 +107,11 @@ public class ApplicationDbContext : DbContext
             .HasQueryFilter(e => !e.IsDeleted &&
                 (_currentUser.IsSuperAdmin ||
                  _currentUser.ProjectIds.Contains(e.ProjectId)));
+
+        // ParasutConnection: soft-delete only — tenant filter applied at repository level
+        // (ProjectAdmin can manage their own project's connection without a ProjectId JWT filter)
+        modelBuilder.Entity<ParasutConnection>()
+            .HasQueryFilter(e => !e.IsDeleted);
     }
 
     // ── Audit intercept ───────────────────────────────────────────────────────
