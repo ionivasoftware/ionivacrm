@@ -29,4 +29,7 @@ public interface ICustomerRepository : IRepository<Customer>
     Task<Customer?> GetByLegacyIdAsync(
         string legacyId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Updates only the ParasutContactId column via targeted SQL — avoids full entity update.</summary>
+    Task SetParasutContactIdAsync(Guid customerId, string? parasutContactId, CancellationToken cancellationToken = default);
 }

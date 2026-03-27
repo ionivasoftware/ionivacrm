@@ -90,11 +90,19 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
         string legacyId,
         CancellationToken cancellationToken = default)
     {
-        // IgnoreQueryFilters bypasses the tenant + soft-delete global filter.
-        // We explicitly filter IsDeleted = false for safety.
         return await DbSet
             .IgnoreQueryFilters()
             .Where(c => !c.IsDeleted && c.LegacyId == legacyId)
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task SetParasutContactIdAsync(
+        Guid customerId, string? parasutContactId,
+        CancellationToken cancellationToken = default)
+    {
+        await Context.Database.ExecuteSqlRawAsync(
+            @"UPDATE ""Customers"" SET ""ParasutContactId"" = {0}, ""UpdatedAt"" = {1} WHERE ""Id"" = {2}",
+            (object?)parasutContactId ?? DBNull.Value, DateTime.UtcNow, customerId);
     }
 }

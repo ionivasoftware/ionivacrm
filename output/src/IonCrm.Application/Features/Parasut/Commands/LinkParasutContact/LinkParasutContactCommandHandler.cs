@@ -24,14 +24,11 @@ public sealed class LinkParasutContactCommandHandler
         LinkParasutContactCommand request,
         CancellationToken cancellationToken)
     {
-        var customer = await _customerRepository.GetByIdAsync(request.CustomerId, cancellationToken);
-        if (customer is null)
-            return Result<LinkParasutContactDto>.Failure("Müşteri bulunamadı.");
-
         try
         {
-            customer.ParasutContactId = request.ParasutContactId;
-            await _customerRepository.UpdateAsync(customer, cancellationToken);
+            // Targeted SQL update — bypasses EF full-entity update and any column tracking issues
+            await _customerRepository.SetParasutContactIdAsync(
+                request.CustomerId, request.ParasutContactId, cancellationToken);
 
             _logger.LogInformation(
                 "Linked customer {CustomerId} to Paraşüt contact {ParasutId}.",

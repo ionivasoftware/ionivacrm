@@ -74,9 +74,8 @@ public sealed class SyncContactToParasutCommandHandler
             var parasutId   = result.Data.Id ?? string.Empty;
             var parasutName = result.Data.Attributes.Name;
 
-            // Persist the Paraşüt contact ID on the customer
-            customer.ParasutContactId = parasutId;
-            await _customerRepository.UpdateAsync(customer, cancellationToken);
+            // Persist the Paraşüt contact ID via targeted SQL
+            await _customerRepository.SetParasutContactIdAsync(request.CustomerId, parasutId, cancellationToken);
 
             _logger.LogInformation(
                 "Synced customer {CustomerId} to Paraşüt contact {ParasutId}.",
