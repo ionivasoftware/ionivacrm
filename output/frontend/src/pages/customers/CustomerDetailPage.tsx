@@ -25,6 +25,7 @@ import {
   StickyNote,
   MessageCircle,
   Trash2,
+  CalendarClock,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,7 @@ import {
   useCreateTask,
   useCreateOpportunity,
   useDeleteCustomer,
+  useExtendEmsExpiration,
 } from '@/api/customers';
 import { CustomerStatusBadge, CustomerLabelBadge } from '@/components/customers/CustomerStatusBadge';
 import { CustomerFormDialog } from '@/components/customers/CustomerForm';
@@ -632,6 +634,123 @@ function TaskRow({ task }: TaskRowProps) {
   );
 }
 
+// ── Extend EMS Expiration Dialog ──────────────────────────────────────────────
+
+const DURATION_OPTIONS = [
+  { label: '30 Gün',  durationType: 'Days',   amount: 30 },
+  { label: '1 Ay',    durationType: 'Months',  amount: 1  },
+  { label: '1 Yıl',   durationType: 'Years',   amount: 1  },
+] as const;
+
+interface ExtendExpirationDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  companyName: string;
+  currentExpiry: string | null;
+  extendExpiration: ReturnType<typeof useExtendEmsExpiration>;
+}
+
+function ExtendExpirationDialog({
+  open,
+  onOpenChange,
+  companyName,
+  currentExpiry,
+  extendExpiration,
+}: ExtendExpirationDialogProps) {
+  const { toast } = useToast();
+  const [selected, setSelected] = useState<(typeof DURATION_OPTIONS)[number] | null>(null);
+
+  async function handleConfirm() {
+    if (!selected) return;
+    try {
+      const result = await extendExpiration.mutateAsync({
+        durationType: selected.durationType,
+        amount: selected.amount,
+      });
+      const newDate = new Date(result.newExpirationDate).toLocaleDateString('tr-TR', {
+        day: 'numeric', month: 'long', year: 'numeric',
+      });
+      const invoiceMsg = result.parasutInvoiceCreated
+        ? " Paraşüt'te taslak fatura oluşturuldu."
+        : '';
+      toast({
+        title: 'Süre uzatıldı',
+        description: `Yeni bitiş tarihi: ${newDate}.${invoiceMsg}`,
+      });
+      onOpenChange(false);
+      setSelected(null);
+    } catch {
+      toast({ title: 'Hata', description: 'Süre uzatılamadı.', variant: 'destructive' });
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => { onOpenChange(v); if (!v) setSelected(null); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarClock className="h-5 w-5 text-amber-400" />
+            EMS Süre Uzat
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{companyName}</span> firmasının EMS
+            abonelik süresini uzatın.
+          </p>
+          {currentExpiry && (
+            <p className="text-xs text-muted-foreground">
+              Mevcut bitiş:{' '}
+              <span className="font-medium text-foreground">
+                {new Date(currentExpiry).toLocaleDateString('tr-TR', {
+                  day: 'numeric', month: 'long', year: 'numeric',
+                })}
+              </span>
+            </p>
+          )}
+          <div className="grid grid-cols-3 gap-2">
+            {DURATION_OPTIONS.map(opt => (
+              <button
+                key={opt.label}
+                onClick={() => setSelected(opt)}
+                className={cn(
+                  'rounded-lg border px-3 py-4 text-sm font-medium transition-colors text-center',
+                  selected?.label === opt.label
+                    ? 'border-amber-500 bg-amber-500/15 text-amber-400'
+                    : 'border-border text-muted-foreground hover:border-amber-500/50 hover:text-foreground'
+                )}
+              >
+                {opt.label}
+                {opt.durationType !== 'Days' && (
+                  <span className="block text-[10px] mt-1 opacity-60">
+                    Paraşüt fatura
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => { onOpenChange(false); setSelected(null); }}>
+            İptal
+          </Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={!selected || extendExpiration.isPending}
+            className="bg-amber-500 hover:bg-amber-600 text-white"
+          >
+            {extendExpiration.isPending ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Uzatılıyor...</>
+            ) : (
+              <><CalendarClock className="h-4 w-4 mr-1.5" />Uzat</>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function CustomerDetailPage() {
@@ -661,6 +780,10 @@ export function CustomerDetailPage() {
   const linkContact = useLinkParasutContact();
   const createInvoice = useCreateParasutInvoice();
   const parasutContactsQuery = useParasutContacts(currentProjectId, linkPage, showLinkDialog, debouncedSearch);
+
+  // EMS extend expiration state
+  const [showExtendDialog, setShowExtendDialog] = useState(false);
+  const extendExpiration = useExtendEmsExpiration(id ?? '');
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(linkSearch); setLinkPage(1); }, 400);
@@ -805,6 +928,17 @@ export function CustomerDetailPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {/* EMS-only: extend expiration */}
+          {customer?.legacyId && !customer.legacyId.startsWith('PC-') && (
+            <Button
+              variant="outline"
+              className="gap-2 h-10 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+              onClick={() => setShowExtendDialog(true)}
+            >
+              <CalendarClock className="h-4 w-4" />
+              Süre Uzat
+            </Button>
+          )}
           <Button onClick={() => setShowEditDialog(true)} className="gap-2 h-10">
             <Edit className="h-4 w-4" />
             Düzenle
@@ -1387,6 +1521,16 @@ export function CustomerDetailPage() {
       </div>
 
       {/* ── Dialogs ── */}
+
+      {/* Extend EMS Expiration Dialog */}
+      <ExtendExpirationDialog
+        open={showExtendDialog}
+        onOpenChange={setShowExtendDialog}
+        companyName={customer?.companyName ?? ''}
+        currentExpiry={customer?.expirationDate ?? null}
+        extendExpiration={extendExpiration}
+      />
+
       <CustomerFormDialog
         isOpen={showEditDialog}
         onClose={() => setShowEditDialog(false)}

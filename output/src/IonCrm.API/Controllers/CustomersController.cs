@@ -1,6 +1,7 @@
 using IonCrm.Application.Customers.Commands.ConvertLeadToCustomer;
 using IonCrm.Application.Customers.Commands.CreateCustomer;
 using IonCrm.Application.Customers.Commands.DeleteCustomer;
+using IonCrm.Application.Customers.Commands.ExtendEmsExpiration;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
 using IonCrm.Application.Customers.Queries.GetCustomerWithDetails;
@@ -108,4 +109,22 @@ public class CustomersController : ApiControllerBase
         var result = await Mediator.Send(new ConvertLeadToCustomerCommand(id), cancellationToken);
         return ResultToResponse(result);
     }
+
+    /// <summary>
+    /// Extends the EMS expiration date for an EMS-sourced customer.
+    /// Also creates a Paraşüt draft invoice when durationType is "Months" or "Years" (amount=1).
+    /// </summary>
+    [HttpPost("{id:guid}/extend-expiration")]
+    public async Task<IActionResult> ExtendEmsExpiration(
+        Guid id,
+        [FromBody] ExtendEmsExpirationRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        var command = new ExtendEmsExpirationCommand(id, body.DurationType, body.Amount);
+        var result = await Mediator.Send(command, cancellationToken);
+        return ResultToResponse(result);
+    }
 }
+
+/// <summary>Request body for POST /api/v1/customers/{id}/extend-expiration.</summary>
+public record ExtendEmsExpirationRequest(string DurationType, int Amount);

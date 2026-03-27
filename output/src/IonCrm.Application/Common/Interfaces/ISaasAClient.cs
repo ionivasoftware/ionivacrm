@@ -35,4 +35,15 @@ public interface ISaasAClient
     /// Called instantly when: subscription extended, status changed, etc.
     /// </summary>
     Task NotifyCallbackAsync(SaasACallbackPayload payload, string? apiKey = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Extends a company's expiration date via the EMS CRM API.
+    /// POST /api/v1/crm/companies/{emsCompanyId}/extend-expiration
+    /// </summary>
+    Task<EmsExtendExpirationResponse> ExtendExpirationAsync(
+        string? apiKey,
+        int emsCompanyId,
+        string durationType,
+        int amount,
+        CancellationToken cancellationToken = default);
 }

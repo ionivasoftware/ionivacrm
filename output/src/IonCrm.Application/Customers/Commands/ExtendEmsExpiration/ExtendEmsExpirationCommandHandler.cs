@@ -1,0 +1,222 @@
+using IonCrm.Application.Common.Interfaces;
+using IonCrm.Application.Common.Models;
+using IonCrm.Application.Common.Models.ExternalApis;
+using IonCrm.Application.Features.Parasut;
+using IonCrm.Domain.Interfaces;
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace IonCrm.Application.Customers.Commands.ExtendEmsExpiration;
+
+/// <summary>Handles <see cref="ExtendEmsExpirationCommand"/>.</summary>
+public sealed class ExtendEmsExpirationCommandHandler
+    : IRequestHandler<ExtendEmsExpirationCommand, Result<ExtendEmsExpirationDto>>
+{
+    private readonly ICustomerRepository _customerRepository;
+    private readonly IProjectRepository _projectRepository;
+    private readonly ISaasAClient _saasAClient;
+    private readonly IParasutClient _parasutClient;
+    private readonly IParasutConnectionRepository _connectionRepository;
+    private readonly ICurrentUserService _currentUser;
+    private readonly ILogger<ExtendEmsExpirationCommandHandler> _logger;
+
+    /// <summary>Initialises a new instance of <see cref="ExtendEmsExpirationCommandHandler"/>.</summary>
+    public ExtendEmsExpirationCommandHandler(
+        ICustomerRepository customerRepository,
+        IProjectRepository projectRepository,
+        ISaasAClient saasAClient,
+        IParasutClient parasutClient,
+        IParasutConnectionRepository connectionRepository,
+        ICurrentUserService currentUser,
+        ILogger<ExtendEmsExpirationCommandHandler> logger)
+    {
+        _customerRepository = customerRepository;
+        _projectRepository  = projectRepository;
+        _saasAClient        = saasAClient;
+        _parasutClient      = parasutClient;
+        _connectionRepository = connectionRepository;
+        _currentUser        = currentUser;
+        _logger             = logger;
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<ExtendEmsExpirationDto>> Handle(
+        ExtendEmsExpirationCommand request,
+        CancellationToken cancellationToken)
+    {
+        // 1. Load customer
+        var customer = await _customerRepository.GetByIdAsync(request.CustomerId, cancellationToken);
+        if (customer is null)
+            return Result<ExtendEmsExpirationDto>.Failure("Müşteri bulunamadı.");
+
+        if (!_currentUser.IsSuperAdmin && !_currentUser.ProjectIds.Contains(customer.ProjectId))
+            return Result<ExtendEmsExpirationDto>.Failure("Bu müşteriye erişim yetkiniz yok.");
+
+        // 2. Verify this is an EMS customer (LegacyId is numeric — EMS company ID)
+        if (string.IsNullOrEmpty(customer.LegacyId)
+            || customer.LegacyId.StartsWith("PC-", StringComparison.OrdinalIgnoreCase)
+            || !int.TryParse(customer.LegacyId, out var emsCompanyId))
+        {
+            return Result<ExtendEmsExpirationDto>.Failure(
+                "Bu müşteri EMS'ten gelmemiş. Süre uzatma yalnızca EMS kaynaklı müşteriler için geçerlidir.");
+        }
+
+        // 3. Get project + EMS API key (null → SaasAClient falls back to DI-configured key)
+        var project = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
+        var emsApiKey = project?.EmsApiKey;
+
+        // 4. Call EMS API to extend expiration
+        EmsExtendExpirationResponse emsResponse;
+        try
+        {
+            emsResponse = await _saasAClient.ExtendExpirationAsync(
+                emsApiKey, emsCompanyId, request.DurationType, request.Amount, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "EMS extend-expiration failed for customer {CustomerId} (EMS ID {EmsId}).",
+                customer.Id, emsCompanyId);
+            return Result<ExtendEmsExpirationDto>.Failure(
+                $"EMS'te süre uzatılamadı: {ex.Message}");
+        }
+
+        // 5. Update local ExpirationDate
+        customer.ExpirationDate = emsResponse.ExpirationDate;
+        await _customerRepository.UpdateAsync(customer, cancellationToken);
+
+        _logger.LogInformation(
+            "Extended EMS expiration for customer {CustomerId}. New expiry: {Expiry:d}. Duration: {Amt} {Type}.",
+            customer.Id, emsResponse.ExpirationDate, request.Amount, request.DurationType);
+
+        // 6. Create Paraşüt draft invoice for standard billing periods (1 month or 1 year)
+        var shouldCreateInvoice =
+            (request.DurationType == "Months" && request.Amount == 1) ||
+            (request.DurationType == "Years"  && request.Amount == 1);
+
+        if (!shouldCreateInvoice)
+            return Result<ExtendEmsExpirationDto>.Success(
+                new ExtendEmsExpirationDto(emsResponse.ExpirationDate, false, null));
+
+        var parasutInvoiceId = await TryCreateParasutDraftInvoiceAsync(
+            customer.ProjectId,
+            customer.ParasutContactId,
+            customer.CompanyName,
+            request.DurationType,
+            request.Amount,
+            cancellationToken);
+
+        return Result<ExtendEmsExpirationDto>.Success(
+            new ExtendEmsExpirationDto(
+                emsResponse.ExpirationDate,
+                parasutInvoiceId is not null,
+                parasutInvoiceId));
+    }
+
+    // ── Paraşüt draft invoice helper ──────────────────────────────────────────
+
+    private async Task<string?> TryCreateParasutDraftInvoiceAsync(
+        Guid projectId,
+        string? parasutContactId,
+        string companyName,
+        string durationType,
+        int amount,
+        CancellationToken ct)
+    {
+        try
+        {
+            var connection = await _connectionRepository.GetByProjectIdAsync(projectId, ct);
+            if (connection is null || !connection.IsConnected)
+            {
+                _logger.LogDebug(
+                    "Skipping Paraşüt draft invoice — no active connection for project {ProjectId}.", projectId);
+                return null;
+            }
+
+            var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
+                connection, _parasutClient, _connectionRepository, _logger, ct);
+            if (conn is null)
+            {
+                _logger.LogWarning(
+                    "Paraşüt token unavailable for project {ProjectId}: {Error}", projectId, tokenError);
+                return null;
+            }
+
+            var durationLabel = durationType == "Years" ? "1 Yıllık" : "1 Aylık";
+            var today    = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            var dueDate  = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd");
+
+            var invoiceReq = new CreateSalesInvoiceRequest
+            {
+                Data = new CreateSalesInvoiceData
+                {
+                    Attributes = new ParasutSalesInvoiceAttributes(
+                        ItemType:              "invoice",
+                        Description:           $"{durationLabel} EMS Lisans Yenileme — {companyName}",
+                        IssueDate:             today,
+                        DueDate:               dueDate,
+                        InvoiceSeries:         null,
+                        InvoiceId:             null,
+                        Currency:              "TRL",
+                        ExchangeRate:          null,
+                        WithholdingRate:       null,
+                        VatWithholdingRate:    null,
+                        InvoiceDiscountType:   null,
+                        InvoiceDiscount:       null,
+                        BillingAddress:        null,
+                        BillingPhone:          null,
+                        BillingFax:            null,
+                        TaxOffice:             null,
+                        TaxNumber:             null,
+                        City:                  null,
+                        District:              null,
+                        PaymentAccountId:      null),
+                    Relationships = new CreateSalesInvoiceRelationships
+                    {
+                        Details = new SalesInvoiceDetailsRelationship
+                        {
+                            Data = new List<SalesInvoiceDetailData>
+                            {
+                                new()
+                                {
+                                    Attributes = new ParasutSalesInvoiceDetailAttributes(
+                                        Quantity:       1,
+                                        UnitPrice:      0,
+                                        VatRate:        20,
+                                        DiscountType:   "percentage",
+                                        DiscountValue:  0,
+                                        Description:    $"{durationLabel} EMS Lisans — {companyName}",
+                                        Unit:           "Adet")
+                                }
+                            }
+                        },
+                        Contact = string.IsNullOrEmpty(parasutContactId)
+                            ? null
+                            : new ContactRelationship
+                              {
+                                  Data = new ContactRelationshipData { Id = parasutContactId }
+                              }
+                    }
+                }
+            };
+
+            var result = await _parasutClient.CreateSalesInvoiceAsync(
+                conn.AccessToken!, conn.CompanyId, invoiceReq, ct);
+
+            var invoiceId = result.Data.Id;
+            _logger.LogInformation(
+                "Created Paraşüt draft invoice {InvoiceId} for customer {CompanyName} ({Duration}).",
+                invoiceId, companyName, durationLabel);
+
+            return invoiceId;
+        }
+        catch (Exception ex)
+        {
+            // Non-fatal — the expiration was already extended; log and continue
+            _logger.LogWarning(ex,
+                "Failed to create Paraşüt draft invoice for project {ProjectId}. Continuing without it.",
+                projectId);
+            return null;
+        }
+    }
+}

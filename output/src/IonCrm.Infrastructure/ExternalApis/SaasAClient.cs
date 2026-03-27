@@ -154,6 +154,32 @@ public sealed class SaasAClient : ISaasAClient
         }, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<EmsExtendExpirationResponse> ExtendExpirationAsync(
+        string? apiKey,
+        int emsCompanyId,
+        string durationType,
+        int amount,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("SaaS A: extending expiration for company {CompanyId}. {DurationType}={Amount}",
+            emsCompanyId, durationType, amount);
+
+        return await _retryPipeline.ExecuteAsync<EmsExtendExpirationResponse>(async ct =>
+        {
+            var url = $"api/v1/crm/companies/{emsCompanyId}/extend-expiration";
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            ApplyAuth(request, apiKey);
+            request.Content = JsonContent.Create(
+                new { durationType, amount },
+                options: JsonOpts);
+            var response = await _httpClient.SendAsync(request, ct);
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadFromJsonAsync<EmsExtendExpirationResponse>(JsonOpts, ct);
+            return result ?? throw new InvalidOperationException("Empty response from EMS extend-expiration.");
+        }, cancellationToken);
+    }
+
     /// <summary>
     /// Overrides the default Authorization header with a project-specific Bearer token when provided.
     /// Falls back to the header pre-configured in DI (appsettings SaasA:ApiKey) when apiKey is null/empty.

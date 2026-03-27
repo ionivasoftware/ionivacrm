@@ -88,3 +88,14 @@ public record SaasAWebhookPayload(
     object Data,
     DateTime OccurredAt,
     string? Signature);    // HMAC signature for verification
+
+// ── EMS extend expiration ─────────────────────────────────────────────────────
+
+/// <summary>Response from POST /api/v1/crm/companies/{id}/extend-expiration.</summary>
+public record EmsExtendExpirationResponse(
+    int CompanyId,
+    DateTime ExpirationDate,
+    EmsExtendDuration Extended);
+
+/// <summary>Duration details returned inside <see cref="EmsExtendExpirationResponse"/>.</summary>
+public record EmsExtendDuration(string DurationType, int Amount);

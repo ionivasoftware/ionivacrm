@@ -352,3 +352,29 @@ export function useUpdateOpportunityStage() {
     },
   });
 }
+
+// ── EMS Extend Expiration ─────────────────────────────────────────────────────
+
+export interface ExtendExpirationResult {
+  newExpirationDate: string;
+  parasutInvoiceCreated: boolean;
+  parasutInvoiceId: string | null;
+}
+
+export function useExtendEmsExpiration(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { durationType: string; amount: number }) => {
+      const response = await apiClient.post<ApiResponse<ExtendExpirationResult>>(
+        `/customers/${customerId}/extend-expiration`,
+        body
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
