@@ -27,6 +27,7 @@ public static class CustomerMappings
             ? $"{c.AssignedUser.FirstName} {c.AssignedUser.LastName}".Trim()
             : null,
         ExpirationDate = c.ExpirationDate,
+        ParasutContactId = c.ParasutContactId,
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt
     };

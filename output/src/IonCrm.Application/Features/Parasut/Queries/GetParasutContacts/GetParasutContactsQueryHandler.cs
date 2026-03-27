@@ -33,15 +33,16 @@ public sealed class GetParasutContactsQueryHandler
         var connection = await _connectionRepository.GetByProjectIdAsync(
             request.ProjectId, cancellationToken);
 
-        if (connection is null || !connection.IsConnected)
-            return Result<GetParasutContactsDto>.Failure(
-                "Paraşüt bağlantısı bulunamadı veya token süresi dolmuş.");
+        var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
+            connection, _parasutClient, _connectionRepository, _logger, cancellationToken);
+        if (conn is null)
+            return Result<GetParasutContactsDto>.Failure(tokenError!);
 
         try
         {
             var response = await _parasutClient.GetContactsAsync(
-                connection.AccessToken!,
-                connection.CompanyId,
+                conn.AccessToken!,
+                conn.CompanyId,
                 request.Page,
                 request.PageSize,
                 cancellationToken);

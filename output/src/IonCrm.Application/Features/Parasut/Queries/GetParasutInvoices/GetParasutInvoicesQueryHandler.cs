@@ -33,28 +33,33 @@ public sealed class GetParasutInvoicesQueryHandler
         var connection = await _connectionRepository.GetByProjectIdAsync(
             request.ProjectId, cancellationToken);
 
-        if (connection is null || !connection.IsConnected)
-            return Result<GetParasutInvoicesDto>.Failure(
-                "Paraşüt bağlantısı bulunamadı veya token süresi dolmuş.");
+        var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
+            connection, _parasutClient, _connectionRepository, _logger, cancellationToken);
+        if (conn is null)
+            return Result<GetParasutInvoicesDto>.Failure(tokenError!);
 
         try
         {
             var response = await _parasutClient.GetSalesInvoicesAsync(
-                connection.AccessToken!,
-                connection.CompanyId,
+                conn.AccessToken!,
+                conn.CompanyId,
                 request.Page,
                 request.PageSize,
                 cancellationToken);
+
+            static decimal Parse(string? s) =>
+                decimal.TryParse(s, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0m;
 
             var items = response.Data.Select(d => new ParasutInvoiceItem(
                 Id:              d.Id ?? string.Empty,
                 IssueDate:       d.Attributes.IssueDate,
                 DueDate:         d.Attributes.DueDate,
                 Currency:        d.Attributes.Currency,
-                GrossTotal:      d.Attributes.GrossTotal ?? 0,
-                NetTotal:        d.Attributes.NetTotal ?? 0,
-                TotalPaid:       d.Attributes.TotalPaid ?? 0,
-                Remaining:       d.Attributes.Remaining ?? 0,
+                GrossTotal:      Parse(d.Attributes.GrossTotal),
+                NetTotal:        Parse(d.Attributes.NetTotal),
+                TotalPaid:       Parse(d.Attributes.TotalPaid),
+                Remaining:       Parse(d.Attributes.Remaining),
                 Description:     d.Attributes.Description,
                 ArchivingStatus: d.Attributes.ArchivingStatus)).ToList();
 

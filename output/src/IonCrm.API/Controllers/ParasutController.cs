@@ -2,6 +2,7 @@ using IonCrm.API.Common;
 using IonCrm.Application.Features.Parasut.Commands.ConnectParasut;
 using IonCrm.Application.Features.Parasut.Commands.CreateSalesInvoice;
 using IonCrm.Application.Features.Parasut.Commands.DisconnectParasut;
+using IonCrm.Application.Features.Parasut.Commands.LinkParasutContact;
 using IonCrm.Application.Features.Parasut.Commands.SyncContactToParasut;
 using IonCrm.Application.Features.Parasut.Queries.GetParasutContacts;
 using IonCrm.Application.Features.Parasut.Queries.GetParasutInvoices;
@@ -111,6 +112,19 @@ public class ParasutController : ControllerBase
         if (result.IsFailure)
             return BadRequest(ApiResponse<object>.Fail(result.Errors));
         return Ok(ApiResponse<SyncContactToParasutDto>.Ok(result.Value!));
+    }
+
+    /// <summary>
+    /// POST /api/v1/parasut/contacts/link
+    /// Links an existing Paraşüt contact (by its ID) to a CRM customer.
+    /// </summary>
+    [HttpPost("contacts/link")]
+    public async Task<IActionResult> LinkContact([FromBody] LinkParasutContactCommand command)
+    {
+        var result = await _mediator.Send(command);
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<object>.Fail(result.Errors));
+        return Ok(ApiResponse<LinkParasutContactDto>.Ok(result.Value!));
     }
 
     // ── Sales Invoices ────────────────────────────────────────────────────────

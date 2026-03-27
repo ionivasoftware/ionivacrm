@@ -63,6 +63,12 @@ public class Customer : BaseEntity
     /// </summary>
     public string? LegacyId { get; set; }
 
+    /// <summary>
+    /// Gets or sets the linked Paraşüt contact ID.
+    /// Set when the customer is synced to or manually linked from Paraşüt.
+    /// </summary>
+    public string? ParasutContactId { get; set; }
+
     // Navigation properties
     /// <summary>Gets or sets the project (tenant).</summary>
     public Project Project { get; set; } = null!;

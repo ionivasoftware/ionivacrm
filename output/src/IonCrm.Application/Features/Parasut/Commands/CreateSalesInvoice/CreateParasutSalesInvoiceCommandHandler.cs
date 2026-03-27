@@ -31,13 +31,14 @@ public sealed class CreateParasutSalesInvoiceCommandHandler
         CreateParasutSalesInvoiceCommand request,
         CancellationToken cancellationToken)
     {
-        // 1. Load connection
+        // 1. Load connection + auto-refresh if needed
         var connection = await _connectionRepository.GetByProjectIdAsync(
             request.ProjectId, cancellationToken);
 
-        if (connection is null || !connection.IsConnected)
-            return Result<CreateParasutSalesInvoiceDto>.Failure(
-                "Paraşüt bağlantısı bulunamadı veya token süresi dolmuş.");
+        var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
+            connection, _parasutClient, _connectionRepository, _logger, cancellationToken);
+        if (conn is null)
+            return Result<CreateParasutSalesInvoiceDto>.Failure(tokenError!);
 
         try
         {
@@ -100,8 +101,8 @@ public sealed class CreateParasutSalesInvoiceCommandHandler
 
             // 5. Send to Paraşüt
             var result = await _parasutClient.CreateSalesInvoiceAsync(
-                connection.AccessToken!,
-                connection.CompanyId,
+                conn.AccessToken!,
+                conn.CompanyId,
                 invoiceRequest,
                 cancellationToken);
 
@@ -111,12 +112,16 @@ public sealed class CreateParasutSalesInvoiceCommandHandler
                 "Created Paraşüt sales invoice {InvoiceId} for project {ProjectId}.",
                 result.Data.Id, request.ProjectId);
 
+            static decimal Parse(string? s) =>
+                decimal.TryParse(s, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0m;
+
             return Result<CreateParasutSalesInvoiceDto>.Success(new CreateParasutSalesInvoiceDto(
                 ParasutInvoiceId: result.Data.Id ?? string.Empty,
                 IssueDate:        attr.IssueDate,
                 DueDate:          attr.DueDate,
-                GrossTotal:       attr.GrossTotal ?? 0,
-                NetTotal:         attr.NetTotal ?? 0,
+                GrossTotal:       Parse(attr.GrossTotal),
+                NetTotal:         Parse(attr.NetTotal),
                 Currency:         attr.Currency));
         }
         catch (Exception ex)

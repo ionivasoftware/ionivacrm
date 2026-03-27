@@ -125,11 +125,12 @@ public record ParasutSalesInvoiceAttributes(
     [property: JsonPropertyName("district")]           string? District,
     [property: JsonPropertyName("payment_account_id")] int? PaymentAccountId,
     [property: JsonPropertyName("is_abroad")]          bool IsAbroad = false,
-    // Read-only fields returned by the API:
-    [property: JsonPropertyName("net_total")]          decimal? NetTotal = null,
-    [property: JsonPropertyName("gross_total")]        decimal? GrossTotal = null,
-    [property: JsonPropertyName("total_paid")]         decimal? TotalPaid = null,
-    [property: JsonPropertyName("remaining")]          decimal? Remaining = null,
+    // Read-only fields returned by the API.
+    // NOTE: Paraşüt returns these numeric fields as JSON strings (e.g. "1234.56"), not numbers.
+    [property: JsonPropertyName("net_total")]          string? NetTotal = null,
+    [property: JsonPropertyName("gross_total")]        string? GrossTotal = null,
+    [property: JsonPropertyName("total_paid")]         string? TotalPaid = null,
+    [property: JsonPropertyName("remaining")]          string? Remaining = null,
     [property: JsonPropertyName("archiving_status")]   string? ArchivingStatus = null
 );
 

@@ -117,6 +117,7 @@ export interface SyncContactResponse {
 }
 
 export function useSyncContactToParasut() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ projectId, customerId }: { projectId: string; customerId: string }) => {
       const res = await apiClient.post<ApiResponse<SyncContactResponse>>('/parasut/contacts/sync', {
@@ -124,6 +125,39 @@ export function useSyncContactToParasut() {
         customerId,
       });
       return res.data.data;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['customer', vars.customerId] });
+    },
+  });
+}
+
+export interface LinkParasutContactResponse {
+  customerId: string;
+  parasutContactId: string;
+  parasutContactName: string;
+}
+
+export function useLinkParasutContact() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      customerId,
+      parasutContactId,
+    }: {
+      projectId: string;
+      customerId: string;
+      parasutContactId: string;
+    }) => {
+      const res = await apiClient.post<ApiResponse<LinkParasutContactResponse>>(
+        '/parasut/contacts/link',
+        { projectId, customerId, parasutContactId }
+      );
+      return res.data.data;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['customer', vars.customerId] });
     },
   });
 }

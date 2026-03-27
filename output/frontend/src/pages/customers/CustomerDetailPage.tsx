@@ -79,6 +79,8 @@ import {
   useParasutStatus,
   useSyncContactToParasut,
   useCreateParasutInvoice,
+  useLinkParasutContact,
+  useParasutContacts,
   type InvoiceLine,
 } from '@/api/parasut';
 import type {
@@ -649,11 +651,14 @@ export function CustomerDetailPage() {
   const [showCreateOpportunity, setShowCreateOpportunity] = useState(false);
 
   // Cari (Paraşüt) state
-  const [parasutContactId, setParasutContactId] = useState<string | null>(null);
   const [showCariInvoiceForm, setShowCariInvoiceForm] = useState(false);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkSearch, setLinkSearch] = useState('');
   const parasutStatus = useParasutStatus(currentProjectId);
   const syncContact = useSyncContactToParasut();
+  const linkContact = useLinkParasutContact();
   const createInvoice = useCreateParasutInvoice();
+  const parasutContactsQuery = useParasutContacts(currentProjectId, 1, showLinkDialog);
 
   // Queries
   const {
@@ -1280,37 +1285,48 @@ export function CustomerDetailPage() {
                   <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/20">
                     <div>
                       <p className="text-sm font-medium text-foreground">Paraşüt Cari Eşleşmesi</p>
-                      {parasutContactId ? (
+                      {customer?.parasutContactId ? (
                         <p className="text-xs text-emerald-400 mt-0.5">
-                          Cari ID: <span className="font-mono">{parasutContactId}</span>
+                          Cari ID: <span className="font-mono">{customer.parasutContactId}</span>
                         </p>
                       ) : (
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Müşteriyi Paraşüt'e göndererek cari ID alın.
+                          Paraşüt'te zaten cari varsa eşleyin, yoksa yeni kayıt gönderin.
                         </p>
                       )}
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5"
-                      disabled={syncContact.isPending || !currentProjectId}
-                      onClick={async () => {
-                        if (!currentProjectId) return;
-                        try {
-                          const res = await syncContact.mutateAsync({ projectId: currentProjectId, customerId });
-                          setParasutContactId(res.parasutContactId);
-                          toast({ title: 'Paraşüt\'e gönderildi', description: `Cari ID: ${res.parasutContactId}` });
-                        } catch {
-                          toast({ title: 'Hata', description: 'Cari gönderilemedi.', variant: 'destructive' });
-                        }
-                      }}
-                    >
-                      {syncContact.isPending
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : <Users className="h-3.5 w-3.5" />}
-                      {parasutContactId ? 'Güncelle' : 'Paraşüt\'e Gönder'}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 text-muted-foreground"
+                        disabled={!currentProjectId}
+                        onClick={() => setShowLinkDialog(true)}
+                        title="Paraşüt'teki mevcut cariyle eşle"
+                      >
+                        Mevcut Cari Eşle
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={syncContact.isPending || !currentProjectId}
+                        onClick={async () => {
+                          if (!currentProjectId) return;
+                          try {
+                            const res = await syncContact.mutateAsync({ projectId: currentProjectId, customerId });
+                            toast({ title: 'Paraşüt\'e gönderildi', description: `Cari ID: ${res.parasutContactId}` });
+                          } catch {
+                            toast({ title: 'Hata', description: 'Cari gönderilemedi.', variant: 'destructive' });
+                          }
+                        }}
+                      >
+                        {syncContact.isPending
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Users className="h-3.5 w-3.5" />}
+                        {customer?.parasutContactId ? 'Güncelle' : 'Paraşüt\'e Gönder'}
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Quick invoice form */}
@@ -1323,7 +1339,7 @@ export function CustomerDetailPage() {
                         </div>
                         <QuickInvoiceForm
                           projectId={currentProjectId!}
-                          contactId={parasutContactId ?? ''}
+                          contactId={customer?.parasutContactId ?? ''}
                           customerName={customer?.companyName ?? ''}
                           onSuccess={() => {
                             setShowCariInvoiceForm(false);
@@ -1388,6 +1404,80 @@ export function CustomerDetailPage() {
         onClose={() => setShowCreateOpportunity(false)}
         customerId={customerId}
       />
+
+      {/* Link Paraşüt Contact Dialog */}
+      <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Mevcut Paraşüt Carisiyle Eşle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Cari ara..."
+              value={linkSearch}
+              onChange={(e) => setLinkSearch(e.target.value)}
+            />
+            {parasutContactsQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {(parasutContactsQuery.data?.items ?? [])
+                  .filter(c =>
+                    !linkSearch ||
+                    c.name.toLowerCase().includes(linkSearch.toLowerCase()) ||
+                    (c.taxNumber ?? '').includes(linkSearch)
+                  )
+                  .map(contact => (
+                    <button
+                      key={contact.id}
+                      className="w-full text-left px-3 py-2.5 rounded-md hover:bg-accent transition-colors flex items-center justify-between gap-2"
+                      onClick={async () => {
+                        if (!currentProjectId) return;
+                        try {
+                          await linkContact.mutateAsync({
+                            projectId: currentProjectId,
+                            customerId,
+                            parasutContactId: contact.id,
+                          });
+                          toast({
+                            title: 'Cari eşlendi',
+                            description: `${contact.name} (ID: ${contact.id}) ile bağlantı kuruldu.`,
+                          });
+                          setShowLinkDialog(false);
+                          setLinkSearch('');
+                        } catch {
+                          toast({ title: 'Hata', description: 'Eşleştirme başarısız.', variant: 'destructive' });
+                        }
+                      }}
+                      disabled={linkContact.isPending}
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{contact.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          ID: {contact.id}
+                          {contact.taxNumber ? ` · VKN: ${contact.taxNumber}` : ''}
+                        </p>
+                      </div>
+                      {linkContact.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin flex-shrink-0" />}
+                    </button>
+                  ))}
+                {!parasutContactsQuery.isLoading && (parasutContactsQuery.data?.items ?? []).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Paraşüt'te cari bulunamadı.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setShowLinkDialog(false); setLinkSearch(''); }}>
+              Kapat
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -34,13 +34,14 @@ public sealed class SyncContactToParasutCommandHandler
         SyncContactToParasutCommand request,
         CancellationToken cancellationToken)
     {
-        // 1. Load connection
+        // 1. Load connection + auto-refresh if needed
         var connection = await _connectionRepository.GetByProjectIdAsync(
             request.ProjectId, cancellationToken);
 
-        if (connection is null || !connection.IsConnected)
-            return Result<SyncContactToParasutDto>.Failure(
-                "Paraşüt bağlantısı bulunamadı veya token süresi dolmuş. Lütfen tekrar bağlanın.");
+        var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
+            connection, _parasutClient, _connectionRepository, _logger, cancellationToken);
+        if (conn is null)
+            return Result<SyncContactToParasutDto>.Failure(tokenError!);
 
         // 2. Load customer
         var customer = await _customerRepository.GetByIdAsync(request.CustomerId, cancellationToken);
@@ -64,17 +65,18 @@ public sealed class SyncContactToParasutCommandHandler
             );
 
             // 4. Create or update in Paraşüt
-            // We use LegacyId format "PARASUT-{contactId}" stored in Segment or a dedicated field
-            // to track which Paraşüt contact id corresponds to this CRM customer.
-            // For now: always create — a full upsert requires storing the Paraşüt contact ID on the customer.
             var result = await _parasutClient.CreateContactAsync(
-                connection.AccessToken!,
-                connection.CompanyId,
+                conn.AccessToken!,
+                conn.CompanyId,
                 attributes,
                 cancellationToken);
 
             var parasutId   = result.Data.Id ?? string.Empty;
             var parasutName = result.Data.Attributes.Name;
+
+            // Persist the Paraşüt contact ID on the customer
+            customer.ParasutContactId = parasutId;
+            await _customerRepository.UpdateAsync(customer, cancellationToken);
 
             _logger.LogInformation(
                 "Synced customer {CustomerId} to Paraşüt contact {ParasutId}.",

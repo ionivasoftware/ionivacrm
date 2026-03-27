@@ -143,6 +143,7 @@ export interface Customer {
   assignedUserName: string | null;
   expirationDate: string | null;
   legacyId: string | null;
+  parasutContactId: string | null;
   createdAt: string;
   updatedAt: string;
 }
