@@ -147,38 +147,37 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Auto-apply pending EF Core migrations on startup ─────────────────────────
-using (var scope = app.Services.CreateScope())
+// ── Auto-apply pending EF Core migrations after app starts listening ──────────
+// Run migrations AFTER the app is already accepting requests so Railway's
+// health-check probes succeed during the (potentially slow) Neon cold-start.
+app.Lifetime.ApplicationStarted.Register(() =>
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-    try
-    {
-        await db.Database.MigrateAsync();
-        Log.Information("EF Core migrations applied successfully");
-    }
-    catch (Exception ex)
-    {
-        Log.Warning(ex, "EF Core auto-migration failed — attempting raw SQL column fallback");
-    }
+            await db.Database.MigrateAsync();
+            Log.Information("EF Core migrations applied successfully");
 
-    // Idempotent fallback: ensure columns added in later sprints exist regardless of EF migration state.
-    // Uses IF NOT EXISTS so it is safe to run on every startup.
-    try
-    {
-        await db.Database.ExecuteSqlRawAsync(@"
-            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ExpirationDate""    timestamp with time zone;
-            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ParasutContactId""  text;
-            ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsApiKey""         text;
-            ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlApiKey""    text;
-        ");
-        Log.Information("Column existence check complete");
-    }
-    catch (Exception ex)
-    {
-        Log.Warning(ex, "Raw SQL column fallback failed — some endpoints may return 500 until DB is updated");
-    }
-}
+            // Idempotent fallback: ensure columns added in later sprints exist.
+            // Uses IF NOT EXISTS so it is safe to run on every startup.
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ExpirationDate""    timestamp with time zone;
+                ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ParasutContactId""  text;
+                ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsApiKey""         text;
+                ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlApiKey""    text;
+            ");
+            Log.Information("Column existence check complete");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "EF Core migration / column fallback failed on startup");
+        }
+    });
+});
 
 // ── Middleware pipeline ───────────────────────────────────────────────────────
 app.UseMiddleware<GlobalExceptionMiddleware>();
