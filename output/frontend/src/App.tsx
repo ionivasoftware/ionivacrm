@@ -20,6 +20,7 @@ const ProjectsAdminPage = lazy(() => import('@/pages/admin/ProjectsAdminPage').t
 const SettingsPage      = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const ReportsPage       = lazy(() => import('@/pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const InvoicesPage      = lazy(() => import('@/pages/InvoicesPage').then(m => ({ default: m.InvoicesPage })));
+const SyncLogsPage      = lazy(() => import('@/pages/SyncLogsPage').then(m => ({ default: m.SyncLogsPage })));
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 function PageLoader() {
@@ -114,10 +115,7 @@ export default function App() {
                 path="/sync/logs"
                 element={
                   <ProtectedRoute superAdminOnly>
-                    <PlaceholderPage
-                      title="Senkronizasyon Logları"
-                      description="Sync log modülü yakında aktif olacak."
-                    />
+                    <SyncLogsPage />
                   </ProtectedRoute>
                 }
               />
