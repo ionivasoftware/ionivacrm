@@ -163,12 +163,29 @@ app.Lifetime.ApplicationStarted.Register(() =>
             Log.Information("EF Core migrations applied successfully");
 
             // Idempotent fallback: ensure columns added in later sprints exist.
-            // Uses IF NOT EXISTS so it is safe to run on every startup.
+            // Uses IF NOT EXISTS / USING cast so it is safe to run on every startup.
             await db.Database.ExecuteSqlRawAsync(@"
                 ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ExpirationDate""    timestamp with time zone;
                 ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ParasutContactId""  text;
                 ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsApiKey""         text;
                 ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlApiKey""    text;
+            ");
+
+            // Fix: Segment was originally created as integer (enum) but the entity
+            // uses string. Convert to text so EMS API string values can be stored.
+            await db.Database.ExecuteSqlRawAsync(@"
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'Customers'
+                          AND column_name = 'Segment'
+                          AND data_type = 'integer'
+                    ) THEN
+                        ALTER TABLE ""Customers""
+                            ALTER COLUMN ""Segment"" TYPE text USING ""Segment""::text;
+                    END IF;
+                END$$;
             ");
             Log.Information("Column existence check complete");
         }
