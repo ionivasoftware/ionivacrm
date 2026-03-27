@@ -6,9 +6,10 @@ namespace IonCrm.Application.Features.Parasut.Queries.GetParasutContacts;
 
 /// <summary>Returns a paginated list of contacts from Paraşüt.</summary>
 public record GetParasutContactsQuery(
-    Guid ProjectId,
-    int  Page     = 1,
-    int  PageSize = 25
+    Guid    ProjectId,
+    int     Page     = 1,
+    int     PageSize = 25,
+    string? Search   = null
 ) : IRequest<Result<GetParasutContactsDto>>;
 
 /// <summary>Paginated contact list from Paraşüt.</summary>

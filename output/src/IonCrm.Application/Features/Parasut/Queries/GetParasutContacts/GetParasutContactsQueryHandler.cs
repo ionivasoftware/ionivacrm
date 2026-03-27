@@ -45,6 +45,7 @@ public sealed class GetParasutContactsQueryHandler
                 conn.CompanyId,
                 request.Page,
                 request.PageSize,
+                request.Search,
                 cancellationToken);
 
             var items = response.Data.Select(d => new ParasutContactItem(

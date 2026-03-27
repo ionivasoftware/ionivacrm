@@ -93,9 +93,10 @@ public class ParasutController : ControllerBase
     public async Task<IActionResult> GetContacts(
         [FromQuery] Guid projectId,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 25)
+        [FromQuery] int pageSize = 25,
+        [FromQuery] string? search = null)
     {
-        var result = await _mediator.Send(new GetParasutContactsQuery(projectId, page, pageSize));
+        var result = await _mediator.Send(new GetParasutContactsQuery(projectId, page, pageSize, search));
         if (result.IsFailure)
             return BadRequest(ApiResponse<object>.Fail(result.Errors));
         return Ok(ApiResponse<GetParasutContactsDto>.Ok(result.Value!));

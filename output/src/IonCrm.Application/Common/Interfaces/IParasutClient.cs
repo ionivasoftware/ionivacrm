@@ -31,11 +31,13 @@ public interface IParasutClient
     // ── Contacts (Cariler) ────────────────────────────────────────────────────
 
     /// <summary>Returns a paginated list of contacts for the given company.</summary>
+    /// <param name="search">Optional server-side name filter (Paraşüt filter[name]).</param>
     Task<JsonApiListResponse<ParasutContactAttributes>> GetContactsAsync(
         string accessToken,
         long companyId,
         int page = 1,
         int pageSize = 25,
+        string? search = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Returns a single contact by its Paraşüt ID.</summary>

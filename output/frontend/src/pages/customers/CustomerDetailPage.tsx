@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -654,11 +654,17 @@ export function CustomerDetailPage() {
   const [showCariInvoiceForm, setShowCariInvoiceForm] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkSearch, setLinkSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const parasutStatus = useParasutStatus(currentProjectId);
   const syncContact = useSyncContactToParasut();
   const linkContact = useLinkParasutContact();
   const createInvoice = useCreateParasutInvoice();
-  const parasutContactsQuery = useParasutContacts(currentProjectId, 1, showLinkDialog);
+  const parasutContactsQuery = useParasutContacts(currentProjectId, 1, showLinkDialog, debouncedSearch);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(linkSearch), 400);
+    return () => clearTimeout(t);
+  }, [linkSearch]);
 
   // Queries
   const {
@@ -1413,23 +1419,24 @@ export function CustomerDetailPage() {
           </DialogHeader>
           <div className="space-y-3">
             <Input
-              placeholder="Cari ara..."
+              placeholder="İsim veya VKN ile ara..."
               value={linkSearch}
               onChange={(e) => setLinkSearch(e.target.value)}
+              autoFocus
             />
+            {parasutContactsQuery.data && (
+              <p className="text-xs text-muted-foreground">
+                {parasutContactsQuery.data.totalCount} cari bulundu
+                {parasutContactsQuery.data.totalPages > 1 && ` (${parasutContactsQuery.data.totalPages} sayfa) — isim ile arayarak daraltın`}
+              </p>
+            )}
             {parasutContactsQuery.isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : (
               <div className="max-h-64 overflow-y-auto space-y-1">
-                {(parasutContactsQuery.data?.items ?? [])
-                  .filter(c =>
-                    !linkSearch ||
-                    c.name.toLowerCase().includes(linkSearch.toLowerCase()) ||
-                    (c.taxNumber ?? '').includes(linkSearch)
-                  )
-                  .map(contact => (
+                {(parasutContactsQuery.data?.items ?? []).map(contact => (
                     <button
                       key={contact.id}
                       className="w-full text-left px-3 py-2.5 rounded-md hover:bg-accent transition-colors flex items-center justify-between gap-2"

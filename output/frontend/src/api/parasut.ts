@@ -206,16 +206,22 @@ export function useCreateParasutInvoice() {
   });
 }
 
-export function useParasutContacts(projectId: string | null, page = 1, enabled = false) {
+export function useParasutContacts(
+  projectId: string | null,
+  page = 1,
+  enabled = false,
+  search = ''
+) {
   return useQuery({
-    queryKey: ['parasutContacts', projectId, page],
+    queryKey: ['parasutContacts', projectId, page, search],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse<ParasutContactsDto>>(
-        `/parasut/contacts?projectId=${projectId}&page=${page}&pageSize=25`
-      );
+      let url = `/parasut/contacts?projectId=${projectId}&page=${page}&pageSize=25`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      const res = await apiClient.get<ApiResponse<ParasutContactsDto>>(url);
       return res.data.data;
     },
     enabled: !!projectId && enabled,
+    staleTime: 30_000,
   });
 }
 

@@ -132,10 +132,12 @@ public sealed class ParasutClient : IParasutClient
     /// <inheritdoc />
     public async Task<JsonApiListResponse<ParasutContactAttributes>> GetContactsAsync(
         string accessToken, long companyId, int page = 1, int pageSize = 25,
-        CancellationToken cancellationToken = default)
+        string? search = null, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Paraşüt: fetching contacts. Company={CompanyId} Page={Page}", companyId, page);
+        _logger.LogDebug("Paraşüt: fetching contacts. Company={CompanyId} Page={Page} Search={Search}", companyId, page, search);
         var url = $"v4/{companyId}/contacts?page[size]={pageSize}&page[number]={page}";
+        if (!string.IsNullOrWhiteSpace(search))
+            url += $"&filter[name]={Uri.EscapeDataString(search)}";
 
         return await GetListAsync<ParasutContactAttributes>(accessToken, url, cancellationToken);
     }
