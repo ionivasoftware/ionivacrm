@@ -145,14 +145,16 @@ export function useLinkParasutContact() {
       projectId,
       customerId,
       parasutContactId,
+      parasutContactName,
     }: {
       projectId: string;
       customerId: string;
       parasutContactId: string;
+      parasutContactName?: string;
     }) => {
       const res = await apiClient.post<ApiResponse<LinkParasutContactResponse>>(
         '/parasut/contacts/link',
-        { projectId, customerId, parasutContactId }
+        { projectId, customerId, parasutContactId, parasutContactName }
       );
       return res.data.data;
     },

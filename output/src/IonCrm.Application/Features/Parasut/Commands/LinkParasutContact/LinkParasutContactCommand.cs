@@ -7,7 +7,8 @@ namespace IonCrm.Application.Features.Parasut.Commands.LinkParasutContact;
 public record LinkParasutContactCommand(
     Guid CustomerId,
     Guid ProjectId,
-    string ParasutContactId
+    string ParasutContactId,
+    string? ParasutContactName = null
 ) : IRequest<Result<LinkParasutContactDto>>;
 
 public record LinkParasutContactDto(

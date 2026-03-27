@@ -1448,6 +1448,7 @@ export function CustomerDetailPage() {
                           projectId: currentProjectId,
                           customerId,
                           parasutContactId: contact.id,
+                          parasutContactName: contact.name,
                         });
                         toast({
                           title: 'Cari eşlendi',
