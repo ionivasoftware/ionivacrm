@@ -655,14 +655,15 @@ export function CustomerDetailPage() {
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkSearch, setLinkSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [linkPage, setLinkPage] = useState(1);
   const parasutStatus = useParasutStatus(currentProjectId);
   const syncContact = useSyncContactToParasut();
   const linkContact = useLinkParasutContact();
   const createInvoice = useCreateParasutInvoice();
-  const parasutContactsQuery = useParasutContacts(currentProjectId, 1, showLinkDialog, debouncedSearch);
+  const parasutContactsQuery = useParasutContacts(currentProjectId, linkPage, showLinkDialog, debouncedSearch);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(linkSearch), 400);
+    const t = setTimeout(() => { setDebouncedSearch(linkSearch); setLinkPage(1); }, 400);
     return () => clearTimeout(t);
   }, [linkSearch]);
 
@@ -1426,8 +1427,8 @@ export function CustomerDetailPage() {
             />
             {parasutContactsQuery.data && (
               <p className="text-xs text-muted-foreground">
-                {parasutContactsQuery.data.totalCount} cari bulundu
-                {parasutContactsQuery.data.totalPages > 1 && ` (${parasutContactsQuery.data.totalPages} sayfa) — isim ile arayarak daraltın`}
+                Toplam {parasutContactsQuery.data.totalCount} cari
+                {parasutContactsQuery.data.totalPages > 1 && ` · Sayfa ${linkPage} / ${parasutContactsQuery.data.totalPages}`}
               </p>
             )}
             {parasutContactsQuery.isLoading ? (
@@ -1435,41 +1436,42 @@ export function CustomerDetailPage() {
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <div className="max-h-64 overflow-y-auto space-y-1">
+              <div className="max-h-56 overflow-y-auto space-y-1">
                 {(parasutContactsQuery.data?.items ?? []).map(contact => (
-                    <button
-                      key={contact.id}
-                      className="w-full text-left px-3 py-2.5 rounded-md hover:bg-accent transition-colors flex items-center justify-between gap-2"
-                      onClick={async () => {
-                        if (!currentProjectId) return;
-                        try {
-                          await linkContact.mutateAsync({
-                            projectId: currentProjectId,
-                            customerId,
-                            parasutContactId: contact.id,
-                          });
-                          toast({
-                            title: 'Cari eşlendi',
-                            description: `${contact.name} (ID: ${contact.id}) ile bağlantı kuruldu.`,
-                          });
-                          setShowLinkDialog(false);
-                          setLinkSearch('');
-                        } catch {
-                          toast({ title: 'Hata', description: 'Eşleştirme başarısız.', variant: 'destructive' });
-                        }
-                      }}
-                      disabled={linkContact.isPending}
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{contact.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          ID: {contact.id}
-                          {contact.taxNumber ? ` · VKN: ${contact.taxNumber}` : ''}
-                        </p>
-                      </div>
-                      {linkContact.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin flex-shrink-0" />}
-                    </button>
-                  ))}
+                  <button
+                    key={contact.id}
+                    className="w-full text-left px-3 py-2.5 rounded-md hover:bg-accent transition-colors flex items-center justify-between gap-2"
+                    onClick={async () => {
+                      if (!currentProjectId) return;
+                      try {
+                        await linkContact.mutateAsync({
+                          projectId: currentProjectId,
+                          customerId,
+                          parasutContactId: contact.id,
+                        });
+                        toast({
+                          title: 'Cari eşlendi',
+                          description: `${contact.name} (ID: ${contact.id}) ile bağlantı kuruldu.`,
+                        });
+                        setShowLinkDialog(false);
+                        setLinkSearch('');
+                        setLinkPage(1);
+                      } catch {
+                        toast({ title: 'Hata', description: 'Eşleştirme başarısız.', variant: 'destructive' });
+                      }
+                    }}
+                    disabled={linkContact.isPending}
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{contact.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ID: {contact.id}
+                        {contact.taxNumber ? ` · VKN: ${contact.taxNumber}` : ''}
+                      </p>
+                    </div>
+                    {linkContact.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin flex-shrink-0" />}
+                  </button>
+                ))}
                 {!parasutContactsQuery.isLoading && (parasutContactsQuery.data?.items ?? []).length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     Paraşüt'te cari bulunamadı.
@@ -1477,9 +1479,33 @@ export function CustomerDetailPage() {
                 )}
               </div>
             )}
+            {/* Pagination */}
+            {(parasutContactsQuery.data?.totalPages ?? 0) > 1 && (
+              <div className="flex items-center justify-between pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLinkPage(p => Math.max(1, p - 1))}
+                  disabled={linkPage <= 1 || parasutContactsQuery.isFetching}
+                >
+                  ‹ Önceki
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {linkPage} / {parasutContactsQuery.data?.totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLinkPage(p => p + 1)}
+                  disabled={linkPage >= (parasutContactsQuery.data?.totalPages ?? 1) || parasutContactsQuery.isFetching}
+                >
+                  Sonraki ›
+                </Button>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setShowLinkDialog(false); setLinkSearch(''); }}>
+            <Button variant="ghost" onClick={() => { setShowLinkDialog(false); setLinkSearch(''); setLinkPage(1); }}>
               Kapat
             </Button>
           </DialogFooter>
