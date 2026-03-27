@@ -107,30 +107,23 @@ public class SaasSyncJobTests
     }
 
     [Fact]
-    public async Task RunAsync_SaasBProjectIdNotConfigured_SkipsSaasB_ButProcessesSaasA()
+    public async Task RunAsync_SaasBProjectIdNotConfigured_FallsBackToFirstProject()
     {
-        // Arrange — SaaS B not configured but SaaS A IS configured
+        // Arrange — SaaS B not configured but SaaS A IS configured.
+        // With no SaasB:ProjectId, ResolveProjectAsync falls back to the first project
+        // in DB (projectA). The global SaasB:ApiKey from config is used instead of
+        // the per-project key, so SaaS B sync still runs.
         var projectAId = Guid.NewGuid();
         _configMock.Setup(c => c["SaasA:ProjectId"]).Returns(projectAId.ToString());
         _configMock.Setup(c => c["SaasB:ProjectId"]).Returns((string?)null);
 
-        // Seed in-memory DB with a project that has EmsApiKey but NOT RezervAlApiKey.
-        // → SaasA ResolveProjectAsync finds it (config lookup succeeds directly).
-        // → SaasB ResolveProjectAsync falls back to DB; project lacks RezervAlApiKey → skip.
         var dbContext = CreateInMemoryDbContext("db_saasb_notconfigured");
-        dbContext.Projects.Add(new Project
-        {
-            Id = projectAId,
-            Name = "Test Project",
-            EmsApiKey = "test-ems-key"
-            // RezervAlApiKey intentionally omitted → SaasB skips
-        });
+        dbContext.Projects.Add(new Project { Id = projectAId, Name = "Test Project", EmsApiKey = "test-ems-key" });
         await dbContext.SaveChangesAsync();
 
-        // Set up scope factory to return the seeded DB + mock sync log repo
         SetupScopeFactory(dbContext);
 
-        // Empty API responses — focus is on which calls are made, not the data
+        // Mock all API calls to return empty data
         _saasAClientMock
             .Setup(c => c.GetCrmCustomersPageAsync(
                 It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>(),
@@ -145,15 +138,24 @@ public class SaasSyncJobTests
         _saasAClientMock
             .Setup(c => c.GetOrdersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SaasAOrdersResponse(new List<SaasAOrder>(), 0));
+        _saasBClientMock
+            .Setup(c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SaasBCustomersResponse(new List<SaasBCustomer>(), 0));
+        _saasBClientMock
+            .Setup(c => c.GetSubscriptionsAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SaasBSubscriptionsResponse(new List<SaasBSubscription>(), 0));
+        _saasBClientMock
+            .Setup(c => c.GetOrdersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SaasBOrdersResponse(new List<SaasBOrder>(), 0));
 
         // Act
         await CreateJob().RunAsync(CancellationToken.None);
 
-        // Assert — SaaS B entirely skipped
-        _saasBClientMock.Verify(
+        // Assert — SaaS A ran
+        _saasAClientMock.Verify(
             c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()),
-            Times.Never,
-            "SaaS B sync should be skipped when its ProjectId is not configured and no project has RezervAlApiKey");
+            Times.Once,
+            "SaaS A sync should run when ProjectId is configured");
     }
 
     // ── SyncLog retry count entity behaviour ─────────────────────────────────

@@ -727,20 +727,19 @@ public sealed class SaasSyncJob
             .Where(p => !p.IsDeleted)
             .ToListAsync(ct);
 
-        // Only fall back to a project that actually has the required API key.
-        // Using a project without the key would fail at the first external API call anyway.
-        var fallback = allProjects.FirstOrDefault(hasApiKey);
+        // Prefer a project that has the API key configured; fall back to the first project
+        // if none do (the global SaasA:ApiKey / SaasB:ApiKey from config will be used instead).
+        var fallback = allProjects.FirstOrDefault(hasApiKey) ?? allProjects.FirstOrDefault();
 
         if (fallback is null)
         {
             _logger.LogWarning(
-                "No project with the required API key found in DB. Skipping sync for config key '{Key}'.",
-                configKey);
+                "No projects found in DB. Skipping sync for config key '{Key}'.", configKey);
             return (Guid.Empty, null);
         }
 
         _logger.LogWarning(
-            "Config key '{Key}' not set or invalid. Using fallback project {ProjectId} ({Name}) which has the required API key.",
+            "Config key '{Key}' not set or invalid. Using fallback project {ProjectId} ({Name}).",
             configKey, fallback.Id, fallback.Name);
 
         return (fallback.Id, fallback);
