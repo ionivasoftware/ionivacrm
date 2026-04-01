@@ -370,20 +370,6 @@ public sealed class ParasutClient : IParasutClient
         }, cancellationToken);
     }
 
-    // ── Contact Transactions ────────────────────────────────────────────────
-
-    /// <inheritdoc />
-    public async Task<JsonApiListResponse<ParasutTransactionAttributes>> GetContactTransactionsAsync(
-        string accessToken, long companyId, string contactId,
-        int page = 1, int pageSize = 25,
-        CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("Paraşüt: fetching transactions for contact {ContactId}. Company={CompanyId}", contactId, companyId);
-        var url = $"v4/{companyId}/contacts/{contactId}/contact_debit_credit_transactions?page[size]={pageSize}&page[number]={page}&sort=-date";
-
-        return await GetListAsync<ParasutTransactionAttributes>(accessToken, url, cancellationToken);
-    }
-
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private async Task<JsonApiListResponse<T>> GetListAsync<T>(

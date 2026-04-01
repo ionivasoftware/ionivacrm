@@ -2,16 +2,18 @@ using IonCrm.Application.Opportunities.Commands.CreateOpportunity;
 using IonCrm.Application.Opportunities.Commands.UpdateOpportunity;
 using IonCrm.Application.Opportunities.Queries.GetPagedOpportunities;
 using IonCrm.Domain.Enums;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IonCrm.API.Controllers;
 
 /// <summary>
-/// Endpoints for customer opportunities (sales pipeline deals).
+/// Pipeline (opportunity) endpoints scoped to a specific customer.
 /// GET    /api/v1/customers/{customerId}/opportunities
 /// POST   /api/v1/customers/{customerId}/opportunities
 /// PUT    /api/v1/customers/{customerId}/opportunities/{id}
 /// </summary>
+[Tags("Pipeline")]
 [Route("api/v1/customers/{customerId:guid}/opportunities")]
 public class OpportunitiesController : ApiControllerBase
 {

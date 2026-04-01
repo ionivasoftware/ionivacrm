@@ -67,6 +67,7 @@ public static class DependencyInjection
 
         // ── Paraşüt ───────────────────────────────────────────────────────────
         services.AddScoped<IParasutConnectionRepository, ParasutConnectionRepository>();
+        services.AddScoped<IParasutProductRepository, ParasutProductRepository>();
         RegisterParasutClient(services);
 
         // High-level facade: wraps connection lookup + token lifecycle + IParasutClient calls.

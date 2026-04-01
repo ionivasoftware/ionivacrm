@@ -600,7 +600,6 @@ export function InvoicesPage() {
   const draftCount = allInvoices.filter(i => i.status === 'Draft').length;
   const transferredCount = allInvoices.filter(i => i.status === 'TransferredToParasut').length;
   const totalGross = allInvoices.reduce((s, i) => s + i.grossTotal, 0);
-  const totalNet = allInvoices.reduce((s, i) => s + i.netTotal, 0);
 
   return (
     <div className="space-y-6">

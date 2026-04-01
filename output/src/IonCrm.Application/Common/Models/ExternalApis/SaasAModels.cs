@@ -76,7 +76,7 @@ public record EmsCrmCustomer(
     string? Address,
     string? TaxNumber,
     string? Segment,
-    DateTime CreatedOn,
+    DateTime CreatedAt,
     DateTime UpdatedAt,
     DateTime? ExpirationDate);
 

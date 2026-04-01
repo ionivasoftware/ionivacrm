@@ -44,7 +44,6 @@ public class CreateOpportunityCommandHandler
             CustomerId = request.CustomerId,
             ProjectId = customer.ProjectId,
             Title = request.Title,
-            Value = request.Value,
             Stage = request.Stage,
             Probability = request.Probability,
             ExpectedCloseDate = request.ExpectedCloseDate,

@@ -71,7 +71,7 @@ class MobileDevAgent(BaseAgent):
     emoji = "📱"
     color = "green"
     ALLOWED_TOOLS = [
-        "Read", "Write", "Edit", "MultiEdit",
+        "Read", "Write", "Edit",
         "Glob", "Bash", "WebSearch"
     ]
 

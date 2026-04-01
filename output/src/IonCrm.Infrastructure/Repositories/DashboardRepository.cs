@@ -51,11 +51,6 @@ public class DashboardRepository : IDashboardRepository
                         o.Stage != OpportunityStage.Kayip)
             .CountAsync(cancellationToken);
 
-        // Use SumAsync directly — result is decimal?, ?? applied in memory
-        var pipelineValue = (await _db.Opportunities
-            .Where(o => o.ProjectId == projectId && o.Stage != OpportunityStage.Kayip)
-            .SumAsync(o => (decimal?)o.Value, cancellationToken)) ?? 0m;
-
         // ── Monthly activity (last 6 months) — fetch raw, group in memory ────
 
         var rawActivity = await _db.ContactHistories
@@ -95,14 +90,17 @@ public class DashboardRepository : IDashboardRepository
 
         var allOpportunities = await _db.Opportunities
             .Where(o => o.ProjectId == projectId && o.Stage != OpportunityStage.Kayip)
-            .Select(o => new { o.Stage, o.Value })
+            .Select(o => new { o.Stage })
             .ToListAsync(cancellationToken);
 
         var opportunitiesByStage = allOpportunities
             .GroupBy(o => o.Stage)
             .OrderBy(g => g.Key)
-            .Select(g => new StageBreakdownDto(g.Key, g.Count(), g.Sum(o => o.Value ?? 0m)))
+            .Select(g => new StageBreakdownDto(g.Key, g.Count(), 0m))
             .ToList();
+
+        // ── Pipeline value — Opportunity has no monetary Value field; kept as 0 ──
+        var pipelineValue = 0m;
 
         // ── Recent activities (last 10) ───────────────────────────────────────
 
@@ -198,10 +196,6 @@ public class DashboardRepository : IDashboardRepository
                         o.UpdatedAt >= startDate && o.UpdatedAt <= endInclusive)
             .CountAsync(cancellationToken);
 
-        var pipelineValue = (await _db.Opportunities
-            .Where(o => o.ProjectId == projectId && o.Stage != OpportunityStage.Kayip)
-            .SumAsync(o => (decimal?)o.Value, cancellationToken)) ?? 0m;
-
         // ── Contacts ───────────────────────────────────────────────────────────
         var rawContacts = await _db.ContactHistories
             .Where(h => h.ProjectId == projectId &&
@@ -226,6 +220,9 @@ public class DashboardRepository : IDashboardRepository
 
         var totalTasks = rawTasks.Count;
         var completedTasks = rawTasks.Count(t => t.Status == IonCrm.Domain.Enums.TaskStatus.Done);
+
+        // ── Pipeline value — Opportunity has no monetary Value field; kept as 0 ──
+        var pipelineValue = 0m;
 
         // ── Daily activity ────────────────────────────────────────────────────
         var days = (int)(endDate.Date - startDate.Date).TotalDays + 1;

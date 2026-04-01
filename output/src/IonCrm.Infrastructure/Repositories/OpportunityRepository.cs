@@ -51,7 +51,7 @@ public class OpportunityRepository : GenericRepository<Opportunity>, IOpportunit
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
             .OrderBy(o => o.Stage)
-            .ThenByDescending(o => o.Value)
+            .ThenByDescending(o => o.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .AsNoTracking()

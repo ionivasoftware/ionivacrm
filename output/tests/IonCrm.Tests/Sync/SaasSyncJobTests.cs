@@ -127,7 +127,7 @@ public class SaasSyncJobTests
         _saasAClientMock
             .Setup(c => c.GetCrmCustomersPageAsync(
                 It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>(),
-                It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(new EmsCrmCustomersResponse(new List<EmsCrmCustomer>(), 0, 1, 20, 0));
         _saasAClientMock
             .Setup(c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))

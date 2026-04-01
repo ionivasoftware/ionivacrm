@@ -36,7 +36,6 @@ public class UpdateOpportunityCommandHandler
             return Result<OpportunityDto>.Failure("Access denied.");
 
         opportunity.Title = request.Title;
-        opportunity.Value = request.Value;
         opportunity.Stage = request.Stage;
         opportunity.Probability = request.Probability;
         opportunity.ExpectedCloseDate = request.ExpectedCloseDate;

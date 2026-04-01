@@ -18,9 +18,6 @@ public class OpportunityConfiguration : IEntityTypeConfiguration<Opportunity>
             .IsRequired()
             .HasMaxLength(300);
 
-        builder.Property(o => o.Value)
-            .HasColumnType("numeric(18,2)");
-
         builder.Property(o => o.Stage).IsRequired();
 
         builder.Property(o => o.Probability)

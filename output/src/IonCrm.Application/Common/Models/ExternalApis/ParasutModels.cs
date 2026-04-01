@@ -192,6 +192,38 @@ public class SalesInvoiceDetailData
 
     [JsonPropertyName("attributes")]
     public ParasutSalesInvoiceDetailAttributes Attributes { get; set; } = null!;
+
+    /// <summary>
+    /// Optional product relationship. When set, links this line item to a Paraşüt product (ürün)
+    /// so that product-level accounting rules (income/expense accounts) are applied automatically.
+    /// </summary>
+    [JsonPropertyName("relationships")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public SalesInvoiceDetailRelationships? Relationships { get; set; }
+}
+
+/// <summary>Relationship section for a sales invoice detail (line item).</summary>
+public class SalesInvoiceDetailRelationships
+{
+    [JsonPropertyName("product")]
+    public ProductRelationship? Product { get; set; }
+}
+
+/// <summary>JSON:API relationship pointing to a Paraşüt product (ürün).</summary>
+public class ProductRelationship
+{
+    [JsonPropertyName("data")]
+    public ProductRelationshipData? Data { get; set; }
+}
+
+/// <summary>Resource identifier for a Paraşüt product.</summary>
+public class ProductRelationshipData
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "products";
+
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
 }
 
 public class ContactRelationship
@@ -259,25 +291,6 @@ public class AccountRelationshipData
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 }
-
-// ── Contact Debit/Credit Transactions (Cari Hareketleri) ─────────────────────
-
-/// <summary>
-/// Attributes for a Paraşüt contact debit/credit transaction.
-/// Returned by GET /v4/{company_id}/contacts/{contact_id}/contact_debit_credit_transactions
-/// transaction_type: "debit" (borç — fatura) | "credit" (alacak — tahsilat)
-/// </summary>
-public record ParasutTransactionAttributes(
-    [property: JsonPropertyName("date")]               string Date,             // yyyy-MM-dd
-    [property: JsonPropertyName("amount")]              string? Amount,
-    [property: JsonPropertyName("currency")]            string? Currency,
-    [property: JsonPropertyName("transaction_type")]    string? TransactionType, // "debit" | "credit"
-    [property: JsonPropertyName("description")]         string? Description,
-    [property: JsonPropertyName("payable_type")]        string? PayableType,     // "SalesInvoice", "Payment", etc.
-    [property: JsonPropertyName("payable_id")]          int? PayableId,
-    [property: JsonPropertyName("remaining")]           string? Remaining,
-    [property: JsonPropertyName("remaining_in_trl")]    string? RemainingInTrl
-);
 
 // ── E-Invoice (e-Fatura / e-Arşiv) ───────────────────────────────────────────
 

@@ -12,7 +12,6 @@ public static class OpportunityMappings
         CustomerName = o.Customer?.CompanyName ?? string.Empty,
         ProjectId = o.ProjectId,
         Title = o.Title,
-        Value = o.Value,
         Stage = o.Stage,
         Probability = o.Probability,
         ExpectedCloseDate = o.ExpectedCloseDate,

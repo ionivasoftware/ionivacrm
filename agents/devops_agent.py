@@ -63,7 +63,7 @@ class DevOpsAgent(BaseAgent):
     emoji = "🚀"
     color = "bright_blue"
     ALLOWED_TOOLS = [
-        "Read", "Write", "Edit", "MultiEdit",
+        "Read", "Write", "Edit",
         "Glob", "Bash", "WebSearch"
     ]
 

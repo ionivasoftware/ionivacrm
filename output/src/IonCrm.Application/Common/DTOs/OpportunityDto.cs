@@ -10,7 +10,6 @@ public class OpportunityDto
     public string CustomerName { get; set; } = string.Empty;
     public Guid ProjectId { get; set; }
     public string Title { get; set; } = string.Empty;
-    public decimal? Value { get; set; }
     public OpportunityStage Stage { get; set; }
     public int? Probability { get; set; }
     public DateOnly? ExpectedCloseDate { get; set; }

@@ -50,7 +50,7 @@ class FrontendDevAgent(BaseAgent):
     emoji = "🎨"
     color = "magenta"
     ALLOWED_TOOLS = [
-        "Read", "Write", "Edit", "MultiEdit",
+        "Read", "Write", "Edit",
         "Glob", "Bash", "WebSearch"
     ]
 

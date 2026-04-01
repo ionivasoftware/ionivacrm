@@ -174,6 +174,12 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""SmsCount""          integer NOT NULL DEFAULT 0;
             ");
 
+            // Idempotent cleanup: drop obsolete columns that have been removed from the domain model.
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""Opportunities"" DROP COLUMN IF EXISTS ""Value"";
+            ");
+            Log.Information("Obsolete column cleanup complete");
+
             // Idempotent fallback: create ParasutConnections table if EF migration hasn't run yet.
             // Tenant-based: one row per project, stores OAuth credentials + access/refresh tokens.
             await db.Database.ExecuteSqlRawAsync(@"
@@ -240,6 +246,28 @@ app.Lifetime.ApplicationStarted.Register(() =>
                     WHERE ""IsDeleted"" = false;
             ");
             Log.Information("Invoices table ensured");
+
+            // Idempotent fallback: create ParasutProducts table (per-project product catalog for invoices).
+            // Stores 6 fixed product types: memberships (1-month, 1-year) + SMS packages (1000/2500/5000/10000).
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""ParasutProducts"" (
+                    ""Id""               uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""ProjectId""        uuid         NOT NULL,
+                    ""ProductName""      text         NOT NULL DEFAULT '',
+                    ""ParasutProductId"" text         NOT NULL DEFAULT '',
+                    ""UnitPrice""        numeric      NOT NULL DEFAULT 0,
+                    ""TaxRate""          numeric      NOT NULL DEFAULT 0.20,
+                    ""CreatedAt""        timestamp with time zone NOT NULL DEFAULT now(),
+                    ""UpdatedAt""        timestamp with time zone NOT NULL DEFAULT now(),
+                    ""IsDeleted""        boolean      NOT NULL DEFAULT false,
+                    CONSTRAINT ""fk_parasutproducts_projects"" FOREIGN KEY (""ProjectId"")
+                        REFERENCES ""Projects"" (""Id"") ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS ""ix_parasutproducts_projectid""
+                    ON ""ParasutProducts"" (""ProjectId"")
+                    WHERE ""IsDeleted"" = false;
+            ");
+            Log.Information("ParasutProducts table ensured");
 
             // Fix: Segment was originally created as integer (enum) but the entity
             // uses string. Convert to text so EMS API string values can be stored.

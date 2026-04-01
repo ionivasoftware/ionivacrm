@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { ApiResponse, CustomerParasutTransactions } from '@/types';
+import type { ApiResponse, ParasutProduct, ParasutProductKey, ParasutProductListItem } from '@/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -240,23 +240,76 @@ export function useParasutInvoices(projectId: string | null, page = 1, enabled =
   });
 }
 
-export function useCustomerParasutTransactions(
-  customerId: string | undefined,
-  page = 1,
-  pageSize = 25
-) {
+// ── Paraşüt Product Mapping ──────────────────────────────────────────────────
+
+export interface SaveParasutProductRequest {
+  projectId: string;
+  productKey: ParasutProductKey;
+  productName: string;
+  parasutProductId: string;
+  parasutProductName?: string;
+  unitPrice: number;
+  /** Tax rate as decimal: 0.20 = 20% */
+  taxRate: number;
+}
+
+/** Fetch saved CRM→Paraşüt product mappings from our DB */
+export function useParasutProducts(projectId: string | null) {
   return useQuery({
-    queryKey: ['customerParasutTransactions', customerId, page, pageSize],
+    queryKey: ['parasutProducts', projectId],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse<CustomerParasutTransactions>>(
-        `/customers/${customerId}/parasut-transactions`,
-        { params: { page, pageSize } }
+      const res = await apiClient.get<ApiResponse<ParasutProduct[]>>(
+        `/crm/parasut-products?projectId=${projectId}`
       );
       return res.data.data;
     },
-    enabled: !!customerId,
-    staleTime: 60_000,
+    enabled: !!projectId,
+    staleTime: 30_000,
   });
+}
+
+/** Fetch live product list from Paraşüt API */
+export function useParasutProductList(projectId: string | null, enabled = false) {
+  return useQuery({
+    queryKey: ['parasutProductList', projectId],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<ParasutProductListItem[]>>(
+        `/crm/parasut/products?projectId=${projectId}`
+      );
+      return res.data.data;
+    },
+    enabled: !!projectId && enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Create or update a CRM→Paraşüt product mapping (POST creates, PUT updates by id) */
+export function useSaveParasutProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ existingId, ...data }: SaveParasutProductRequest & { existingId?: string }) => {
+      if (existingId) {
+        const res = await apiClient.put<ApiResponse<ParasutProduct>>(
+          `/crm/parasut-products/${existingId}`,
+          data
+        );
+        return res.data.data;
+      }
+      const res = await apiClient.post<ApiResponse<ParasutProduct>>(
+        '/crm/parasut-products',
+        data
+      );
+      return res.data.data;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['parasutProducts', vars.projectId] });
+    },
+  });
+}
+
+/** @deprecated Use useSaveParasutProduct instead */
+export function useUpsertParasutProduct() {
+  return useSaveParasutProduct();
 }
 
 export function useParasutContactInvoices(

@@ -274,31 +274,6 @@ public sealed class ParasutService : IParasutService
         }
     }
 
-    // ── Contact Transactions ─────────────────────────────────────────────────
-
-    /// <inheritdoc />
-    public async Task<(JsonApiListResponse<ParasutTransactionAttributes>? Data, string? Error)> GetContactTransactionsAsync(
-        Guid projectId, string contactId, int page = 1, int pageSize = 25,
-        CancellationToken cancellationToken = default)
-    {
-        var (conn, error) = await GetConnectionAsync(projectId, cancellationToken);
-        if (conn is null) return (null, error);
-
-        try
-        {
-            var data = await _parasutClient.GetContactTransactionsAsync(
-                conn.AccessToken!, conn.CompanyId, contactId, page, pageSize, cancellationToken);
-            return (data, null);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Paraşüt GetContactTransactions failed for project {ProjectId} contact {ContactId}.",
-                projectId, contactId);
-            return (null, $"Cari hareketleri alınamadı: {ex.Message}");
-        }
-    }
-
     // ── Accounts & Products ───────────────────────────────────────────────────
 
     /// <inheritdoc />

@@ -87,7 +87,6 @@ import {
   useCreateParasutInvoice,
   useLinkParasutContact,
   useParasutContacts,
-  useCustomerParasutTransactions,
   type InvoiceLine,
 } from '@/api/parasut';
 import type {
@@ -131,15 +130,6 @@ function formatRelative(dateStr: string): string {
   if (diffD < 7) return `${diffD} gün önce`;
   if (diffD < 30) return `${Math.floor(diffD / 7)} hafta önce`;
   return formatDateShort(dateStr);
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: 'TRY',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
 }
 
 // ── Label maps ────────────────────────────────────────────────────────────────
@@ -310,7 +300,6 @@ type CreateTaskFormData = z.infer<typeof createTaskSchema>;
 
 const createOpportunitySchema = z.object({
   title: z.string().min(1, 'Başlık gereklidir'),
-  value: z.string(),
   stage: z.enum([
     'YeniArama',
     'Potansiyel',
@@ -444,7 +433,6 @@ function CreateOpportunityDialog({ isOpen, onClose, customerId }: CreateOpportun
     resolver: zodResolver(createOpportunitySchema),
     defaultValues: {
       title: '',
-      value: '',
       stage: 'YeniArama',
       probability: '',
       expectedCloseDate: '',
@@ -458,15 +446,14 @@ function CreateOpportunityDialog({ isOpen, onClose, customerId }: CreateOpportun
       await mutation.mutateAsync({
         customerId,
         title: data.title,
-        value: data.value ? parseFloat(data.value) : undefined,
         stage: data.stage,
         probability: data.probability ? parseInt(data.probability) : undefined,
         expectedCloseDate: data.expectedCloseDate || undefined,
       });
-      toast({ title: 'Fırsat oluşturuldu', description: `"${data.title}" fırsatı eklendi.` });
+      toast({ title: 'Pipeline kaydı oluşturuldu', description: `"${data.title}" eklendi.` });
       handleClose();
     } catch {
-      toast({ title: 'Hata', description: 'Fırsat eklenemedi.', variant: 'destructive' });
+      toast({ title: 'Hata', description: 'Pipeline kaydı eklenemedi.', variant: 'destructive' });
     }
   };
 
@@ -474,28 +461,22 @@ function CreateOpportunityDialog({ isOpen, onClose, customerId }: CreateOpportun
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Yeni Fırsat Ekle</DialogTitle>
+          <DialogTitle>Yeni Pipeline Kaydı</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
           <div className="space-y-1.5">
             <Label htmlFor="opp-title">Başlık <span className="text-destructive">*</span></Label>
             <Input
               id="opp-title"
-              placeholder="Fırsat başlığı"
+              placeholder="Pipeline başlığı"
               {...register('title')}
               className={cn('h-11', errors.title && 'border-destructive')}
             />
             {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="opp-value">Değer (₺)</Label>
-              <Input id="opp-value" type="number" placeholder="0" {...register('value')} className="h-11" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="opp-prob">Olasılık (%)</Label>
-              <Input id="opp-prob" type="number" min="0" max="100" placeholder="50" {...register('probability')} className="h-11" />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="opp-prob">Olasılık (%)</Label>
+            <Input id="opp-prob" type="number" min="0" max="100" placeholder="50" {...register('probability')} className="h-11" />
           </div>
           <div className="space-y-1.5">
             <Label>Aşama</Label>
@@ -908,7 +889,6 @@ export function CustomerDetailPage() {
   const [linkSearch, setLinkSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [linkPage, setLinkPage] = useState(1);
-  const [cariHareketPage, setCariHareketPage] = useState(1);
   const parasutStatus = useParasutStatus(currentProjectId);
   const syncContact = useSyncContactToParasut();
   const linkContact = useLinkParasutContact();
@@ -942,13 +922,6 @@ export function CustomerDetailPage() {
   const { data: tasksData, isLoading: tasksLoading } = useCustomerTasks(customerId);
   const { data: oppsData, isLoading: oppsLoading } = useCustomerOpportunities(customerId);
   const deleteMutation = useDeleteCustomer();
-
-  // Cari hareketleri — uses the combined transactions endpoint (invoices + debit/credit)
-  const parasutTransactionsQuery = useCustomerParasutTransactions(
-    customer?.parasutContactId ? customerId : undefined,
-    cariHareketPage
-  );
-  const [cariSubTab, setCariSubTab] = useState<'invoices' | 'transactions'>('invoices');
 
   function openAddContact(type: ContactType) {
     setAddContactType(type);
@@ -1029,7 +1002,7 @@ export function CustomerDetailPage() {
     },
     {
       id: 'opportunities',
-      label: 'Fırsatlar',
+      label: 'Pipeline',
       count: oppsData?.totalCount,
     },
     ...(canAccessFinance ? [{ id: 'cari' as ActiveTab, label: 'Cari / Fatura' }] : []),
@@ -1476,7 +1449,7 @@ export function CustomerDetailPage() {
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
                   {oppsData
-                    ? `${oppsData.totalCount} fırsat`
+                    ? `${oppsData.totalCount} kayıt`
                     : 'Yükleniyor...'}
                 </p>
                 <Button
@@ -1486,7 +1459,7 @@ export function CustomerDetailPage() {
                   onClick={() => setShowCreateOpportunity(true)}
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Yeni Fırsat
+                  Yeni Pipeline
                 </Button>
               </div>
 
@@ -1503,9 +1476,9 @@ export function CustomerDetailPage() {
                   <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                     <DollarSign className="h-8 w-8 text-muted-foreground/40" />
                   </div>
-                  <p className="font-medium text-foreground mb-1">Fırsat yok</p>
+                  <p className="font-medium text-foreground mb-1">Pipeline kaydı yok</p>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Bu müşteri için henüz satış fırsatı oluşturulmadı.
+                    Bu müşteri için henüz pipeline kaydı oluşturulmadı.
                   </p>
                   <Button
                     variant="outline"
@@ -1513,7 +1486,7 @@ export function CustomerDetailPage() {
                     onClick={() => setShowCreateOpportunity(true)}
                   >
                     <Plus className="h-4 w-4" />
-                    Fırsat Oluştur
+                    Pipeline Ekle
                   </Button>
                 </div>
               )}
@@ -1556,13 +1529,6 @@ export function CustomerDetailPage() {
                               )}
                             </div>
                           </div>
-                          {opp.value !== null && opp.value !== undefined && (
-                            <div className="flex-shrink-0 text-right">
-                              <p className="text-lg font-bold text-foreground">
-                                {formatCurrency(opp.value)}
-                              </p>
-                            </div>
-                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -1681,203 +1647,6 @@ export function CustomerDetailPage() {
                     </div>
                   )}
 
-                  {/* Cari hareketleri — yalnızca eşleşme varsa göster */}
-                  {customer?.parasutContactId && (
-                    <div className="space-y-3 pt-2">
-                      {/* Sub-tab toggle: Faturalar / Cari Hareketleri */}
-                      <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/40 w-fit">
-                        <button
-                          onClick={() => { setCariSubTab('invoices'); setCariHareketPage(1); }}
-                          className={cn(
-                            'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                            cariSubTab === 'invoices'
-                              ? 'bg-background text-foreground shadow-sm'
-                              : 'text-muted-foreground hover:text-foreground'
-                          )}
-                        >
-                          Faturalar
-                          {parasutTransactionsQuery.data && (
-                            <span className="ml-1.5 text-[10px] opacity-70">
-                              ({parasutTransactionsQuery.data.invoiceTotalCount})
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => { setCariSubTab('transactions'); setCariHareketPage(1); }}
-                          className={cn(
-                            'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                            cariSubTab === 'transactions'
-                              ? 'bg-background text-foreground shadow-sm'
-                              : 'text-muted-foreground hover:text-foreground'
-                          )}
-                        >
-                          Cari Hareketleri
-                          {parasutTransactionsQuery.data && (
-                            <span className="ml-1.5 text-[10px] opacity-70">
-                              ({parasutTransactionsQuery.data.transactionTotalCount})
-                            </span>
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Loading state */}
-                      {parasutTransactionsQuery.isLoading && (
-                        <div className="space-y-2">
-                          {Array.from({ length: 3 }).map((_, i) => (
-                            <Skeleton key={i} className="h-14 w-full rounded-lg" />
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Error state */}
-                      {parasutTransactionsQuery.isError && (
-                        <div className="flex items-center gap-2 p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm text-destructive">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                          Cari hareketleri yüklenemedi.
-                        </div>
-                      )}
-
-                      {/* ── Faturalar sub-tab ── */}
-                      {cariSubTab === 'invoices' && !parasutTransactionsQuery.isLoading && (
-                        <>
-                          {(parasutTransactionsQuery.data?.invoices ?? []).length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-6">
-                              Bu cari için henüz fatura yok.
-                            </p>
-                          ) : (
-                            <div className="rounded-lg border border-border overflow-hidden">
-                              <table className="w-full text-sm">
-                                <thead>
-                                  <tr className="border-b border-border bg-muted/40">
-                                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Tarih</th>
-                                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground hidden sm:table-cell">Açıklama</th>
-                                    <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Tutar</th>
-                                    <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground hidden sm:table-cell">Ödenen</th>
-                                    <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Kalan</th>
-                                    <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground hidden md:table-cell">Durum</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                  {(parasutTransactionsQuery.data?.invoices ?? []).map((inv) => {
-                                    const isPaid = inv.remaining <= 0;
-                                    const isOverdue = !isPaid && inv.dueDate && new Date(inv.dueDate) < new Date();
-                                    const cur = inv.currency === 'TRL' ? 'TRY' : (inv.currency || 'TRY');
-                                    const fmt = (v: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: cur, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
-                                    return (
-                                      <tr key={inv.id} className="hover:bg-muted/20 transition-colors">
-                                        <td className="px-3 py-2.5 whitespace-nowrap text-foreground">
-                                          {new Date(inv.issueDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                        </td>
-                                        <td className="px-3 py-2.5 text-muted-foreground max-w-[180px] truncate hidden sm:table-cell">
-                                          {inv.description ?? '—'}
-                                        </td>
-                                        <td className="px-3 py-2.5 text-right font-medium text-foreground whitespace-nowrap">
-                                          {fmt(inv.grossTotal)}
-                                        </td>
-                                        <td className="px-3 py-2.5 text-right text-emerald-400 whitespace-nowrap hidden sm:table-cell">
-                                          {fmt(inv.totalPaid)}
-                                        </td>
-                                        <td className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${isOverdue ? 'text-red-400' : isPaid ? 'text-muted-foreground' : 'text-amber-400'}`}>
-                                          {fmt(inv.remaining)}
-                                        </td>
-                                        <td className="px-3 py-2.5 text-center hidden md:table-cell">
-                                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${isPaid ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : isOverdue ? 'bg-red-500/15 text-red-400 border-red-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'}`}>
-                                            {isPaid ? 'Ödendi' : isOverdue ? 'Vadesi Geçti' : 'Açık'}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </>
-                      )}
-
-                      {/* ── Cari Hareketleri sub-tab ── */}
-                      {cariSubTab === 'transactions' && !parasutTransactionsQuery.isLoading && (
-                        <>
-                          {(parasutTransactionsQuery.data?.transactions ?? []).length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-6">
-                              Bu cari için henüz işlem yok.
-                            </p>
-                          ) : (
-                            <div className="rounded-lg border border-border overflow-hidden">
-                              <table className="w-full text-sm">
-                                <thead>
-                                  <tr className="border-b border-border bg-muted/40">
-                                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Tarih</th>
-                                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground hidden sm:table-cell">Açıklama</th>
-                                    <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground">Tür</th>
-                                    <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Tutar</th>
-                                    <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Kalan</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                  {(parasutTransactionsQuery.data?.transactions ?? []).map((txn, idx) => {
-                                    const isCredit = txn.transactionType === 'credit';
-                                    const cur = txn.currency === 'TRL' ? 'TRY' : (txn.currency || 'TRY');
-                                    const fmt = (v: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: cur, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
-                                    return (
-                                      <tr key={`${txn.payableId ?? idx}-${txn.date}`} className="hover:bg-muted/20 transition-colors">
-                                        <td className="px-3 py-2.5 whitespace-nowrap text-foreground">
-                                          {new Date(txn.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                        </td>
-                                        <td className="px-3 py-2.5 text-muted-foreground max-w-[200px] truncate hidden sm:table-cell">
-                                          {txn.description || txn.payableType || '—'}
-                                        </td>
-                                        <td className="px-3 py-2.5 text-center">
-                                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
-                                            isCredit
-                                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                              : 'bg-red-500/15 text-red-400 border-red-500/30'
-                                          }`}>
-                                            {isCredit ? 'Alacak' : 'Borç'}
-                                          </span>
-                                        </td>
-                                        <td className={`px-3 py-2.5 text-right font-medium whitespace-nowrap ${isCredit ? 'text-emerald-400' : 'text-foreground'}`}>
-                                          {isCredit ? '+' : ''}{fmt(txn.amount)}
-                                        </td>
-                                        <td className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${txn.remaining > 0 ? 'text-amber-400' : 'text-muted-foreground'}`}>
-                                          {fmt(txn.remaining)}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </>
-                      )}
-
-                      {/* Sayfalama */}
-                      {(parasutTransactionsQuery.data?.totalPages ?? 0) > 1 && (
-                        <div className="flex items-center justify-between pt-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCariHareketPage(p => Math.max(1, p - 1))}
-                            disabled={cariHareketPage <= 1 || parasutTransactionsQuery.isFetching}
-                          >
-                            ‹ Önceki
-                          </Button>
-                          <span className="text-xs text-muted-foreground">
-                            {cariHareketPage} / {parasutTransactionsQuery.data?.totalPages}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCariHareketPage(p => p + 1)}
-                            disabled={cariHareketPage >= (parasutTransactionsQuery.data?.totalPages ?? 1) || parasutTransactionsQuery.isFetching}
-                          >
-                            Sonraki ›
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </>
               )}
             </div>

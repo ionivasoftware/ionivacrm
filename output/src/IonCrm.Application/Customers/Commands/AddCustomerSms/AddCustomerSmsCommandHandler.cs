@@ -17,6 +17,7 @@ public sealed class AddCustomerSmsCommandHandler
     private readonly ISaasAClient _saasAClient;
     private readonly IParasutClient _parasutClient;
     private readonly IParasutConnectionRepository _connectionRepository;
+    private readonly IParasutProductRepository _productRepository;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<AddCustomerSmsCommandHandler> _logger;
 
@@ -26,6 +27,7 @@ public sealed class AddCustomerSmsCommandHandler
         ISaasAClient saasAClient,
         IParasutClient parasutClient,
         IParasutConnectionRepository connectionRepository,
+        IParasutProductRepository productRepository,
         ICurrentUserService currentUser,
         ILogger<AddCustomerSmsCommandHandler> logger)
     {
@@ -34,6 +36,7 @@ public sealed class AddCustomerSmsCommandHandler
         _saasAClient          = saasAClient;
         _parasutClient        = parasutClient;
         _connectionRepository = connectionRepository;
+        _productRepository    = productRepository;
         _currentUser          = currentUser;
         _logger               = logger;
     }
@@ -131,8 +134,39 @@ public sealed class AddCustomerSmsCommandHandler
                 return null;
             }
 
+            // Look up configured product for this SMS package (e.g. "1000 SMS", "2500 SMS", ...)
+            var productName    = $"{count} SMS";
+            var configProduct  = await _productRepository.GetByNameAsync(projectId, productName, ct);
+
+            var unitPrice = configProduct?.UnitPrice ?? 0m;
+            var vatRate   = configProduct is not null ? (int)(configProduct.TaxRate * 100) : 20;
+
             var today   = DateTime.UtcNow.ToString("yyyy-MM-dd");
             var dueDate = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd");
+
+            var lineItem = new SalesInvoiceDetailData
+            {
+                Attributes = new ParasutSalesInvoiceDetailAttributes(
+                    Quantity:       count,
+                    UnitPrice:      unitPrice,
+                    VatRate:        vatRate,
+                    DiscountType:   "percentage",
+                    DiscountValue:  0,
+                    Description:    $"SMS Kredisi — {companyName}",
+                    Unit:           "Adet")
+            };
+
+            // If a configured product exists, link it so Paraşüt applies the correct GL account
+            if (configProduct is not null && !string.IsNullOrEmpty(configProduct.ParasutProductId))
+            {
+                lineItem.Relationships = new SalesInvoiceDetailRelationships
+                {
+                    Product = new ProductRelationship
+                    {
+                        Data = new ProductRelationshipData { Id = configProduct.ParasutProductId }
+                    }
+                };
+            }
 
             var invoiceReq = new CreateSalesInvoiceRequest
             {
@@ -163,20 +197,7 @@ public sealed class AddCustomerSmsCommandHandler
                     {
                         Details = new SalesInvoiceDetailsRelationship
                         {
-                            Data = new List<SalesInvoiceDetailData>
-                            {
-                                new()
-                                {
-                                    Attributes = new ParasutSalesInvoiceDetailAttributes(
-                                        Quantity:       count,
-                                        UnitPrice:      0,
-                                        VatRate:        20,
-                                        DiscountType:   "percentage",
-                                        DiscountValue:  0,
-                                        Description:    $"SMS Kredisi — {companyName}",
-                                        Unit:           "Adet")
-                                }
-                            }
+                            Data = new List<SalesInvoiceDetailData> { lineItem }
                         },
                         Contact = string.IsNullOrEmpty(parasutContactId)
                             ? null
@@ -191,8 +212,8 @@ public sealed class AddCustomerSmsCommandHandler
             var result    = await _parasutClient.CreateSalesInvoiceAsync(conn.AccessToken!, conn.CompanyId, invoiceReq, ct);
             var invoiceId = result.Data.Id;
             _logger.LogInformation(
-                "Created Paraşüt draft invoice {InvoiceId} for {Count} SMS credits — {CompanyName}.",
-                invoiceId, count, companyName);
+                "Created Paraşüt draft invoice {InvoiceId} for {Count} SMS credits — {CompanyName} (product: {ProductName}).",
+                invoiceId, count, companyName, configProduct?.ParasutProductId ?? "(none)");
             return invoiceId;
         }
         catch (Exception ex)

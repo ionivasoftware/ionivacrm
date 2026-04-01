@@ -66,6 +66,7 @@ Rules:
 - Tasks with empty "depends_on" run in PARALLEL
 - If todo.md is empty: {"session_goal": "Yapılacak görev yok", "tasks": []}
 - Write ONLY valid JSON to the file — nothing else
+- If there are any "backend" tasks, always add a final "qa" task that depends on ALL backend task IDs. The qa task should write/update unit tests for the changed handlers and repositories in output/tests/IonCrm.Tests/.
 
 After writing the file, output: PLAN_READY
 """
@@ -120,6 +121,11 @@ class OrchestratorAgent(BaseAgent):
 
         passed = sum(1 for ok in results.values() if ok)
         total  = len(results)
+
+        # Auto commit + push if any task succeeded
+        if passed > 0:
+            await self._git_commit_push(plan.get("session_goal", "chore: session tasks"))
+
         color  = "green" if passed == total else "yellow"
         console.print(Panel(
             f"[bold {color}]{'✅' if passed == total else '⚠️'} Oturum Tamamlandı[/bold {color}]\n\n"
@@ -226,7 +232,14 @@ class OrchestratorAgent(BaseAgent):
         full_task   = f"{description}\n\n{context}".strip() if context else description
 
         agent = self._get_agent(agent_type)
-        await agent.run_task(full_task)
+        try:
+            await agent.run_task(full_task)
+        except Exception as e:
+            console.print(
+                f"\n[bold red]❌ Görev {task['id']} agent hatası: {e}[/bold red]\n"
+                f"[dim]Görev atlanıyor, bir sonrakine geçiliyor.[/dim]\n"
+            )
+            return False
 
         if not self.VALIDATE_TASKS:
             self._mark_todo_done(description)
@@ -242,11 +255,15 @@ class OrchestratorAgent(BaseAgent):
             f"\n[yellow]⚠️  Görev {task['id']} build doğrulama başarısız — retry...[/yellow]\n"
             f"[dim red]{error[:300]}[/dim red]\n"
         )
-        await agent.run_task(
-            f"Build hatası oluştu. Sadece bu hatayı düzelt:\n\n"
-            f"```\n{error[:600]}\n```\n\n"
-            f"Orijinal görev: {description}"
-        )
+        try:
+            await agent.run_task(
+                f"Build hatası oluştu. Sadece bu hatayı düzelt:\n\n"
+                f"```\n{error[:600]}\n```\n\n"
+                f"Orijinal görev: {description}"
+            )
+        except Exception as e:
+            console.print(f"[red]❌ Retry agent hatası: {e}[/red]\n")
+            return False
 
         ok2, error2 = run_build_check(agent_type)
         if not ok2:
@@ -266,18 +283,73 @@ class OrchestratorAgent(BaseAgent):
             with open(todo_md, encoding="utf-8") as f:
                 content = f.read()
 
-            # Try exact match first, then first-word match
-            needle = description[:60].strip()
             lines = content.splitlines(keepends=True)
+            desc_lower = description.lower()
+
+            # Build a list of candidate substrings to search for:
+            # 1. First 60 chars of description
+            # 2. First 30 chars
+            # 3. Any 20-char window from the description
+            candidates = [
+                description[:60].strip().lower(),
+                description[:30].strip().lower(),
+            ]
+            # Also try words 3-8 (skip "[BACKEND]"/[FRONTEND] prefix words)
+            words = description.split()
+            if len(words) >= 5:
+                candidates.append(" ".join(words[1:5]).lower())
+                candidates.append(" ".join(words[2:6]).lower())
+
             for i, line in enumerate(lines):
-                if line.startswith("- [ ]") and needle[:30].lower() in line.lower():
+                if not line.startswith("- [ ]"):
+                    continue
+                line_lower = line.lower()
+                if any(c and c in line_lower for c in candidates):
                     lines[i] = line.replace("- [ ]", "- [x]", 1)
                     with open(todo_md, "w", encoding="utf-8") as f:
                         f.writelines(lines)
-                    console.print(f"[dim green]✓ todo.md güncellendi: {needle[:50]}[/dim green]")
+                    console.print(f"[dim green]✓ todo.md güncellendi: {description[:50]}[/dim green]")
                     return
         except Exception as e:
             console.print(f"[dim yellow]todo.md güncellenemedi: {e}[/dim yellow]")
+
+    # ------------------------------------------------------------------
+    # Git commit + push
+    # ------------------------------------------------------------------
+
+    async def _git_commit_push(self, session_goal: str) -> None:
+        """Stage all changes, commit, and push to origin main."""
+        import subprocess
+        code_dir = get_code_dir()
+
+        # Build commit message from session goal
+        goal = session_goal.strip()
+        if not goal.lower().startswith(("feat:", "fix:", "chore:", "refactor:", "ci:")):
+            goal = f"feat: {goal}"
+
+        console.print(f"\n[bold cyan]🔀 Git commit + push başlatılıyor...[/bold cyan]")
+        try:
+            # Check if there's anything to commit
+            status = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=code_dir, capture_output=True, text=True
+            )
+            if not status.stdout.strip():
+                console.print("[dim]Git: değişiklik yok, commit atlanıyor.[/dim]")
+                return
+
+            subprocess.run(["git", "add", "-A"], cwd=code_dir, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", goal],
+                cwd=code_dir, check=True
+            )
+            subprocess.run(
+                ["git", "push", "origin", "main"],
+                cwd=code_dir, check=True
+            )
+            console.print(f"[bold green]✅ Git push tamamlandı: {goal}[/bold green]")
+        except subprocess.CalledProcessError as e:
+            console.print(f"[bold red]❌ Git işlemi başarısız: {e}[/bold red]")
 
     # ------------------------------------------------------------------
     # Agent factory

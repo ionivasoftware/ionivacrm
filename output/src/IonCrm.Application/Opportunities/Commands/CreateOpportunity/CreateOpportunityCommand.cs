@@ -9,7 +9,6 @@ public record CreateOpportunityCommand : IRequest<Result<OpportunityDto>>
 {
     public Guid CustomerId { get; init; }
     public string Title { get; init; } = string.Empty;
-    public decimal? Value { get; init; }
     public OpportunityStage Stage { get; init; } = OpportunityStage.YeniArama;
     public int? Probability { get; init; }
     public DateOnly? ExpectedCloseDate { get; init; }

@@ -100,17 +100,6 @@ public interface IParasutService
         int pageSize = 25,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Returns a paginated list of debit/credit transactions for a specific contact.
-    /// Includes both invoices (debit) and payments/collections (credit).
-    /// </summary>
-    Task<(JsonApiListResponse<ParasutTransactionAttributes>? Data, string? Error)> GetContactTransactionsAsync(
-        Guid projectId,
-        string contactId,
-        int page = 1,
-        int pageSize = 25,
-        CancellationToken cancellationToken = default);
-
     // ── Accounts & Products ───────────────────────────────────────────────────
 
     /// <summary>Returns all bank accounts and cash registers for the project's company.</summary>

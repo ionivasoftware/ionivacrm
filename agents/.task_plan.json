@@ -1,82 +1,33 @@
 {
-  "session_goal": "Süre uzat UI iyileştirmesi, Paraşüt fatura entegrasyonu ve SMS yükleme özelliği",
+  "session_goal": "Paraşüt ürün eşleştirmesi backend+frontend ve Pipeline yeniden adlandırma + değer alanı kaldırma",
   "tasks": [
     {
       "id": 1,
-      "description": "Süre Uzat modalında gün seçimi sabit butonlar yerine serbest giriş input alanına çevrilmeli (3, 5, 10 vb. gün yazılabilmeli)",
-      "agent": "frontend",
+      "description": "[BACKEND] Paraşüt Ürün Eşleştirmesi: `ParasutProduct` entity'si oluştur (Id, ProjectId, ProductKey string, ParasutProductId string, ParasutProductName string, UnitPrice decimal, VatRate decimal). Migration ekle (`ADD COLUMN IF NOT EXISTS` pattern ile ayrı tablo). Repository ve CRUD komutlarını yaz: GetParasutProducts, SaveParasutProduct. ProductKey sabit değerler: 'membership_monthly', 'membership_yearly', 'sms_1000', 'sms_2500', 'sms_5000', 'sms_10000'. `ExtendEmsExpiration` ve `AddCustomerSms` command handler'larında taslak fatura oluştururken artık sabit fiyat yerine `ParasutProduct` tablosundan fiyat/vergi bilgisini çek (kayıt yoksa mevcut davranışı koru).",
+      "agent": "backend",
       "depends_on": [],
-      "context": "Mevcut extend-expiration UI'da sabit gün seçenekleri var, bunları number input ile değiştir. Backend endpoint zaten gün parametresi alıyor olmalı."
+      "context": "Proje DB schema değişiklikleri EF migration yerine Program.cs startup SQL bloğunda idempotent raw SQL ile yönetiliyor (ADD COLUMN IF NOT EXISTS pattern). IParasutProductRepository DI olarak DependencyInjection.cs'teki Paraşüt bloğuna eklenmeli. Upsert pattern: GetByNameAsync ile var mı kontrol et → varsa Update, yoksa Add. Entity TaxRate 0-1 decimal olarak saklanır. Kod dizini: /Users/ofc/Documents/Projects/ionivacrm/output/"
     },
     {
       "id": 2,
-      "description": "Paraşüt bağlantı bilgilerini DB'de tut, sistem bağlı değilse otomatik bağlan. ParasutConnection entity ve ParasutAutoConnectService zaten mevcut — eksikleri tamamla.",
+      "description": "[BACKEND] 'Fırsatlar' → 'Pipeline' + Değer Alanı Kaldır: `Opportunity` entity ve DTO'larında `Value`/`value` alanını kaldır. Program.cs startup SQL bloğuna `ALTER TABLE \"Opportunities\" DROP COLUMN IF EXISTS \"Value\"` ekle. API response ve request modellerinden `value` alanını temizle. Controller ve handler'larda value'ya yapılan referansları kaldır.",
       "agent": "backend",
       "depends_on": [],
-      "context": "ParasutConnection entity'si var, ParasutAutoConnectService startup'ta token warm ediyor. Bağlantı koptuğunda otomatik reconnect mekanizması ekle. Learned memory'de detaylar var."
+      "context": "DB schema değişiklikleri Program.cs startup SQL bloğunda idempotent raw SQL ile yönetiliyor — DROP COLUMN IF EXISTS kullan. Opportunity entity ContactHistory ve CustomerTask gibi denormalized ProjectId içeriyor. Kod dizini: /Users/ofc/Documents/Projects/ionivacrm/output/"
     },
     {
       "id": 3,
-      "description": "Müşteri detay sayfasında Cari/Fatura sekmesi: Paraşüt'ten cariye ait tüm işlemleri (satış faturaları, tahsilatlar) çekip listele",
-      "agent": "backend",
-      "depends_on": [2],
-      "context": "IParasutService üzerinden müşterinin Paraşüt cari hesabına ait faturaları ve işlemleri çek. Endpoint: GET /api/v1/crm/customers/{id}/parasut-transactions gibi olabilir."
+      "description": "[FRONTEND] Paraşüt Ürün Eşleştirmesi: `SettingsPage.tsx`'e Paraşüt ürün eşleştirme kartı ekle. 6 ürün için (1 Aylık Üyelik, 1 Yıllık Üyelik, 1000/2500/5000/10000 SMS) Paraşüt ürün listesinden arama/seçim yapılabilsin. Her satırda: ürün adı etiketi, Paraşüt ürün dropdown/arama, kaydet butonu. `parasut.ts`'e `useParasutProducts` ve `useSaveParasutProduct` hook'larını ekle, `types/index.ts`'e `ParasutProduct` tipini ekle.",
+      "agent": "frontend",
+      "depends_on": [1],
+      "context": "Backend'de GET /api/v1/crm/parasut-products ve POST/PUT /api/v1/crm/parasut-products endpoint'leri task 1 ile oluşturulacak. ProductKey sabit değerler: 'membership_monthly', 'membership_yearly', 'sms_1000', 'sms_2500', 'sms_5000', 'sms_10000'. Kod dizini: /Users/ofc/Documents/Projects/ionivacrm/output/"
     },
     {
       "id": 4,
-      "description": "Müşteri detay sayfasında Cari/Fatura sekmesi frontend UI'ı — Paraşüt'ten gelen işlemleri tablo olarak göster",
+      "description": "[FRONTEND] 'Fırsatlar' → 'Pipeline' Yeniden Adlandırma: Menü, sayfa başlıkları, route etiketlerinde 'Fırsatlar' → 'Pipeline' olarak değiştir. `PipelinePage.tsx`'ten ve `ReportsPage.tsx`'teki pipeline widget'ından 'Değer' sütunu/alanını kaldır. `types/index.ts`'te `Opportunity` tipinden `value` alanını kaldır. `DashboardStats`'tan `pipelineValue`/`openOpportunities` value widget'ını kaldır.",
       "agent": "frontend",
-      "depends_on": [3],
-      "context": "Backend'den gelen Paraşüt cari işlemlerini müşteri detay sayfasında yeni bir tab/sekme olarak listele."
-    },
-    {
-      "id": 5,
-      "description": "Fatura oluşturma: CRM DB'de Invoice entity/tablosu oluştur, CQRS command/handler ile fatura kaydet. Ayrı bir butonla Paraşüt'e aktar.",
-      "agent": "backend",
       "depends_on": [2],
-      "context": "Invoice entity (InvoiceNumber, CustomerId, ProjectId, Items, Total, Status, ParasutInvoiceId, CreatedAt). İki aşamalı: 1) CRM DB'ye kaydet 2) POST ile Paraşüt'e gönder. Paraşüt'e aktarıldığında ParasutInvoiceId set edilir."
-    },
-    {
-      "id": 6,
-      "description": "Fatura aktarımı sonrası müşterinin E-Fatura bilgisini Paraşüt'ten çekip Customer tablosuna kaydet",
-      "agent": "backend",
-      "depends_on": [5],
-      "context": "Manuel fatura aktarımı başarılı olduktan sonra, Paraşüt API'den müşterinin e-fatura bilgisini (e-fatura mükellefi mi, VKN, ticaret sicil no vb.) çek ve Customer entity'sine ekle."
-    },
-    {
-      "id": 7,
-      "description": "E-Fatura bilgisi mevcut müşteriler için fatura oluşturulduğunda otomatik Paraşüt aktarımı ve resmileştirme",
-      "agent": "backend",
-      "depends_on": [6],
-      "context": "Customer'da EInvoiceInfo varsa → fatura DB'ye kaydedildiğinde otomatik olarak Paraşüt'e aktar ve resmileştir (officialize). Yoksa manuel aktar butonu göster."
-    },
-    {
-      "id": 8,
-      "description": "Fatura oluşturma ve listeleme frontend UI — fatura formu, liste sayfası, Paraşüt'e aktar butonu",
-      "agent": "frontend",
-      "depends_on": [5],
-      "context": "Faturalar sayfası: yeniden eskiye liste, fatura oluşturma formu, Paraşüt'e aktar butonu. E-Fatura bilgisi olan müşterilerde otomatik aktarım göstergesi."
-    },
-    {
-      "id": 9,
-      "description": "Mevcut Paraşüt faturalarını tek seferlik CRM DB'ye import et (sanki CRM'de oluşmuş gibi). Faturalar ekranında yeniden eskiye göster.",
-      "agent": "backend",
-      "depends_on": [5],
-      "context": "Paraşüt'ten mevcut tüm faturaları çek, CRM Invoice tablosuna ParasutInvoiceId ile kaydet. Bir kerelik migration/import işlemi — endpoint veya background job olarak."
-    },
-    {
-      "id": 10,
-      "description": "SMS Yükleme backend endpoint: POST /api/v1/crm/companies/{id}/add-sms — count body'den alınır, şirketin sms_count'unu artırır",
-      "agent": "backend",
-      "depends_on": [],
-      "context": "Endpoint tasarımı todo.md'de verilmiş: POST /api/v1/crm/companies/3/add-sms, body: { count: 100 }, response: { companyId, smsCount, added }. Companies tablosunda sms_count kolonu yoksa Program.cs startup SQL'e ALTER TABLE ADD COLUMN IF NOT EXISTS ekle. CQRS: AddSmsCommand + Handler."
-    },
-    {
-      "id": 11,
-      "description": "SMS Yükleme frontend: Süre Uzat'a benzer UI bileşeni — SMS miktarı girip yükleme butonu",
-      "agent": "frontend",
-      "depends_on": [10],
-      "context": "Süre Uzat modalına benzer bir UI. Number input ile SMS adedi gir, yükle butonu. Başarı sonrası güncel SMS sayısını göster."
+      "context": "Backend task 2 ile Opportunity entity'sinden value alanı kaldırılacak — frontend'de de tutarlı şekilde temizlenmeli. Tüm 'Fırsatlar' string'lerini 'Pipeline' ile replace et (TR→EN yeniden adlandırma). Kod dizini: /Users/ofc/Documents/Projects/ionivacrm/output/"
     }
   ]
 }

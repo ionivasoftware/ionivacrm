@@ -17,6 +17,7 @@ public sealed class ExtendEmsExpirationCommandHandler
     private readonly ISaasAClient _saasAClient;
     private readonly IParasutClient _parasutClient;
     private readonly IParasutConnectionRepository _connectionRepository;
+    private readonly IParasutProductRepository _productRepository;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<ExtendEmsExpirationCommandHandler> _logger;
 
@@ -27,16 +28,18 @@ public sealed class ExtendEmsExpirationCommandHandler
         ISaasAClient saasAClient,
         IParasutClient parasutClient,
         IParasutConnectionRepository connectionRepository,
+        IParasutProductRepository productRepository,
         ICurrentUserService currentUser,
         ILogger<ExtendEmsExpirationCommandHandler> logger)
     {
-        _customerRepository = customerRepository;
-        _projectRepository  = projectRepository;
-        _saasAClient        = saasAClient;
-        _parasutClient      = parasutClient;
+        _customerRepository   = customerRepository;
+        _projectRepository    = projectRepository;
+        _saasAClient          = saasAClient;
+        _parasutClient        = parasutClient;
         _connectionRepository = connectionRepository;
-        _currentUser        = currentUser;
-        _logger             = logger;
+        _productRepository    = productRepository;
+        _currentUser          = currentUser;
+        _logger               = logger;
     }
 
     /// <inheritdoc />
@@ -159,6 +162,37 @@ public sealed class ExtendEmsExpirationCommandHandler
             var today    = DateTime.UtcNow.ToString("yyyy-MM-dd");
             var dueDate  = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd");
 
+            // Look up the configured Paraşüt product for this membership type
+            var productName   = durationType == "Years" ? "1 Yıllık Üyelik" : "1 Aylık Üyelik";
+            var configProduct = await _productRepository.GetByNameAsync(projectId, productName, ct);
+
+            var unitPrice = configProduct?.UnitPrice ?? 0m;
+            var vatRate   = configProduct is not null ? (int)(configProduct.TaxRate * 100) : 20;
+
+            var lineItem = new SalesInvoiceDetailData
+            {
+                Attributes = new ParasutSalesInvoiceDetailAttributes(
+                    Quantity:       1,
+                    UnitPrice:      unitPrice,
+                    VatRate:        vatRate,
+                    DiscountType:   "percentage",
+                    DiscountValue:  0,
+                    Description:    $"{durationLabel} EMS Lisans — {companyName}",
+                    Unit:           "Adet")
+            };
+
+            // If a configured product exists, link it so Paraşüt applies the correct GL account
+            if (configProduct is not null && !string.IsNullOrEmpty(configProduct.ParasutProductId))
+            {
+                lineItem.Relationships = new SalesInvoiceDetailRelationships
+                {
+                    Product = new ProductRelationship
+                    {
+                        Data = new ProductRelationshipData { Id = configProduct.ParasutProductId }
+                    }
+                };
+            }
+
             var invoiceReq = new CreateSalesInvoiceRequest
             {
                 Data = new CreateSalesInvoiceData
@@ -188,20 +222,7 @@ public sealed class ExtendEmsExpirationCommandHandler
                     {
                         Details = new SalesInvoiceDetailsRelationship
                         {
-                            Data = new List<SalesInvoiceDetailData>
-                            {
-                                new()
-                                {
-                                    Attributes = new ParasutSalesInvoiceDetailAttributes(
-                                        Quantity:       1,
-                                        UnitPrice:      0,
-                                        VatRate:        20,
-                                        DiscountType:   "percentage",
-                                        DiscountValue:  0,
-                                        Description:    $"{durationLabel} EMS Lisans — {companyName}",
-                                        Unit:           "Adet")
-                                }
-                            }
+                            Data = new List<SalesInvoiceDetailData> { lineItem }
                         },
                         Contact = string.IsNullOrEmpty(parasutContactId)
                             ? null
@@ -218,8 +239,8 @@ public sealed class ExtendEmsExpirationCommandHandler
 
             var invoiceId = result.Data.Id;
             _logger.LogInformation(
-                "Created Paraşüt draft invoice {InvoiceId} for customer {CompanyName} ({Duration}).",
-                invoiceId, companyName, durationLabel);
+                "Created Paraşüt draft invoice {InvoiceId} for customer {CompanyName} ({Duration}, product: {ProductId}).",
+                invoiceId, companyName, durationLabel, configProduct?.ParasutProductId ?? "(none)");
 
             return invoiceId;
         }

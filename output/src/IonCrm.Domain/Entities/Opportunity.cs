@@ -17,9 +17,6 @@ public class Opportunity : BaseEntity
     /// <summary>Gets or sets the opportunity title or deal name.</summary>
     public string Title { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the monetary value of the opportunity.</summary>
-    public decimal? Value { get; set; }
-
     /// <summary>Gets or sets the current pipeline stage.</summary>
     public OpportunityStage Stage { get; set; } = OpportunityStage.YeniArama;
 

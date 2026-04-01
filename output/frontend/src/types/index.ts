@@ -296,7 +296,6 @@ export interface Opportunity {
   customerName: string;
   projectId: string;
   title: string;
-  value: number | null;
   stage: OpportunityStage;
   probability: number | null;
   expectedCloseDate: string | null;
@@ -309,7 +308,6 @@ export interface Opportunity {
 export interface CreateOpportunityRequest {
   customerId: string;
   title: string;
-  value?: number;
   stage: OpportunityStage;
   probability?: number;
   expectedCloseDate?: string;
@@ -337,39 +335,42 @@ export interface SyncLog {
   updatedAt: string;
 }
 
-// ----- Paraşüt Cari İşlemleri -----
+// ----- Paraşüt Product Mapping -----
 
-export interface ParasutInvoiceItem {
+/** Fixed product key values used for CRM product mapping */
+export type ParasutProductKey =
+  | 'membership_monthly'
+  | 'membership_yearly'
+  | 'sms_1000'
+  | 'sms_2500'
+  | 'sms_5000'
+  | 'sms_10000';
+
+/** A saved mapping between a CRM product key and a Paraşüt product */
+export interface ParasutProduct {
   id: string;
-  issueDate: string;
-  dueDate: string;
+  projectId: string;
+  productKey: ParasutProductKey;
+  productName: string;
+  parasutProductId: string;
+  parasutProductName: string | null;
+  unitPrice: number;
+  /** Tax rate as decimal: 0.20 = 20% */
+  taxRate: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A live product item fetched from the Paraşüt API */
+export interface ParasutProductListItem {
+  id: string;
+  name: string;
+  unitPrice: number;
+  /** Tax rate as decimal: 0.20 = 20% */
+  vatRate: number;
   currency: string;
-  grossTotal: number;
-  netTotal: number;
-  totalPaid: number;
-  remaining: number;
-  description: string | null;
-  archivingStatus: string | null;
-}
-
-export interface ParasutTransactionItem {
-  date: string;
-  amount: number;
-  currency: string | null;
-  transactionType: string; // "debit" (borç) | "credit" (alacak/tahsilat)
-  description: string | null;
-  payableType: string | null;
-  payableId: number | null;
-  remaining: number;
-}
-
-export interface CustomerParasutTransactions {
-  invoices: ParasutInvoiceItem[];
-  transactions: ParasutTransactionItem[];
-  invoiceTotalCount: number;
-  transactionTotalCount: number;
-  totalPages: number;
-  currentPage: number;
+  unit: string | null;
+  archived: boolean;
 }
 
 // ----- Dashboard -----
@@ -388,8 +389,6 @@ export interface DashboardStats {
   activeCustomers: number;
   newLeadsThisMonth: number;
   openTasks: number;
-  openOpportunities: number;
-  pipelineValue: number;
   monthlyActivity: MonthlyActivity[];
   customersByStatus: StatusBreakdown[];
   opportunitiesByStage: StageBreakdown[];
@@ -412,7 +411,6 @@ export interface StatusBreakdown {
 export interface StageBreakdown {
   stage: OpportunityStage;
   count: number;
-  value: number;
 }
 
 export interface RecentActivity {

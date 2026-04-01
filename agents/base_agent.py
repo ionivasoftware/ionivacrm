@@ -49,7 +49,7 @@ class BaseAgent:
     color: str = "cyan"
 
     ALLOWED_TOOLS = [
-        "Read", "Write", "Edit", "MultiEdit",
+        "Read", "Write", "Edit",
         "Glob", "Bash", "WebSearch"
     ]
 
@@ -70,7 +70,7 @@ class BaseAgent:
     # ------------------------------------------------------------------
 
     # Override in subclass or set via env var AGENT_MODEL
-    MODEL = os.environ.get("AGENT_MODEL", "claude-sonnet-4-5")
+    MODEL = os.environ.get("AGENT_MODEL", "claude-sonnet-4-6")
 
     def get_options(self, max_turns: int = 30) -> ClaudeAgentOptions:
         return ClaudeAgentOptions(

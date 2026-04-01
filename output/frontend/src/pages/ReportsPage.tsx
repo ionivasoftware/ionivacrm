@@ -29,7 +29,6 @@ interface ReportsData {
   totalContacts: number;
   totalTasks: number;
   completedTasks: number;
-  pipelineValue: number;
   dailyActivity: { date: string; contacts: number; tasks: number }[];
   contactTypeBreakdown: { type: string; count: number }[];
 }
@@ -51,14 +50,6 @@ const TYPE_COLORS: Record<string, string> = {
   WhatsApp: '#10b981',
   Visit: '#ef4444',
 };
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: 'TRY',
-    maximumFractionDigits: 0,
-  }).format(value);
-}
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 
@@ -220,7 +211,7 @@ export function ReportsPage() {
           isLoading={isLoading}
         />
         <StatCard
-          title="Kazanılan Fırsat"
+          title="Kazanılan Pipeline"
           value={data?.closedWon ?? 0}
           sub={`${data?.closedLost ?? 0} kaybedildi`}
           icon={CheckSquare}
@@ -238,12 +229,6 @@ export function ReportsPage() {
           value={data?.completedTasks ?? 0}
           sub={`${data?.totalTasks ?? 0} toplam`}
           icon={CheckSquare}
-          isLoading={isLoading}
-        />
-        <StatCard
-          title="Pipeline Değeri"
-          value={data ? formatCurrency(data.pipelineValue) : '₺0'}
-          icon={TrendingUp}
           isLoading={isLoading}
         />
       </div>

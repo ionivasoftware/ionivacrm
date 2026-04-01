@@ -56,6 +56,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Gets or sets the Invoices table (CRM invoices, optionally transferred to Paraşüt).</summary>
     public DbSet<Invoice> Invoices => Set<Invoice>();
 
+    /// <summary>Gets or sets the ParasutProducts table (per-project product catalog for invoices).</summary>
+    public DbSet<ParasutProduct> ParasutProducts => Set<ParasutProduct>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -117,6 +120,11 @@ public class ApplicationDbContext : DbContext
             .HasQueryFilter(e => !e.IsDeleted);
 
         modelBuilder.Entity<Invoice>()
+            .HasQueryFilter(e => !e.IsDeleted &&
+                (_currentUser.IsSuperAdmin ||
+                 _currentUser.ProjectIds.Contains(e.ProjectId)));
+
+        modelBuilder.Entity<ParasutProduct>()
             .HasQueryFilter(e => !e.IsDeleted &&
                 (_currentUser.IsSuperAdmin ||
                  _currentUser.ProjectIds.Contains(e.ProjectId)));

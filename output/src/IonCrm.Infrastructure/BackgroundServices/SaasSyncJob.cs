@@ -83,8 +83,8 @@ public sealed class SaasSyncJob
         _logger.LogInformation("SaaS sync job started at {Time:O}", DateTime.UtcNow);
 
         await SyncEmsCrmCustomersAsync(cancellationToken);
-        await SyncSaasAAsync(cancellationToken);
-        await SyncSaasBAsync(cancellationToken);
+        // await SyncSaasAAsync(cancellationToken);
+        // await SyncSaasBAsync(cancellationToken);
 
         _logger.LogInformation("SaaS sync job completed at {Time:O}", DateTime.UtcNow);
     }
@@ -93,8 +93,9 @@ public sealed class SaasSyncJob
 
     /// <summary>
     /// Syncs customers from the EMS /api/v1/crm/customers endpoint.
-    /// Delta sync: uses the last successful CrmCustomer sync time as updatedSince (with 5-min buffer).
-    /// First-ever sync (or if last sync was >24 h ago): full sync with no updatedSince filter.
+    /// Always performs a full sync (no updatedSince delta filter) to ensure status is
+    /// recomputed for ALL customers on every run — including those whose ExpirationDate
+    /// has passed since the last sync without any data change.
     /// </summary>
     private async Task SyncEmsCrmCustomersAsync(CancellationToken ct)
     {
@@ -109,41 +110,7 @@ public sealed class SaasSyncJob
 
         var emsApiKey = project?.EmsApiKey;
 
-        // Determine delta window: find the last successful sync time in SyncLogs.
-        // Use IgnoreQueryFilters() — background job has no HTTP user context, so the
-        // tenant query filter would block all rows otherwise.
-        DateTime? updatedSince = null;
-        try
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var lastSync = await context.SyncLogs
-                .IgnoreQueryFilters()
-                .Where(l => l.ProjectId == projectId
-                         && l.Source == SyncSource.SaasA
-                         && l.EntityType == "CrmCustomer"
-                         && l.Status == SyncStatus.Success
-                         && l.SyncedAt != null)
-                .OrderByDescending(l => l.SyncedAt)
-                .Select(l => l.SyncedAt)
-                .FirstOrDefaultAsync(ct);
-
-            if (lastSync.HasValue && lastSync.Value > DateTime.UtcNow.AddHours(-24))
-            {
-                updatedSince = lastSync.Value.AddMinutes(-5);
-                _logger.LogInformation("EMS CRM delta sync: updatedSince={Since:u}", updatedSince);
-            }
-            else
-            {
-                _logger.LogInformation(
-                    "EMS CRM full sync: no recent successful sync found, fetching all records.");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex,
-                "Could not determine last sync time — proceeding with full sync.");
-        }
+        _logger.LogInformation("EMS CRM full sync: fetching all pages.");
 
         await SyncWithRetryAsync(
             source: SyncSource.SaasA,
@@ -157,7 +124,7 @@ public sealed class SaasSyncJob
                 while (true)
                 {
                     var response = await _saasAClient.GetCrmCustomersPageAsync(
-                        emsApiKey, page, pageSize, updatedSince, ct);
+                        emsApiKey, page, pageSize, ct);
 
                     if (response.Data.Count == 0)
                         break;
@@ -197,9 +164,9 @@ public sealed class SaasSyncJob
             var expDate    = src.ExpirationDate.HasValue
                 ? DateTime.SpecifyKind(src.ExpirationDate.Value, DateTimeKind.Utc)
                 : (DateTime?)null;
-            var createdOn  = DateTime.SpecifyKind(src.CreatedOn, DateTimeKind.Utc);
+            var createdAt  = DateTime.SpecifyKind(src.CreatedAt, DateTimeKind.Utc);
 
-            var newStatus = ComputeStatusFromExpiration(expDate, createdOn);
+            var newStatus = ComputeStatusFromExpiration(expDate, createdAt);
 
             var existing = await context.Customers
                 .IgnoreQueryFilters()
@@ -263,11 +230,13 @@ public sealed class SaasSyncJob
     /// <summary>
     /// Computes customer status based on ExpirationDate rules:
     /// <list type="bullet">
-    ///   <item>Active:   not expired AND (created &gt;30 days ago OR expires &gt;30 days from now)</item>
-    ///   <item>Demo:     not expired AND expires within 30 days AND created within last 30 days</item>
-    ///   <item>Churned:  expired AND had subscription for &gt;40 days</item>
-    ///   <item>Passive:  expired AND had subscription for ≤40 days</item>
+    ///   <item>Demo:    CreatedAt+40d &gt; ExpirationDate AND today &lt; ExpirationDate (short trial, not yet expired)</item>
+    ///   <item>Passive: CreatedAt+40d &gt; ExpirationDate AND ExpirationDate &lt; today (short trial, expired)</item>
+    ///   <item>Churn:   CreatedAt+40d &lt; ExpirationDate AND ExpirationDate &lt; today (real customer, expired)</item>
+    ///   <item>Active:  CreatedAt+40d &lt; ExpirationDate AND today &lt; ExpirationDate (real customer, not yet expired)</item>
+    ///   <item>Lead:    no ExpirationDate set</item>
     /// </list>
+    /// Boundary (today == ExpirationDate) is treated as expired (strict inequality: bugün &lt; ExpirationDate).
     /// </summary>
     private static CustomerStatus ComputeStatusFromExpiration(DateTime? expirationDate, DateTime createdOn)
     {
@@ -277,24 +246,29 @@ public sealed class SaasSyncJob
         var today   = DateTime.UtcNow.Date;
         var exp     = expirationDate.Value.Date;
         var created = createdOn.Date;
+        var createdPlus40 = created.AddDays(40);
 
-        if (exp >= today)
+        // Short trial: CreatedAt + 40 days > ExpirationDate
+        bool isShortTrial = createdPlus40 > exp;
+
+        // Strict inequality: today < exp means "not yet expired" (on expiration day itself → expired)
+        bool notExpired = today < exp;
+
+        if (isShortTrial)
         {
-            // Not expired
-            bool expiresWithin30Days  = exp < today.AddDays(30);
-            bool createdWithinLast30  = created > today.AddDays(-30);
-
-            if (expiresWithin30Days && createdWithinLast30)
-                return CustomerStatus.Demo;
-
-            return CustomerStatus.Active;
+            // (1) Demo:    CreatedAt+40d > ExpirationDate AND today < ExpirationDate
+            // (2) Passive: CreatedAt+40d > ExpirationDate AND ExpirationDate < today (or == today)
+            return notExpired
+                ? CustomerStatus.Demo
+                : CustomerStatus.Passive;
         }
         else
         {
-            // Expired
-            return created.AddDays(40) < exp
-                ? CustomerStatus.Churned   // had subscription for >40 days
-                : CustomerStatus.Passive;  // never fully onboarded (≤40 days)
+            // (4) Active:  CreatedAt+40d < ExpirationDate AND today < ExpirationDate
+            // (3) Churn:   CreatedAt+40d < ExpirationDate AND ExpirationDate < today (or == today)
+            return notExpired
+                ? CustomerStatus.Active
+                : CustomerStatus.Churned;
         }
     }
 

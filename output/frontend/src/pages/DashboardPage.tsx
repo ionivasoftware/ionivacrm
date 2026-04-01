@@ -58,15 +58,6 @@ const CONTACT_TYPE_LABELS: Record<string, string> = {
   Visit: 'Ziyaret',
 };
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: 'TRY',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
 function formatDate(dateStr: string): string {
   return new Intl.DateTimeFormat('tr-TR', {
     day: 'numeric',

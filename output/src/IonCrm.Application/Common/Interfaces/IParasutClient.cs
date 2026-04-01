@@ -160,17 +160,4 @@ public interface IParasutClient
         string salesInvoiceId,
         CancellationToken cancellationToken = default);
 
-    // ── Contact Debit/Credit Transactions ────────────────────────────────────
-
-    /// <summary>
-    /// Returns a paginated list of debit/credit transactions for a specific contact.
-    /// Includes both invoices (debit) and payments (credit).
-    /// </summary>
-    Task<JsonApiListResponse<ParasutTransactionAttributes>> GetContactTransactionsAsync(
-        string accessToken,
-        long companyId,
-        string contactId,
-        int page = 1,
-        int pageSize = 25,
-        CancellationToken cancellationToken = default);
 }
