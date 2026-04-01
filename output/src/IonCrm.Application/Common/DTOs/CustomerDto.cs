@@ -23,6 +23,7 @@ public class CustomerDto
     public Guid? AssignedUserId { get; set; }
     public string? AssignedUserName { get; set; }
     public DateTime? ExpirationDate { get; set; }
+    public string? LegacyId { get; set; }
     public string? ParasutContactId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
