@@ -11,6 +11,12 @@ public interface IParasutConnectionRepository
     /// <summary>Returns the Paraşüt connection for the given project, or null if none exists.</summary>
     Task<ParasutConnection?> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns ALL Paraşüt connections across all tenants, bypassing query filters.
+    /// Used by background/startup services that have no HTTP context.
+    /// </summary>
+    Task<List<ParasutConnection>> GetAllAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Persists a new Paraşüt connection.</summary>
     Task<ParasutConnection> AddAsync(ParasutConnection connection, CancellationToken cancellationToken = default);
 

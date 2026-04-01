@@ -122,4 +122,55 @@ public interface IParasutClient
         int page = 1,
         int pageSize = 25,
         CancellationToken cancellationToken = default);
+
+    // ── E-Invoice Inbox (e-Fatura Mükellef Sorgu) ──────────────────────────
+
+    /// <summary>
+    /// Queries the e-invoice inbox registry by tax number (VKN).
+    /// Returns matching inboxes if the tax number is registered for e-invoicing.
+    /// An empty list means the entity is NOT an e-invoice payer.
+    /// </summary>
+    Task<JsonApiListResponse<ParasutEInvoiceInboxAttributes>> GetEInvoiceInboxesAsync(
+        string accessToken,
+        long companyId,
+        string vkn,
+        CancellationToken cancellationToken = default);
+
+    // ── E-Invoice / E-Archive Officialize ───────────────────────────────────
+
+    /// <summary>
+    /// Creates an e-invoice for a sales invoice that has already been created in Paraşüt.
+    /// Used for customers who are registered e-invoice payers (IsEInvoicePayer=true).
+    /// POST /v4/{company_id}/e_invoices
+    /// </summary>
+    Task<JsonApiResponse<ParasutEInvoiceAttributes>> CreateEInvoiceAsync(
+        string accessToken,
+        long companyId,
+        string salesInvoiceId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates an e-archive invoice for a sales invoice that has already been created in Paraşüt.
+    /// Used for customers who are NOT registered e-invoice payers.
+    /// POST /v4/{company_id}/e_archives
+    /// </summary>
+    Task<JsonApiResponse<ParasutEInvoiceAttributes>> CreateEArchiveAsync(
+        string accessToken,
+        long companyId,
+        string salesInvoiceId,
+        CancellationToken cancellationToken = default);
+
+    // ── Contact Debit/Credit Transactions ────────────────────────────────────
+
+    /// <summary>
+    /// Returns a paginated list of debit/credit transactions for a specific contact.
+    /// Includes both invoices (debit) and payments (credit).
+    /// </summary>
+    Task<JsonApiListResponse<ParasutTransactionAttributes>> GetContactTransactionsAsync(
+        string accessToken,
+        long companyId,
+        string contactId,
+        int page = 1,
+        int pageSize = 25,
+        CancellationToken cancellationToken = default);
 }

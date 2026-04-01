@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { ApiResponse } from '@/types';
+import type { ApiResponse, CustomerParasutTransactions } from '@/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -237,6 +237,25 @@ export function useParasutInvoices(projectId: string | null, page = 1, enabled =
       return res.data.data;
     },
     enabled: !!projectId && enabled,
+  });
+}
+
+export function useCustomerParasutTransactions(
+  customerId: string | undefined,
+  page = 1,
+  pageSize = 25
+) {
+  return useQuery({
+    queryKey: ['customerParasutTransactions', customerId, page, pageSize],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<CustomerParasutTransactions>>(
+        `/customers/${customerId}/parasut-transactions`,
+        { params: { page, pageSize } }
+      );
+      return res.data.data;
+    },
+    enabled: !!customerId,
+    staleTime: 60_000,
   });
 }
 

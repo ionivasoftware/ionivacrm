@@ -69,6 +69,18 @@ public class Customer : BaseEntity
     /// </summary>
     public string? ParasutContactId { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether this customer is an e-invoice (e-fatura) payer.
+    /// Checked from Paraşüt e-invoice inbox API after invoice transfer.
+    /// </summary>
+    public bool IsEInvoicePayer { get; set; }
+
+    /// <summary>
+    /// Gets or sets the e-invoice inbox address (PK / GB envelope identifier).
+    /// Populated from Paraşüt e-invoice inbox API.
+    /// </summary>
+    public string? EInvoiceAddress { get; set; }
+
     // Navigation properties
     /// <summary>Gets or sets the project (tenant).</summary>
     public Project Project { get; set; } = null!;

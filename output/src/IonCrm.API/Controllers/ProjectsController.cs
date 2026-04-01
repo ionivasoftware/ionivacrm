@@ -30,7 +30,8 @@ public class ProjectsController : ApiControllerBase
             createdAt = p.CreatedAt,
             updatedAt = p.UpdatedAt,
             emsApiKey = p.EmsApiKey,
-            rezervAlApiKey = p.RezervAlApiKey
+            rezervAlApiKey = p.RezervAlApiKey,
+            smsCount = p.SmsCount
         });
         return OkResponse(dtos);
     }

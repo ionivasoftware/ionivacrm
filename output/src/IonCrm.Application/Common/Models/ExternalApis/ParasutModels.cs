@@ -260,6 +260,25 @@ public class AccountRelationshipData
     public string Id { get; set; } = string.Empty;
 }
 
+// ── Contact Debit/Credit Transactions (Cari Hareketleri) ─────────────────────
+
+/// <summary>
+/// Attributes for a Paraşüt contact debit/credit transaction.
+/// Returned by GET /v4/{company_id}/contacts/{contact_id}/contact_debit_credit_transactions
+/// transaction_type: "debit" (borç — fatura) | "credit" (alacak — tahsilat)
+/// </summary>
+public record ParasutTransactionAttributes(
+    [property: JsonPropertyName("date")]               string Date,             // yyyy-MM-dd
+    [property: JsonPropertyName("amount")]              string? Amount,
+    [property: JsonPropertyName("currency")]            string? Currency,
+    [property: JsonPropertyName("transaction_type")]    string? TransactionType, // "debit" | "credit"
+    [property: JsonPropertyName("description")]         string? Description,
+    [property: JsonPropertyName("payable_type")]        string? PayableType,     // "SalesInvoice", "Payment", etc.
+    [property: JsonPropertyName("payable_id")]          int? PayableId,
+    [property: JsonPropertyName("remaining")]           string? Remaining,
+    [property: JsonPropertyName("remaining_in_trl")]    string? RemainingInTrl
+);
+
 // ── E-Invoice (e-Fatura / e-Arşiv) ───────────────────────────────────────────
 
 /// <summary>Attributes returned for an e-invoice or e-archive request.</summary>
@@ -272,6 +291,65 @@ public record ParasutEInvoiceAttributes(
     [property: JsonPropertyName("to")]              string? To,
     [property: JsonPropertyName("errors")]          string? Errors
 );
+
+/// <summary>
+/// Attributes returned by the e-invoice inbox lookup endpoint.
+/// GET /v4/{company_id}/e_invoice_inboxes?filter[vkn]={vkn}
+/// Returns registered e-invoice addresses for a given tax number.
+/// </summary>
+public record ParasutEInvoiceInboxAttributes(
+    [property: JsonPropertyName("vkn")]                   string? Vkn,
+    [property: JsonPropertyName("e_invoice_address")]     string? EInvoiceAddress,
+    [property: JsonPropertyName("name")]                  string? Name,
+    [property: JsonPropertyName("inbox_type")]            string? InboxType,          // "PK" | "GB"
+    [property: JsonPropertyName("address_registered_at")] string? AddressRegisteredAt,
+    [property: JsonPropertyName("registered_at")]         string? RegisteredAt,
+    [property: JsonPropertyName("created_at")]            string? CreatedAt,
+    [property: JsonPropertyName("updated_at")]            string? UpdatedAt
+);
+
+// ── E-Invoice / E-Archive Officialize Requests ──────────────────────────────
+
+/// <summary>
+/// Request body for creating an e-invoice (POST /v4/{company_id}/e_invoices)
+/// or e-archive (POST /v4/{company_id}/e_archives).
+/// Both endpoints use the same JSON:API relationship structure pointing to a sales_invoice.
+/// </summary>
+public class CreateEDocumentRequest
+{
+    [JsonPropertyName("data")]
+    public CreateEDocumentData Data { get; set; } = new();
+}
+
+public class CreateEDocumentData
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "e_invoices"; // "e_invoices" or "e_archives"
+
+    [JsonPropertyName("relationships")]
+    public EDocumentRelationships Relationships { get; set; } = new();
+}
+
+public class EDocumentRelationships
+{
+    [JsonPropertyName("invoice")]
+    public EDocumentInvoiceRelationship Invoice { get; set; } = new();
+}
+
+public class EDocumentInvoiceRelationship
+{
+    [JsonPropertyName("data")]
+    public EDocumentInvoiceRelationshipData Data { get; set; } = new();
+}
+
+public class EDocumentInvoiceRelationshipData
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "sales_invoices";
+
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+}
 
 // ── Account (Kasa / Banka) ────────────────────────────────────────────────────
 

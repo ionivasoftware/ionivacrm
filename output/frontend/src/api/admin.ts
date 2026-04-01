@@ -45,6 +45,13 @@ export interface AdminProject {
   updatedAt: string;
   emsApiKey: string | null;
   rezervAlApiKey: string | null;
+  smsCount: number;
+}
+
+export interface AddSmsResult {
+  companyId: string;
+  smsCount: number;
+  added: number;
 }
 
 export interface CreateProjectRequest { name: string; description?: string }
@@ -144,6 +151,22 @@ export function useSetProjectApiKeys() {
   return useMutation({
     mutationFn: async ({ id, ...data }: SetProjectApiKeysRequest & { id: string }) => {
       const res = await apiClient.put<ApiResponse<AdminProject>>(`/projects/${id}/api-keys`, data);
+      return res.data.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['adminProjects'] }),
+  });
+}
+
+// ── SMS Credits ────────────────────────────────────────────────────────────────
+
+export function useAddProjectSms() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, count }: { id: string; count: number }) => {
+      const res = await apiClient.post<ApiResponse<AddSmsResult>>(
+        `/crm/companies/${id}/add-sms`,
+        { count }
+      );
       return res.data.data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['adminProjects'] }),

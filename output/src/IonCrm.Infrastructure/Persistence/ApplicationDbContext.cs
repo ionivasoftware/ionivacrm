@@ -53,6 +53,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Gets or sets the ParasutConnections table (per-project Paraşüt OAuth credentials).</summary>
     public DbSet<ParasutConnection> ParasutConnections => Set<ParasutConnection>();
 
+    /// <summary>Gets or sets the Invoices table (CRM invoices, optionally transferred to Paraşüt).</summary>
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -112,6 +115,11 @@ public class ApplicationDbContext : DbContext
         // (ProjectAdmin can manage their own project's connection without a ProjectId JWT filter)
         modelBuilder.Entity<ParasutConnection>()
             .HasQueryFilter(e => !e.IsDeleted);
+
+        modelBuilder.Entity<Invoice>()
+            .HasQueryFilter(e => !e.IsDeleted &&
+                (_currentUser.IsSuperAdmin ||
+                 _currentUser.ProjectIds.Contains(e.ProjectId)));
     }
 
     // ── Audit intercept ───────────────────────────────────────────────────────

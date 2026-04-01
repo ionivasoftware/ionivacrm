@@ -5,6 +5,7 @@ using IonCrm.Application.Customers.Commands.ExtendEmsExpiration;
 using IonCrm.Application.Customers.Commands.TransferLead;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
+using IonCrm.Application.Customers.Queries.GetCustomerParasutTransactions;
 using IonCrm.Application.Customers.Queries.GetCustomerWithDetails;
 using IonCrm.Application.Customers.Queries.GetCustomers;
 using IonCrm.Domain.Enums;
@@ -142,6 +143,24 @@ public class CustomersController : ApiControllerBase
     {
         var command = new ExtendEmsExpirationCommand(id, body.DurationType, body.Amount);
         var result = await Mediator.Send(command, cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// GET /api/v1/customers/{id}/parasut-transactions
+    /// Returns paginated Paraşüt cari hareketleri (invoices) for the given CRM customer.
+    /// The customer must have a linked Paraşüt contact (ParasutContactId) — use
+    /// POST /api/v1/parasut/contacts/sync or POST /api/v1/parasut/contacts/link first.
+    /// </summary>
+    [HttpGet("{id:guid}/parasut-transactions")]
+    public async Task<IActionResult> GetParasutTransactions(
+        Guid id,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(
+            new GetCustomerParasutTransactionsQuery(id, page, pageSize), cancellationToken);
         return ResultToResponse(result);
     }
 }

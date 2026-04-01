@@ -108,8 +108,21 @@ public static class ParasutTokenHelper
 
     private static void ApplyToken(ParasutConnection connection, ParasutTokenResponse token)
     {
-        connection.AccessToken    = token.AccessToken;
-        connection.RefreshToken   = token.RefreshToken;
-        connection.TokenExpiresAt = DateTime.UtcNow.AddSeconds(token.ExpiresIn - 60);
+        connection.AccessToken      = token.AccessToken;
+        connection.RefreshToken     = token.RefreshToken;
+        connection.TokenExpiresAt   = DateTime.UtcNow.AddSeconds(token.ExpiresIn - 60);
+        connection.LastConnectedAt  = DateTime.UtcNow;
+        connection.LastError        = null;
+        connection.ReconnectAttempts = 0;
+    }
+
+    /// <summary>
+    /// Marks a reconnect failure on the connection (increments attempts, stores error message).
+    /// Does NOT persist — caller is responsible for saving.
+    /// </summary>
+    public static void MarkReconnectFailure(ParasutConnection connection, string error)
+    {
+        connection.ReconnectAttempts++;
+        connection.LastError = error.Length > 500 ? error[..500] : error;
     }
 }

@@ -85,7 +85,7 @@ import {
   useCreateParasutInvoice,
   useLinkParasutContact,
   useParasutContacts,
-  useParasutContactInvoices,
+  useCustomerParasutTransactions,
   type InvoiceLine,
 } from '@/api/parasut';
 import type {
@@ -639,12 +639,6 @@ function TaskRow({ task }: TaskRowProps) {
 
 // ── Extend EMS Expiration Dialog ──────────────────────────────────────────────
 
-const DURATION_OPTIONS = [
-  { label: '30 Gün',  durationType: 'Days',   amount: 30 },
-  { label: '1 Ay',    durationType: 'Months',  amount: 1  },
-  { label: '1 Yıl',   durationType: 'Years',   amount: 1  },
-] as const;
-
 interface ExtendExpirationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -661,14 +655,22 @@ function ExtendExpirationDialog({
   extendExpiration,
 }: ExtendExpirationDialogProps) {
   const { toast } = useToast();
-  const [selected, setSelected] = useState<(typeof DURATION_OPTIONS)[number] | null>(null);
+  const [days, setDays] = useState<string>('');
+
+  const daysNum = parseInt(days, 10);
+  const isValid = !isNaN(daysNum) && daysNum > 0;
+
+  function handleClose() {
+    onOpenChange(false);
+    setDays('');
+  }
 
   async function handleConfirm() {
-    if (!selected) return;
+    if (!isValid) return;
     try {
       const result = await extendExpiration.mutateAsync({
-        durationType: selected.durationType,
-        amount: selected.amount,
+        durationType: 'Days',
+        amount: daysNum,
       });
       const newDate = new Date(result.newExpirationDate).toLocaleDateString('tr-TR', {
         day: 'numeric', month: 'long', year: 'numeric',
@@ -680,15 +682,14 @@ function ExtendExpirationDialog({
         title: 'Süre uzatıldı',
         description: `Yeni bitiş tarihi: ${newDate}.${invoiceMsg}`,
       });
-      onOpenChange(false);
-      setSelected(null);
+      handleClose();
     } catch {
       toast({ title: 'Hata', description: 'Süre uzatılamadı.', variant: 'destructive' });
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={v => { onOpenChange(v); if (!v) setSelected(null); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); else onOpenChange(true); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -711,35 +712,43 @@ function ExtendExpirationDialog({
               </span>
             </p>
           )}
-          <div className="grid grid-cols-3 gap-2">
-            {DURATION_OPTIONS.map(opt => (
-              <button
-                key={opt.label}
-                onClick={() => setSelected(opt)}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">
+              Uzatılacak gün sayısı
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min={1}
+                value={days}
+                onChange={e => setDays(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && isValid) handleConfirm(); }}
+                placeholder="Örn: 3, 5, 10, 30..."
                 className={cn(
-                  'rounded-lg border px-3 py-4 text-sm font-medium transition-colors text-center',
-                  selected?.label === opt.label
-                    ? 'border-amber-500 bg-amber-500/15 text-amber-400'
-                    : 'border-border text-muted-foreground hover:border-amber-500/50 hover:text-foreground'
+                  'flex h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm',
+                  'ring-offset-background placeholder:text-muted-foreground',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                  'border-input pr-12'
                 )}
-              >
-                {opt.label}
-                {opt.durationType !== 'Days' && (
-                  <span className="block text-[10px] mt-1 opacity-60">
-                    Paraşüt fatura
-                  </span>
-                )}
-              </button>
-            ))}
+                autoFocus
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
+                gün
+              </span>
+            </div>
+            {days !== '' && !isValid && (
+              <p className="text-xs text-destructive">Geçerli bir gün sayısı girin (en az 1).</p>
+            )}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => { onOpenChange(false); setSelected(null); }}>
+          <Button variant="ghost" onClick={handleClose}>
             İptal
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!selected || extendExpiration.isPending}
+            disabled={!isValid || extendExpiration.isPending}
             className="bg-amber-500 hover:bg-amber-600 text-white"
           >
             {extendExpiration.isPending ? (
@@ -809,12 +818,12 @@ export function CustomerDetailPage() {
   const { data: oppsData, isLoading: oppsLoading } = useCustomerOpportunities(customerId);
   const deleteMutation = useDeleteCustomer();
 
-  // Cari hareketleri — enabled only when customer has a linked Paraşüt contact
-  const cariHareketlerQuery = useParasutContactInvoices(
-    currentProjectId,
-    customer?.parasutContactId,
+  // Cari hareketleri — uses the combined transactions endpoint (invoices + debit/credit)
+  const parasutTransactionsQuery = useCustomerParasutTransactions(
+    customer?.parasutContactId ? customerId : undefined,
     cariHareketPage
   );
+  const [cariSubTab, setCariSubTab] = useState<'invoices' | 'transactions'>('invoices');
 
   function openAddContact(type: ContactType) {
     setAddContactType(type);
@@ -1542,16 +1551,44 @@ export function CustomerDetailPage() {
                   {/* Cari hareketleri — yalnızca eşleşme varsa göster */}
                   {customer?.parasutContactId && (
                     <div className="space-y-3 pt-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-foreground">Cari Hareketleri</p>
-                        {cariHareketlerQuery.data && (
-                          <p className="text-xs text-muted-foreground">
-                            Toplam {cariHareketlerQuery.data.totalCount} hareket
-                          </p>
-                        )}
+                      {/* Sub-tab toggle: Faturalar / Cari Hareketleri */}
+                      <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/40 w-fit">
+                        <button
+                          onClick={() => { setCariSubTab('invoices'); setCariHareketPage(1); }}
+                          className={cn(
+                            'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                            cariSubTab === 'invoices'
+                              ? 'bg-background text-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          Faturalar
+                          {parasutTransactionsQuery.data && (
+                            <span className="ml-1.5 text-[10px] opacity-70">
+                              ({parasutTransactionsQuery.data.invoiceTotalCount})
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => { setCariSubTab('transactions'); setCariHareketPage(1); }}
+                          className={cn(
+                            'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                            cariSubTab === 'transactions'
+                              ? 'bg-background text-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          Cari Hareketleri
+                          {parasutTransactionsQuery.data && (
+                            <span className="ml-1.5 text-[10px] opacity-70">
+                              ({parasutTransactionsQuery.data.transactionTotalCount})
+                            </span>
+                          )}
+                        </button>
                       </div>
 
-                      {cariHareketlerQuery.isLoading && (
+                      {/* Loading state */}
+                      {parasutTransactionsQuery.isLoading && (
                         <div className="space-y-2">
                           {Array.from({ length: 3 }).map((_, i) => (
                             <Skeleton key={i} className="h-14 w-full rounded-lg" />
@@ -1559,85 +1596,148 @@ export function CustomerDetailPage() {
                         </div>
                       )}
 
-                      {cariHareketlerQuery.isError && (
+                      {/* Error state */}
+                      {parasutTransactionsQuery.isError && (
                         <div className="flex items-center gap-2 p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm text-destructive">
                           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                           Cari hareketleri yüklenemedi.
                         </div>
                       )}
 
-                      {!cariHareketlerQuery.isLoading && cariHareketlerQuery.data?.items.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-6">
-                          Bu cari için henüz fatura hareketi yok.
-                        </p>
+                      {/* ── Faturalar sub-tab ── */}
+                      {cariSubTab === 'invoices' && !parasutTransactionsQuery.isLoading && (
+                        <>
+                          {(parasutTransactionsQuery.data?.invoices ?? []).length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-6">
+                              Bu cari için henüz fatura yok.
+                            </p>
+                          ) : (
+                            <div className="rounded-lg border border-border overflow-hidden">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b border-border bg-muted/40">
+                                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Tarih</th>
+                                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground hidden sm:table-cell">Açıklama</th>
+                                    <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Tutar</th>
+                                    <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground hidden sm:table-cell">Ödenen</th>
+                                    <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Kalan</th>
+                                    <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground hidden md:table-cell">Durum</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                  {(parasutTransactionsQuery.data?.invoices ?? []).map((inv) => {
+                                    const isPaid = inv.remaining <= 0;
+                                    const isOverdue = !isPaid && inv.dueDate && new Date(inv.dueDate) < new Date();
+                                    const cur = inv.currency === 'TRL' ? 'TRY' : (inv.currency || 'TRY');
+                                    const fmt = (v: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: cur, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
+                                    return (
+                                      <tr key={inv.id} className="hover:bg-muted/20 transition-colors">
+                                        <td className="px-3 py-2.5 whitespace-nowrap text-foreground">
+                                          {new Date(inv.issueDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </td>
+                                        <td className="px-3 py-2.5 text-muted-foreground max-w-[180px] truncate hidden sm:table-cell">
+                                          {inv.description ?? '—'}
+                                        </td>
+                                        <td className="px-3 py-2.5 text-right font-medium text-foreground whitespace-nowrap">
+                                          {fmt(inv.grossTotal)}
+                                        </td>
+                                        <td className="px-3 py-2.5 text-right text-emerald-400 whitespace-nowrap hidden sm:table-cell">
+                                          {fmt(inv.totalPaid)}
+                                        </td>
+                                        <td className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${isOverdue ? 'text-red-400' : isPaid ? 'text-muted-foreground' : 'text-amber-400'}`}>
+                                          {fmt(inv.remaining)}
+                                        </td>
+                                        <td className="px-3 py-2.5 text-center hidden md:table-cell">
+                                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${isPaid ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : isOverdue ? 'bg-red-500/15 text-red-400 border-red-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'}`}>
+                                            {isPaid ? 'Ödendi' : isOverdue ? 'Vadesi Geçti' : 'Açık'}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </>
                       )}
 
-                      {!cariHareketlerQuery.isLoading && (cariHareketlerQuery.data?.items ?? []).length > 0 && (
-                        <div className="rounded-lg border border-border overflow-hidden">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b border-border bg-muted/40">
-                                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Tarih</th>
-                                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground hidden sm:table-cell">Açıklama</th>
-                                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Tutar</th>
-                                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground hidden sm:table-cell">Ödenen</th>
-                                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Kalan</th>
-                                <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground hidden md:table-cell">Durum</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border">
-                              {(cariHareketlerQuery.data?.items ?? []).map((inv) => {
-                                const isPaid = inv.remaining <= 0;
-                                const isOverdue = !isPaid && inv.dueDate && new Date(inv.dueDate) < new Date();
-                                return (
-                                  <tr key={inv.id} className="hover:bg-muted/20 transition-colors">
-                                    <td className="px-3 py-2.5 whitespace-nowrap text-foreground">
-                                      {new Date(inv.issueDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                    </td>
-                                    <td className="px-3 py-2.5 text-muted-foreground max-w-[180px] truncate hidden sm:table-cell">
-                                      {inv.description ?? '—'}
-                                    </td>
-                                    <td className="px-3 py-2.5 text-right font-medium text-foreground whitespace-nowrap">
-                                      {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: inv.currency === 'TRL' ? 'TRY' : (inv.currency || 'TRY'), minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(inv.grossTotal)}
-                                    </td>
-                                    <td className="px-3 py-2.5 text-right text-emerald-400 whitespace-nowrap hidden sm:table-cell">
-                                      {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: inv.currency === 'TRL' ? 'TRY' : (inv.currency || 'TRY'), minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(inv.totalPaid)}
-                                    </td>
-                                    <td className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${isOverdue ? 'text-red-400' : isPaid ? 'text-muted-foreground' : 'text-amber-400'}`}>
-                                      {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: inv.currency === 'TRL' ? 'TRY' : (inv.currency || 'TRY'), minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(inv.remaining)}
-                                    </td>
-                                    <td className="px-3 py-2.5 text-center hidden md:table-cell">
-                                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${isPaid ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : isOverdue ? 'bg-red-500/15 text-red-400 border-red-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'}`}>
-                                        {isPaid ? 'Ödendi' : isOverdue ? 'Vadesi Geçti' : 'Açık'}
-                                      </span>
-                                    </td>
+                      {/* ── Cari Hareketleri sub-tab ── */}
+                      {cariSubTab === 'transactions' && !parasutTransactionsQuery.isLoading && (
+                        <>
+                          {(parasutTransactionsQuery.data?.transactions ?? []).length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-6">
+                              Bu cari için henüz işlem yok.
+                            </p>
+                          ) : (
+                            <div className="rounded-lg border border-border overflow-hidden">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b border-border bg-muted/40">
+                                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Tarih</th>
+                                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground hidden sm:table-cell">Açıklama</th>
+                                    <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground">Tür</th>
+                                    <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Tutar</th>
+                                    <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Kalan</th>
                                   </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                  {(parasutTransactionsQuery.data?.transactions ?? []).map((txn, idx) => {
+                                    const isCredit = txn.transactionType === 'credit';
+                                    const cur = txn.currency === 'TRL' ? 'TRY' : (txn.currency || 'TRY');
+                                    const fmt = (v: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: cur, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
+                                    return (
+                                      <tr key={`${txn.payableId ?? idx}-${txn.date}`} className="hover:bg-muted/20 transition-colors">
+                                        <td className="px-3 py-2.5 whitespace-nowrap text-foreground">
+                                          {new Date(txn.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </td>
+                                        <td className="px-3 py-2.5 text-muted-foreground max-w-[200px] truncate hidden sm:table-cell">
+                                          {txn.description || txn.payableType || '—'}
+                                        </td>
+                                        <td className="px-3 py-2.5 text-center">
+                                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                                            isCredit
+                                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                              : 'bg-red-500/15 text-red-400 border-red-500/30'
+                                          }`}>
+                                            {isCredit ? 'Alacak' : 'Borç'}
+                                          </span>
+                                        </td>
+                                        <td className={`px-3 py-2.5 text-right font-medium whitespace-nowrap ${isCredit ? 'text-emerald-400' : 'text-foreground'}`}>
+                                          {isCredit ? '+' : ''}{fmt(txn.amount)}
+                                        </td>
+                                        <td className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${txn.remaining > 0 ? 'text-amber-400' : 'text-muted-foreground'}`}>
+                                          {fmt(txn.remaining)}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </>
                       )}
 
                       {/* Sayfalama */}
-                      {(cariHareketlerQuery.data?.totalPages ?? 0) > 1 && (
+                      {(parasutTransactionsQuery.data?.totalPages ?? 0) > 1 && (
                         <div className="flex items-center justify-between pt-1">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => setCariHareketPage(p => Math.max(1, p - 1))}
-                            disabled={cariHareketPage <= 1 || cariHareketlerQuery.isFetching}
+                            disabled={cariHareketPage <= 1 || parasutTransactionsQuery.isFetching}
                           >
                             ‹ Önceki
                           </Button>
                           <span className="text-xs text-muted-foreground">
-                            {cariHareketPage} / {cariHareketlerQuery.data?.totalPages}
+                            {cariHareketPage} / {parasutTransactionsQuery.data?.totalPages}
                           </span>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => setCariHareketPage(p => p + 1)}
-                            disabled={cariHareketPage >= (cariHareketlerQuery.data?.totalPages ?? 1) || cariHareketlerQuery.isFetching}
+                            disabled={cariHareketPage >= (parasutTransactionsQuery.data?.totalPages ?? 1) || parasutTransactionsQuery.isFetching}
                           >
                             Sonraki ›
                           </Button>

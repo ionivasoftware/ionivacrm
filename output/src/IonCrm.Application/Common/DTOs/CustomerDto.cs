@@ -25,6 +25,10 @@ public class CustomerDto
     public DateTime? ExpirationDate { get; set; }
     public string? LegacyId { get; set; }
     public string? ParasutContactId { get; set; }
+    /// <summary>True if the customer is registered as an e-invoice (e-fatura) payer in Paraşüt.</summary>
+    public bool IsEInvoicePayer { get; set; }
+    /// <summary>E-invoice inbox address (PK / GB envelope identifier).</summary>
+    public string? EInvoiceAddress { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

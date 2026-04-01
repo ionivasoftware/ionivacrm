@@ -27,6 +27,17 @@ public class ParasutConnectionRepository : IParasutConnectionRepository
     }
 
     /// <inheritdoc />
+    public async Task<List<ParasutConnection>> GetAllAsync(
+        CancellationToken cancellationToken = default)
+    {
+        // IgnoreQueryFilters() is REQUIRED — no HTTP context means tenant filter would block all rows.
+        return await _context.ParasutConnections
+            .IgnoreQueryFilters()
+            .Where(c => !c.IsDeleted)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<ParasutConnection> AddAsync(
         ParasutConnection connection,
         CancellationToken cancellationToken = default)

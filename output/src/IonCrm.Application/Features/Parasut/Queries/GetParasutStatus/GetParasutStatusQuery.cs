@@ -11,5 +11,8 @@ public record ParasutStatusDto(
     bool   IsConnected,
     long?  CompanyId,
     string? Username,
-    DateTime? TokenExpiresAt
+    DateTime? TokenExpiresAt,
+    DateTime? LastConnectedAt,
+    string? LastError,
+    int ReconnectAttempts
 );

@@ -167,9 +167,79 @@ app.Lifetime.ApplicationStarted.Register(() =>
             await db.Database.ExecuteSqlRawAsync(@"
                 ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ExpirationDate""    timestamp with time zone;
                 ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ParasutContactId""  text;
+                ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""IsEInvoicePayer""   boolean NOT NULL DEFAULT false;
+                ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""EInvoiceAddress""   text;
                 ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsApiKey""         text;
                 ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlApiKey""    text;
+                ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""SmsCount""          integer NOT NULL DEFAULT 0;
             ");
+
+            // Idempotent fallback: create ParasutConnections table if EF migration hasn't run yet.
+            // Tenant-based: one row per project, stores OAuth credentials + access/refresh tokens.
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""ParasutConnections"" (
+                    ""Id""             uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""ProjectId""      uuid         NOT NULL,
+                    ""CompanyId""      bigint       NOT NULL DEFAULT 0,
+                    ""ClientId""       text         NOT NULL DEFAULT '',
+                    ""ClientSecret""   text         NOT NULL DEFAULT '',
+                    ""Username""       text         NOT NULL DEFAULT '',
+                    ""Password""       text         NOT NULL DEFAULT '',
+                    ""AccessToken""    text,
+                    ""RefreshToken""   text,
+                    ""TokenExpiresAt"" timestamp with time zone,
+                    ""CreatedAt""      timestamp with time zone NOT NULL DEFAULT now(),
+                    ""UpdatedAt""      timestamp with time zone NOT NULL DEFAULT now(),
+                    ""IsDeleted""      boolean      NOT NULL DEFAULT false,
+                    CONSTRAINT ""fk_parasutconnections_projects"" FOREIGN KEY (""ProjectId"")
+                        REFERENCES ""Projects"" (""Id"") ON DELETE CASCADE
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ""ix_parasutconnections_projectid""
+                    ON ""ParasutConnections"" (""ProjectId"")
+                    WHERE ""IsDeleted"" = false;
+            ");
+            Log.Information("ParasutConnections table ensured");
+
+            // Reconnect tracking columns for ParasutAutoConnectService
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""LastConnectedAt""   timestamp with time zone;
+                ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""LastError""         text;
+                ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""ReconnectAttempts"" integer NOT NULL DEFAULT 0;
+            ");
+            Log.Information("ParasutConnections reconnect tracking columns ensured");
+
+            // Idempotent fallback: create Invoices table if EF migration hasn't run yet.
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""Invoices"" (
+                    ""Id""             uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""ProjectId""      uuid         NOT NULL,
+                    ""CustomerId""     uuid         NOT NULL,
+                    ""Title""          text         NOT NULL DEFAULT '',
+                    ""Description""    text,
+                    ""InvoiceSeries""  text,
+                    ""InvoiceNumber""  integer,
+                    ""IssueDate""      timestamp with time zone NOT NULL DEFAULT now(),
+                    ""DueDate""        timestamp with time zone NOT NULL DEFAULT now(),
+                    ""Currency""       text         NOT NULL DEFAULT 'TRL',
+                    ""GrossTotal""     numeric      NOT NULL DEFAULT 0,
+                    ""NetTotal""       numeric      NOT NULL DEFAULT 0,
+                    ""LinesJson""      text         NOT NULL DEFAULT '[]',
+                    ""Status""         integer      NOT NULL DEFAULT 0,
+                    ""ParasutId""      text,
+                    ""CreatedAt""      timestamp with time zone NOT NULL DEFAULT now(),
+                    ""UpdatedAt""      timestamp with time zone NOT NULL DEFAULT now(),
+                    ""IsDeleted""      boolean      NOT NULL DEFAULT false,
+                    CONSTRAINT ""fk_invoices_projects""  FOREIGN KEY (""ProjectId"")  REFERENCES ""Projects""  (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""fk_invoices_customers"" FOREIGN KEY (""CustomerId"") REFERENCES ""Customers"" (""Id"") ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS ""ix_invoices_projectid_status""
+                    ON ""Invoices"" (""ProjectId"", ""Status"")
+                    WHERE ""IsDeleted"" = false;
+                CREATE INDEX IF NOT EXISTS ""ix_invoices_customerid""
+                    ON ""Invoices"" (""CustomerId"")
+                    WHERE ""IsDeleted"" = false;
+            ");
+            Log.Information("Invoices table ensured");
 
             // Fix: Segment was originally created as integer (enum) but the entity
             // uses string. Convert to text so EMS API string values can be stored.

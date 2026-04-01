@@ -31,6 +31,55 @@ export type OpportunityStage =
   | 'Musteri'
   | 'Kayip';
 
+// ----- Invoice -----
+
+export type InvoiceStatus = 'Draft' | 'TransferredToParasut' | 'Paid' | 'Cancelled';
+
+export interface Invoice {
+  id: string;
+  projectId: string;
+  customerId: string;
+  customerName: string;
+  title: string;
+  description: string | null;
+  invoiceSeries: string | null;
+  invoiceNumber: number | null;
+  issueDate: string;
+  dueDate: string;
+  currency: string;
+  grossTotal: number;
+  netTotal: number;
+  linesJson: string;
+  status: InvoiceStatus;
+  parasutId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoiceLineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  vatRate: number;
+  discountValue: number;
+  discountType: string;
+  unit: string;
+}
+
+export interface CreateCrmInvoiceRequest {
+  customerId: string;
+  title: string;
+  description?: string;
+  invoiceSeries?: string;
+  invoiceNumber?: number;
+  issueDate: string;
+  dueDate: string;
+  currency?: string;
+  grossTotal: number;
+  netTotal: number;
+  linesJson: string;
+}
+
 export type SyncSource = 'SaasA' | 'SaasB';
 export type SyncDirection = 'Inbound' | 'Outbound';
 export type SyncStatus = 'Pending' | 'Success' | 'Failed' | 'Retrying';
@@ -286,6 +335,41 @@ export interface SyncLog {
   syncedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ----- Paraşüt Cari İşlemleri -----
+
+export interface ParasutInvoiceItem {
+  id: string;
+  issueDate: string;
+  dueDate: string;
+  currency: string;
+  grossTotal: number;
+  netTotal: number;
+  totalPaid: number;
+  remaining: number;
+  description: string | null;
+  archivingStatus: string | null;
+}
+
+export interface ParasutTransactionItem {
+  date: string;
+  amount: number;
+  currency: string | null;
+  transactionType: string; // "debit" (borç) | "credit" (alacak/tahsilat)
+  description: string | null;
+  payableType: string | null;
+  payableId: number | null;
+  remaining: number;
+}
+
+export interface CustomerParasutTransactions {
+  invoices: ParasutInvoiceItem[];
+  transactions: ParasutTransactionItem[];
+  invoiceTotalCount: number;
+  transactionTotalCount: number;
+  totalPages: number;
+  currentPage: number;
 }
 
 // ----- Dashboard -----

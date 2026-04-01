@@ -23,6 +23,9 @@ public class Project : BaseEntity
     /// <summary>Gets or sets the API key used to authenticate with Rezerval (SaaS B).</summary>
     public string? RezervAlApiKey { get; set; }
 
+    /// <summary>Gets or sets the SMS credit balance for this project/company.</summary>
+    public int SmsCount { get; set; } = 0;
+
     // Navigation properties
     /// <summary>Gets or sets the user-project role assignments for this project.</summary>
     public ICollection<UserProjectRole> UserProjectRoles { get; set; } = new List<UserProjectRole>();

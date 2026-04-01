@@ -59,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<IOpportunityRepository, OpportunityRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
+        services.AddScoped<IInvoiceRepository, InvoiceRepository>();
 
         // ── Auth services ─────────────────────────────────────────────────────
         services.AddScoped<ITokenService, TokenService>();
@@ -67,6 +68,14 @@ public static class DependencyInjection
         // ── Paraşüt ───────────────────────────────────────────────────────────
         services.AddScoped<IParasutConnectionRepository, ParasutConnectionRepository>();
         RegisterParasutClient(services);
+
+        // High-level facade: wraps connection lookup + token lifecycle + IParasutClient calls.
+        // Handlers inject IParasutService instead of wiring IParasutClient + ParasutTokenHelper manually.
+        services.AddScoped<IParasutService, ParasutService>();
+
+        // On startup: refresh/re-authenticate all stored Paraşüt connections whose tokens
+        // have expired, so the first user API call doesn't trigger a slow re-auth round-trip.
+        services.AddHostedService<ParasutAutoConnectService>();
 
         // ── External API Clients (Typed HttpClients) ──────────────────────────
         RegisterSaasAClient(services, configuration);

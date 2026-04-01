@@ -29,6 +29,8 @@ public static class CustomerMappings
         ExpirationDate = c.ExpirationDate,
         LegacyId = c.LegacyId,
         ParasutContactId = c.ParasutContactId,
+        IsEInvoicePayer = c.IsEInvoicePayer,
+        EInvoiceAddress = c.EInvoiceAddress,
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt
     };

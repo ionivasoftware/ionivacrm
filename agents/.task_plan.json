@@ -1,19 +1,82 @@
 {
-  "session_goal": "Lead müşteri aktarımı: Lead kaydındaki görüşme, görev ve pipeline verilerini seçilen aktif müşteriye taşı, lead'i sil",
+  "session_goal": "Süre uzat UI iyileştirmesi, Paraşüt fatura entegrasyonu ve SMS yükleme özelliği",
   "tasks": [
     {
       "id": 1,
-      "description": "Lead müşteri aktarım API endpoint'i yaz: POST /api/customers/{leadId}/transfer/{targetCustomerId} — leadId altındaki tüm Conversations, Tasks ve Pipeline kayıtlarını targetCustomerId'ye taşı (FK güncelle), ardından lead kaydını sil. Sadece Status='Lead' olan kayıtlar için çalışmalı, aksi halde 400 döndür. Gerekli servis, repository metotları ve EF Core migration (varsa) dahil. İşlem tek transaction içinde yapılmalı. Başarıda 204 NoContent döndür.",
-      "agent": "backend",
+      "description": "Süre Uzat modalında gün seçimi sabit butonlar yerine serbest giriş input alanına çevrilmeli (3, 5, 10 vb. gün yazılabilmeli)",
+      "agent": "frontend",
       "depends_on": [],
-      "context": "Proje: /Users/ofc/Documents/Projects/ionivacrm/output. Multi-tenant mimari — tüm sorgularda tenant filtresi korunmalı (.IgnoreQueryFilters() kullanma). Lead müşteri Status alanı 'Lead' string olarak saklanıyor (Segment integer'dan text'e çevrildi geçmişte). İlgili modeller: Customer, Conversation (veya Interaction/Note), Task (veya Görev), Pipeline (veya PipelineItem) — mevcut modelleri önce incele."
+      "context": "Mevcut extend-expiration UI'da sabit gün seçenekleri var, bunları number input ile değiştir. Backend endpoint zaten gün parametresi alıyor olmalı."
     },
     {
       "id": 2,
-      "description": "Lead müşteri detay sayfasına 'Aktif Müşteriye Aktar' butonu ve modal ekle: kullanıcı aktif bir müşteri seçer (arama destekli liste), onaylar, POST /api/customers/{leadId}/transfer/{targetCustomerId} çağrılır, başarıda toast göster ve kullanıcıyı müşteri listesine yönlendir. Buton yalnızca Status === 'Lead' müşterilerde görünmeli.",
+      "description": "Paraşüt bağlantı bilgilerini DB'de tut, sistem bağlı değilse otomatik bağlan. ParasutConnection entity ve ParasutAutoConnectService zaten mevcut — eksikleri tamamla.",
+      "agent": "backend",
+      "depends_on": [],
+      "context": "ParasutConnection entity'si var, ParasutAutoConnectService startup'ta token warm ediyor. Bağlantı koptuğunda otomatik reconnect mekanizması ekle. Learned memory'de detaylar var."
+    },
+    {
+      "id": 3,
+      "description": "Müşteri detay sayfasında Cari/Fatura sekmesi: Paraşüt'ten cariye ait tüm işlemleri (satış faturaları, tahsilatlar) çekip listele",
+      "agent": "backend",
+      "depends_on": [2],
+      "context": "IParasutService üzerinden müşterinin Paraşüt cari hesabına ait faturaları ve işlemleri çek. Endpoint: GET /api/v1/crm/customers/{id}/parasut-transactions gibi olabilir."
+    },
+    {
+      "id": 4,
+      "description": "Müşteri detay sayfasında Cari/Fatura sekmesi frontend UI'ı — Paraşüt'ten gelen işlemleri tablo olarak göster",
       "agent": "frontend",
-      "depends_on": [1],
-      "context": "Proje: /Users/ofc/Documents/Projects/ionivacrm/output. React + TypeScript. Modal içinde aktif müşteri listesi aranabilir olmalı (Status !== 'Lead' olanlar). Mevcut modal/dialog bileşenlerini kullan. API hook: useTransferLeadCustomer veya benzeri custom hook yaz. Onay adımı (confirm step) ekle. Hata durumlarını kullanıcıya göster."
+      "depends_on": [3],
+      "context": "Backend'den gelen Paraşüt cari işlemlerini müşteri detay sayfasında yeni bir tab/sekme olarak listele."
+    },
+    {
+      "id": 5,
+      "description": "Fatura oluşturma: CRM DB'de Invoice entity/tablosu oluştur, CQRS command/handler ile fatura kaydet. Ayrı bir butonla Paraşüt'e aktar.",
+      "agent": "backend",
+      "depends_on": [2],
+      "context": "Invoice entity (InvoiceNumber, CustomerId, ProjectId, Items, Total, Status, ParasutInvoiceId, CreatedAt). İki aşamalı: 1) CRM DB'ye kaydet 2) POST ile Paraşüt'e gönder. Paraşüt'e aktarıldığında ParasutInvoiceId set edilir."
+    },
+    {
+      "id": 6,
+      "description": "Fatura aktarımı sonrası müşterinin E-Fatura bilgisini Paraşüt'ten çekip Customer tablosuna kaydet",
+      "agent": "backend",
+      "depends_on": [5],
+      "context": "Manuel fatura aktarımı başarılı olduktan sonra, Paraşüt API'den müşterinin e-fatura bilgisini (e-fatura mükellefi mi, VKN, ticaret sicil no vb.) çek ve Customer entity'sine ekle."
+    },
+    {
+      "id": 7,
+      "description": "E-Fatura bilgisi mevcut müşteriler için fatura oluşturulduğunda otomatik Paraşüt aktarımı ve resmileştirme",
+      "agent": "backend",
+      "depends_on": [6],
+      "context": "Customer'da EInvoiceInfo varsa → fatura DB'ye kaydedildiğinde otomatik olarak Paraşüt'e aktar ve resmileştir (officialize). Yoksa manuel aktar butonu göster."
+    },
+    {
+      "id": 8,
+      "description": "Fatura oluşturma ve listeleme frontend UI — fatura formu, liste sayfası, Paraşüt'e aktar butonu",
+      "agent": "frontend",
+      "depends_on": [5],
+      "context": "Faturalar sayfası: yeniden eskiye liste, fatura oluşturma formu, Paraşüt'e aktar butonu. E-Fatura bilgisi olan müşterilerde otomatik aktarım göstergesi."
+    },
+    {
+      "id": 9,
+      "description": "Mevcut Paraşüt faturalarını tek seferlik CRM DB'ye import et (sanki CRM'de oluşmuş gibi). Faturalar ekranında yeniden eskiye göster.",
+      "agent": "backend",
+      "depends_on": [5],
+      "context": "Paraşüt'ten mevcut tüm faturaları çek, CRM Invoice tablosuna ParasutInvoiceId ile kaydet. Bir kerelik migration/import işlemi — endpoint veya background job olarak."
+    },
+    {
+      "id": 10,
+      "description": "SMS Yükleme backend endpoint: POST /api/v1/crm/companies/{id}/add-sms — count body'den alınır, şirketin sms_count'unu artırır",
+      "agent": "backend",
+      "depends_on": [],
+      "context": "Endpoint tasarımı todo.md'de verilmiş: POST /api/v1/crm/companies/3/add-sms, body: { count: 100 }, response: { companyId, smsCount, added }. Companies tablosunda sms_count kolonu yoksa Program.cs startup SQL'e ALTER TABLE ADD COLUMN IF NOT EXISTS ekle. CQRS: AddSmsCommand + Handler."
+    },
+    {
+      "id": 11,
+      "description": "SMS Yükleme frontend: Süre Uzat'a benzer UI bileşeni — SMS miktarı girip yükleme butonu",
+      "agent": "frontend",
+      "depends_on": [10],
+      "context": "Süre Uzat modalına benzer bir UI. Number input ile SMS adedi gir, yükle butonu. Başarı sonrası güncel SMS sayısını göster."
     }
   ]
 }

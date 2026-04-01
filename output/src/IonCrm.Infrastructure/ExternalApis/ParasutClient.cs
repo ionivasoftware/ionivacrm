@@ -285,6 +285,105 @@ public sealed class ParasutClient : IParasutClient
         return await GetListAsync<ParasutSalesInvoiceAttributes>(accessToken, url, cancellationToken);
     }
 
+    // ── E-Invoice Inbox ────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<JsonApiListResponse<ParasutEInvoiceInboxAttributes>> GetEInvoiceInboxesAsync(
+        string accessToken, long companyId, string vkn,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Paraşüt: querying e-invoice inboxes for VKN {Vkn}. Company={CompanyId}", vkn, companyId);
+        var url = $"v4/{companyId}/e_invoice_inboxes?filter[vkn]={Uri.EscapeDataString(vkn)}";
+
+        return await GetListAsync<ParasutEInvoiceInboxAttributes>(accessToken, url, cancellationToken);
+    }
+
+    // ── E-Invoice / E-Archive Officialize ───────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<JsonApiResponse<ParasutEInvoiceAttributes>> CreateEInvoiceAsync(
+        string accessToken, long companyId, string salesInvoiceId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Paraşüt: creating e-invoice for sales invoice {SalesInvoiceId}. Company={CompanyId}", salesInvoiceId, companyId);
+        var url = $"v4/{companyId}/e_invoices";
+
+        var body = new CreateEDocumentRequest
+        {
+            Data = new CreateEDocumentData
+            {
+                Type = "e_invoices",
+                Relationships = new EDocumentRelationships
+                {
+                    Invoice = new EDocumentInvoiceRelationship
+                    {
+                        Data = new EDocumentInvoiceRelationshipData { Id = salesInvoiceId }
+                    }
+                }
+            }
+        };
+
+        return await _retryPipeline.ExecuteAsync<JsonApiResponse<ParasutEInvoiceAttributes>>(async ct =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Post, url);
+            ApplyBearer(req, accessToken);
+            req.Content = JsonContent.Create(body, options: JsonOpts);
+            var response = await _httpClient.SendAsync(req, ct);
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadFromJsonAsync<JsonApiResponse<ParasutEInvoiceAttributes>>(JsonOpts, ct);
+            return result ?? throw new InvalidOperationException("Empty e-invoice response from Paraşüt.");
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<JsonApiResponse<ParasutEInvoiceAttributes>> CreateEArchiveAsync(
+        string accessToken, long companyId, string salesInvoiceId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Paraşüt: creating e-archive for sales invoice {SalesInvoiceId}. Company={CompanyId}", salesInvoiceId, companyId);
+        var url = $"v4/{companyId}/e_archives";
+
+        var body = new CreateEDocumentRequest
+        {
+            Data = new CreateEDocumentData
+            {
+                Type = "e_archives",
+                Relationships = new EDocumentRelationships
+                {
+                    Invoice = new EDocumentInvoiceRelationship
+                    {
+                        Data = new EDocumentInvoiceRelationshipData { Id = salesInvoiceId }
+                    }
+                }
+            }
+        };
+
+        return await _retryPipeline.ExecuteAsync<JsonApiResponse<ParasutEInvoiceAttributes>>(async ct =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Post, url);
+            ApplyBearer(req, accessToken);
+            req.Content = JsonContent.Create(body, options: JsonOpts);
+            var response = await _httpClient.SendAsync(req, ct);
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadFromJsonAsync<JsonApiResponse<ParasutEInvoiceAttributes>>(JsonOpts, ct);
+            return result ?? throw new InvalidOperationException("Empty e-archive response from Paraşüt.");
+        }, cancellationToken);
+    }
+
+    // ── Contact Transactions ────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<JsonApiListResponse<ParasutTransactionAttributes>> GetContactTransactionsAsync(
+        string accessToken, long companyId, string contactId,
+        int page = 1, int pageSize = 25,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Paraşüt: fetching transactions for contact {ContactId}. Company={CompanyId}", contactId, companyId);
+        var url = $"v4/{companyId}/contacts/{contactId}/contact_debit_credit_transactions?page[size]={pageSize}&page[number]={page}&sort=-date";
+
+        return await GetListAsync<ParasutTransactionAttributes>(accessToken, url, cancellationToken);
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private async Task<JsonApiListResponse<T>> GetListAsync<T>(

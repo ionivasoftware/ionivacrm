@@ -48,6 +48,17 @@ public class ParasutConnection : BaseEntity
         TokenExpiresAt.HasValue &&
         TokenExpiresAt.Value > DateTime.UtcNow;
 
+    // ── Reconnect tracking ───────────────────────────────────────────────────
+
+    /// <summary>Gets or sets the UTC time when the last successful token acquisition occurred.</summary>
+    public DateTime? LastConnectedAt { get; set; }
+
+    /// <summary>Gets or sets the last error message from a failed reconnect attempt (null when healthy).</summary>
+    public string? LastError { get; set; }
+
+    /// <summary>Gets or sets the number of consecutive failed reconnect attempts (resets to 0 on success).</summary>
+    public int ReconnectAttempts { get; set; }
+
     // ── Navigation ────────────────────────────────────────────────────────────
     /// <summary>Gets or sets the project navigation property.</summary>
     public Project Project { get; set; } = null!;

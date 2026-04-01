@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, Lock, Loader2, CheckCircle, Link2, Link2Off, Building2, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Loader2, CheckCircle, Link2, Link2Off, Building2, Eye, EyeOff, MessageSquare } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,8 @@ import {
   useConnectParasut,
   useDisconnectParasut,
 } from '@/api/parasut';
+import { useAdminProjects } from '@/api/admin';
+import { AddSmsDialog } from '@/components/sms/AddSmsDialog';
 
 // ── Profile form ──────────────────────────────────────────────────────────────
 
@@ -62,6 +64,11 @@ export function SettingsPage() {
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [showParasutSecret, setShowParasutSecret] = useState(false);
   const [showParasutPassword, setShowParasutPassword] = useState(false);
+  const [showSmsDialog, setShowSmsDialog] = useState(false);
+
+  // Projects (for SMS count)
+  const { data: projects = [] } = useAdminProjects();
+  const currentProject = projects.find((p) => p.id === currentProjectId);
 
   // Paraşüt
   const parasutStatus = useParasutStatus(currentProjectId);
@@ -325,6 +332,54 @@ export function SettingsPage() {
         </Card>
       )}
 
+
+      {/* ── SMS Credits ── */}
+      {currentProject && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MessageSquare className="h-4 w-4" /> SMS Yönetimi
+            </CardTitle>
+            <CardDescription>
+              Proje SMS bakiyesini görüntüleyin ve yeni SMS kredisi yükleyin.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-muted/30 border border-border">
+              <div>
+                <p className="text-sm text-muted-foreground">Güncel SMS Bakiyesi</p>
+                <p className="text-2xl font-bold tabular-nums text-foreground mt-1">
+                  {currentProject.smsCount.toLocaleString('tr-TR')}
+                  <span className="text-sm font-normal text-muted-foreground ml-1.5">SMS</span>
+                </p>
+              </div>
+              <Button
+                className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => setShowSmsDialog(true)}
+              >
+                <MessageSquare className="h-4 w-4" />
+                SMS Yükle
+              </Button>
+            </div>
+            {currentProject.smsCount === 0 && (
+              <p className="text-xs text-amber-500">
+                SMS bakiyeniz tükendi. Yeni kredi yükleyerek SMS göndermeye devam edebilirsiniz.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* SMS Dialog */}
+      {currentProject && (
+        <AddSmsDialog
+          open={showSmsDialog}
+          onOpenChange={setShowSmsDialog}
+          projectId={currentProject.id}
+          projectName={currentProject.name}
+          currentSmsCount={currentProject.smsCount}
+        />
+      )}
 
       {/* Profile section */}
       <Card>

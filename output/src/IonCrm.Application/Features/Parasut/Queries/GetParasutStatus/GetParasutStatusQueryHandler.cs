@@ -27,16 +27,22 @@ public sealed class GetParasutStatusQueryHandler
         if (connection is null)
         {
             return Result<ParasutStatusDto>.Success(new ParasutStatusDto(
-                IsConnected:    false,
-                CompanyId:      null,
-                Username:       null,
-                TokenExpiresAt: null));
+                IsConnected:       false,
+                CompanyId:         null,
+                Username:          null,
+                TokenExpiresAt:    null,
+                LastConnectedAt:   null,
+                LastError:         null,
+                ReconnectAttempts: 0));
         }
 
         return Result<ParasutStatusDto>.Success(new ParasutStatusDto(
-            IsConnected:    connection.IsConnected,
-            CompanyId:      connection.CompanyId,
-            Username:       connection.Username,
-            TokenExpiresAt: connection.TokenExpiresAt));
+            IsConnected:       connection.IsConnected,
+            CompanyId:         connection.CompanyId,
+            Username:          connection.Username,
+            TokenExpiresAt:    connection.TokenExpiresAt,
+            LastConnectedAt:   connection.LastConnectedAt,
+            LastError:         connection.LastError,
+            ReconnectAttempts: connection.ReconnectAttempts));
     }
 }
