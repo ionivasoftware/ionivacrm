@@ -1,47 +1,12 @@
 {
-  "session_goal": "EMS kullanıcı listesi ve RezervAl firma sync/create/edit entegrasyonları (backend + frontend)",
+  "session_goal": "RezervAl Firma Create/Edit frontend entegrasyonu: müşteri detay sayfasına 'RezervAl'a Gönder' butonu ve usePushToRezerval hook'u ekle",
   "tasks": [
     {
       "id": 1,
-      "description": "Müşteri Detayı — EMS Kullanıcı Listesi (Backend): ISaasAClient'a GetCompanyUsersAsync(string apiKey, int companyId, CancellationToken) ekle. EMS endpoint: GET /api/v1/crm/companies/{companyId}/users (Authorization: Bearer <ems-api-key>). Response model: EmsCompanyUser(string UserId, string Name, string Surname, string Email, string Role, string LoginName, string Password). Yeni CRM endpoint: GET /api/v1/customers/{id}/ems-users — müşteri EMS müşterisiyse (LegacyId sayısal veya 'SAASA-{n}' formatında) companyId parse et, EMS'ten kullanıcıları çek ve döndür; EMS müşterisi değilse 400 döndür. MediatR Query+Handler yaz.",
-      "agent": "backend",
-      "depends_on": [],
-      "context": "ISaasAClient arayüzü ve implementasyonu mevcut. Diğer EMS çağrıları için pattern'e bak. LegacyId parse mantığı: sayısal ise doğrudan int.Parse, 'SAASA-{n}' formatında ise n'yi parse et. Kod dizini: /Users/ofc/Documents/Projects/ionivacrm/output/"
-    },
-    {
-      "id": 2,
-      "description": "RezervAl Firma Sync (Backend): ISaasBClient'a GetRezervalCompaniesAsync metodunu ekle. Base URL: https://rezback.rezerval.com, endpoint: GET /v1/Crm/CompanyList (Authorization: Bearer {RezervAlApiKey}). Response model: RezervalCompany(int Id, string Name, string Title, string Phone, string Email, string? Logo, DateTime ExperationDate, DateTime CreatedOn, bool IsDeleted, bool IsActiveOnline). SaasSyncJob'da SyncRezervalCompaniesAsync metodunu yaz: tüm firmaları çekip CRM müşterilerine upsert et. Durum hesaplama EMS ile aynı kural (ComputeStatusFromExpiration). LegacyId formatı: 'REZV-{id}'.",
-      "agent": "backend",
-      "depends_on": [],
-      "context": "ISaasBClient ve SaasSyncJob mevcut. EMS sync pattern'ini referans al (SyncEmsCompaniesAsync). ComputeStatusFromExpiration utility metodu muhtemelen zaten var — kontrol et. Kod dizini: /Users/ofc/Documents/Projects/ionivacrm/output/"
-    },
-    {
-      "id": 3,
-      "description": "RezervAl Firma Create/Edit (Backend): ISaasBClient'a CreateRezervalCompanyAsync ve UpdateRezervalCompanyAsync metodları ekle. POST/PUT https://rezback.rezerval.com/v1/Crm/Company multipart/form-data. Yeni CRM endpoint: POST /api/v1/customers/{id}/push-to-rezerval. Create sonrası response'daki companyId'yi müşterinin LegacyId'si olarak 'REZV-{companyId}' formatında kaydet. Alanlar: Name, Title, Phone, Email, TaxUnit, TaxNumber, TCNo, IsPersonCompany, Address, Language (default 1), CountryPhoneCode (default 90), ExperationDate, AdminNameSurname, AdminLoginName, AdminPassword, AdminEmail, AdminPhone, Logo (opsiyonel).",
-      "agent": "backend",
-      "depends_on": [2],
-      "context": "Task 2 ile aynı ISaasBClient dosyası üzerinde çalışılacak — önce Task 2 bitsin. Müşteri LegacyId 'REZV-' ile başlıyorsa update, başlamıyorsa create yap. MediatR Command+Handler pattern'ı kullan. Kod dizini: /Users/ofc/Documents/Projects/ionivacrm/output/"
-    },
-    {
-      "id": 4,
-      "description": "Müşteri Detayı — EMS Kullanıcı Listesi (Frontend): Müşteri EMS müşterisiyse detay ekranına 'Kullanıcılar' sekmesi ekle. customers.ts'e useCustomerEmsUsers(customerId) hook'u ekle (GET /api/v1/customers/{id}/ems-users). Kullanıcıları tablo olarak listele: Ad Soyad, E-posta, Rol, Kullanıcı Adı, Şifre. Şifre sütunu varsayılan gizli (••••••••), göz ikonuna basınca göster/gizle toggle'ı.",
+      "description": "[FRONTEND] RezervAl Firma Create/Edit: Proje RezervAl ise müşteri detay sayfasına 'RezervAl'a Gönder' butonu ekle. Müşteri henüz RezervAl'a gönderilmemişse (LegacyId 'REZV-' ile başlamıyorsa) create, başlıyorsa update çağrısı yapsın. `customers.ts`'e `usePushToRezerval(customerId)` hook'u ekle. Backend endpoint: POST /api/v1/customers/{id}/push-to-rezerval (zaten mevcut). Buton yalnızca proje tipi RezervAl olduğunda gösterilmeli. LegacyId kontrolü: 'REZV-' prefix yoksa create, varsa update — ama aynı endpoint kullanılıyor (backend create/update kararını LegacyId'ye göre alıyor). Başarı sonrası müşteri verisi yenilenmeli (invalidateQueries).",
       "agent": "frontend",
-      "depends_on": [1],
-      "context": "Backend endpoint Task 1'de hazırlanıyor. Mevcut müşteri detay sayfası sekme yapısını kullan. EMS müşteri kontrolü: LegacyId sayısal veya 'SAASA-' ile başlıyor. Kod dizini: /Users/ofc/Documents/Projects/ionivacrm/output/"
-    },
-    {
-      "id": 5,
-      "description": "RezervAl Firma Create/Edit (Frontend): Proje RezervAl ise müşteri detay sayfasına 'RezervAl'a Gönder' butonu ekle. Müşteri LegacyId 'REZV-' ile başlamıyorsa create, başlıyorsa update çağrısı yapsın (POST /api/v1/customers/{id}/push-to-rezerval). customers.ts'e usePushToRezerval(customerId) hook'u ekle. İşlem sonrası müşteri verisini refetch et (LegacyId güncellenecek).",
-      "agent": "frontend",
-      "depends_on": [3],
-      "context": "Backend endpoint Task 3'te hazırlanıyor. Proje tipi kontrolü için mevcut project context'i kullan. Kod dizini: /Users/ofc/Documents/Projects/ionivacrm/output/"
-    },
-    {
-      "id": 6,
-      "description": "Backend task'ları için unit/integration testleri yaz: 1) GetCustomerEmsUsersQueryHandler — EMS müşterisi için kullanıcı listesi döner, EMS müşterisi değilse hata döner. 2) SyncRezervalCompaniesAsync — yeni firma insert, mevcut firma update, LegacyId 'REZV-{id}' formatı doğrulama. 3) PushToRezervAlCommandHandler — create/update senaryoları, LegacyId kaydetme doğrulama. Proje: /Users/ofc/Documents/Projects/ionivacrm/output/tests/IonCrm.Tests/",
-      "agent": "qa",
-      "depends_on": [1, 2, 3],
-      "context": "Test projesi /Users/ofc/Documents/Projects/ionivacrm/output/tests/IonCrm.Tests/ altında. Mevcut test pattern'lerini referans al. ISaasAClient ve ISaasBClient mock'larını kullan."
+      "depends_on": [],
+      "context": "Backend endpoint POST /api/v1/customers/{id}/push-to-rezerval zaten mevcut ve çalışıyor. PushCustomerToRezervalCommandHandler LegacyId'ye göre create vs update kararı veriyor: 'REZV-{n}' ise PUT, değilse POST. Frontend sadece bu tek endpoint'i çağırmalı. Proje tipinin RezervAl olup olmadığını kontrol için mevcut proje context'ini kullan (useProject veya benzeri hook). Memory'den not: 'SAASB-' prefix'i RezervAl müşterisi ama LegacyId formatı farklı — 'REZV-' prefix'i push-to-rezerval sonrası atanır. Buton, müşteri zaten RezervAl'da ise 'Güncelle', değilse 'RezervAl'a Gönder' olarak gösterilebilir. Frontend kod dizini: /Users/ofc/Documents/Projects/ionivacrm/output/src/IonCrm.Web/src/"
     }
   ]
 }
