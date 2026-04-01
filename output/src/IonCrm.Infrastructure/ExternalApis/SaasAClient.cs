@@ -213,8 +213,8 @@ public sealed class SaasAClient : ISaasAClient
             ApplyAuth(request, apiKey);
             var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
-            var result = await response.Content.ReadFromJsonAsync<List<EmsCompanyUser>>(JsonOpts, ct);
-            return result ?? new List<EmsCompanyUser>();
+            var result = await response.Content.ReadFromJsonAsync<EmsCompanyUsersResponse>(JsonOpts, ct);
+            return result?.Data ?? new List<EmsCompanyUser>();
         }, cancellationToken);
     }
 

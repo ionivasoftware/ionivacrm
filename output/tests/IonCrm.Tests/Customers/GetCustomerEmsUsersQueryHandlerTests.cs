@@ -67,9 +67,9 @@ public class GetCustomerEmsUsersQueryHandlerTests
 
         var emsUsers = new List<EmsCompanyUser>
         {
-            new(UserId: 1, Name: "Ali", Surname: "Veli", Email: "ali@ems.com",
+            new(UserId: "1", Name: "Ali", Surname: "Veli", Email: "ali@ems.com",
                 Role: "Admin", LoginName: "ali.veli", Password: "pass123"),
-            new(UserId: 2, Name: "Ayse", Surname: "Yılmaz", Email: "ayse@ems.com",
+            new(UserId: "2", Name: "Ayse", Surname: "Yılmaz", Email: "ayse@ems.com",
                 Role: "User", LoginName: "ayse.yilmaz", Password: "abc456")
         };
 
@@ -84,7 +84,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value!.Should().HaveCount(2);
-        result.Value[0].UserId.Should().Be(1);
+        result.Value[0].UserId.Should().Be("1");
         result.Value[0].Name.Should().Be("Ali");
         result.Value[0].Role.Should().Be("Admin");
         result.Value[1].LoginName.Should().Be("ayse.yilmaz");
@@ -117,7 +117,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
 
         var emsUsers = new List<EmsCompanyUser>
         {
-            new(UserId: 10, Name: "Test", Surname: "User", Email: "test@ems.com",
+            new(UserId: "10", Name: "Test", Surname: "User", Email: "test@ems.com",
                 Role: "User", LoginName: "testuser", Password: "p@ss")
         };
 
@@ -132,7 +132,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value!.Should().HaveCount(1);
-        result.Value[0].UserId.Should().Be(10);
+        result.Value[0].UserId.Should().Be("10");
         result.Value[0].Email.Should().Be("test@ems.com");
     }
 
@@ -255,7 +255,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
             .Setup(c => c.GetCompanyUsersAsync(It.IsAny<string?>(), 3, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<EmsCompanyUser>
             {
-                new(1, "Super", "User", "su@crm.com", "Admin", "super", "pw")
+                new("1", "Super", "User", "su@crm.com", "Admin", "super", "pw")
             });
 
         // Act
@@ -415,7 +415,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
 
         var emsUsers = new List<EmsCompanyUser>
         {
-            new(UserId: 999, Name: "Mehmet", Surname: "Demir",
+            new(UserId: "999", Name: "Mehmet", Surname: "Demir",
                 Email: "mehmet@test.com", Role: "Manager",
                 LoginName: "mehmet.demir", Password: "secret99")
         };
@@ -431,7 +431,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         // Assert — all fields mapped correctly from EmsCompanyUser → EmsCompanyUserDto
         result.IsSuccess.Should().BeTrue();
         var dto = result.Value![0];
-        dto.UserId.Should().Be(999);
+        dto.UserId.Should().Be("999");
         dto.Name.Should().Be("Mehmet");
         dto.Surname.Should().Be("Demir");
         dto.Email.Should().Be("mehmet@test.com");

@@ -12,7 +12,7 @@ public record GetCustomerEmsUsersQuery(Guid CustomerId) : IRequest<Result<List<E
 
 /// <summary>DTO representing a single EMS company user.</summary>
 public record EmsCompanyUserDto(
-    int UserId,
+    string UserId,
     string Name,
     string Surname,
     string Email,

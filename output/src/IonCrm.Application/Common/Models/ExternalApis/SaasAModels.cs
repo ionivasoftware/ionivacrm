@@ -112,10 +112,15 @@ public record EmsAddSmsResponse(
 
 /// <summary>A single user record returned by EMS GET /api/v1/crm/companies/{companyId}/users.</summary>
 public record EmsCompanyUser(
-    int UserId,
+    string UserId,
     string Name,
     string Surname,
     string Email,
     string Role,
     string LoginName,
     string Password);
+
+/// <summary>Wrapper response from EMS GET /api/v1/crm/companies/{companyId}/users.</summary>
+public record EmsCompanyUsersResponse(
+    int CompanyId,
+    List<EmsCompanyUser> Data);
