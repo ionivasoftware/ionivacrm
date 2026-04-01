@@ -647,6 +647,10 @@ interface ExtendExpirationDialogProps {
   extendExpiration: ReturnType<typeof useExtendEmsExpiration>;
 }
 
+type DurationSelection =
+  | { type: 'days'; amount: string }
+  | { type: 'preset'; durationType: 'Months' | 'Years'; amount: 1 };
+
 function ExtendExpirationDialog({
   open,
   onOpenChange,
@@ -655,23 +659,25 @@ function ExtendExpirationDialog({
   extendExpiration,
 }: ExtendExpirationDialogProps) {
   const { toast } = useToast();
-  const [days, setDays] = useState<string>('');
+  const [selection, setSelection] = useState<DurationSelection>({ type: 'days', amount: '' });
 
-  const daysNum = parseInt(days, 10);
-  const isValid = !isNaN(daysNum) && daysNum > 0;
+  const isValid = selection.type === 'preset'
+    ? true
+    : !isNaN(parseInt(selection.amount, 10)) && parseInt(selection.amount, 10) > 0;
 
   function handleClose() {
     onOpenChange(false);
-    setDays('');
+    setSelection({ type: 'days', amount: '' });
   }
 
   async function handleConfirm() {
     if (!isValid) return;
     try {
-      const result = await extendExpiration.mutateAsync({
-        durationType: 'Days',
-        amount: daysNum,
-      });
+      const payload = selection.type === 'preset'
+        ? { durationType: selection.durationType, amount: selection.amount }
+        : { durationType: 'Days' as const, amount: parseInt(selection.amount, 10) };
+
+      const result = await extendExpiration.mutateAsync(payload);
       const newDate = new Date(result.newExpirationDate).toLocaleDateString('tr-TR', {
         day: 'numeric', month: 'long', year: 'numeric',
       });
@@ -687,6 +693,11 @@ function ExtendExpirationDialog({
       toast({ title: 'Hata', description: 'Süre uzatılamadı.', variant: 'destructive' });
     }
   }
+
+  const presets = [
+    { label: '1 Ay', durationType: 'Months' as const, amount: 1 },
+    { label: '1 Yıl', durationType: 'Years' as const, amount: 1 },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); else onOpenChange(true); }}>
@@ -712,16 +723,17 @@ function ExtendExpirationDialog({
               </span>
             </p>
           )}
+
+          {/* Gün — serbest input */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              Uzatılacak gün sayısı
-            </label>
+            <label className="text-sm font-medium text-foreground">Gün</label>
             <div className="relative">
               <input
                 type="number"
                 min={1}
-                value={days}
-                onChange={e => setDays(e.target.value)}
+                value={selection.type === 'days' ? selection.amount : ''}
+                onChange={e => setSelection({ type: 'days', amount: e.target.value })}
+                onFocus={() => setSelection(s => ({ type: 'days', amount: s.type === 'days' ? s.amount : '' }))}
                 onKeyDown={e => { if (e.key === 'Enter' && isValid) handleConfirm(); }}
                 placeholder="Örn: 3, 5, 10, 30..."
                 className={cn(
@@ -729,17 +741,39 @@ function ExtendExpirationDialog({
                   'ring-offset-background placeholder:text-muted-foreground',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                   'disabled:cursor-not-allowed disabled:opacity-50',
-                  'border-input pr-12'
+                  selection.type === 'days' ? 'border-amber-500' : 'border-input',
+                  'pr-12'
                 )}
-                autoFocus
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
                 gün
               </span>
             </div>
-            {days !== '' && !isValid && (
+            {selection.type === 'days' && selection.amount !== '' && !isValid && (
               <p className="text-xs text-destructive">Geçerli bir gün sayısı girin (en az 1).</p>
             )}
+          </div>
+
+          {/* Ay / Yıl — butonlar */}
+          <div className="grid grid-cols-2 gap-2">
+            {presets.map(opt => {
+              const active = selection.type === 'preset' && selection.durationType === opt.durationType;
+              return (
+                <button
+                  key={opt.label}
+                  onClick={() => setSelection({ type: 'preset', durationType: opt.durationType, amount: opt.amount })}
+                  className={cn(
+                    'rounded-lg border px-3 py-4 text-sm font-medium transition-colors text-center',
+                    active
+                      ? 'border-amber-500 bg-amber-500/15 text-amber-400'
+                      : 'border-border text-muted-foreground hover:border-amber-500/50 hover:text-foreground'
+                  )}
+                >
+                  {opt.label}
+                  <span className="block text-[10px] mt-1 opacity-60">Paraşüt fatura</span>
+                </button>
+              );
+            })}
           </div>
         </div>
         <DialogFooter>

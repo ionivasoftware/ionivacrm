@@ -3,23 +3,11 @@
 <!-- Buraya yapılacak maddeleri ekle. Claude her oturumda bu dosyayı okur ve sırayla uygular. -->
 <!-- Format: - [ ] Açıklama -->
 
-- [ ] Süre Uzat Seçenekleri: Süre Uzat Seçeneklerinde Gün kısmı input olmalı, 3 gün 5 gün... girilebilir.
-- [ ] Paraşüt Bağlanıtısı: Paraşüt bağlantısı için bilgileri db de tut, eğer sistem paraşüte bağlı değilse otomatik olarak bağlan.
-- [ ] Müşteri Detayları Cari/Fatura: Buraya cariye ait tüm işlemleri paraşütten çekerek oluştur.
-- [ ] Fatura oluşturma: CRM de fatura oluşturulduğunda bu önce CRM db sinde oluşturulmalı, ardından bir buton aracılığıyla fatura paraşüte aktarılmalı. 
-- [ ] Fatura Aktarımı: Manuel fatura aktarımı sonrası, Müşteri E-Fatura bilgisi çekilip müşteri tablosunda tutulmalı. 
-- [ ] Fatura Aktarımı: Eğer müşteri tablosunda E-Fatura bilgisi var ise fatura dbde oluşup otomatik olarak paraşüte aktarılmalı ve resmileştirilmeli.
-- [ ] Faturalar ekranında gelen faturalar tek seferlik olarak crm db sine kayıt edillip (Sanki bu dbde oluşmuş gibi) o şekilde yeniden eskiye olacak şekilde gösterilmeli.
-- [ ] Sms Yükleme: Süre Uzat a benzer olarak eklenmeli. Kullanımı aşağıdaki gibi;
-POST /api/v1/crm/companies/3/add-sms
-Authorization: Bearer jBDmsejM1KPhpRMUoV+zQcUuDUASuh29KrpGBIYJclM=
-Content-Type: application/json
-
-{ "count": 100 }
-Response:
-
-{
-  "companyId": 3,
-  "smsCount": 350,
-  "added": 100
-}
+- [x] Süre Uzat Seçenekleri: Gün kısmı serbest sayı girişi (input) olmalı; Ay ve Yıl seçenekleri buton olarak kalmalı.
+- [ ] Paraşüt Bağlantısı: Paraşüt token/credential bilgilerini DB'de tut (ParasutConnection entity). Sistem bağlı değilse (token yok veya expired) otomatik olarak client_credentials ile token al ve kaydet. Her API çağrısında önce token geçerliliğini kontrol et.
+- [ ] Müşteri Detayı — Cari Hareketleri sekmesi: Müşterinin Paraşüt'teki tüm cari hareketlerini (satış faturaları + tahsilatlar) listeleyen sekme. Backend: GET /api/v1/customers/{id}/parasut-account-activity → ParasutClient üzerinden müşterinin contact_id'sine ait tüm işlemleri çek. Frontend: Müşteri detay sayfasında yeni bir sekme olarak göster, tarih/tür/tutar kolonları.
+- [x] Fatura oluşturma: CRM DB'de önce kaydet, sonra butonla Paraşüt'e aktar.
+- [x] Fatura Aktarımı: Manuel aktarım sonrası müşterinin E-Fatura bilgisi Paraşüt'ten çekilip Customer tablosuna kaydedilmeli.
+- [x] Fatura Aktarımı: Müşteri tablosunda E-Fatura bilgisi varsa fatura otomatik Paraşüt'e aktarılıp resmileştirilmeli.
+- [ ] Faturalar ekranı — Paraşüt import: Mevcut Paraşüt faturalarını tek seferlik CRM DB'ye çek (sanki CRM'de oluşmuş gibi kaydet). Endpoint veya background job: Paraşüt'ten tüm faturaları al, Invoice tablosuna ParasutInvoiceId ile insert et (zaten varsa atla). Faturalar sayfasında yeniden eskiye sıralı göster.
+- [ ] SMS Yükleme — Müşteri Detayı: Müşteri detay sayfasında "SMS Yükle" butonu ekle (Süre Uzat butonuna benzer). Tıklanınca miktar girilen modal açılsın. Onaylanınca: (1) EMS API'ye POST /api/v1/crm/companies/{legacyId}/add-sms çağrısı yap, (2) CRM DB'de o müşteri için fatura kaydı oluştur. Backend için mevcut AddSmsCommand'ı müşteri bazlı yeni endpoint'e bağla veya CustomersController'a ekle: POST /api/v1/customers/{id}/add-sms.
