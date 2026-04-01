@@ -2,6 +2,7 @@ using IonCrm.Application.Customers.Commands.ConvertLeadToCustomer;
 using IonCrm.Application.Customers.Commands.CreateCustomer;
 using IonCrm.Application.Customers.Commands.DeleteCustomer;
 using IonCrm.Application.Customers.Commands.ExtendEmsExpiration;
+using IonCrm.Application.Customers.Commands.TransferLead;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
 using IonCrm.Application.Customers.Queries.GetCustomerWithDetails;
@@ -107,6 +108,25 @@ public class CustomersController : ApiControllerBase
     public async Task<IActionResult> ConvertLeadToCustomer(Guid id, CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(new ConvertLeadToCustomerCommand(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// Transfers all ContactHistories, Tasks and Opportunities from a Lead customer
+    /// to an active target customer, then soft-deletes the lead.
+    /// Returns 400 if the source is not a Lead, or if lead and target are in different projects.
+    /// </summary>
+    [HttpPost("{leadId:guid}/transfer/{targetCustomerId:guid}")]
+    public async Task<IActionResult> TransferLead(
+        Guid leadId,
+        Guid targetCustomerId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new TransferLeadCommand(leadId, targetCustomerId), cancellationToken);
+
+        if (result.IsSuccess)
+            return NoContent();
+
         return ResultToResponse(result);
     }
 

@@ -1,147 +1,282 @@
 """
 Orchestrator Agent (PM)
 ========================
-Reads the product spec, plans sprints,
-manages the team, and coordinates the agent workflow.
+1. Builds a project state snapshot (git, build status)
+2. Reads CLAUDE.md + todo.md via LLM → writes task plan JSON
+3. Shows plan, then dispatches tasks to specialist agents
+4. Independent tasks run in parallel; dependent tasks wait
+5. After each task: validates build, retries once on failure
+6. Agents share session memory — they learn from each other
 """
 
+import asyncio
+import json
 import os
 import sys
-import json
+import re
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.base_agent import BaseAgent, console
+from agents.session_memory import (
+    clear_session_log, write_task_plan, read_task_plan,
+    append_to_session_log, ensure_learned_memory_exists,
+)
+from agents.context_builder import build_project_snapshot, run_build_check
+from agents.project_config import get_code_dir
+from rich.panel import Panel
+from rich.table import Table
+from rich import box
 
 WORKSPACE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 SYSTEM_PROMPT = """
-You are the Orchestrator (Product Manager) for ION CRM — a multi-tenant SaaS CRM.
+You are the Orchestrator (Tech Lead / Project Manager) for a software development team.
 
-Your responsibilities:
-1. Read CLAUDE.md for project rules
-2. Analyze requirements and old DB data (if provided)
-3. Break product into Epics → Stories → Tasks
-4. Plan sprints with clear goals and agent assignments
-5. Coordinate agents and track progress
+Your ONLY job in this step:
+1. Read CLAUDE.md to understand the project stack and rules
+2. Read todo.md to find all pending tasks (lines with "- [ ]")
+3. For each pending task, assign the right agent
+4. Write the task plan as JSON to: agents/.task_plan.json
 
-ION CRM Context:
-- Multi-tenant: SuperAdmin sees all, users scoped to their project(s)
-- Two SaaS projects sync every 15 minutes INTO ION CRM
-- ION CRM sends instant updates BACK to SaaS (subscriptions etc.)
-- One-time migration of old customer data from MSSQL .bak file
-- Stack: .NET Core 8, Clean Architecture, React, shadcn/ui, PostgreSQL
+Agent types:
+- "backend"   → .NET Core, C#, API, EF Core, repositories, DB migrations
+- "frontend"  → React, TypeScript, UI pages, components, API hooks
+- "mobile"    → Flutter or React Native mobile app (framework from CLAUDE.md)
+- "devops"    → Deployment, Railway, CI/CD, Docker, env vars
+- "qa"        → Unit/integration tests, xUnit, test coverage
+- "security"  → Security audit, vulnerabilities, secrets scan
+- "architect" → Solution design, DB schema, scaffolding
 
-Sprint Structure (suggest this, human approves):
-SPRINT 0 — Analysis & Architecture (Architect agent)
-  - Analyze old .bak file
-  - Design new DB schema
-  - Define API contracts
-  - Project structure
-
-SPRINT 1 — Foundation
-  - Solution scaffold
-  - Auth (JWT, roles, multi-project)
-  - Base entities & migrations
-  - CI/CD pipeline
-
-SPRINT 2 — Customer Core
-  - Customer CRUD (multi-tenant)
-  - Contact history
-  - Notes & tasks
-
-SPRINT 3 — Sync Service
-  - Background service
-  - SaaS A & B sync endpoints
-  - Instant callback to SaaS
-
-SPRINT 4 — Sales Pipeline
-  - Opportunities
-  - Pipeline board
-  - Performance tracking
-
-SPRINT 5 — Frontend
-  - React app
-  - Dark mode
-  - Mobile responsive
-  - All screens
-
-SPRINT 6 — Migration & Testing
-  - One-time data migration from .bak
-  - Full test suite
-  - Security audit
-  - Deploy to Railway
-
-Always produce a sprint plan as a JSON summary:
+Task plan JSON format:
 {
-  "name": "Sprint X — Name",
-  "goal": "What will be achieved",
-  "story_count": N,
-  "agents": "agent1, agent2",
-  "duration": "2-3 days",
-  "token_cost": "~$X-Y",
-  "stories": [...]
+  "session_goal": "One line: what this session achieves",
+  "tasks": [
+    {
+      "id": 1,
+      "description": "Exact what needs to be done",
+      "agent": "backend",
+      "depends_on": [],
+      "context": "Extra context for the agent (optional)"
+    }
+  ]
 }
 
-Read CLAUDE.md first before doing anything else.
+Rules:
+- "depends_on": IDs that must complete before this task starts
+- Tasks with empty "depends_on" run in PARALLEL
+- If todo.md is empty: {"session_goal": "Yapılacak görev yok", "tasks": []}
+- Write ONLY valid JSON to the file — nothing else
+
+After writing the file, output: PLAN_READY
 """
 
 
 class OrchestratorAgent(BaseAgent):
-    name = "Orchestrator"
+    name  = "Orchestrator"
     emoji = "🧠"
     color = "yellow"
-    ALLOWED_TOOLS = [
-        "Read", "Write", "Glob", "WebSearch",
-        "Bash",   # for git operations
-    ]
+    ALLOWED_TOOLS = ["Read", "Write", "Glob", "Bash"]
+
+    # Set False to skip post-task build validation (faster but less safe)
+    VALIDATE_TASKS = True
 
     def get_system_prompt(self) -> str:
         return SYSTEM_PROMPT
 
-    async def plan_sprints(self) -> dict:
-        """Read project context and produce sprint plan."""
-        prompt = f"""
-        Read the following files first:
-        1. {WORKSPACE}/CLAUDE.md
-        2. {WORKSPACE}/input/notes.txt (if exists)
-        3. List files in {WORKSPACE}/input/database/ to see what DB files exist
+    # ------------------------------------------------------------------
+    # Entry point
+    # ------------------------------------------------------------------
 
-        Then produce a complete sprint plan for ION CRM with:
-        - All sprints listed (Sprint 0 through Sprint 6)
-        - Each sprint has: name, goal, stories list, agent assignments, estimated duration
-        - Stories are detailed enough for developers to implement
+    async def orchestrate(self) -> None:
+        console.print(Panel(
+            "[bold yellow]🧠 Orchestrator Başlatılıyor[/bold yellow]\n\n"
+            "  1. Proje durumu snapshot alınıyor\n"
+            "  2. todo.md analiz ediliyor\n"
+            "  3. Görev planı oluşturuluyor\n"
+            "  4. Ajanlar çalıştırılıyor",
+            border_style="yellow"
+        ))
 
-        Focus on:
-        - Multi-tenant architecture (SuperAdmin + Project-scoped users)
-        - Two SaaS projects syncing every 15min → CRM
-        - CRM instant callbacks → SaaS (subscriptions etc.)
-        - One-time migration from old MSSQL .bak file
-        - Mobile-first React frontend with dark mode
+        # Fresh session
+        clear_session_log()
+        ensure_learned_memory_exists()
 
-        Output the full sprint plan as structured text, then a JSON summary
-        of Sprint 0 (the first one to start with) for approval.
+        # Write project snapshot as the first session log entry
+        snapshot = build_project_snapshot()
+        if snapshot:
+            append_to_session_log("Sistem", "Proje durumu snapshot", snapshot)
+            console.print(f"[dim]{snapshot[:300]}[/dim]")
+
+        # Generate plan
+        plan = await self._generate_plan()
+        if not plan or not plan.get("tasks"):
+            console.print("[dim]Yapılacak görev bulunamadı. todo.md kontrol edin.[/dim]")
+            return
+
+        self._print_plan(plan)
+
+        # Execute
+        results = await self._execute_plan(plan)
+
+        passed = sum(1 for ok in results.values() if ok)
+        total  = len(results)
+        color  = "green" if passed == total else "yellow"
+        console.print(Panel(
+            f"[bold {color}]{'✅' if passed == total else '⚠️'} Oturum Tamamlandı[/bold {color}]\n\n"
+            f"Hedef  : {plan.get('session_goal', '')}\n"
+            f"Sonuç  : {passed}/{total} görev başarılı",
+            border_style=color
+        ))
+
+    # ------------------------------------------------------------------
+    # Plan generation
+    # ------------------------------------------------------------------
+
+    async def _generate_plan(self) -> dict:
+        claude_md      = os.path.join(WORKSPACE, ".claude", "CLAUDE.md")
+        todo_md        = os.path.join(WORKSPACE, ".claude", "projectFiles", "todo.md")
+        task_plan_file = os.path.join(WORKSPACE, "agents", ".task_plan.json")
+
+        prompt = (
+            f"Read these files:\n"
+            f"1. {claude_md}\n"
+            f"2. {todo_md}\n\n"
+            f"Find all lines starting with '- [ ]' (pending tasks).\n"
+            f"Write the task plan JSON to: {task_plan_file}\n"
+            f"Then output: PLAN_READY"
+        )
+
+        await self.run(prompt, working_dir=get_code_dir(), task_label="todo.md → görev planı", max_turns=10)
+
+        plan = read_task_plan()
+        if plan:
+            return plan
+
+        console.print("[yellow]⚠️  Plan dosyası oluşturulamadı.[/yellow]")
+        return {"session_goal": "Plan oluşturulamadı", "tasks": []}
+
+    # ------------------------------------------------------------------
+    # Plan display
+    # ------------------------------------------------------------------
+
+    def _print_plan(self, plan: dict):
+        table = Table(
+            title=f"📋 {plan.get('session_goal', 'Görev Planı')}",
+            box=box.ROUNDED, border_style="yellow"
+        )
+        table.add_column("ID",      style="dim",   width=4)
+        table.add_column("Görev",   style="white", no_wrap=False)
+        table.add_column("Ajan",    style="cyan",  width=12)
+        table.add_column("Bağımlı", style="dim",   width=10)
+
+        for t in plan["tasks"]:
+            deps = ", ".join(str(d) for d in t.get("depends_on", [])) or "—"
+            table.add_row(str(t["id"]), t["description"], t["agent"], deps)
+
+        console.print()
+        console.print(table)
+        console.print()
+
+    # ------------------------------------------------------------------
+    # Execution — parallel waves, dependency-aware
+    # ------------------------------------------------------------------
+
+    async def _execute_plan(self, plan: dict) -> dict[int, bool]:
         """
+        Execute tasks in dependency order.
+        Tasks whose depends_on are all satisfied run in parallel.
+        Returns {task_id: success_bool}.
+        """
+        tasks     = plan["tasks"]
+        completed: set[int]  = set()
+        results:   dict[int, bool] = {}
 
-        result = await self.run(prompt)
-        return self._extract_sprint_json(result)
+        while len(completed) < len(tasks):
+            ready = [
+                t for t in tasks
+                if t["id"] not in completed
+                and all(dep in completed for dep in t.get("depends_on", []))
+            ]
 
-    def _extract_sprint_json(self, text: str) -> dict:
-        """Extract sprint JSON from agent output."""
-        import re
-        # Look for JSON block in output
-        match = re.search(r'\{[^{}]*"name"[^{}]*"goal"[^{}]*\}', text, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group())
-            except Exception:
-                pass
-        # Return default if not found
-        return {
-            "name": "Sprint 0 — Analysis & Architecture",
-            "goal": "Analyze old DB, design new schema, scaffold project",
-            "story_count": 6,
-            "agents": "Architect, .NET Dev",
-            "duration": "1-2 days",
-            "token_cost": "~$8-12",
+            if not ready:
+                console.print("[red]⚠️  Çözülemeyen bağımlılık. Duruyorum.[/red]")
+                break
+
+            if len(ready) == 1:
+                t = ready[0]
+                console.print(f"\n[bold]▶ Görev {t['id']}: {t['description']}[/bold]")
+                ok = await self._run_task(t)
+                results[t["id"]] = ok
+                completed.add(t["id"])
+            else:
+                ids = [t["id"] for t in ready]
+                console.print(f"\n[bold]▶ Paralel görevler: {ids}[/bold]")
+                oks = await asyncio.gather(*[self._run_task(t) for t in ready])
+                for t, ok in zip(ready, oks):
+                    results[t["id"]] = ok
+                    completed.add(t["id"])
+
+        return results
+
+    async def _run_task(self, task: dict) -> bool:
+        """Run one task; validate build result; retry once on failure."""
+        agent_type  = task["agent"]
+        description = task["description"]
+        context     = task.get("context", "")
+        full_task   = f"{description}\n\n{context}".strip() if context else description
+
+        agent = self._get_agent(agent_type)
+        await agent.run_task(full_task)
+
+        if not self.VALIDATE_TASKS:
+            return True
+
+        ok, error = run_build_check(agent_type)
+        if ok:
+            return True
+
+        # --- Retry once with error context ---
+        console.print(
+            f"\n[yellow]⚠️  Görev {task['id']} build doğrulama başarısız — retry...[/yellow]\n"
+            f"[dim red]{error[:300]}[/dim red]\n"
+        )
+        await agent.run_task(
+            f"Build hatası oluştu. Sadece bu hatayı düzelt:\n\n"
+            f"```\n{error[:600]}\n```\n\n"
+            f"Orijinal görev: {description}"
+        )
+
+        ok2, error2 = run_build_check(agent_type)
+        if not ok2:
+            console.print(
+                f"[red]❌ Görev {task['id']} retry sonrası da başarısız. Devam ediliyor.[/red]\n"
+                f"[dim]{error2[:200]}[/dim]"
+            )
+            return False
+
+        return True
+
+    # ------------------------------------------------------------------
+    # Agent factory
+    # ------------------------------------------------------------------
+
+    def _get_agent(self, agent_type: str) -> BaseAgent:
+        from agents.dotnet_dev     import DotNetDevAgent
+        from agents.frontend_dev   import FrontendDevAgent
+        from agents.devops_agent   import DevOpsAgent
+        from agents.qa_agent       import QAAgent
+        from agents.security_agent import SecurityAgent
+        from agents.architect      import ArchitectAgent
+        from agents.mobile_dev     import MobileDevAgent
+
+        mapping = {
+            "backend":   DotNetDevAgent,
+            "frontend":  FrontendDevAgent,
+            "mobile":    MobileDevAgent,
+            "devops":    DevOpsAgent,
+            "qa":        QAAgent,
+            "security":  SecurityAgent,
+            "architect": ArchitectAgent,
         }
-
+        AgentClass = mapping.get(agent_type.lower(), DotNetDevAgent)
+        return AgentClass(cost_tracker=self.cost_tracker)

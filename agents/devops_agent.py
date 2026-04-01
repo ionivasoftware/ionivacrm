@@ -1,8 +1,9 @@
 """
 DevOps Agent
 =============
-Deployment yapar, hataları kendi düzeltir.
-Credential gerekince senden sorar, gerisini halleder.
+Handles deployments, CI/CD, and infrastructure.
+Reads CLAUDE.md for project-specific environment and deploy rules.
+Only asks the user for secrets — everything else it figures out autonomously.
 """
 
 import asyncio
@@ -12,73 +13,49 @@ import getpass
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.base_agent import BaseAgent, console
-from rich.prompt import Prompt, Confirm
+from agents.project_config import get_code_dir
 from rich.panel import Panel
 
 WORKSPACE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUTPUT_DIR = os.path.join(WORKSPACE, "output")
 
 SYSTEM_PROMPT = """
-You are a Senior DevOps Engineer specializing in .NET Core deployments.
+You are a Senior DevOps Engineer.
 
 Your job:
-1. Deploy ION CRM to Railway
-2. Fix ALL errors autonomously without asking the user
-3. Only ask user for: passwords, API keys, tokens (never guess these)
+1. Read CLAUDE.md to understand the project's deploy targets, services, and environment setup
+2. Deploy, fix issues, and configure infrastructure autonomously
+3. Only ask the user for secrets (passwords, API keys, tokens) — never guess these
 4. Keep trying until deployment succeeds
 
-Tech stack:
-- .NET 8 API (IonCrm.API)
-- React frontend
-- PostgreSQL (Neon or Supabase)
-- Railway for hosting
-- GitHub Actions for CI/CD
+How you work:
+- Always check current state first (logs, variables, health endpoints)
+- Fix issues one by one — diagnose root cause, don't retry blindly
+- Test locally (build succeeds) before deploying
+- Commit fixes to git before deploying
+- Verify deployment after success (health check endpoint)
 
-Working directory: {output_dir}
+Common deployment patterns:
+- .NET API: dotnet build → docker build → push → deploy
+- Frontend: npm run build → static deploy or container
+- DB migrations: run against target DB after deploy
+- Health check: GET /health must return 200
 
-DEPLOYMENT CHECKLIST:
-□ Connection string is in .NET format (Host=...;Database=...;Username=...;Password=...;Port=5432)
-  NOT postgresql:// format
-□ Hangfire needs PostgreSQL - if DB unreachable, disable it via config
-□ JWT key must be set (min 32 chars)
-□ ASPNETCORE_URLS=http://+:8080 in Dockerfile
-□ Railway PORT must match Dockerfile EXPOSE
-□ All NuGet packages compatible with net8.0
-□ dotnet build must succeed before deploy
-□ EF Core migrations must run successfully
-□ railway up --service ion-crm-api must succeed
+Error handling:
+- Connection string format errors → check CLAUDE.md for correct format
+- Port binding errors → check EXPOSE in Dockerfile matches runtime config
+- Migration errors → check for schema drift, run idempotent migrations
+- Package version errors → check compatibility with target framework version
 
-ERROR HANDLING RULES:
-- "Network is unreachable IPv6" → connection string needs IPv4 host
-- "Format of initialization string" → connection string wrong format, convert to Host=... format
-- "TypeLoadException MetricsServiceExtensions" → package version mismatch, fix versions
-- "Deploy crashed" → check railway logs, fix root cause
-- "JWT key not configured" → add Jwt__Key environment variable
-- "Host can't be null" → connection string empty or wrong format
-- "IRepository not registered" → add to DependencyInjection.cs
-- Package version conflicts → downgrade to net8.0 compatible versions
-
-RAILWAY COMMANDS:
-railway variables set "KEY=VALUE" --service ion-crm-api
-railway logs --service ion-crm-api --tail 50
-railway up --service ion-crm-api
-railway variables --service ion-crm-api
-
-ALWAYS:
-1. Check current state first (railway logs, railway variables)
-2. Fix issues one by one
-3. Test locally with dotnet build before deploying
-4. Commit fixes to git before railway up
-5. Verify deployment with curl after success
-
-When you need credentials, output EXACTLY:
+When you need a credential, output EXACTLY:
 NEED_CREDENTIAL:key_name:description
-Example: NEED_CREDENTIAL:DB_PASSWORD:Neon database password
+Example: NEED_CREDENTIAL:DB_PASSWORD:Production database password
 
 When deployment succeeds, output:
 DEPLOYMENT_SUCCESS:url
-Example: DEPLOYMENT_SUCCESS:https://ion-crm-api-production.up.railway.app
-""".replace("{output_dir}", OUTPUT_DIR)
+Example: DEPLOYMENT_SUCCESS:https://api.example.com
+
+Always read CLAUDE.md before starting — it has service names, URLs, and deploy platform details.
+"""
 
 
 class DevOpsAgent(BaseAgent):
@@ -98,79 +75,56 @@ class DevOpsAgent(BaseAgent):
         return SYSTEM_PROMPT
 
     def _inject_credentials(self, prompt: str) -> str:
-        """Inject collected credentials into prompt."""
         if self.credentials:
-            creds_text = "\n".join(
-                f"{k}={v}" for k, v in self.credentials.items()
-            )
+            creds_text = "\n".join(f"{k}={v}" for k, v in self.credentials.items())
             return f"Available credentials:\n{creds_text}\n\n{prompt}"
         return prompt
 
+    async def run_task(self, task: str) -> str:
+        """Execute a specific DevOps task."""
+        code_dir  = get_code_dir()
+        claude_md = os.path.join(WORKSPACE, ".claude", "CLAUDE.md")
+
+        prompt = self._inject_credentials(f"""
+        Read this file first:
+        1. {claude_md} — project deploy targets, services, and environment
+
+        Complete the following task:
+        {task}
+
+        If you need a secret: NEED_CREDENTIAL:key_name:description
+        """)
+        return await self.run(prompt, code_dir, task_label=task)
+
     async def deploy(self) -> str:
-        """Main deployment loop — keeps trying until success."""
+        """Main deployment loop — reads CLAUDE.md and deploys."""
+        code_dir  = get_code_dir()
+        claude_md = os.path.join(WORKSPACE, ".claude", "CLAUDE.md")
+        todo_md   = os.path.join(WORKSPACE, ".claude", "projectFiles", "todo.md")
 
         console.print(Panel(
             "[bold bright_blue]🚀 DevOps Agent Starting[/bold bright_blue]\n\n"
-            "Bu ajan:\n"
-            "  ✅ Railway deploy yapar\n"
-            "  ✅ Hataları kendi düzeltir\n"
-            "  ✅ Sadece şifre/token için sana sorar\n"
-            "  ✅ Başarana kadar devam eder",
+            "  ✅ Reads CLAUDE.md for deploy config\n"
+            "  ✅ Fixes errors autonomously\n"
+            "  ✅ Only asks for secrets\n"
+            "  ✅ Keeps trying until success",
             border_style="bright_blue"
         ))
 
-        # Collect initial credentials
-        await self._collect_initial_credentials()
-
         prompt = self._inject_credentials(f"""
-        Deploy ION CRM API to Railway. Follow these steps:
+        Read these files first:
+        1. {claude_md} — project deploy targets, service names, environment details
+        2. {todo_md} — any pending deploy or infra tasks
 
-        1. Check current state:
-           - Run: railway variables --service ion-crm-api
-           - Run: railway logs --service ion-crm-api --tail 20
-           - Check: cat {OUTPUT_DIR}/src/IonCrm.API/appsettings.json
+        Then perform the deployment:
+        1. Check current state (logs, variables, running services)
+        2. Build the project locally
+        3. Fix any build errors
+        4. Deploy to the target environment described in CLAUDE.md
+        5. Verify the deployment (health check)
 
-        2. Fix connection string format:
-           Convert to .NET format:
-           Host=ep-purple-sound-a9vyag84-pooler.gwc.azure.neon.tech;
-           Database=ioncrm;
-           Username=neondb_owner;
-           Password=NEON_PASSWORD;
-           SSL Mode=Require;
-           Trust Server Certificate=true
-
-        3. Update Railway variables:
-           railway variables set "ConnectionStrings__DefaultConnection=..." --service ion-crm-api
-           railway variables set "Jwt__Key=..." --service ion-crm-api
-           railway variables set "ASPNETCORE_ENVIRONMENT=Production" --service ion-crm-api
-           railway variables set "Hangfire__Enabled=false" --service ion-crm-api
-
-        4. Fix DependencyInjection.cs to make Hangfire optional:
-           Read: {OUTPUT_DIR}/src/IonCrm.Infrastructure/DependencyInjection.cs
-           Wrap Hangfire registration with:
-           var enableHangfire = configuration.GetValue<bool>("Hangfire:Enabled", false);
-           if (enableHangfire) {{ ... hangfire code ... }}
-
-        5. Run migration against Neon:
-           export ConnectionStrings__DefaultConnection="NEON_DOTNET_FORMAT"
-           export ASPNETCORE_ENVIRONMENT=Development
-           export Jwt__Key="fYxPg1WpWyPCjuBWlNB1gif30yS3dl9S//IfGhs/D+Q="
-           cd {OUTPUT_DIR}
-           dotnet ef database update --project src/IonCrm.Infrastructure --startup-project src/IonCrm.API
-
-        6. Build and deploy:
-           cd {OUTPUT_DIR}
-           dotnet build (must succeed)
-           git add -A
-           git commit -m "fix: deployment fixes"
-           git push origin main
-           railway up --service ion-crm-api
-
-        7. Verify:
-           curl https://ion-crm-api-production.up.railway.app/health
-
-        Fix every error you encounter. Keep trying.
-        If you need the Neon password, output: NEED_CREDENTIAL:NEON_PASSWORD:Neon database password
+        If you need a secret: NEED_CREDENTIAL:key_name:description
+        When done: DEPLOYMENT_SUCCESS:url
         """)
 
         result = ""
@@ -178,68 +132,54 @@ class DevOpsAgent(BaseAgent):
 
         for attempt in range(1, max_attempts + 1):
             console.print(f"\n[dim]Attempt {attempt}/{max_attempts}[/dim]\n")
+            result = await self.run(prompt, code_dir)
 
-            result = await self.run(prompt, OUTPUT_DIR)
-
-            # Check if credential needed
             if "NEED_CREDENTIAL:" in result:
                 await self._handle_credential_request(result)
                 prompt = self._inject_credentials(prompt)
                 continue
 
-            # Check success
             if "DEPLOYMENT_SUCCESS:" in result:
                 url = result.split("DEPLOYMENT_SUCCESS:")[1].split()[0]
                 console.print(Panel(
-                    f"[bold green]🎉 Deployment başarılı![/bold green]\n\n"
-                    f"API URL: {url}\n"
-                    f"Swagger: {url}/swagger\n"
-                    f"Health: {url}/health",
+                    f"[bold green]🎉 Deployment successful![/bold green]\n\nURL: {url}",
                     border_style="green"
                 ))
                 return url
 
-            # Check if crashed and retry
-            if "Deploy crashed" in result or "crashed" in result.lower():
-                if attempt < max_attempts:
-                    console.print(f"[yellow]⚠️  Deploy crashed, retrying ({attempt+1}/{max_attempts})...[/yellow]")
-                    prompt = self._inject_credentials(
-                        f"Previous attempt failed. Check railway logs and fix the issue.\n\n"
-                        f"Previous output summary:\n{result[-500:]}\n\n"
-                        f"Try again from where it failed."
-                    )
+            if attempt < max_attempts and ("crashed" in result.lower() or "failed" in result.lower()):
+                console.print(f"[yellow]⚠️  Attempt failed, retrying ({attempt+1}/{max_attempts})...[/yellow]")
+                prompt = self._inject_credentials(
+                    f"Previous attempt failed. Check logs and fix the root cause.\n\n"
+                    f"Previous output (last 500 chars):\n{result[-500:]}\n\nTry again."
+                )
 
         return result
 
-    async def _collect_initial_credentials(self):
-        """Ask for known required credentials upfront."""
-        console.print("\n[bold]Deployment için gerekli bilgiler:[/bold]\n")
+    async def run_todo(self) -> str:
+        """Read todo.md and execute all DevOps/infra tasks."""
+        code_dir  = get_code_dir()
+        claude_md = os.path.join(WORKSPACE, ".claude", "CLAUDE.md")
+        todo_md   = os.path.join(WORKSPACE, ".claude", "projectFiles", "todo.md")
 
-        # Neon password
-        neon_pass = getpass.getpass("🔑 Neon DB şifresi: ")
-        if neon_pass:
-            self.credentials["NEON_PASSWORD"] = neon_pass
-            self.credentials["NEON_CONNECTION_DOTNET"] = (
-                f"Host=ep-purple-sound-a9vyag84-pooler.gwc.azure.neon.tech;"
-                f"Database=ioncrm;"
-                f"Username=neondb_owner;"
-                f"Password={neon_pass};"
-                f"SSL Mode=Require;"
-                f"Trust Server Certificate=true"
-            )
+        prompt = self._inject_credentials(f"""
+        Read these files first:
+        1. {claude_md} — project deploy targets, services, and environment
+        2. {todo_md} — pending tasks
 
-        console.print("[dim]Credentials alındı, deployment başlıyor...[/dim]\n")
+        Find all DevOps/infrastructure tasks and execute them.
+        Report what was done and current deployment status.
+        """)
+        return await self.run(prompt, code_dir)
 
     async def _handle_credential_request(self, agent_output: str):
-        """Parse NEED_CREDENTIAL requests and ask user."""
         lines = agent_output.split("\n")
         for line in lines:
             if "NEED_CREDENTIAL:" in line:
                 parts = line.split("NEED_CREDENTIAL:")[1].split(":")
-                key = parts[0].strip()
-                desc = parts[1].strip() if len(parts) > 1 else key
-
+                key   = parts[0].strip()
+                desc  = parts[1].strip() if len(parts) > 1 else key
                 if key not in self.credentials:
                     value = getpass.getpass(f"🔑 {desc}: ")
                     self.credentials[key] = value
-                    console.print(f"[green]✅ {key} alındı[/green]")
+                    console.print(f"[green]✅ {key} received[/green]")

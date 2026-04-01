@@ -26,6 +26,7 @@ import {
   MessageCircle,
   Trash2,
   CalendarClock,
+  ArrowRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -73,6 +74,7 @@ import {
   CONTACT_TYPE_LABELS,
   CONTACT_TYPE_ICONS,
 } from '@/components/customers/AddContactHistoryDialog';
+import { TransferLeadModal } from '@/components/customers/TransferLeadModal';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useCanAccessFinance } from '@/lib/roles';
@@ -783,6 +785,9 @@ export function CustomerDetailPage() {
   const createInvoice = useCreateParasutInvoice();
   const parasutContactsQuery = useParasutContacts(currentProjectId, linkPage, showLinkDialog, debouncedSearch);
 
+  // Transfer Lead state
+  const [showTransferModal, setShowTransferModal] = useState(false);
+
   // EMS extend expiration state
   const [showExtendDialog, setShowExtendDialog] = useState(false);
   const extendExpiration = useExtendEmsExpiration(id ?? '');
@@ -937,6 +942,17 @@ export function CustomerDetailPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {/* Lead-only: transfer to active customer */}
+          {customer?.status === 'Lead' && (
+            <Button
+              variant="outline"
+              className="gap-2 h-10 border-primary/40 text-primary hover:bg-primary/10"
+              onClick={() => setShowTransferModal(true)}
+            >
+              <ArrowRight className="h-4 w-4" />
+              Aktif Müşteriye Aktar
+            </Button>
+          )}
           {/* EMS-only: extend expiration (plain numeric ID or SAASA-{id} prefix, not PC-) */}
           {customer?.legacyId && !customer.legacyId.startsWith('PC-') && (/^\d/.test(customer.legacyId) || customer.legacyId.startsWith('SAASA-')) && (
             <Button
@@ -1772,6 +1788,16 @@ export function CustomerDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Transfer Lead Modal — only mounted when customer is Lead */}
+      {customer && customer.status === 'Lead' && (
+        <TransferLeadModal
+          open={showTransferModal}
+          onOpenChange={setShowTransferModal}
+          lead={customer}
+          onSuccess={() => navigate('/customers')}
+        />
+      )}
     </div>
   );
 }

@@ -105,4 +105,52 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
             @"UPDATE ""Customers"" SET ""ParasutContactId"" = {0}, ""UpdatedAt"" = {1} WHERE ""Id"" = {2}",
             (object?)parasutContactId ?? DBNull.Value, DateTime.UtcNow, customerId);
     }
+
+    /// <inheritdoc />
+    public async Task TransferLeadAsync(
+        Guid leadId,
+        Guid targetCustomerId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await Context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var now = DateTime.UtcNow;
+
+            // Reassign all contact histories to the target customer
+            await Context.Database.ExecuteSqlRawAsync(
+                @"UPDATE ""ContactHistories""
+                  SET ""CustomerId"" = {0}, ""UpdatedAt"" = {1}
+                  WHERE ""CustomerId"" = {2} AND ""IsDeleted"" = false",
+                targetCustomerId, now, leadId);
+
+            // Reassign all tasks to the target customer
+            await Context.Database.ExecuteSqlRawAsync(
+                @"UPDATE ""CustomerTasks""
+                  SET ""CustomerId"" = {0}, ""UpdatedAt"" = {1}
+                  WHERE ""CustomerId"" = {2} AND ""IsDeleted"" = false",
+                targetCustomerId, now, leadId);
+
+            // Reassign all opportunities to the target customer
+            await Context.Database.ExecuteSqlRawAsync(
+                @"UPDATE ""Opportunities""
+                  SET ""CustomerId"" = {0}, ""UpdatedAt"" = {1}
+                  WHERE ""CustomerId"" = {2} AND ""IsDeleted"" = false",
+                targetCustomerId, now, leadId);
+
+            // Soft-delete the lead customer
+            await Context.Database.ExecuteSqlRawAsync(
+                @"UPDATE ""Customers""
+                  SET ""IsDeleted"" = true, ""UpdatedAt"" = {0}
+                  WHERE ""Id"" = {1}",
+                now, leadId);
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
 }

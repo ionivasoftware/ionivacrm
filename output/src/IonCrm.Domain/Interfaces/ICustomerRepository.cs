@@ -32,4 +32,10 @@ public interface ICustomerRepository : IRepository<Customer>
 
     /// <summary>Updates only the ParasutContactId column via targeted SQL — avoids full entity update.</summary>
     Task SetParasutContactIdAsync(Guid customerId, string? parasutContactId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Atomically transfers all ContactHistories, CustomerTasks and Opportunities from the lead customer
+    /// to the target customer, then soft-deletes the lead. All operations run in a single DB transaction.
+    /// </summary>
+    Task TransferLeadAsync(Guid leadId, Guid targetCustomerId, CancellationToken cancellationToken = default);
 }

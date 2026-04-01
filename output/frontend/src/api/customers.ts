@@ -353,6 +353,21 @@ export function useUpdateOpportunityStage() {
   });
 }
 
+// ── Transfer Lead ─────────────────────────────────────────────────────────────
+
+export function useTransferLeadCustomer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ leadId, targetCustomerId }: { leadId: string; targetCustomerId: string }) => {
+      await apiClient.post(`/customers/${leadId}/transfer/${targetCustomerId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
 // ── EMS Extend Expiration ─────────────────────────────────────────────────────
 
 export interface ExtendExpirationResult {

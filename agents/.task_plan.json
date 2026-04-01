@@ -1,0 +1,19 @@
+{
+  "session_goal": "Lead müşteri aktarımı: Lead kaydındaki görüşme, görev ve pipeline verilerini seçilen aktif müşteriye taşı, lead'i sil",
+  "tasks": [
+    {
+      "id": 1,
+      "description": "Lead müşteri aktarım API endpoint'i yaz: POST /api/customers/{leadId}/transfer/{targetCustomerId} — leadId altındaki tüm Conversations, Tasks ve Pipeline kayıtlarını targetCustomerId'ye taşı (FK güncelle), ardından lead kaydını sil. Sadece Status='Lead' olan kayıtlar için çalışmalı, aksi halde 400 döndür. Gerekli servis, repository metotları ve EF Core migration (varsa) dahil. İşlem tek transaction içinde yapılmalı. Başarıda 204 NoContent döndür.",
+      "agent": "backend",
+      "depends_on": [],
+      "context": "Proje: /Users/ofc/Documents/Projects/ionivacrm/output. Multi-tenant mimari — tüm sorgularda tenant filtresi korunmalı (.IgnoreQueryFilters() kullanma). Lead müşteri Status alanı 'Lead' string olarak saklanıyor (Segment integer'dan text'e çevrildi geçmişte). İlgili modeller: Customer, Conversation (veya Interaction/Note), Task (veya Görev), Pipeline (veya PipelineItem) — mevcut modelleri önce incele."
+    },
+    {
+      "id": 2,
+      "description": "Lead müşteri detay sayfasına 'Aktif Müşteriye Aktar' butonu ve modal ekle: kullanıcı aktif bir müşteri seçer (arama destekli liste), onaylar, POST /api/customers/{leadId}/transfer/{targetCustomerId} çağrılır, başarıda toast göster ve kullanıcıyı müşteri listesine yönlendir. Buton yalnızca Status === 'Lead' müşterilerde görünmeli.",
+      "agent": "frontend",
+      "depends_on": [1],
+      "context": "Proje: /Users/ofc/Documents/Projects/ionivacrm/output. React + TypeScript. Modal içinde aktif müşteri listesi aranabilir olmalı (Status !== 'Lead' olanlar). Mevcut modal/dialog bileşenlerini kullan. API hook: useTransferLeadCustomer veya benzeri custom hook yaz. Onay adımı (confirm step) ekle. Hata durumlarını kullanıcıya göster."
+    }
+  ]
+}
