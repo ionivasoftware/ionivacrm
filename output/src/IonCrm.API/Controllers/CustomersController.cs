@@ -1,3 +1,4 @@
+using IonCrm.Application.Customers.Commands.AddCustomerSms;
 using IonCrm.Application.Customers.Commands.ConvertLeadToCustomer;
 using IonCrm.Application.Customers.Commands.CreateCustomer;
 using IonCrm.Application.Customers.Commands.DeleteCustomer;
@@ -147,6 +148,21 @@ public class CustomersController : ApiControllerBase
     }
 
     /// <summary>
+    /// POST /api/v1/customers/{id}/add-sms
+    /// Adds SMS credits to an EMS customer and creates a Paraşüt draft invoice.
+    /// </summary>
+    [HttpPost("{id:guid}/add-sms")]
+    public async Task<IActionResult> AddSms(
+        Guid id,
+        [FromBody] AddCustomerSmsRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        var command = new AddCustomerSmsCommand(id, body.Count);
+        var result  = await Mediator.Send(command, cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
     /// GET /api/v1/customers/{id}/parasut-transactions
     /// Returns paginated Paraşüt cari hareketleri (invoices) for the given CRM customer.
     /// The customer must have a linked Paraşüt contact (ParasutContactId) — use
@@ -167,3 +183,6 @@ public class CustomersController : ApiControllerBase
 
 /// <summary>Request body for POST /api/v1/customers/{id}/extend-expiration.</summary>
 public record ExtendEmsExpirationRequest(string DurationType, int Amount);
+
+/// <summary>Request body for POST /api/v1/customers/{id}/add-sms.</summary>
+public record AddCustomerSmsRequest(int Count);

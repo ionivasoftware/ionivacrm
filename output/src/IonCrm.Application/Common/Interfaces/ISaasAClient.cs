@@ -46,4 +46,14 @@ public interface ISaasAClient
         string durationType,
         int amount,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds SMS credits to a company via the EMS CRM API.
+    /// POST /api/v1/crm/companies/{emsCompanyId}/add-sms
+    /// </summary>
+    Task<EmsAddSmsResponse> AddSmsAsync(
+        string? apiKey,
+        int emsCompanyId,
+        int count,
+        CancellationToken cancellationToken = default);
 }

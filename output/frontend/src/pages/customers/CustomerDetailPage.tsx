@@ -27,6 +27,7 @@ import {
   Trash2,
   CalendarClock,
   ArrowRight,
+  MessageSquarePlus,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -65,6 +66,7 @@ import {
   useCreateTask,
   useCreateOpportunity,
   useDeleteCustomer,
+  useAddCustomerSms,
   useExtendEmsExpiration,
 } from '@/api/customers';
 import { CustomerStatusBadge, CustomerLabelBadge } from '@/components/customers/CustomerStatusBadge';
@@ -797,6 +799,91 @@ function ExtendExpirationDialog({
   );
 }
 
+// ── Add SMS Dialog ────────────────────────────────────────────────────────────
+
+const SMS_PRESETS = [1000, 2500, 5000, 10000];
+
+interface AddSmsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  companyName: string;
+  addSms: ReturnType<typeof useAddCustomerSms>;
+}
+
+function AddSmsDialog({ open, onOpenChange, companyName, addSms }: AddSmsDialogProps) {
+  const { toast } = useToast();
+  const [selected, setSelected] = useState<number | null>(null);
+
+  function handleClose() {
+    onOpenChange(false);
+    setSelected(null);
+  }
+
+  async function handleConfirm() {
+    if (!selected) return;
+    try {
+      const result = await addSms.mutateAsync({ count: selected });
+      const invoiceMsg = result.parasutInvoiceCreated ? " Paraşüt'te taslak fatura oluşturuldu." : '';
+      toast({
+        title: 'SMS yüklendi',
+        description: `${selected.toLocaleString('tr-TR')} SMS eklendi. Toplam: ${result.smsCount.toLocaleString('tr-TR')}.${invoiceMsg}`,
+      });
+      handleClose();
+    } catch {
+      toast({ title: 'Hata', description: 'SMS yüklenemedi.', variant: 'destructive' });
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); else onOpenChange(true); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageSquarePlus className="h-5 w-5 text-blue-400" />
+            SMS Yükle
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{companyName}</span> firmasına SMS kredisi yükleyin.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {SMS_PRESETS.map(count => (
+              <button
+                key={count}
+                onClick={() => setSelected(count)}
+                className={cn(
+                  'rounded-lg border px-3 py-4 text-sm font-medium transition-colors text-center',
+                  selected === count
+                    ? 'border-blue-500 bg-blue-500/15 text-blue-400'
+                    : 'border-border text-muted-foreground hover:border-blue-500/50 hover:text-foreground'
+                )}
+              >
+                {count.toLocaleString('tr-TR')} SMS
+                <span className="block text-[10px] mt-1 opacity-60">Paraşüt fatura</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={handleClose}>İptal</Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={!selected || addSms.isPending}
+            className="bg-blue-500 hover:bg-blue-600 text-white"
+          >
+            {addSms.isPending ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Yükleniyor...</>
+            ) : (
+              <><MessageSquarePlus className="h-4 w-4 mr-1.5" />Yükle</>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function CustomerDetailPage() {
@@ -834,6 +921,10 @@ export function CustomerDetailPage() {
   // EMS extend expiration state
   const [showExtendDialog, setShowExtendDialog] = useState(false);
   const extendExpiration = useExtendEmsExpiration(id ?? '');
+
+  // SMS loading state
+  const [showSmsDialog, setShowSmsDialog] = useState(false);
+  const addSms = useAddCustomerSms(id ?? '');
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(linkSearch); setLinkPage(1); }, 400);
@@ -996,8 +1087,8 @@ export function CustomerDetailPage() {
               Aktif Müşteriye Aktar
             </Button>
           )}
-          {/* EMS-only: extend expiration (plain numeric ID or SAASA-{id} prefix, not PC-) */}
-          {customer?.legacyId && !customer.legacyId.startsWith('PC-') && (/^\d/.test(customer.legacyId) || customer.legacyId.startsWith('SAASA-')) && (
+          {/* EMS-only buttons (plain numeric ID or SAASA-{id} prefix, not PC-) */}
+          {customer?.legacyId && !customer.legacyId.startsWith('PC-') && (/^\d/.test(customer.legacyId) || customer.legacyId.startsWith('SAASA-')) && (<>
             <Button
               variant="outline"
               className="gap-2 h-10 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
@@ -1006,7 +1097,15 @@ export function CustomerDetailPage() {
               <CalendarClock className="h-4 w-4" />
               Süre Uzat
             </Button>
-          )}
+            <Button
+              variant="outline"
+              className="gap-2 h-10 border-blue-500/40 text-blue-400 hover:bg-blue-500/10"
+              onClick={() => setShowSmsDialog(true)}
+            >
+              <MessageSquarePlus className="h-4 w-4" />
+              SMS Yükle
+            </Button>
+          </>)}
           <Button onClick={() => setShowEditDialog(true)} className="gap-2 h-10">
             <Edit className="h-4 w-4" />
             Düzenle
@@ -1795,6 +1894,14 @@ export function CustomerDetailPage() {
         companyName={customer?.companyName ?? ''}
         currentExpiry={customer?.expirationDate ?? null}
         extendExpiration={extendExpiration}
+      />
+
+      {/* Add SMS Dialog */}
+      <AddSmsDialog
+        open={showSmsDialog}
+        onOpenChange={setShowSmsDialog}
+        companyName={customer?.companyName ?? ''}
+        addSms={addSms}
       />
 
       <CustomerFormDialog

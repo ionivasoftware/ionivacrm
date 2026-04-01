@@ -180,6 +180,28 @@ public sealed class SaasAClient : ISaasAClient
         }, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<EmsAddSmsResponse> AddSmsAsync(
+        string? apiKey,
+        int emsCompanyId,
+        int count,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("SaaS A: adding {Count} SMS credits for company {CompanyId}.", count, emsCompanyId);
+
+        return await _retryPipeline.ExecuteAsync<EmsAddSmsResponse>(async ct =>
+        {
+            var url = $"api/v1/crm/companies/{emsCompanyId}/add-sms";
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            ApplyAuth(request, apiKey);
+            request.Content = JsonContent.Create(new { count }, options: JsonOpts);
+            var response = await _httpClient.SendAsync(request, ct);
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadFromJsonAsync<EmsAddSmsResponse>(JsonOpts, ct);
+            return result ?? throw new InvalidOperationException("Empty response from EMS add-sms.");
+        }, cancellationToken);
+    }
+
     /// <summary>
     /// Overrides the default Authorization header with a project-specific Bearer token when provided.
     /// Falls back to the header pre-configured in DI (appsettings SaasA:ApiKey) when apiKey is null/empty.

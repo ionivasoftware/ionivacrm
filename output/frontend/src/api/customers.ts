@@ -368,6 +368,32 @@ export function useTransferLeadCustomer() {
   });
 }
 
+// ── Add Customer SMS ──────────────────────────────────────────────────────────
+
+export interface AddCustomerSmsResult {
+  companyId: number;
+  smsCount: number;
+  added: number;
+  parasutInvoiceCreated: boolean;
+  parasutInvoiceId: string | null;
+}
+
+export function useAddCustomerSms(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { count: number }) => {
+      const response = await apiClient.post<ApiResponse<AddCustomerSmsResult>>(
+        `/customers/${customerId}/add-sms`,
+        body
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+    },
+  });
+}
+
 // ── EMS Extend Expiration ─────────────────────────────────────────────────────
 
 export interface ExtendExpirationResult {

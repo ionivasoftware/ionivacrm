@@ -99,3 +99,11 @@ public record EmsExtendExpirationResponse(
 
 /// <summary>Duration details returned inside <see cref="EmsExtendExpirationResponse"/>.</summary>
 public record EmsExtendDuration(string DurationType, int Amount);
+
+// ── EMS add SMS ───────────────────────────────────────────────────────────────
+
+/// <summary>Response from POST /api/v1/crm/companies/{id}/add-sms.</summary>
+public record EmsAddSmsResponse(
+    int CompanyId,
+    int SmsCount,
+    int Added);

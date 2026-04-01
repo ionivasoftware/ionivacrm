@@ -61,7 +61,18 @@ public sealed class GetCustomerParasutTransactionsQueryHandler
             request.PageSize,
             cancellationToken);
 
-        await Task.WhenAll(invoicesTask, transactionsTask);
+        try
+        {
+            await Task.WhenAll(invoicesTask, transactionsTask);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Paraşüt cari hareketleri alınırken hata oluştu. CustomerId={CustomerId} ContactId={ContactId}",
+                request.CustomerId, customer.ParasutContactId);
+            return Result<CustomerParasutTransactionsDto>.Failure(
+                $"Paraşüt bağlantı hatası: {ex.Message}");
+        }
 
         var (invoiceData, invoiceError) = invoicesTask.Result;
         var (txnData, txnError) = transactionsTask.Result;
