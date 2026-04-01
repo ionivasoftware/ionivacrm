@@ -136,8 +136,8 @@ public sealed class ParasutClient : IParasutClient
     {
         _logger.LogDebug("Paraşüt: fetching contacts. Company={CompanyId} Page={Page} Search={Search}", companyId, page, search);
         var url = $"v4/{companyId}/contacts?page[size]={pageSize}&page[number]={page}";
-        if (!string.IsNullOrWhiteSpace(search))
-            url += $"&filter[name]={Uri.EscapeDataString(search.ToUpperInvariant())}";
+        // Note: Paraşüt v4 does not support server-side name filtering.
+        // When a search term is present the handler fetches a large batch and filters in memory.
 
         return await GetListAsync<ParasutContactAttributes>(accessToken, url, cancellationToken);
     }

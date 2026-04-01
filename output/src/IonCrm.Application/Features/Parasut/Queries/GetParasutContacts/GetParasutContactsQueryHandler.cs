@@ -40,15 +40,19 @@ public sealed class GetParasutContactsQueryHandler
 
         try
         {
+            bool hasSearch = !string.IsNullOrWhiteSpace(request.Search);
+
+            // Paraşüt v4 does not support server-side name filtering.
+            // When a search term is given, fetch a large batch and filter in memory.
             var response = await _parasutClient.GetContactsAsync(
                 conn.AccessToken!,
                 conn.CompanyId,
-                request.Page,
-                request.PageSize,
-                request.Search,
+                page:     hasSearch ? 1 : request.Page,
+                pageSize: hasSearch ? 200 : request.PageSize,
+                search:   null,
                 cancellationToken);
 
-            var items = response.Data.Select(d => new ParasutContactItem(
+            var allItems = response.Data.Select(d => new ParasutContactItem(
                 Id:          d.Id ?? string.Empty,
                 Name:        d.Attributes.Name,
                 Email:       d.Attributes.Email,
@@ -57,9 +61,24 @@ public sealed class GetParasutContactsQueryHandler
                 AccountType: d.Attributes.AccountType,
                 TaxNumber:   d.Attributes.TaxNumber)).ToList();
 
+            if (hasSearch)
+            {
+                var term = request.Search!.Trim();
+                allItems = allItems
+                    .Where(c => c.Name != null &&
+                                c.Name.Contains(term, StringComparison.CurrentCultureIgnoreCase))
+                    .ToList();
+
+                return Result<GetParasutContactsDto>.Success(new GetParasutContactsDto(
+                    Items:       allItems,
+                    TotalCount:  allItems.Count,
+                    TotalPages:  1,
+                    CurrentPage: 1));
+            }
+
             return Result<GetParasutContactsDto>.Success(new GetParasutContactsDto(
-                Items:       items,
-                TotalCount:  response.Meta?.TotalCount ?? items.Count,
+                Items:       allItems,
+                TotalCount:  response.Meta?.TotalCount ?? allItems.Count,
                 TotalPages:  response.Meta?.TotalPages ?? 1,
                 CurrentPage: response.Meta?.CurrentPage ?? request.Page));
         }
