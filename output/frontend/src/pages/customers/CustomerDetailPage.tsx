@@ -28,6 +28,9 @@ import {
   CalendarClock,
   ArrowRight,
   MessageSquarePlus,
+  Eye,
+  EyeOff,
+  Send,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -68,7 +71,10 @@ import {
   useDeleteCustomer,
   useAddCustomerSms,
   useExtendEmsExpiration,
+  useCustomerEmsUsers,
+  usePushToRezerval,
 } from '@/api/customers';
+import { useAdminProjects } from '@/api/admin';
 import { CustomerStatusBadge, CustomerLabelBadge } from '@/components/customers/CustomerStatusBadge';
 import { CustomerFormDialog } from '@/components/customers/CustomerForm';
 import {
@@ -189,6 +195,35 @@ const CONTACT_TYPE_TEXT: Record<ContactType, string> = {
   Visit: 'text-rose-400',
 };
 
+// ── EMS customer helper ────────────────────────────────────────────────────────
+
+function isEmsCustomer(legacyId: string | null | undefined): boolean {
+  if (!legacyId) return false;
+  if (legacyId.startsWith('PC-')) return false;
+  return /^\d/.test(legacyId) || legacyId.startsWith('SAASA-');
+}
+
+// ── EMS Users Tab ─────────────────────────────────────────────────────────────
+
+function PasswordCell({ password }: { password: string }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="font-mono text-xs">
+        {visible ? password : '••••••••'}
+      </span>
+      <button
+        onClick={() => setVisible((v) => !v)}
+        className="text-muted-foreground hover:text-foreground transition-colors"
+        title={visible ? 'Gizle' : 'Göster'}
+        type="button"
+      >
+        {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  );
+}
+
 // ── Quick Invoice Form (inline in Cari tab) ───────────────────────────────────
 
 interface QuickInvoiceFormProps {
@@ -286,7 +321,7 @@ function QuickInvoiceForm({ projectId, contactId, customerName, onSuccess, onErr
 
 // ── Tab type ──────────────────────────────────────────────────────────────────
 
-type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari';
+type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari' | 'ems-users';
 
 // ── Inline Schemas ────────────────────────────────────────────────────────────
 
@@ -906,6 +941,13 @@ export function CustomerDetailPage() {
   const [showSmsDialog, setShowSmsDialog] = useState(false);
   const addSms = useAddCustomerSms(id ?? '');
 
+  // RezervAl
+  const { data: adminProjects } = useAdminProjects();
+  const isRezervalProject = adminProjects?.some(
+    (p) => p.id === currentProjectId && !!p.rezervAlApiKey
+  ) ?? false;
+  const pushToRezerval = usePushToRezerval(id ?? '');
+
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(linkSearch); setLinkPage(1); }, 400);
     return () => clearTimeout(t);
@@ -923,6 +965,12 @@ export function CustomerDetailPage() {
   const { data: oppsData, isLoading: oppsLoading } = useCustomerOpportunities(customerId);
   const deleteMutation = useDeleteCustomer();
 
+  // EMS users — only fetch when tab is active and customer is an EMS customer
+  const { data: emsUsersData, isLoading: emsUsersLoading } = useCustomerEmsUsers(
+    customerId,
+    activeTab === 'ems-users' && isEmsCustomer(customer?.legacyId)
+  );
+
   function openAddContact(type: ContactType) {
     setAddContactType(type);
     setShowAddContact(true);
@@ -937,6 +985,25 @@ export function CustomerDetailPage() {
       navigate('/customers');
     } catch {
       toast({ title: 'Hata', description: 'Müşteri silinemedi.', variant: 'destructive' });
+    }
+  }
+
+  async function handlePushToRezerval() {
+    const isUpdate = customer?.legacyId?.startsWith('REZV-');
+    try {
+      await pushToRezerval.mutateAsync();
+      toast({
+        title: isUpdate ? 'RezervAl güncellendi' : "RezervAl'a gönderildi",
+        description: isUpdate
+          ? `${customer?.companyName} RezervAl'da güncellendi.`
+          : `${customer?.companyName} RezervAl'a aktarıldı.`,
+      });
+    } catch {
+      toast({
+        title: 'Hata',
+        description: isUpdate ? 'RezervAl güncellenemedi.' : "RezervAl'a gönderilemedi.",
+        variant: 'destructive',
+      });
     }
   }
 
@@ -1006,6 +1073,7 @@ export function CustomerDetailPage() {
       count: oppsData?.totalCount,
     },
     ...(canAccessFinance ? [{ id: 'cari' as ActiveTab, label: 'Cari / Fatura' }] : []),
+    ...(isEmsCustomer(customer?.legacyId) ? [{ id: 'ems-users' as ActiveTab, label: 'Kullanıcılar' }] : []),
   ];
 
   return (
@@ -1079,6 +1147,21 @@ export function CustomerDetailPage() {
               SMS Yükle
             </Button>
           </>)}
+          {/* RezervAl button — only when project has RezervAl configured */}
+          {isRezervalProject && (
+            <Button
+              variant="outline"
+              className="gap-2 h-10 border-teal-500/40 text-teal-400 hover:bg-teal-500/10"
+              onClick={handlePushToRezerval}
+              disabled={pushToRezerval.isPending}
+            >
+              {pushToRezerval.isPending
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Send className="h-4 w-4" />
+              }
+              {customer?.legacyId?.startsWith('REZV-') ? 'RezervAl Güncelle' : "RezervAl'a Gönder"}
+            </Button>
+          )}
           <Button onClick={() => setShowEditDialog(true)} className="gap-2 h-10">
             <Edit className="h-4 w-4" />
             Düzenle
@@ -1537,6 +1620,88 @@ export function CustomerDetailPage() {
               )}
             </div>
           )}
+          {/* ── EMS Users Tab ── */}
+          {activeTab === 'ems-users' && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {emsUsersLoading
+                  ? 'Yükleniyor...'
+                  : emsUsersData
+                  ? `${emsUsersData.length} kullanıcı`
+                  : ''}
+              </p>
+
+              {emsUsersLoading && (
+                <div className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                  ))}
+                </div>
+              )}
+
+              {!emsUsersLoading && (!emsUsersData || emsUsersData.length === 0) && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <Users className="h-8 w-8 text-muted-foreground/40" />
+                  </div>
+                  <p className="font-medium text-foreground mb-1">Kullanıcı bulunamadı</p>
+                  <p className="text-sm text-muted-foreground">
+                    Bu EMS firmasına ait kullanıcı kaydı bulunamadı.
+                  </p>
+                </div>
+              )}
+
+              {!emsUsersLoading && emsUsersData && emsUsersData.length > 0 && (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/40 border-b border-border">
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Ad Soyad</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">E-posta</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Rol</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kullanıcı Adı</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Şifre</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {emsUsersData.map((user, idx) => (
+                        <tr
+                          key={user.id}
+                          className={cn(
+                            'border-b border-border/50 transition-colors hover:bg-muted/20',
+                            idx === emsUsersData.length - 1 && 'border-b-0'
+                          )}
+                        >
+                          <td className="px-4 py-3 font-medium text-foreground">
+                            {user.firstName} {user.lastName}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {user.email || '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold bg-blue-500/10 text-blue-400 border-blue-500/30">
+                              {user.role || '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                            {user.username || '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            {user.password ? (
+                              <PasswordCell password={user.password} />
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Cari Tab ── */}
           {activeTab === 'cari' && (
             <div className="space-y-4">

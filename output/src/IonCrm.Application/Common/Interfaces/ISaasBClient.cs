@@ -25,4 +25,34 @@ public interface ISaasBClient
     /// Called instantly when: subscription extended, status changed, etc.
     /// </summary>
     Task NotifyCallbackAsync(SaasBCallbackPayload payload, string? apiKey = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches all companies from the Rezerval CRM API.
+    /// Endpoint: GET https://rezback.rezerval.com/v1/Crm/CompanyList
+    /// Auth: Authorization: Bearer {apiKey}
+    /// </summary>
+    Task<List<RezervalCompany>> GetRezervalCompaniesAsync(string? apiKey = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new company in the RezervAl CRM system.
+    /// Endpoint: POST https://rezback.rezerval.com/v1/Crm/Company
+    /// Auth: Authorization: Bearer {apiKey}
+    /// Content-Type: multipart/form-data
+    /// </summary>
+    Task<RezervalCreateCompanyResponse> CreateRezervalCompanyAsync(
+        RezervalCompanyFormData data,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates an existing company in the RezervAl CRM system.
+    /// Endpoint: PUT https://rezback.rezerval.com/v1/Crm/Company/{companyId}
+    /// Auth: Authorization: Bearer {apiKey}
+    /// Content-Type: multipart/form-data
+    /// </summary>
+    Task UpdateRezervalCompanyAsync(
+        int companyId,
+        RezervalCompanyFormData data,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default);
 }

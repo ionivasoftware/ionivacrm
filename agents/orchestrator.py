@@ -251,9 +251,10 @@ class OrchestratorAgent(BaseAgent):
             return True
 
         # --- Retry once with error context ---
+        from rich.markup import escape as rich_escape
         console.print(
             f"\n[yellow]⚠️  Görev {task['id']} build doğrulama başarısız — retry...[/yellow]\n"
-            f"[dim red]{error[:300]}[/dim red]\n"
+            + rich_escape(error[:300]) + "\n"
         )
         try:
             await agent.run_task(
@@ -269,7 +270,7 @@ class OrchestratorAgent(BaseAgent):
         if not ok2:
             console.print(
                 f"[red]❌ Görev {task['id']} retry sonrası da başarısız. Devam ediliyor.[/red]\n"
-                f"[dim]{error2[:200]}[/dim]"
+                + rich_escape(error2[:200])
             )
             return False
 

@@ -3,9 +3,11 @@ using IonCrm.Application.Customers.Commands.ConvertLeadToCustomer;
 using IonCrm.Application.Customers.Commands.CreateCustomer;
 using IonCrm.Application.Customers.Commands.DeleteCustomer;
 using IonCrm.Application.Customers.Commands.ExtendEmsExpiration;
+using IonCrm.Application.Customers.Commands.PushCustomerToRezerval;
 using IonCrm.Application.Customers.Commands.TransferLead;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
+using IonCrm.Application.Customers.Queries.GetCustomerEmsUsers;
 using IonCrm.Application.Customers.Queries.GetCustomerWithDetails;
 using IonCrm.Application.Customers.Queries.GetCustomers;
 using IonCrm.Domain.Enums;
@@ -161,6 +163,60 @@ public class CustomersController : ApiControllerBase
         return ResultToResponse(result);
     }
 
+    /// <summary>
+    /// GET /api/v1/customers/{id}/ems-users
+    /// Returns the EMS user list for an EMS-sourced customer.
+    /// Returns 400 if the customer has no EMS mapping (LegacyId is null, "PC-..." or non-numeric).
+    /// </summary>
+    [HttpGet("{id:guid}/ems-users")]
+    public async Task<IActionResult> GetEmsUsers(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetCustomerEmsUsersQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// POST /api/v1/customers/{id}/push-to-rezerval
+    /// Pushes the customer to the RezervAl CRM system.
+    /// If the customer already has a "REZV-{n}" LegacyId an update (PUT) is performed;
+    /// otherwise a new company is created (POST) and the returned companyId is stored
+    /// as the customer's LegacyId in the format "REZV-{companyId}".
+    /// Returns 400 if the project has no RezervAl API key configured.
+    /// </summary>
+    [HttpPost("{id:guid}/push-to-rezerval")]
+    public async Task<IActionResult> PushToRezerval(
+        Guid id,
+        [FromBody] PushCustomerToRezervalRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        var command = new PushCustomerToRezervalCommand
+        {
+            CustomerId       = id,
+            Name             = body.Name,
+            Title            = body.Title,
+            Phone            = body.Phone,
+            Email            = body.Email,
+            TaxUnit          = body.TaxUnit,
+            TaxNumber        = body.TaxNumber,
+            TCNo             = body.TCNo,
+            IsPersonCompany  = body.IsPersonCompany,
+            Address          = body.Address,
+            Language         = body.Language,
+            CountryPhoneCode = body.CountryPhoneCode,
+            ExperationDate   = body.ExperationDate,
+            AdminNameSurname = body.AdminNameSurname,
+            AdminLoginName   = body.AdminLoginName,
+            AdminPassword    = body.AdminPassword,
+            AdminEmail       = body.AdminEmail,
+            AdminPhone       = body.AdminPhone,
+            LogoBase64       = body.LogoBase64,
+            LogoFileName     = body.LogoFileName
+        };
+
+        var result = await Mediator.Send(command, cancellationToken);
+        return ResultToResponse(result);
+    }
+
 }
 
 /// <summary>Request body for POST /api/v1/customers/{id}/extend-expiration.</summary>
@@ -168,3 +224,25 @@ public record ExtendEmsExpirationRequest(string DurationType, int Amount);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/add-sms.</summary>
 public record AddCustomerSmsRequest(int Count);
+
+/// <summary>Request body for POST /api/v1/customers/{id}/push-to-rezerval.</summary>
+public record PushCustomerToRezervalRequest(
+    string Name,
+    string Title,
+    string Phone,
+    string Email,
+    string TaxUnit,
+    string TaxNumber,
+    string? TCNo,
+    bool IsPersonCompany,
+    string Address,
+    int Language = 1,
+    int CountryPhoneCode = 90,
+    DateTime? ExperationDate = null,
+    string AdminNameSurname = "",
+    string AdminLoginName = "",
+    string AdminPassword = "",
+    string AdminEmail = "",
+    string AdminPhone = "",
+    string? LogoBase64 = null,
+    string? LogoFileName = null);

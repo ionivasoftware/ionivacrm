@@ -18,6 +18,7 @@ import type {
   CreateOpportunityRequest,
   UpdateOpportunityRequest,
   OpportunityStage,
+  EmsUser,
 } from '@/types';
 
 // ── Customer CRUD ─────────────────────────────────────────────────────────────
@@ -390,6 +391,39 @@ export function useAddCustomerSms(customerId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+    },
+  });
+}
+
+// ── EMS Users ─────────────────────────────────────────────────────────────────
+
+export function useCustomerEmsUsers(customerId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['customerEmsUsers', customerId],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<EmsUser[]>>(
+        `/customers/${customerId}/ems-users`
+      );
+      return response.data.data;
+    },
+    enabled: !!customerId && enabled,
+  });
+}
+
+// ── Push to RezervAl ─────────────────────────────────────────────────────────
+
+export function usePushToRezerval(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post<ApiResponse<Customer>>(
+        `/customers/${customerId}/push-to-rezerval`
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
     },
   });
 }

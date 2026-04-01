@@ -83,6 +83,7 @@ public sealed class SaasSyncJob
         _logger.LogInformation("SaaS sync job started at {Time:O}", DateTime.UtcNow);
 
         await SyncEmsCrmCustomersAsync(cancellationToken);
+        await SyncRezervalCompaniesAsync(cancellationToken);
         // await SyncSaasAAsync(cancellationToken);
         // await SyncSaasBAsync(cancellationToken);
 
@@ -269,6 +270,115 @@ public sealed class SaasSyncJob
             return notExpired
                 ? CustomerStatus.Active
                 : CustomerStatus.Churned;
+        }
+    }
+
+    // ── Rezerval CRM company sync ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Syncs companies from the Rezerval CRM API (https://rezback.rezerval.com/v1/Crm/CompanyList).
+    /// Full sync on every run — status is recomputed from ExperationDate + CreatedOn using the same
+    /// 40-day threshold rule as EMS. LegacyId format: "REZV-{id}".
+    /// Deleted companies (IsDeleted=true) are skipped.
+    /// </summary>
+    private async Task SyncRezervalCompaniesAsync(CancellationToken ct)
+    {
+        var (projectId, project) = await ResolveProjectAsync(
+            "SaasB:ProjectId", p => !string.IsNullOrEmpty(p.RezervAlApiKey), ct);
+
+        if (projectId == Guid.Empty)
+        {
+            _logger.LogWarning("No project found for Rezerval CRM sync. Skipping.");
+            return;
+        }
+
+        var rezervAlApiKey = project?.RezervAlApiKey;
+
+        _logger.LogInformation(
+            "Rezerval CRM full sync: fetching all companies for project {ProjectId}. ApiKey configured: {HasKey}",
+            projectId, rezervAlApiKey is not null);
+
+        await SyncWithRetryAsync(
+            source: SyncSource.SaasB,
+            entityType: "RezervalCompany",
+            projectId: projectId,
+            action: async () =>
+            {
+                var companies = await _saasBClient.GetRezervalCompaniesAsync(rezervAlApiKey, ct);
+                await UpsertRezervalCompaniesAsync(companies, projectId, ct);
+                return companies.Count;
+            });
+    }
+
+    private async Task UpsertRezervalCompaniesAsync(
+        List<RezervalCompany> companies,
+        Guid projectId,
+        CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        foreach (var src in companies)
+        {
+            // Skip records already marked deleted in the source system
+            if (src.IsDeleted)
+                continue;
+
+            var legacyId = $"REZV-{src.Id}";
+
+            // Force UTC — Rezerval API returns datetimes without timezone offset;
+            // System.Text.Json deserialises them as Kind=Unspecified which Npgsql rejects.
+            var expDate   = DateTime.SpecifyKind(src.ExperationDate, DateTimeKind.Utc);
+            var createdOn = DateTime.SpecifyKind(src.CreatedOn,      DateTimeKind.Utc);
+
+            var newStatus = ComputeStatusFromExpiration(expDate, createdOn);
+
+            var existing = await context.Customers
+                .IgnoreQueryFilters()
+                .Where(c => !c.IsDeleted && c.LegacyId == legacyId)
+                .FirstOrDefaultAsync(ct);
+
+            if (existing is not null)
+            {
+                bool changed = false;
+                if (existing.CompanyName    != src.Name)    { existing.CompanyName    = src.Name;    changed = true; }
+                if (existing.Email          != src.Email)   { existing.Email          = src.Email;   changed = true; }
+                if (existing.Phone          != src.Phone)   { existing.Phone          = src.Phone;   changed = true; }
+                if (existing.Segment        != src.Title)   { existing.Segment        = src.Title;   changed = true; }
+                if (existing.ExpirationDate != expDate)     { existing.ExpirationDate = expDate;     changed = true; }
+                if (existing.Status         != newStatus)   { existing.Status         = newStatus;   changed = true; }
+                if (changed) existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                context.Customers.Add(new Customer
+                {
+                    Id             = Guid.NewGuid(),
+                    ProjectId      = projectId,
+                    LegacyId       = legacyId,
+                    CompanyName    = src.Name,
+                    Email          = src.Email,
+                    Phone          = src.Phone,
+                    Segment        = src.Title,
+                    ExpirationDate = expDate,
+                    Status         = newStatus,
+                    UpdatedAt      = DateTime.UtcNow
+                    // CreatedAt intentionally omitted — ApplicationDbContext.SaveChangesAsync
+                    // auto-sets it to DateTime.UtcNow for Added entities (BaseEntity intercept)
+                });
+            }
+        }
+
+        try
+        {
+            await context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Rezerval CRM upsert SaveChanges failed. Inner: {Inner}",
+                ex.InnerException?.Message ?? ex.Message);
+            throw;
         }
     }
 

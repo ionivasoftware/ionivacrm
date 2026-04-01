@@ -55,4 +55,13 @@ public interface ISaasAClient
         int emsCompanyId,
         int count,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches the user list for a company via the EMS CRM API.
+    /// GET /api/v1/crm/companies/{companyId}/users
+    /// </summary>
+    Task<List<EmsCompanyUser>> GetCompanyUsersAsync(
+        string? apiKey,
+        int companyId,
+        CancellationToken cancellationToken = default);
 }

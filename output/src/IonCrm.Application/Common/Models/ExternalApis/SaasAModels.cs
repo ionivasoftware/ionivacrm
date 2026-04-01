@@ -107,3 +107,15 @@ public record EmsAddSmsResponse(
     int CompanyId,
     int SmsCount,
     int Added);
+
+// ── EMS company users ─────────────────────────────────────────────────────────
+
+/// <summary>A single user record returned by EMS GET /api/v1/crm/companies/{companyId}/users.</summary>
+public record EmsCompanyUser(
+    int UserId,
+    string Name,
+    string Surname,
+    string Email,
+    string Role,
+    string LoginName,
+    string Password);

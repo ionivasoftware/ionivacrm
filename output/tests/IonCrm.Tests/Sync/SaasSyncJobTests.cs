@@ -151,11 +151,11 @@ public class SaasSyncJobTests
         // Act
         await CreateJob().RunAsync(CancellationToken.None);
 
-        // Assert — SaaS A ran
+        // Assert — SaaS A ran (now uses the paginated CRM endpoint, not legacy GetCustomersAsync)
         _saasAClientMock.Verify(
-            c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()),
-            Times.Once,
-            "SaaS A sync should run when ProjectId is configured");
+            c => c.GetCrmCustomersPageAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce,
+            "SaaS A sync should run GetCrmCustomersPageAsync when ProjectId is configured");
     }
 
     // ── SyncLog retry count entity behaviour ─────────────────────────────────
