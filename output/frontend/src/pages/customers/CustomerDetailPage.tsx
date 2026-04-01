@@ -694,9 +694,9 @@ function ExtendExpirationDialog({
     }
   }
 
-  const presets = [
-    { label: '1 Ay', durationType: 'Months' as const, amount: 1 },
-    { label: '1 Yıl', durationType: 'Years' as const, amount: 1 },
+  const presets: Array<{ label: string; durationType: 'Months' | 'Years'; amount: 1 }> = [
+    { label: '1 Ay', durationType: 'Months', amount: 1 },
+    { label: '1 Yıl', durationType: 'Years', amount: 1 },
   ];
 
   return (
