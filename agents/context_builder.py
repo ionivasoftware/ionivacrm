@@ -35,7 +35,7 @@ def build_project_snapshot() -> str:
             ["dotnet", "build", os.path.basename(sln), "--no-restore", "-v", "quiet"],
             code_dir
         )
-        succeeded = "Build succeeded" in out
+        succeeded = "Build succeeded" in out or "Oluşturma başarılı oldu" in out
         status    = "✅ Başarılı" if succeeded else "❌ BAŞARISIZ"
         summary   = "\n".join(out.strip().splitlines()[-3:])
         parts.append(f"**Backend build ({os.path.basename(sln)}):** {status}\n```\n{summary}\n```")
@@ -68,7 +68,7 @@ def run_build_check(agent_type: str) -> tuple[bool, str]:
             ["dotnet", "build", os.path.basename(sln), "--no-restore", "-v", "quiet"],
             code_dir
         )
-        if "Build succeeded" in out:
+        if "Build succeeded" in out or "Oluşturma başarılı oldu" in out:
             return True, ""
         errors = [l for l in out.splitlines() if " error " in l.lower()]
         return False, "\n".join(errors[:20]) or out[-800:]

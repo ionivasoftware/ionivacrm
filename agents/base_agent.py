@@ -69,12 +69,16 @@ class BaseAgent:
     # Options — max_turns driven by task complexity
     # ------------------------------------------------------------------
 
+    # Override in subclass or set via env var AGENT_MODEL
+    MODEL = os.environ.get("AGENT_MODEL", "claude-sonnet-4-5")
+
     def get_options(self, max_turns: int = 30) -> ClaudeAgentOptions:
         return ClaudeAgentOptions(
             allowed_tools=self.ALLOWED_TOOLS,
             permission_mode="acceptEdits",
             system_prompt=self.get_system_prompt(),
             max_turns=max_turns,
+            model=self.MODEL,
         )
 
     def _estimate_turns(self, task: str) -> int:

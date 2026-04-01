@@ -229,10 +229,12 @@ class OrchestratorAgent(BaseAgent):
         await agent.run_task(full_task)
 
         if not self.VALIDATE_TASKS:
+            self._mark_todo_done(description)
             return True
 
         ok, error = run_build_check(agent_type)
         if ok:
+            self._mark_todo_done(description)
             return True
 
         # --- Retry once with error context ---
@@ -254,7 +256,28 @@ class OrchestratorAgent(BaseAgent):
             )
             return False
 
+        self._mark_todo_done(description)
         return True
+
+    def _mark_todo_done(self, description: str) -> None:
+        """Mark the matching todo item as done (- [ ] → - [x])."""
+        todo_md = os.path.join(WORKSPACE, ".claude", "projectFiles", "todo.md")
+        try:
+            with open(todo_md, encoding="utf-8") as f:
+                content = f.read()
+
+            # Try exact match first, then first-word match
+            needle = description[:60].strip()
+            lines = content.splitlines(keepends=True)
+            for i, line in enumerate(lines):
+                if line.startswith("- [ ]") and needle[:30].lower() in line.lower():
+                    lines[i] = line.replace("- [ ]", "- [x]", 1)
+                    with open(todo_md, "w", encoding="utf-8") as f:
+                        f.writelines(lines)
+                    console.print(f"[dim green]✓ todo.md güncellendi: {needle[:50]}[/dim green]")
+                    return
+        except Exception as e:
+            console.print(f"[dim yellow]todo.md güncellenemedi: {e}[/dim yellow]")
 
     # ------------------------------------------------------------------
     # Agent factory
