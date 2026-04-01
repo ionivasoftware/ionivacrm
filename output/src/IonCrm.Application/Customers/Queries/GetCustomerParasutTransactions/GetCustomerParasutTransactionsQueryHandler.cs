@@ -46,36 +46,20 @@ public sealed class GetCustomerParasutTransactionsQueryHandler
             return Result<CustomerParasutTransactionsDto>.Failure(
                 "Müşteri henüz Paraşüt'e bağlanmamış. Lütfen önce cariyi Paraşüt ile eşleştirin.");
 
-        // 3 — Fetch both invoices and transactions concurrently
-        var invoicesTask = _parasutService.GetContactInvoicesAsync(
+        // 3 — Fetch invoices then transactions sequentially (shared DbContext can't run concurrent queries)
+        var (invoiceData, invoiceError) = await _parasutService.GetContactInvoicesAsync(
             customer.ProjectId,
             customer.ParasutContactId,
             request.Page,
             request.PageSize,
             cancellationToken);
 
-        var transactionsTask = _parasutService.GetContactTransactionsAsync(
+        var (txnData, txnError) = await _parasutService.GetContactTransactionsAsync(
             customer.ProjectId,
             customer.ParasutContactId,
             request.Page,
             request.PageSize,
             cancellationToken);
-
-        try
-        {
-            await Task.WhenAll(invoicesTask, transactionsTask);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Paraşüt cari hareketleri alınırken hata oluştu. CustomerId={CustomerId} ContactId={ContactId}",
-                request.CustomerId, customer.ParasutContactId);
-            return Result<CustomerParasutTransactionsDto>.Failure(
-                $"Paraşüt bağlantı hatası: {ex.Message}");
-        }
-
-        var (invoiceData, invoiceError) = invoicesTask.Result;
-        var (txnData, txnError) = transactionsTask.Result;
 
         // Log warnings but don't fail entirely if one call fails — return partial data
         if (invoiceData is null)
