@@ -137,7 +137,7 @@ public sealed class ParasutClient : IParasutClient
         _logger.LogDebug("Paraşüt: fetching contacts. Company={CompanyId} Page={Page} Search={Search}", companyId, page, search);
         var url = $"v4/{companyId}/contacts?page[size]={pageSize}&page[number]={page}";
         if (!string.IsNullOrWhiteSpace(search))
-            url += $"&q={Uri.EscapeDataString(search)}";
+            url += $"&filter[name]={Uri.EscapeDataString(search.ToUpperInvariant())}";
 
         return await GetListAsync<ParasutContactAttributes>(accessToken, url, cancellationToken);
     }
