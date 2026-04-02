@@ -250,7 +250,9 @@ public sealed class SaasAClient : ISaasAClient
             ApplyAuth(request, apiKey);
             var response = await _httpClient.SendAsync(request, ct);
             await EnsureSuccessAsync(response, ct);
-            var result = await response.Content.ReadFromJsonAsync<EmsCompanySummaryResponse>(JsonOpts, ct);
+            var raw = await response.Content.ReadAsStringAsync(ct);
+            _logger.LogInformation("EMS company summary raw response for {CompanyId}: {Raw}", companyId, raw);
+            var result = JsonSerializer.Deserialize<EmsCompanySummaryResponse>(raw, JsonOpts);
             return result ?? throw new InvalidOperationException("Empty response from EMS company summary.");
         }, cancellationToken);
     }
