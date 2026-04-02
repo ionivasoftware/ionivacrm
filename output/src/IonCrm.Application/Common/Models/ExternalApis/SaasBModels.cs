@@ -115,7 +115,13 @@ public class RezervalCompanyFormData
     public string? LogoFileName { get; set; }
 }
 
-/// <summary>Response from RezervAl POST /v1/Crm/Company on successful creation.</summary>
+/// <summary>Envelope wrapper returned by RezervAl POST /v1/Crm/Company.</summary>
+public record RezervalCreateCompanyEnvelope(RezervalCreateCompanyData? Data, bool IsSuccess, string? Message);
+
+/// <summary>Data payload inside <see cref="RezervalCreateCompanyEnvelope"/>.</summary>
+public record RezervalCreateCompanyData(int CompanyId, string? Message);
+
+/// <summary>Resolved create result after unwrapping the envelope.</summary>
 public record RezervalCreateCompanyResponse(int CompanyId, string? Message);
 
 /// <summary>Response from RezervAl POST /v1/Token/GetToken.</summary>
