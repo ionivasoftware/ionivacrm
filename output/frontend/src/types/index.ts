@@ -388,13 +388,35 @@ export interface ParasutProductListItem {
 // ----- EMS Users -----
 
 export interface EmsUser {
-  id: number;
-  firstName: string;
-  lastName: string;
+  userId: string;
+  name: string;
+  surname: string;
   email: string;
   role: string;
-  username: string;
+  loginName: string;
   password: string;
+}
+
+// ----- EMS Summary -----
+
+export interface EmsSummaryTotals {
+  customerCount: number;
+  elevatorCount: number;
+  userCount: number;
+}
+
+export interface EmsSummaryMonthlyStat {
+  year: number;
+  month: number;
+  maintenanceCount: number;
+  breakdownCount: number;
+  proposalCount: number;
+}
+
+export interface EmsSummary {
+  emsCompanyId: number;
+  totals: EmsSummaryTotals;
+  monthly: EmsSummaryMonthlyStat[];
 }
 
 // ----- Dashboard -----

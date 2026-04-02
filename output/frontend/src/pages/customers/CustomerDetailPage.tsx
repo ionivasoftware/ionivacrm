@@ -72,6 +72,7 @@ import {
   useAddCustomerSms,
   useExtendEmsExpiration,
   useCustomerEmsUsers,
+  useCustomerEmsSummary,
   useUpdateCustomer,
 } from '@/api/customers';
 import { useAdminProjects } from '@/api/admin';
@@ -426,7 +427,7 @@ function QuickInvoiceForm({ projectId, contactId, customerName, onSuccess, onErr
 
 // ── Tab type ──────────────────────────────────────────────────────────────────
 
-type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari' | 'ems-users';
+type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari' | 'ems-users' | 'ems-summary';
 
 // ── Inline Schemas ────────────────────────────────────────────────────────────
 
@@ -1082,6 +1083,12 @@ export function CustomerDetailPage() {
     activeTab === 'ems-users' && isEmsCustomer(customer?.legacyId)
   );
 
+  // EMS summary — only fetch when tab is active and customer is an EMS customer
+  const { data: emsSummaryData, isLoading: emsSummaryLoading } = useCustomerEmsSummary(
+    customerId,
+    activeTab === 'ems-summary' && isEmsCustomer(customer?.legacyId)
+  );
+
   function openAddContact(type: ContactType) {
     setAddContactType(type);
     setShowAddContact(true);
@@ -1170,6 +1177,7 @@ export function CustomerDetailPage() {
     },
     ...(canAccessFinance ? [{ id: 'cari' as ActiveTab, label: 'Cari / Fatura' }] : []),
     ...(isEmsCustomer(customer?.legacyId) ? [{ id: 'ems-users' as ActiveTab, label: 'Kullanıcılar' }] : []),
+    ...(isEmsCustomer(customer?.legacyId) ? [{ id: 'ems-summary' as ActiveTab, label: 'Kullanım Özeti' }] : []),
   ];
 
   return (
@@ -1758,14 +1766,14 @@ export function CustomerDetailPage() {
                     <tbody>
                       {emsUsersData.map((user, idx) => (
                         <tr
-                          key={user.id}
+                          key={user.userId}
                           className={cn(
                             'border-b border-border/50 transition-colors hover:bg-muted/20',
                             idx === emsUsersData.length - 1 && 'border-b-0'
                           )}
                         >
                           <td className="px-4 py-3 font-medium text-foreground">
-                            {user.firstName} {user.lastName}
+                            {user.name} {user.surname}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">
                             {user.email || '—'}
@@ -1776,7 +1784,7 @@ export function CustomerDetailPage() {
                             </span>
                           </td>
                           <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                            {user.username || '—'}
+                            {user.loginName || '—'}
                           </td>
                           <td className="px-4 py-3">
                             {user.password ? (
@@ -1790,6 +1798,81 @@ export function CustomerDetailPage() {
                     </tbody>
                   </table>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* ── EMS Kullanım Özeti Tab ── */}
+          {activeTab === 'ems-summary' && (
+            <div className="space-y-4">
+              {emsSummaryLoading && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                  </div>
+                  <Skeleton className="h-48 rounded-lg" />
+                </div>
+              )}
+
+              {!emsSummaryLoading && !emsSummaryData && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">Kullanım özeti alınamadı.</p>
+                </div>
+              )}
+
+              {!emsSummaryLoading && emsSummaryData && (
+                <>
+                  {/* Totals */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-lg border border-border p-4 text-center">
+                      <p className="text-2xl font-bold text-foreground">{emsSummaryData.totals.elevatorCount}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Asansör</p>
+                    </div>
+                    <div className="rounded-lg border border-border p-4 text-center">
+                      <p className="text-2xl font-bold text-foreground">{emsSummaryData.totals.customerCount}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Müşteri</p>
+                    </div>
+                    <div className="rounded-lg border border-border p-4 text-center">
+                      <p className="text-2xl font-bold text-foreground">{emsSummaryData.totals.userCount}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Kullanıcı</p>
+                    </div>
+                  </div>
+
+                  {/* Monthly table */}
+                  {emsSummaryData.monthly.length > 0 && (
+                    <div className="rounded-lg border border-border overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/40 border-b border-border">
+                            <th className="text-left px-4 py-3 font-medium text-muted-foreground">Dönem</th>
+                            <th className="text-right px-4 py-3 font-medium text-muted-foreground">Bakım</th>
+                            <th className="text-right px-4 py-3 font-medium text-muted-foreground">Arıza</th>
+                            <th className="text-right px-4 py-3 font-medium text-muted-foreground">Teklif</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...emsSummaryData.monthly].reverse().map((m, idx) => (
+                            <tr
+                              key={`${m.year}-${m.month}`}
+                              className={cn(
+                                'border-b border-border/50 hover:bg-muted/20 transition-colors',
+                                idx === emsSummaryData.monthly.length - 1 && 'border-b-0'
+                              )}
+                            >
+                              <td className="px-4 py-3 font-medium text-foreground">
+                                {m.year}/{String(m.month).padStart(2, '0')}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums text-blue-400">{m.maintenanceCount}</td>
+                              <td className="px-4 py-3 text-right tabular-nums text-red-400">{m.breakdownCount}</td>
+                              <td className="px-4 py-3 text-right tabular-nums text-emerald-400">{m.proposalCount}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

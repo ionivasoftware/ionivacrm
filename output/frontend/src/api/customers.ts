@@ -19,6 +19,7 @@ import type {
   UpdateOpportunityRequest,
   OpportunityStage,
   EmsUser,
+  EmsSummary,
 } from '@/types';
 
 // ── Customer CRUD ─────────────────────────────────────────────────────────────
@@ -408,6 +409,22 @@ export function useCustomerEmsUsers(customerId: string, enabled: boolean) {
       return response.data.data;
     },
     enabled: !!customerId && enabled,
+  });
+}
+
+// ── EMS Company Summary ───────────────────────────────────────────────────────
+
+export function useCustomerEmsSummary(customerId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['customerEmsSummary', customerId],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<EmsSummary>>(
+        `/customers/${customerId}/ems-summary`
+      );
+      return response.data.data;
+    },
+    enabled: !!customerId && enabled,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
