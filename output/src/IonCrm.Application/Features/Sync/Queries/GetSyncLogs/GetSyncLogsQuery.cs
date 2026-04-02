@@ -16,5 +16,7 @@ public record GetSyncLogsQuery(
     Guid? ProjectId = null,
     SyncSource? Source = null,
     SyncDirection? Direction = null,
-    SyncStatus? Status = null
+    SyncStatus? Status = null,
+    DateTime? FromDate = null,
+    DateTime? ToDate = null
 ) : IRequest<Result<PagedResult<SyncLogDto>>>;

@@ -23,6 +23,8 @@ public interface ISyncLogRepository
         SyncSource? source = null,
         SyncDirection? direction = null,
         SyncStatus? status = null,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Returns a single sync log by its Id, or null if not found.</summary>

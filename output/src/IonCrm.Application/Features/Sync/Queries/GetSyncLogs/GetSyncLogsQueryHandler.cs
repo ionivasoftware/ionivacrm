@@ -62,6 +62,8 @@ public sealed class GetSyncLogsQueryHandler
             request.Source,
             request.Direction,
             request.Status,
+            request.FromDate,
+            request.ToDate,
             cancellationToken);
 
         var dtos = items.Select(log => new SyncLogDto(

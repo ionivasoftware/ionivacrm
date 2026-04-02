@@ -168,9 +168,11 @@ public sealed class SyncController : ApiControllerBase
         [FromQuery] SyncSource? source = null,
         [FromQuery] SyncDirection? direction = null,
         [FromQuery] SyncStatus? status = null,
+        [FromQuery] DateTime? fromDate = null,
+        [FromQuery] DateTime? toDate = null,
         CancellationToken cancellationToken = default)
     {
-        var query = new GetSyncLogsQuery(page, pageSize, projectId, source, direction, status);
+        var query = new GetSyncLogsQuery(page, pageSize, projectId, source, direction, status, fromDate, toDate);
         var result = await Mediator.Send(query, cancellationToken);
         return ResultToResponse(result);
     }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshCw, Play, CheckCircle2, XCircle, Clock, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, Play, CheckCircle2, XCircle, Clock, AlertTriangle, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,25 @@ import { useToast } from '@/hooks/use-toast';
 import { useSyncLogs, useTriggerSync } from '@/api/sync';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+type DatePreset = '3d' | '7d' | '30d' | '90d' | 'all';
+
+const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: '3d',  label: 'Son 3 gün'  },
+  { value: '7d',  label: 'Son 7 gün'  },
+  { value: '30d', label: 'Son 30 gün' },
+  { value: '90d', label: 'Son 90 gün' },
+  { value: 'all', label: 'Tümü'       },
+];
+
+function presetToFromDate(preset: DatePreset): string | undefined {
+  if (preset === 'all') return undefined;
+  const days = parseInt(preset, 10);
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
 
 const STATUS_CONFIG: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
   Success:  { label: 'Başarılı',  className: 'bg-green-500/15 text-green-400 border-green-500/30',   icon: <CheckCircle2 className="h-3 w-3" /> },
@@ -51,12 +70,17 @@ function StatusBadge({ status }: { status: string }) {
 
 export function SyncLogsPage() {
   const { toast } = useToast();
-  const [page, setPage]     = useState(1);
-  const [source, setSource] = useState('');
-  const [status, setStatus] = useState('');
+  const [page, setPage]         = useState(1);
+  const [source, setSource]     = useState('');
+  const [status, setStatus]     = useState('');
+  const [datePreset, setDatePreset] = useState<DatePreset>('3d');
 
   const { data, isLoading, isFetching, refetch } = useSyncLogs({
-    page, pageSize: 25, source: source || undefined, status: status || undefined,
+    page,
+    pageSize: 25,
+    source:   source || undefined,
+    status:   status || undefined,
+    fromDate: presetToFromDate(datePreset),
   });
   const trigger = useTriggerSync();
 
@@ -120,7 +144,22 @@ export function SyncLogsPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Filtrele</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
+        <CardContent className="flex flex-wrap gap-3 items-center">
+          {/* Date */}
+          <div className="flex items-center gap-1.5">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Select value={datePreset} onValueChange={v => { setDatePreset(v as DatePreset); setPage(1); }}>
+              <SelectTrigger className="w-36 h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DATE_PRESETS.map(p => (
+                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <Select value={source || 'all'} onValueChange={v => { setSource(v === 'all' ? '' : v); setPage(1); }}>
             <SelectTrigger className="w-40 h-8 text-sm">
               <SelectValue placeholder="Kaynak" />

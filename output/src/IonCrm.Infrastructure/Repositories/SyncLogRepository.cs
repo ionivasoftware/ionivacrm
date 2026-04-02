@@ -49,6 +49,8 @@ public sealed class SyncLogRepository : ISyncLogRepository
         SyncSource? source = null,
         SyncDirection? direction = null,
         SyncStatus? status = null,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
         CancellationToken cancellationToken = default)
     {
         // Use IgnoreQueryFilters to support background job contexts,
@@ -70,6 +72,12 @@ public sealed class SyncLogRepository : ISyncLogRepository
 
         if (status.HasValue)
             query = query.Where(s => s.Status == status.Value);
+
+        if (fromDate.HasValue)
+            query = query.Where(s => s.CreatedAt >= fromDate.Value);
+
+        if (toDate.HasValue)
+            query = query.Where(s => s.CreatedAt <= toDate.Value);
 
         var total = await query.CountAsync(cancellationToken);
 

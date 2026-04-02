@@ -32,6 +32,8 @@ export interface SyncLogsParams {
   pageSize?: number;
   source?: string;
   status?: string;
+  fromDate?: string;
+  toDate?: string;
 }
 
 export function useSyncLogs(params: SyncLogsParams) {
@@ -41,12 +43,14 @@ export function useSyncLogs(params: SyncLogsParams) {
       const p = new URLSearchParams();
       p.set('page', String(params.page ?? 1));
       p.set('pageSize', String(params.pageSize ?? 20));
-      if (params.source) p.set('source', params.source);
-      if (params.status) p.set('status', params.status);
+      if (params.source)   p.set('source', params.source);
+      if (params.status)   p.set('status', params.status);
+      if (params.fromDate) p.set('fromDate', params.fromDate);
+      if (params.toDate)   p.set('toDate', params.toDate);
       const res = await apiClient.get<ApiResponse<SyncLogsResult>>(`/sync/logs?${p}`);
       return res.data.data;
     },
-    refetchInterval: 30_000, // auto-refresh every 30 seconds
+    refetchInterval: 30_000,
   });
 }
 
