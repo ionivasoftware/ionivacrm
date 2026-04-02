@@ -44,7 +44,8 @@ public interface ISaasAClient
         int emsCompanyId,
         string durationType,
         int amount,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null);
 
     /// <summary>
     /// Adds SMS credits to a company via the EMS CRM API.
@@ -54,7 +55,8 @@ public interface ISaasAClient
         string? apiKey,
         int emsCompanyId,
         int count,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null);
 
     /// <summary>
     /// Fetches the user list for a company via the EMS CRM API.
@@ -63,7 +65,8 @@ public interface ISaasAClient
     Task<List<EmsCompanyUser>> GetCompanyUsersAsync(
         string? apiKey,
         int companyId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null);
 
     /// <summary>
     /// Fetches the usage summary for a company via the EMS CRM API.
@@ -73,5 +76,6 @@ public interface ISaasAClient
     Task<EmsCompanySummaryResponse> GetCompanySummaryAsync(
         string? apiKey,
         int companyId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null);
 }

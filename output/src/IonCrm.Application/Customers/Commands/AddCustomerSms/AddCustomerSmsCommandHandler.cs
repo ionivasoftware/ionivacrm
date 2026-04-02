@@ -73,15 +73,24 @@ public sealed class AddCustomerSmsCommandHandler
                 "Bu müşteri EMS'ten gelmemiş. SMS yükleme yalnızca EMS kaynaklı müşteriler için geçerlidir.");
         }
 
-        // 3. Get project EMS API key
-        var project   = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
-        var emsApiKey = project?.EmsApiKey;
+        // 3. Get project EMS credentials (null → SaasAClient falls back to DI-configured defaults)
+        var project    = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
+        var emsApiKey  = project?.EmsApiKey;
+        var emsBaseUrl = project?.EmsBaseUrl;
 
         // 4. Call EMS API
         EmsAddSmsResponse emsResponse;
         try
         {
-            emsResponse = await _saasAClient.AddSmsAsync(emsApiKey, emsCompanyId, request.Count, cancellationToken);
+            emsResponse = await _saasAClient.AddSmsAsync(
+                emsApiKey, emsCompanyId, request.Count, cancellationToken, emsBaseUrl);
+        }
+        catch (Exception ex) when (ex.GetType().Name.Contains("BrokenCircuit") ||
+                                    ex.Message.Contains("circuit is now open", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("EMS circuit breaker open for customer {CustomerId}.", customer.Id);
+            return Result<AddCustomerSmsDto>.Failure(
+                "EMS API şu anda geçici olarak erişilemiyor. Lütfen kısa süre sonra tekrar deneyin.");
         }
         catch (Exception ex)
         {

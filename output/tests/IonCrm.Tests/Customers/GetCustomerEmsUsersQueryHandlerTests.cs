@@ -74,7 +74,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         };
 
         _saasAClientMock
-            .Setup(c => c.GetCompanyUsersAsync("test-key", 42, It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetCompanyUsersAsync("test-key", 42, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(emsUsers);
 
         // Act
@@ -122,7 +122,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         };
 
         _saasAClientMock
-            .Setup(c => c.GetCompanyUsersAsync("ems-api-key", 7, It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetCompanyUsersAsync("ems-api-key", 7, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(emsUsers);
 
         // Act
@@ -161,7 +161,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         SetupAuthorizedUser(projectId);
 
         _saasAClientMock
-            .Setup(c => c.GetCompanyUsersAsync(null, 99, It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetCompanyUsersAsync(null, 99, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(new List<EmsCompanyUser>());
 
         // Act
@@ -222,7 +222,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("yetki");
         _saasAClientMock.Verify(
-            c => c.GetCompanyUsersAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            c => c.GetCompanyUsersAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()),
             Times.Never,
             "EMS API should not be called when tenant authorization fails");
     }
@@ -252,7 +252,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         SetupSuperAdmin();
 
         _saasAClientMock
-            .Setup(c => c.GetCompanyUsersAsync(It.IsAny<string?>(), 3, It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetCompanyUsersAsync(It.IsAny<string?>(), 3, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(new List<EmsCompanyUser>
             {
                 new("1", "Super", "User", "su@crm.com", "Admin", "super", "pw")
@@ -292,7 +292,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("EMS");
         _saasAClientMock.Verify(
-            c => c.GetCompanyUsersAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            c => c.GetCompanyUsersAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()),
             Times.Never);
     }
 
@@ -321,7 +321,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("EMS");
         _saasAClientMock.Verify(
-            c => c.GetCompanyUsersAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            c => c.GetCompanyUsersAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()),
             Times.Never);
     }
 
@@ -350,7 +350,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("EMS");
         _saasAClientMock.Verify(
-            c => c.GetCompanyUsersAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            c => c.GetCompanyUsersAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()),
             Times.Never);
     }
 
@@ -378,7 +378,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         SetupAuthorizedUser(projectId);
 
         _saasAClientMock
-            .Setup(c => c.GetCompanyUsersAsync(It.IsAny<string?>(), 11, It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetCompanyUsersAsync(It.IsAny<string?>(), 11, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ThrowsAsync(new HttpRequestException("EMS API unavailable"));
 
         // Act
@@ -421,7 +421,7 @@ public class GetCustomerEmsUsersQueryHandlerTests
         };
 
         _saasAClientMock
-            .Setup(c => c.GetCompanyUsersAsync(null, 20, It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetCompanyUsersAsync(null, 20, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(emsUsers);
 
         // Act

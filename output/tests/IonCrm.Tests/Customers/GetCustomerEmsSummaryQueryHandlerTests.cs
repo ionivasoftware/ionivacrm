@@ -148,7 +148,7 @@ public class GetCustomerEmsSummaryQueryHandlerTests
             .Setup(r => r.GetByIdAsync(_projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Project { Id = _projectId, Name = "P", EmsApiKey = "key" });
         _saasAClientMock
-            .Setup(c => c.GetCompanySummaryAsync(It.IsAny<string?>(), 42, It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetCompanySummaryAsync(It.IsAny<string?>(), 42, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(CreateEmsResponse(42));
 
         // Act
@@ -157,7 +157,7 @@ public class GetCustomerEmsSummaryQueryHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _saasAClientMock.Verify(
-            c => c.GetCompanySummaryAsync(It.IsAny<string?>(), 42, It.IsAny<CancellationToken>()),
+            c => c.GetCompanySummaryAsync(It.IsAny<string?>(), 42, It.IsAny<CancellationToken>(), It.IsAny<string?>()),
             Times.Once);
     }
 
@@ -190,7 +190,7 @@ public class GetCustomerEmsSummaryQueryHandlerTests
             .Setup(r => r.GetByIdAsync(_projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Project { Id = _projectId, Name = "P" });
         _saasAClientMock
-            .Setup(c => c.GetCompanySummaryAsync(It.IsAny<string?>(), 99, It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetCompanySummaryAsync(It.IsAny<string?>(), 99, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ThrowsAsync(new HttpRequestException("EMS unreachable"));
 
         // Act
@@ -224,7 +224,7 @@ public class GetCustomerEmsSummaryQueryHandlerTests
             });
 
         _saasAClientMock
-            .Setup(c => c.GetCompanySummaryAsync("test-key", 42, It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetCompanySummaryAsync("test-key", 42, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(emsResponse);
 
         // Act
@@ -257,7 +257,7 @@ public class GetCustomerEmsSummaryQueryHandlerTests
             .Setup(r => r.GetByIdAsync(_projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Project { Id = _projectId, Name = "P", EmsApiKey = null });
         _saasAClientMock
-            .Setup(c => c.GetCompanySummaryAsync(null, 7, It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetCompanySummaryAsync(null, 7, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(CreateEmsResponse(7));
 
         // Act
@@ -266,7 +266,7 @@ public class GetCustomerEmsSummaryQueryHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _saasAClientMock.Verify(
-            c => c.GetCompanySummaryAsync(null, 7, It.IsAny<CancellationToken>()),
+            c => c.GetCompanySummaryAsync(null, 7, It.IsAny<CancellationToken>(), It.IsAny<string?>()),
             Times.Once);
     }
 }

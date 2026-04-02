@@ -67,15 +67,24 @@ public sealed class GetCustomerEmsUsersQueryHandler
                 "Bu müşteri EMS kaynakli değil. EMS kullanıcıları yalnızca EMS kaynaklı müşteriler için sorgulanabilir.");
         }
 
-        // 4. Resolve project EMS API key (null → SaasAClient falls back to DI-configured default)
+        // 4. Resolve project EMS credentials (null → SaasAClient falls back to DI-configured defaults)
         var project    = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
         var emsApiKey  = project?.EmsApiKey;
+        var emsBaseUrl = project?.EmsBaseUrl;
 
         // 5. Call EMS API
         List<Common.Models.ExternalApis.EmsCompanyUser> emsUsers;
         try
         {
-            emsUsers = await _saasAClient.GetCompanyUsersAsync(emsApiKey, emsCompanyId, cancellationToken);
+            emsUsers = await _saasAClient.GetCompanyUsersAsync(
+                emsApiKey, emsCompanyId, cancellationToken, emsBaseUrl);
+        }
+        catch (Exception ex) when (ex.GetType().Name.Contains("BrokenCircuit") ||
+                                    ex.Message.Contains("circuit is now open", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("EMS circuit breaker open for customer {CustomerId}.", customer.Id);
+            return Result<List<EmsCompanyUserDto>>.Failure(
+                "EMS API şu anda geçici olarak erişilemiyor. Lütfen kısa süre sonra tekrar deneyin.");
         }
         catch (Exception ex)
         {

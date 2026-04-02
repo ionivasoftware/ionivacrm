@@ -76,16 +76,24 @@ public sealed class ExtendEmsExpirationCommandHandler
                 "Bu müşteri EMS'ten gelmemiş. Süre uzatma yalnızca EMS kaynaklı müşteriler için geçerlidir.");
         }
 
-        // 3. Get project + EMS API key (null → SaasAClient falls back to DI-configured key)
-        var project = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
-        var emsApiKey = project?.EmsApiKey;
+        // 3. Get project + EMS credentials (null → SaasAClient falls back to DI-configured defaults)
+        var project    = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
+        var emsApiKey  = project?.EmsApiKey;
+        var emsBaseUrl = project?.EmsBaseUrl;
 
         // 4. Call EMS API to extend expiration
         EmsExtendExpirationResponse emsResponse;
         try
         {
             emsResponse = await _saasAClient.ExtendExpirationAsync(
-                emsApiKey, emsCompanyId, request.DurationType, request.Amount, cancellationToken);
+                emsApiKey, emsCompanyId, request.DurationType, request.Amount, cancellationToken, emsBaseUrl);
+        }
+        catch (Exception ex) when (ex.GetType().Name.Contains("BrokenCircuit") ||
+                                    ex.Message.Contains("circuit is now open", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("EMS circuit breaker open for customer {CustomerId}.", customer.Id);
+            return Result<ExtendEmsExpirationDto>.Failure(
+                "EMS API şu anda geçici olarak erişilemiyor. Lütfen kısa süre sonra tekrar deneyin.");
         }
         catch (Exception ex)
         {

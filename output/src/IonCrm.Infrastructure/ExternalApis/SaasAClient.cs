@@ -151,21 +151,34 @@ public sealed class SaasAClient : ISaasAClient
         }, cancellationToken);
     }
 
+    /// <summary>
+    /// Builds a request URI. When <paramref name="baseUrl"/> is provided the relative path is resolved
+    /// against it, allowing per-project EMS base URL overrides. Falls back to the DI-configured base
+    /// address (<see cref="_httpClient"/>) when <paramref name="baseUrl"/> is null/empty.
+    /// </summary>
+    private static Uri BuildRequestUri(string relativePath, string? baseUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(baseUrl))
+            return new Uri(new Uri(baseUrl.TrimEnd('/') + "/"), relativePath);
+        return new Uri(relativePath, UriKind.Relative);
+    }
+
     /// <inheritdoc />
     public async Task<EmsExtendExpirationResponse> ExtendExpirationAsync(
         string? apiKey,
         int emsCompanyId,
         string durationType,
         int amount,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null)
     {
         _logger.LogDebug("SaaS A: extending expiration for company {CompanyId}. {DurationType}={Amount}",
             emsCompanyId, durationType, amount);
 
         return await _retryPipeline.ExecuteAsync<EmsExtendExpirationResponse>(async ct =>
         {
-            var url = $"api/v1/crm/companies/{emsCompanyId}/extend-expiration";
-            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            var uri = BuildRequestUri($"api/v1/crm/companies/{emsCompanyId}/extend-expiration", baseUrl);
+            var request = new HttpRequestMessage(HttpMethod.Post, uri);
             ApplyAuth(request, apiKey);
             request.Content = JsonContent.Create(
                 new { durationType, amount },
@@ -182,14 +195,15 @@ public sealed class SaasAClient : ISaasAClient
         string? apiKey,
         int emsCompanyId,
         int count,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null)
     {
         _logger.LogDebug("SaaS A: adding {Count} SMS credits for company {CompanyId}.", count, emsCompanyId);
 
         return await _retryPipeline.ExecuteAsync<EmsAddSmsResponse>(async ct =>
         {
-            var url = $"api/v1/crm/companies/{emsCompanyId}/add-sms";
-            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            var uri = BuildRequestUri($"api/v1/crm/companies/{emsCompanyId}/add-sms", baseUrl);
+            var request = new HttpRequestMessage(HttpMethod.Post, uri);
             ApplyAuth(request, apiKey);
             request.Content = JsonContent.Create(new { count }, options: JsonOpts);
             var response = await _httpClient.SendAsync(request, ct);
@@ -203,13 +217,15 @@ public sealed class SaasAClient : ISaasAClient
     public async Task<List<EmsCompanyUser>> GetCompanyUsersAsync(
         string? apiKey,
         int companyId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null)
     {
         _logger.LogDebug("SaaS A: fetching users for company {CompanyId}.", companyId);
 
         return await _retryPipeline.ExecuteAsync<List<EmsCompanyUser>>(async ct =>
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, $"api/v1/crm/companies/{companyId}/users");
+            var uri = BuildRequestUri($"api/v1/crm/companies/{companyId}/users", baseUrl);
+            var request = new HttpRequestMessage(HttpMethod.Get, uri);
             ApplyAuth(request, apiKey);
             var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
@@ -222,13 +238,15 @@ public sealed class SaasAClient : ISaasAClient
     public async Task<EmsCompanySummaryResponse> GetCompanySummaryAsync(
         string? apiKey,
         int companyId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null)
     {
         _logger.LogDebug("SaaS A: fetching summary for company {CompanyId}.", companyId);
 
         return await _retryPipeline.ExecuteAsync<EmsCompanySummaryResponse>(async ct =>
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, $"api/v1/crm/companies/{companyId}/summary");
+            var uri = BuildRequestUri($"api/v1/crm/companies/{companyId}/summary", baseUrl);
+            var request = new HttpRequestMessage(HttpMethod.Get, uri);
             ApplyAuth(request, apiKey);
             var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();

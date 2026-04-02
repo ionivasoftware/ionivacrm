@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Pencil, FolderOpen, Loader2, Key, Eye, EyeOff, Copy, Check, MessageSquare } from 'lucide-react';
+import { Plus, Pencil, FolderOpen, Loader2, Key, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  useAdminProjects, useCreateProject, useUpdateProject, useSetProjectApiKeys, useAddProjectSms,
+  useAdminProjects, useCreateProject, useUpdateProject, useSetProjectApiKeys,
   type AdminProject,
 } from '@/api/admin';
 import { useToast } from '@/hooks/use-toast';
@@ -163,14 +163,17 @@ function ApiKeysDialog({ project, onClose }: { project: AdminProject; onClose: (
   const [rezervAlBaseUrl, setRezervAlBaseUrl] = useState(project.rezervAlBaseUrl ?? '');
   const [rezervAlApiKey, setRezervAlApiKey]   = useState(project.rezervAlApiKey ?? '');
 
+  const isEms      = project.name.toLowerCase() === 'ems';
+  const isRezervAl = project.name.toLowerCase() === 'rezerval';
+
   const handleSave = async () => {
     try {
       await mutation.mutateAsync({
         id: project.id,
-        emsBaseUrl:      emsBaseUrl.trim() || null,
-        emsApiKey:       emsApiKey.trim() || null,
-        rezervAlBaseUrl: rezervAlBaseUrl.trim() || null,
-        rezervAlApiKey:  rezervAlApiKey.trim() || null,
+        emsBaseUrl:      isEms      ? emsBaseUrl.trim() || null      : project.emsBaseUrl,
+        emsApiKey:       isEms      ? emsApiKey.trim() || null        : project.emsApiKey,
+        rezervAlBaseUrl: isRezervAl ? rezervAlBaseUrl.trim() || null  : project.rezervAlBaseUrl,
+        rezervAlApiKey:  isRezervAl ? rezervAlApiKey.trim() || null   : project.rezervAlApiKey,
       });
       toast({ title: 'API ayarları kaydedildi' });
       onClose();
@@ -190,127 +193,50 @@ function ApiKeysDialog({ project, onClose }: { project: AdminProject; onClose: (
         </DialogHeader>
         <div className="space-y-5 py-2">
 
-          {/* EMS */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-foreground uppercase tracking-wide">EMS (SaaS A)</p>
-            <div className="space-y-1.5">
-              <Label>EMS Base URL</Label>
-              <Input
-                value={emsBaseUrl}
-                onChange={(e) => setEmsBaseUrl(e.target.value)}
-                placeholder="https://api.ems.example.com"
-                className="h-10 font-mono text-xs"
-              />
-            </div>
-            <ApiKeyField label="EMS API Key" value={emsApiKey} onChange={setEmsApiKey} />
-          </div>
-
-          <div className="border-t border-border" />
-
-          {/* RezervAl */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-foreground uppercase tracking-wide">RezervAl (SaaS B)</p>
-            <div className="space-y-1.5">
-              <Label>RezervAl Base URL</Label>
-              <Input
-                value={rezervAlBaseUrl}
-                onChange={(e) => setRezervAlBaseUrl(e.target.value)}
-                placeholder="https://api.rezerval.example.com"
-                className="h-10 font-mono text-xs"
-              />
-            </div>
-            <ApiKeyField label="RezervAl API Key" value={rezervAlApiKey} onChange={setRezervAlApiKey} />
-          </div>
-
-        </div>
-        <DialogFooter className="gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>İptal</Button>
-          <Button onClick={handleSave} disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Kaydet
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ── Add SMS Credits Dialog ─────────────────────────────────────────────────────
-
-function AddSmsDialog({ project, onClose }: { project: AdminProject; onClose: () => void }) {
-  const { toast } = useToast();
-  const mutation = useAddProjectSms();
-  const [count, setCount] = useState('');
-
-  const countNum = parseInt(count, 10);
-  const isValid = !isNaN(countNum) && countNum > 0;
-
-  async function handleConfirm() {
-    if (!isValid) return;
-    try {
-      const result = await mutation.mutateAsync({ id: project.id, count: countNum });
-      toast({
-        title: 'SMS kredisi yüklendi',
-        description: `${result.added} SMS eklendi. Güncel bakiye: ${result.smsCount} SMS`,
-      });
-      onClose();
-    } catch {
-      toast({ title: 'Hata', description: 'SMS yüklenemedi.', variant: 'destructive' });
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-blue-400" />
-            SMS Yükle — {project.name}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40">
-            <span className="text-sm text-muted-foreground">Mevcut bakiye</span>
-            <span className="text-sm font-semibold tabular-nums">
-              {project.smsCount.toLocaleString('tr-TR')} SMS
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="sms-count">Yüklenecek SMS adedi</Label>
-            <Input
-              id="sms-count"
-              type="number"
-              min={1}
-              value={count}
-              onChange={(e) => setCount(e.target.value)}
-              placeholder="Örn: 500"
-              className="h-10"
-            />
-            {count && !isValid && (
-              <p className="text-xs text-destructive">Geçerli bir sayı girin (min 1)</p>
-            )}
-          </div>
-          {isValid && (
-            <div className="flex items-center justify-between p-3 rounded-lg border border-blue-500/30 bg-blue-500/5">
-              <span className="text-sm text-muted-foreground">Yükleme sonrası bakiye</span>
-              <span className="text-sm font-semibold text-blue-400 tabular-nums">
-                {(project.smsCount + countNum).toLocaleString('tr-TR')} SMS
-              </span>
+          {isEms && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wide">EMS (SaaS A)</p>
+              <div className="space-y-1.5">
+                <Label>EMS Base URL</Label>
+                <Input
+                  value={emsBaseUrl}
+                  onChange={(e) => setEmsBaseUrl(e.target.value)}
+                  placeholder="https://api.ems.example.com"
+                  className="h-10 font-mono text-xs"
+                />
+              </div>
+              <ApiKeyField label="EMS API Key" value={emsApiKey} onChange={setEmsApiKey} />
             </div>
           )}
+
+          {isRezervAl && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wide">RezervAl (SaaS B)</p>
+              <div className="space-y-1.5">
+                <Label>RezervAl Base URL</Label>
+                <Input
+                  value={rezervAlBaseUrl}
+                  onChange={(e) => setRezervAlBaseUrl(e.target.value)}
+                  placeholder="https://api.rezerval.example.com"
+                  className="h-10 font-mono text-xs"
+                />
+              </div>
+              <ApiKeyField label="RezervAl API Key" value={rezervAlApiKey} onChange={setRezervAlApiKey} />
+            </div>
+          )}
+
+          {!isEms && !isRezervAl && (
+            <p className="text-sm text-muted-foreground">
+              Bu proje için entegrasyon yapılandırması tanımlı değil.
+            </p>
+          )}
+
         </div>
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" onClick={onClose}>İptal</Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={!isValid || mutation.isPending}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {mutation.isPending ? (
-              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Yükleniyor...</>
-            ) : (
-              <><MessageSquare className="h-4 w-4 mr-1.5" />Yükle</>
-            )}
+          <Button onClick={handleSave} disabled={mutation.isPending || (!isEms && !isRezervAl)}>
+            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Kaydet
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -325,7 +251,7 @@ export function ProjectsAdminPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<AdminProject | null>(null);
   const [apiKeysTarget, setApiKeysTarget] = useState<AdminProject | null>(null);
-  const [smsTarget, setSmsTarget] = useState<AdminProject | null>(null);
+
 
   return (
     <div className="space-y-6">
@@ -387,21 +313,9 @@ export function ProjectsAdminPage() {
                       <span className={`text-xs flex items-center gap-1 ${project.rezervAlApiKey ? 'text-green-500' : 'text-muted-foreground/50'}`}>
                         <Key className="h-3 w-3" /> Rezerval
                       </span>
-                      <span className={`text-xs flex items-center gap-1 ${project.smsCount > 0 ? 'text-blue-400' : 'text-muted-foreground/50'}`}>
-                        <MessageSquare className="h-3 w-3" />
-                        {project.smsCount.toLocaleString('tr-TR')} SMS
-                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 border-blue-500/40 text-blue-400 hover:bg-blue-500/10"
-                      onClick={() => setSmsTarget(project)}
-                    >
-                      <MessageSquare className="h-3.5 w-3.5" /> SMS Yükle
-                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -429,7 +343,6 @@ export function ProjectsAdminPage() {
       {showCreate && <ProjectDialog onClose={() => setShowCreate(false)} />}
       {editTarget && <ProjectDialog project={editTarget} onClose={() => setEditTarget(null)} />}
       {apiKeysTarget && <ApiKeysDialog project={apiKeysTarget} onClose={() => setApiKeysTarget(null)} />}
-      {smsTarget && <AddSmsDialog project={smsTarget} onClose={() => setSmsTarget(null)} />}
     </div>
   );
 }
