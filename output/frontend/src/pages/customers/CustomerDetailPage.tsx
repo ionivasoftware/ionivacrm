@@ -701,14 +701,14 @@ function ExtendExpirationDialog({
       });
       toast({
         title: 'Süre uzatıldı',
-        description: result.parasutInvoiceCreated
-          ? `Yeni bitiş tarihi: ${newDate}. Paraşüt'te taslak fatura oluşturuldu.`
+        description: result.invoiceCreated
+          ? `Yeni bitiş tarihi: ${newDate}. CRM'de taslak fatura oluşturuldu.`
           : `Yeni bitiş tarihi: ${newDate}.`,
       });
-      if (result.parasutInvoiceError) {
+      if (result.invoiceError) {
         toast({
-          title: 'Paraşüt faturası oluşturulamadı',
-          description: result.parasutInvoiceError,
+          title: 'Taslak fatura oluşturulamadı',
+          description: result.invoiceError,
           variant: 'destructive',
         });
       }
@@ -794,7 +794,7 @@ function ExtendExpirationDialog({
                   )}
                 >
                   {opt.label}
-                  <span className="block text-[10px] mt-1 opacity-60">Paraşüt fatura</span>
+                  <span className="block text-[10px] mt-1 opacity-60">taslak fatura</span>
                 </button>
               );
             })}
@@ -845,7 +845,7 @@ function AddSmsDialog({ open, onOpenChange, companyName, addSms }: AddSmsDialogP
     if (!selected) return;
     try {
       const result = await addSms.mutateAsync({ count: selected });
-      const invoiceMsg = result.parasutInvoiceCreated ? " Paraşüt'te taslak fatura oluşturuldu." : '';
+      const invoiceMsg = result.invoiceCreated ? " CRM'de taslak fatura oluşturuldu." : '';
       toast({
         title: 'SMS yüklendi',
         description: `${selected.toLocaleString('tr-TR')} SMS eklendi. Toplam: ${result.smsCount.toLocaleString('tr-TR')}.${invoiceMsg}`,

@@ -376,8 +376,8 @@ export interface AddCustomerSmsResult {
   companyId: number;
   smsCount: number;
   added: number;
-  parasutInvoiceCreated: boolean;
-  parasutInvoiceId: string | null;
+  invoiceCreated: boolean;
+  invoiceId: string | null;
 }
 
 export function useAddCustomerSms(customerId: string) {
@@ -454,9 +454,9 @@ export function usePushToRezerval(customerId: string) {
 
 export interface ExtendExpirationResult {
   newExpirationDate: string;
-  parasutInvoiceCreated: boolean;
-  parasutInvoiceId: string | null;
-  parasutInvoiceError: string | null;
+  invoiceCreated: boolean;
+  invoiceId: string | null;
+  invoiceError: string | null;
 }
 
 export function useExtendEmsExpiration(customerId: string) {
@@ -473,6 +473,7 @@ export function useExtendEmsExpiration(customerId: string) {
       queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
     },
   });
 }

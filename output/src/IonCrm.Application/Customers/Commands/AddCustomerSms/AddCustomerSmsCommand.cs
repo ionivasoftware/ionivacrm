@@ -3,7 +3,7 @@ using MediatR;
 
 namespace IonCrm.Application.Customers.Commands.AddCustomerSms;
 
-/// <summary>Adds SMS credits to an EMS customer and creates a Paraşüt draft invoice.</summary>
+/// <summary>Adds SMS credits to an EMS customer and creates a local CRM draft invoice.</summary>
 public record AddCustomerSmsCommand(
     Guid CustomerId,
     int Count)
@@ -14,5 +14,5 @@ public record AddCustomerSmsDto(
     int CompanyId,
     int SmsCount,
     int Added,
-    bool ParasutInvoiceCreated,
-    string? ParasutInvoiceId);
+    bool InvoiceCreated,
+    Guid? InvoiceId);

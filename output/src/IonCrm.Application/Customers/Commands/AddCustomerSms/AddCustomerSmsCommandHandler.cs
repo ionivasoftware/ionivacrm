@@ -1,10 +1,12 @@
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models;
 using IonCrm.Application.Common.Models.ExternalApis;
-using IonCrm.Application.Features.Parasut;
+using IonCrm.Domain.Entities;
+using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace IonCrm.Application.Customers.Commands.AddCustomerSms;
 
@@ -15,8 +17,7 @@ public sealed class AddCustomerSmsCommandHandler
     private readonly ICustomerRepository _customerRepository;
     private readonly IProjectRepository _projectRepository;
     private readonly ISaasAClient _saasAClient;
-    private readonly IParasutClient _parasutClient;
-    private readonly IParasutConnectionRepository _connectionRepository;
+    private readonly IInvoiceRepository _invoiceRepository;
     private readonly IParasutProductRepository _productRepository;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<AddCustomerSmsCommandHandler> _logger;
@@ -25,20 +26,18 @@ public sealed class AddCustomerSmsCommandHandler
         ICustomerRepository customerRepository,
         IProjectRepository projectRepository,
         ISaasAClient saasAClient,
-        IParasutClient parasutClient,
-        IParasutConnectionRepository connectionRepository,
+        IInvoiceRepository invoiceRepository,
         IParasutProductRepository productRepository,
         ICurrentUserService currentUser,
         ILogger<AddCustomerSmsCommandHandler> logger)
     {
-        _customerRepository   = customerRepository;
-        _projectRepository    = projectRepository;
-        _saasAClient          = saasAClient;
-        _parasutClient        = parasutClient;
-        _connectionRepository = connectionRepository;
-        _productRepository    = productRepository;
-        _currentUser          = currentUser;
-        _logger               = logger;
+        _customerRepository = customerRepository;
+        _projectRepository  = projectRepository;
+        _saasAClient        = saasAClient;
+        _invoiceRepository  = invoiceRepository;
+        _productRepository  = productRepository;
+        _currentUser        = currentUser;
+        _logger             = logger;
     }
 
     public async Task<Result<AddCustomerSmsDto>> Handle(
@@ -96,130 +95,80 @@ public sealed class AddCustomerSmsCommandHandler
             "Added {Count} SMS credits for customer {CustomerId} (EMS ID {EmsId}). New total: {Total}.",
             request.Count, customer.Id, emsCompanyId, emsResponse.SmsCount);
 
-        // 5. Try to create Paraşüt draft invoice (best-effort)
-        var parasutInvoiceId = await TryCreateParasutDraftInvoiceAsync(
+        // 5. Create local CRM draft invoice (best-effort)
+        var invoiceId = await TryCreateLocalDraftInvoiceAsync(
             customer.ProjectId,
-            customer.ParasutContactId,
+            customer.Id,
             customer.CompanyName,
             request.Count,
             cancellationToken);
 
         return Result<AddCustomerSmsDto>.Success(new AddCustomerSmsDto(
-            CompanyId:            emsResponse.CompanyId,
-            SmsCount:             emsResponse.SmsCount,
-            Added:                emsResponse.Added,
-            ParasutInvoiceCreated: parasutInvoiceId is not null,
-            ParasutInvoiceId:     parasutInvoiceId));
+            CompanyId:     emsResponse.CompanyId,
+            SmsCount:      emsResponse.SmsCount,
+            Added:         emsResponse.Added,
+            InvoiceCreated: invoiceId.HasValue,
+            InvoiceId:     invoiceId));
     }
 
-    private async Task<string?> TryCreateParasutDraftInvoiceAsync(
+    private async Task<Guid?> TryCreateLocalDraftInvoiceAsync(
         Guid projectId,
-        string? parasutContactId,
+        Guid customerId,
         string companyName,
         int count,
         CancellationToken ct)
     {
         try
         {
-            var connection = await _connectionRepository.GetByProjectIdAsync(projectId, ct);
-            if (connection is null || !connection.IsConnected)
-                return null;
+            var productName   = $"{count} SMS";
+            var configProduct = await _productRepository.GetByNameAsync(projectId, productName, ct);
 
-            var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
-                connection, _parasutClient, _connectionRepository, _logger, ct);
-            if (conn is null)
+            decimal unitPrice  = configProduct?.UnitPrice ?? 0m;
+            int     vatRate    = configProduct is not null ? (int)(configProduct.TaxRate * 100) : 20;
+            decimal netTotal   = unitPrice;
+            decimal grossTotal = unitPrice * (1 + vatRate / 100m);
+
+            var lines = new[]
             {
-                _logger.LogWarning(
-                    "Paraşüt token unavailable for project {ProjectId}: {Error}", projectId, tokenError);
-                return null;
-            }
-
-            // Look up configured product for this SMS package (e.g. "1000 SMS", "2500 SMS", ...)
-            var productName    = $"{count} SMS";
-            var configProduct  = await _productRepository.GetByNameAsync(projectId, productName, ct);
-
-            var unitPrice = configProduct?.UnitPrice ?? 0m;
-            var vatRate   = configProduct is not null ? (int)(configProduct.TaxRate * 100) : 20;
-
-            var today   = DateTime.UtcNow.ToString("yyyy-MM-dd");
-            var dueDate = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd");
-
-            var lineItem = new SalesInvoiceDetailData
-            {
-                Attributes = new ParasutSalesInvoiceDetailAttributes(
-                    Quantity:       count,
-                    UnitPrice:      unitPrice,
-                    VatRate:        vatRate,
-                    DiscountType:   "percentage",
-                    DiscountValue:  0,
-                    Description:    $"SMS Kredisi — {companyName}",
-                    Unit:           "Adet")
-            };
-
-            // If a configured product exists, link it so Paraşüt applies the correct GL account
-            if (configProduct is not null && !string.IsNullOrEmpty(configProduct.ParasutProductId))
-            {
-                lineItem.Relationships = new SalesInvoiceDetailRelationships
+                new
                 {
-                    Product = new ProductRelationship
-                    {
-                        Data = new ProductRelationshipData { Id = configProduct.ParasutProductId }
-                    }
-                };
-            }
-
-            var invoiceReq = new CreateSalesInvoiceRequest
-            {
-                Data = new CreateSalesInvoiceData
-                {
-                    Attributes = new ParasutSalesInvoiceAttributes(
-                        ItemType:              "invoice",
-                        Description:           $"{count:N0} SMS Kredisi — {companyName}",
-                        IssueDate:             today,
-                        DueDate:               dueDate,
-                        InvoiceSeries:         null,
-                        InvoiceId:             null,
-                        Currency:              "TRL",
-                        ExchangeRate:          null,
-                        WithholdingRate:       null,
-                        VatWithholdingRate:    null,
-                        InvoiceDiscountType:   null,
-                        InvoiceDiscount:       null,
-                        BillingAddress:        null,
-                        BillingPhone:          null,
-                        BillingFax:            null,
-                        TaxOffice:             null,
-                        TaxNumber:             null,
-                        City:                  null,
-                        District:              null,
-                        PaymentAccountId:      null),
-                    Relationships = new CreateSalesInvoiceRelationships
-                    {
-                        Details = new SalesInvoiceDetailsRelationship
-                        {
-                            Data = new List<SalesInvoiceDetailData> { lineItem }
-                        },
-                        Contact = string.IsNullOrEmpty(parasutContactId)
-                            ? null
-                            : new ContactRelationship
-                              {
-                                  Data = new ContactRelationshipData { Id = parasutContactId }
-                              }
-                    }
+                    description   = $"{count:N0} SMS Kredisi — {companyName}",
+                    quantity      = count,
+                    unitPrice,
+                    vatRate,
+                    discountValue = 0,
+                    discountType  = "percentage",
+                    unit          = "Adet"
                 }
             };
 
-            var result    = await _parasutClient.CreateSalesInvoiceAsync(conn.AccessToken!, conn.CompanyId, invoiceReq, ct);
-            var invoiceId = result.Data.Id;
+            var invoice = new Invoice
+            {
+                ProjectId   = projectId,
+                CustomerId  = customerId,
+                Title       = $"{count:N0} SMS Kredisi — {companyName}",
+                Description = $"{count:N0} adet SMS kredisi",
+                IssueDate   = DateTime.UtcNow,
+                DueDate     = DateTime.UtcNow.AddDays(30),
+                Currency    = "TRL",
+                GrossTotal  = grossTotal,
+                NetTotal    = netTotal,
+                LinesJson   = JsonSerializer.Serialize(lines),
+                Status      = InvoiceStatus.Draft
+            };
+
+            var created = await _invoiceRepository.AddAsync(invoice, ct);
+
             _logger.LogInformation(
-                "Created Paraşüt draft invoice {InvoiceId} for {Count} SMS credits — {CompanyName} (product: {ProductName}).",
-                invoiceId, count, companyName, configProduct?.ParasutProductId ?? "(none)");
-            return invoiceId;
+                "Created local draft invoice {InvoiceId} for {Count} SMS credits — {CompanyName}.",
+                created.Id, count, companyName);
+
+            return created.Id;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
-                "Failed to create Paraşüt draft invoice for SMS credits (project {ProjectId}).", projectId);
+                "Failed to create local draft invoice for SMS credits (project {ProjectId}).", projectId);
             return null;
         }
     }
