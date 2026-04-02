@@ -7,6 +7,7 @@ public class ParasutProductDto
     public Guid ProjectId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public string ParasutProductId { get; set; } = string.Empty;
+    public string? ParasutProductName { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal TaxRate { get; set; }
     public DateTime CreatedAt { get; set; }

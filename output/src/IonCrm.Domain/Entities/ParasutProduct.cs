@@ -24,6 +24,9 @@ public class ParasutProduct : BaseEntity
     /// </summary>
     public string ParasutProductId { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the human-readable Paraşüt product name for display.</summary>
+    public string? ParasutProductName { get; set; }
+
     /// <summary>
     /// Gets or sets the unit price for this product (e.g., 299.00 for 1-month membership).
     /// Used as default price when creating invoices.

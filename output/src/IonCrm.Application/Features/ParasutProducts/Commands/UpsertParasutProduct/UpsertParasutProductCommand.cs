@@ -14,5 +14,6 @@ public record UpsertParasutProductCommand(
     string ProductName,
     string ParasutProductId,
     decimal UnitPrice,
-    decimal TaxRate
+    decimal TaxRate,
+    string? ParasutProductName = null
 ) : IRequest<Result<ParasutProductDto>>;

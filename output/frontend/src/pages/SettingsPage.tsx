@@ -78,11 +78,13 @@ function ParasutProductCombobox({
   onChange,
   products,
   isLoading,
+  savedName,
 }: {
   value: string;
   onChange: (id: string, name: string, unitPrice: number, vatRate: number) => void;
   products: ParasutProductListItem[];
   isLoading: boolean;
+  savedName?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -108,12 +110,12 @@ function ParasutProductCombobox({
         onClick={() => setOpen(o => !o)}
         className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span className={selectedProduct ? 'text-foreground truncate' : 'text-muted-foreground'}>
+        <span className={selectedProduct || savedName ? 'text-foreground truncate' : 'text-muted-foreground'}>
           {isLoading
             ? 'Yükleniyor...'
             : selectedProduct
             ? selectedProduct.name
-            : 'Ürün seçin...'}
+            : savedName || 'Ürün seçin...'}
         </span>
         <ChevronDown className="h-4 w-4 opacity-50 flex-shrink-0 ml-1" />
       </button>
@@ -234,6 +236,7 @@ function ParasutProductRow({
         onChange={handleProductSelect}
         products={parasutProducts}
         isLoading={parasutProductsLoading}
+        savedName={existing?.parasutProductName}
       />
       <Input
         value={unitPrice}
@@ -600,7 +603,7 @@ export function SettingsPage() {
                   <ParasutProductRow
                     key={productDef.key}
                     productDef={productDef}
-                    existing={parasutProducts.data?.find(p => p.productKey === productDef.key)}
+                    existing={parasutProducts.data?.find(p => p.productName === productDef.label)}
                     projectId={currentProjectId}
                     parasutProducts={parasutProductList.data ?? []}
                     parasutProductsLoading={parasutProductList.isLoading}

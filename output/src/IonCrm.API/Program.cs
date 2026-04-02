@@ -268,6 +268,10 @@ app.Lifetime.ApplicationStarted.Register(() =>
                     WHERE ""IsDeleted"" = false;
             ");
             Log.Information("ParasutProducts table ensured");
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ParasutProducts""
+                    ADD COLUMN IF NOT EXISTS ""ParasutProductName"" text;
+            ");
 
             // Fix: Segment was originally created as integer (enum) but the entity
             // uses string. Convert to text so EMS API string values can be stored.

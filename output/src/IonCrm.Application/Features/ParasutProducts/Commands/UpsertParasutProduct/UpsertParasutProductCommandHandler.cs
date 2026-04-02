@@ -47,9 +47,10 @@ public class UpsertParasutProductCommandHandler
         if (existing is not null)
         {
             // Update existing
-            existing.ParasutProductId = request.ParasutProductId;
-            existing.UnitPrice        = request.UnitPrice;
-            existing.TaxRate          = request.TaxRate;
+            existing.ParasutProductId   = request.ParasutProductId;
+            existing.ParasutProductName = request.ParasutProductName;
+            existing.UnitPrice          = request.UnitPrice;
+            existing.TaxRate            = request.TaxRate;
 
             await _productRepository.UpdateAsync(existing, cancellationToken);
             product = existing;
@@ -59,11 +60,12 @@ public class UpsertParasutProductCommandHandler
             // Create new
             var newProduct = new ParasutProduct
             {
-                ProjectId       = request.ProjectId,
-                ProductName     = request.ProductName,
-                ParasutProductId = request.ParasutProductId,
-                UnitPrice       = request.UnitPrice,
-                TaxRate         = request.TaxRate
+                ProjectId           = request.ProjectId,
+                ProductName         = request.ProductName,
+                ParasutProductId    = request.ParasutProductId,
+                ParasutProductName  = request.ParasutProductName,
+                UnitPrice           = request.UnitPrice,
+                TaxRate             = request.TaxRate
             };
 
             product = await _productRepository.AddAsync(newProduct, cancellationToken);
@@ -71,14 +73,15 @@ public class UpsertParasutProductCommandHandler
 
         return Result<ParasutProductDto>.Success(new ParasutProductDto
         {
-            Id               = product.Id,
-            ProjectId        = product.ProjectId,
-            ProductName      = product.ProductName,
-            ParasutProductId = product.ParasutProductId,
-            UnitPrice        = product.UnitPrice,
-            TaxRate          = product.TaxRate,
-            CreatedAt        = product.CreatedAt,
-            UpdatedAt        = product.UpdatedAt
+            Id                  = product.Id,
+            ProjectId           = product.ProjectId,
+            ProductName         = product.ProductName,
+            ParasutProductId    = product.ParasutProductId,
+            ParasutProductName  = product.ParasutProductName,
+            UnitPrice           = product.UnitPrice,
+            TaxRate             = product.TaxRate,
+            CreatedAt           = product.CreatedAt,
+            UpdatedAt           = product.UpdatedAt
         });
     }
 }

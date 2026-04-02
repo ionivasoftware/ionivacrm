@@ -26,14 +26,15 @@ public class GetParasutProductsQueryHandler : IRequestHandler<GetParasutProducts
 
         var dtos = products.Select(p => new ParasutProductDto
         {
-            Id = p.Id,
-            ProjectId = p.ProjectId,
-            ProductName = p.ProductName,
-            ParasutProductId = p.ParasutProductId,
-            UnitPrice = p.UnitPrice,
-            TaxRate = p.TaxRate,
-            CreatedAt = p.CreatedAt,
-            UpdatedAt = p.UpdatedAt
+            Id                 = p.Id,
+            ProjectId          = p.ProjectId,
+            ProductName        = p.ProductName,
+            ParasutProductId   = p.ParasutProductId,
+            ParasutProductName = p.ParasutProductName,
+            UnitPrice          = p.UnitPrice,
+            TaxRate            = p.TaxRate,
+            CreatedAt          = p.CreatedAt,
+            UpdatedAt          = p.UpdatedAt
         }).ToList();
 
         return Result<List<ParasutProductDto>>.Success(dtos);
