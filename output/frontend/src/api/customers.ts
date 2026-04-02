@@ -456,6 +456,7 @@ export interface ExtendExpirationResult {
   newExpirationDate: string;
   parasutInvoiceCreated: boolean;
   parasutInvoiceId: string | null;
+  parasutInvoiceError: string | null;
 }
 
 export function useExtendEmsExpiration(customerId: string) {

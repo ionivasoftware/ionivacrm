@@ -114,7 +114,7 @@ public sealed class ExtendEmsExpirationCommandHandler
             return Result<ExtendEmsExpirationDto>.Success(
                 new ExtendEmsExpirationDto(emsResponse.ExpirationDate, false, null));
 
-        var parasutInvoiceId = await TryCreateParasutDraftInvoiceAsync(
+        var (parasutInvoiceId, parasutError) = await TryCreateParasutDraftInvoiceAsync(
             customer.ProjectId,
             customer.ParasutContactId,
             customer.CompanyName,
@@ -126,12 +126,13 @@ public sealed class ExtendEmsExpirationCommandHandler
             new ExtendEmsExpirationDto(
                 emsResponse.ExpirationDate,
                 parasutInvoiceId is not null,
-                parasutInvoiceId));
+                parasutInvoiceId,
+                parasutError));
     }
 
     // ── Paraşüt draft invoice helper ──────────────────────────────────────────
 
-    private async Task<string?> TryCreateParasutDraftInvoiceAsync(
+    private async Task<(string? InvoiceId, string? Error)> TryCreateParasutDraftInvoiceAsync(
         Guid projectId,
         string? parasutContactId,
         string companyName,
@@ -139,6 +140,14 @@ public sealed class ExtendEmsExpirationCommandHandler
         int amount,
         CancellationToken ct)
     {
+        // Pre-check: Paraşüt requires a linked contact to create a sales invoice
+        if (string.IsNullOrEmpty(parasutContactId))
+        {
+            _logger.LogDebug(
+                "Skipping Paraşüt draft invoice — customer has no linked Paraşüt contact (project {ProjectId}).", projectId);
+            return (null, "Müşteri henüz Paraşüt'e eşleştirilmemiş. Müşteri detayından 'Paraşüt'e Aktar' yapın.");
+        }
+
         try
         {
             var connection = await _connectionRepository.GetByProjectIdAsync(projectId, ct);
@@ -146,7 +155,7 @@ public sealed class ExtendEmsExpirationCommandHandler
             {
                 _logger.LogDebug(
                     "Skipping Paraşüt draft invoice — no active connection for project {ProjectId}.", projectId);
-                return null;
+                return (null, "Paraşüt bağlantısı aktif değil.");
             }
 
             var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
@@ -155,7 +164,7 @@ public sealed class ExtendEmsExpirationCommandHandler
             {
                 _logger.LogWarning(
                     "Paraşüt token unavailable for project {ProjectId}: {Error}", projectId, tokenError);
-                return null;
+                return (null, $"Paraşüt token alınamadı: {tokenError}");
             }
 
             var durationLabel = durationType == "Years" ? "1 Yıllık" : "1 Aylık";
@@ -166,8 +175,16 @@ public sealed class ExtendEmsExpirationCommandHandler
             var productName   = durationType == "Years" ? "1 Yıllık Üyelik" : "1 Aylık Üyelik";
             var configProduct = await _productRepository.GetByNameAsync(projectId, productName, ct);
 
-            var unitPrice = configProduct?.UnitPrice ?? 0m;
-            var vatRate   = configProduct is not null ? (int)(configProduct.TaxRate * 100) : 20;
+            if (configProduct is null)
+            {
+                _logger.LogDebug(
+                    "Skipping Paraşüt draft invoice — product '{ProductName}' not configured for project {ProjectId}.",
+                    productName, projectId);
+                return (null, $"Paraşüt ürün eşleşmesi eksik: '{productName}' için Ayarlar > Paraşüt'ten ürün eşleştirin.");
+            }
+
+            var unitPrice = configProduct.UnitPrice;
+            var vatRate   = (int)(configProduct.TaxRate * 100);
 
             var lineItem = new SalesInvoiceDetailData
             {
@@ -181,8 +198,8 @@ public sealed class ExtendEmsExpirationCommandHandler
                     Unit:           "Adet")
             };
 
-            // If a configured product exists, link it so Paraşüt applies the correct GL account
-            if (configProduct is not null && !string.IsNullOrEmpty(configProduct.ParasutProductId))
+            // Link the configured product so Paraşüt applies the correct GL account
+            if (!string.IsNullOrEmpty(configProduct.ParasutProductId))
             {
                 lineItem.Relationships = new SalesInvoiceDetailRelationships
                 {
@@ -224,12 +241,10 @@ public sealed class ExtendEmsExpirationCommandHandler
                         {
                             Data = new List<SalesInvoiceDetailData> { lineItem }
                         },
-                        Contact = string.IsNullOrEmpty(parasutContactId)
-                            ? null
-                            : new ContactRelationship
-                              {
-                                  Data = new ContactRelationshipData { Id = parasutContactId }
-                              }
+                        Contact = new ContactRelationship
+                        {
+                            Data = new ContactRelationshipData { Id = parasutContactId }
+                        }
                     }
                 }
             };
@@ -240,17 +255,17 @@ public sealed class ExtendEmsExpirationCommandHandler
             var invoiceId = result.Data.Id;
             _logger.LogInformation(
                 "Created Paraşüt draft invoice {InvoiceId} for customer {CompanyName} ({Duration}, product: {ProductId}).",
-                invoiceId, companyName, durationLabel, configProduct?.ParasutProductId ?? "(none)");
+                invoiceId, companyName, durationLabel, configProduct.ParasutProductId ?? "(none)");
 
-            return invoiceId;
+            return (invoiceId, null);
         }
         catch (Exception ex)
         {
             // Non-fatal — the expiration was already extended; log and continue
             _logger.LogWarning(ex,
-                "Failed to create Paraşüt draft invoice for project {ProjectId}. Continuing without it.",
-                projectId);
-            return null;
+                "Failed to create Paraşüt draft invoice for project {ProjectId}. Error: {Error}",
+                projectId, ex.Message);
+            return (null, $"Paraşüt fatura oluşturulamadı: {ex.Message}");
         }
     }
 }

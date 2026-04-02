@@ -699,13 +699,19 @@ function ExtendExpirationDialog({
       const newDate = new Date(result.newExpirationDate).toLocaleDateString('tr-TR', {
         day: 'numeric', month: 'long', year: 'numeric',
       });
-      const invoiceMsg = result.parasutInvoiceCreated
-        ? " Paraşüt'te taslak fatura oluşturuldu."
-        : '';
       toast({
         title: 'Süre uzatıldı',
-        description: `Yeni bitiş tarihi: ${newDate}.${invoiceMsg}`,
+        description: result.parasutInvoiceCreated
+          ? `Yeni bitiş tarihi: ${newDate}. Paraşüt'te taslak fatura oluşturuldu.`
+          : `Yeni bitiş tarihi: ${newDate}.`,
       });
+      if (result.parasutInvoiceError) {
+        toast({
+          title: 'Paraşüt faturası oluşturulamadı',
+          description: result.parasutInvoiceError,
+          variant: 'destructive',
+        });
+      }
       handleClose();
     } catch {
       toast({ title: 'Hata', description: 'Süre uzatılamadı.', variant: 'destructive' });

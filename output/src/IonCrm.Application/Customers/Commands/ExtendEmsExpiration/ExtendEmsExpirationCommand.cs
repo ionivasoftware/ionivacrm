@@ -18,4 +18,5 @@ public record ExtendEmsExpirationCommand(
 public record ExtendEmsExpirationDto(
     DateTime NewExpirationDate,
     bool ParasutInvoiceCreated,
-    string? ParasutInvoiceId);
+    string? ParasutInvoiceId,
+    string? ParasutInvoiceError = null);
