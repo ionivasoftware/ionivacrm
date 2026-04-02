@@ -41,7 +41,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStore } from '@/stores/authStore';
 import { useCanAccessFinance } from '@/lib/roles';
 import { useCustomers } from '@/api/customers';
-import { useInvoices, useCreateInvoice, useTransferToParasut } from '@/api/invoices';
+import { useInvoices, useCreateInvoice, useUpdateInvoice, useTransferToParasut } from '@/api/invoices';
 import { useParasutStatus } from '@/api/parasut';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -173,13 +173,25 @@ function CustomerSelect({ value, onChange }: CustomerSelectProps) {
 
 // ── Create Invoice Dialog ────────────────────────────────────────────────────
 
+type DiscountType = 'percentage' | 'amount';
+
 interface InvoiceLineForm {
   description: string;
   quantity: number;
   unitPrice: number;
   vatRate: number;
   discountValue: number;
+  discountType: DiscountType;
   unit: string;
+}
+
+/** Returns the absolute discount amount for a single line */
+function calcLineDiscount(line: InvoiceLineForm): number {
+  const lineTotal = (line.quantity || 0) * (line.unitPrice || 0);
+  if (line.discountType === 'amount') {
+    return Math.min(line.discountValue || 0, lineTotal);
+  }
+  return lineTotal * ((line.discountValue || 0) / 100);
 }
 
 interface InvoiceFormData {
@@ -212,21 +224,27 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
       issueDate: today(),
       dueDate: daysLater(30),
       currency: 'TRL',
-      lines: [{ description: '', quantity: 1, unitPrice: 0, vatRate: 20, discountValue: 0, unit: 'Adet' }],
+      lines: [{ description: '', quantity: 1, unitPrice: 0, vatRate: 20, discountValue: 0, discountType: 'percentage', unit: 'Adet' }],
     },
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'lines' });
 
   const watchedLines = form.watch('lines');
-  const subtotal = watchedLines.reduce((acc, l) => {
-    const lineTotal = (l.quantity || 0) * (l.unitPrice || 0);
-    const discount = lineTotal * ((l.discountValue || 0) / 100);
-    return acc + lineTotal - discount;
-  }, 0);
+
+  // Raw total before any discount
+  const rawTotal = watchedLines.reduce(
+    (acc, l) => acc + (l.quantity || 0) * (l.unitPrice || 0),
+    0
+  );
+  // Total discount amount across all lines
+  const totalDiscount = watchedLines.reduce((acc, l) => acc + calcLineDiscount(l), 0);
+  // Net subtotal (after discounts, before VAT)
+  const subtotal = rawTotal - totalDiscount;
+  // VAT calculated on discounted amounts
   const vat = watchedLines.reduce((acc, l) => {
     const lineTotal = (l.quantity || 0) * (l.unitPrice || 0);
-    const discount = lineTotal * ((l.discountValue || 0) / 100);
+    const discount = calcLineDiscount(l);
     return acc + (lineTotal - discount) * ((l.vatRate || 0) / 100);
   }, 0);
 
@@ -246,19 +264,23 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
       unitPrice: l.unitPrice,
       vatRate: l.vatRate,
       discountValue: l.discountValue,
-      discountType: 'percentage',
+      discountType: l.discountType,
       unit: l.unit || 'Adet',
     }));
 
     const netTotal = lines.reduce((acc, l) => {
       const lt = l.quantity * l.unitPrice;
-      const d = lt * (l.discountValue / 100);
+      const d = l.discountType === 'amount'
+        ? Math.min(l.discountValue, lt)
+        : lt * (l.discountValue / 100);
       return acc + lt - d;
     }, 0);
 
     const grossTotal = lines.reduce((acc, l) => {
       const lt = l.quantity * l.unitPrice;
-      const d = lt * (l.discountValue / 100);
+      const d = l.discountType === 'amount'
+        ? Math.min(l.discountValue, lt)
+        : lt * (l.discountValue / 100);
       const net = lt - d;
       return acc + net + net * (l.vatRate / 100);
     }, 0);
@@ -372,7 +394,7 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
                 variant="outline"
                 size="sm"
                 className="h-7 gap-1 text-xs"
-                onClick={() => append({ description: '', quantity: 1, unitPrice: 0, vatRate: 20, discountValue: 0, unit: 'Adet' })}
+                onClick={() => append({ description: '', quantity: 1, unitPrice: 0, vatRate: 20, discountValue: 0, discountType: 'percentage', unit: 'Adet' })}
               >
                 <Plus className="h-3 w-3" /> Kalem Ekle
               </Button>
@@ -380,17 +402,17 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
 
             <div className="rounded-lg border border-border overflow-hidden">
               {/* Header */}
-              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground">
+              <div className="grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground">
                 <span>Açıklama</span>
                 <span>Miktar</span>
                 <span>Birim Fiyat</span>
                 <span>KDV %</span>
-                <span>İsk. %</span>
+                <span>İskonto</span>
                 <span />
               </div>
 
               {fields.map((field, idx) => (
-                <div key={field.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-2 px-3 py-2 border-t border-border/50 items-center">
+                <div key={field.id} className="grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 px-3 py-2 border-t border-border/50 items-center">
                   <Input
                     {...form.register(`lines.${idx}.description`)}
                     className="h-8 text-sm"
@@ -399,12 +421,14 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
                   <Input
                     type="number"
                     step="0.01"
+                    min="0"
                     {...form.register(`lines.${idx}.quantity`, { valueAsNumber: true })}
                     className="h-8 text-sm"
                   />
                   <Input
                     type="number"
                     step="0.01"
+                    min="0"
                     {...form.register(`lines.${idx}.unitPrice`, { valueAsNumber: true })}
                     className="h-8 text-sm"
                   />
@@ -421,13 +445,24 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    {...form.register(`lines.${idx}.discountValue`, { valueAsNumber: true })}
-                    className="h-8 text-sm"
-                    placeholder="0"
-                  />
+                  {/* Compound discount: value + type toggle */}
+                  <div className="flex h-8 rounded-md border border-input overflow-hidden text-sm focus-within:ring-1 focus-within:ring-ring">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      {...form.register(`lines.${idx}.discountValue`, { valueAsNumber: true })}
+                      className="w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
+                      placeholder="0"
+                    />
+                    <select
+                      {...form.register(`lines.${idx}.discountType`)}
+                      className="border-l border-input bg-muted text-xs px-1.5 cursor-pointer outline-none text-muted-foreground"
+                    >
+                      <option value="percentage">%</option>
+                      <option value="amount">₺</option>
+                    </select>
+                  </div>
                   <Button
                     type="button"
                     variant="ghost"
@@ -446,8 +481,20 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
             <div className="flex flex-col items-end gap-1 text-sm pt-1">
               <div className="flex gap-6 text-muted-foreground">
                 <span>Ara Toplam:</span>
-                <span className="font-mono w-28 text-right">{formatCurrency(subtotal)}</span>
+                <span className="font-mono w-28 text-right">{formatCurrency(rawTotal)}</span>
               </div>
+              {totalDiscount > 0 && (
+                <div className="flex gap-6 text-orange-400">
+                  <span>İskonto:</span>
+                  <span className="font-mono w-28 text-right">-{formatCurrency(totalDiscount)}</span>
+                </div>
+              )}
+              {totalDiscount > 0 && (
+                <div className="flex gap-6 text-muted-foreground">
+                  <span>Net Toplam:</span>
+                  <span className="font-mono w-28 text-right">{formatCurrency(subtotal)}</span>
+                </div>
+              )}
               <div className="flex gap-6 text-muted-foreground">
                 <span>KDV:</span>
                 <span className="font-mono w-28 text-right">{formatCurrency(vat)}</span>
@@ -734,9 +781,10 @@ export function InvoicesPage() {
           ) : (
             <>
               {/* Table header */}
-              <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_1fr_0.8fr_auto] gap-4 px-6 py-3 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
+              <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_auto] gap-4 px-6 py-3 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
                 <span>Fatura</span>
                 <span>Müşteri</span>
+                <span>Proje</span>
                 <span>Tarih</span>
                 <span>Vade</span>
                 <span className="text-right">Tutar</span>
@@ -819,7 +867,7 @@ function InvoiceRow({ invoice, isParasutConnected, onTransfer }: InvoiceRowProps
     : null;
 
   return (
-    <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_1fr_0.8fr_auto] gap-4 px-6 py-3.5 items-center hover:bg-muted/20 transition-colors text-sm">
+    <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_auto] gap-4 px-6 py-3.5 items-center hover:bg-muted/20 transition-colors text-sm">
       {/* Title */}
       <div className="min-w-0">
         <div className="font-medium text-foreground truncate">{invoice.title}</div>
@@ -830,6 +878,9 @@ function InvoiceRow({ invoice, isParasutConnected, onTransfer }: InvoiceRowProps
 
       {/* Customer */}
       <span className="text-muted-foreground truncate">{invoice.customerName}</span>
+
+      {/* Project */}
+      <span className="text-muted-foreground truncate text-xs">{invoice.projectName}</span>
 
       {/* Issue Date */}
       <span className="text-muted-foreground">{formatDate(invoice.issueDate)}</span>

@@ -1,9 +1,8 @@
-using System.Globalization;
-using System.Text.Json;
 using IonCrm.Application.Common.DTOs;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models;
 using IonCrm.Application.Common.Models.ExternalApis;
+using IonCrm.Application.Features.Invoices;
 using IonCrm.Application.Features.Invoices.Mappings;
 using IonCrm.Application.Features.Parasut;
 using IonCrm.Domain.Enums;
@@ -69,7 +68,7 @@ public sealed class TransferInvoiceToParasutCommandHandler
         try
         {
             // 3. Parse LinesJson to build Paraşüt line items
-            var lines = ParseLines(invoice.LinesJson);
+            var lines = InvoiceLineCalculator.ParseLines(invoice.LinesJson);
 
             var details = lines.Select(l => new SalesInvoiceDetailData
             {
@@ -77,7 +76,7 @@ public sealed class TransferInvoiceToParasutCommandHandler
                     Quantity:      l.Quantity,
                     UnitPrice:     l.UnitPrice,
                     VatRate:       l.VatRate,
-                    DiscountType:  l.DiscountType ?? "percentage",
+                    DiscountType:  l.DiscountType == "amount" ? "amount" : "percentage",
                     DiscountValue: l.DiscountValue,
                     Description:   l.Description,
                     Unit:          l.Unit ?? "Adet"),
@@ -167,37 +166,6 @@ public sealed class TransferInvoiceToParasutCommandHandler
             return Result<InvoiceDto>.Failure(
                 $"Fatura Paraşüt'e aktarılamadı: {ex.Message}");
         }
-    }
-
-    /// <summary>Parses the denormalized LinesJson into structured line items.</summary>
-    private static List<InvoiceLine> ParseLines(string linesJson)
-    {
-        if (string.IsNullOrWhiteSpace(linesJson) || linesJson == "[]")
-            return new List<InvoiceLine>();
-
-        try
-        {
-            return JsonSerializer.Deserialize<List<InvoiceLine>>(linesJson,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                ?? new List<InvoiceLine>();
-        }
-        catch
-        {
-            return new List<InvoiceLine>();
-        }
-    }
-
-    /// <summary>Internal model for parsing LinesJson.</summary>
-    private sealed record InvoiceLine
-    {
-        public string? Description { get; init; }
-        public decimal Quantity { get; init; } = 1;
-        public decimal UnitPrice { get; init; }
-        public int VatRate { get; init; }
-        public decimal DiscountValue { get; init; }
-        public string? DiscountType { get; init; }
-        public string? Unit { get; init; }
-        public string? ParasutProductId { get; init; }
     }
 
     /// <summary>

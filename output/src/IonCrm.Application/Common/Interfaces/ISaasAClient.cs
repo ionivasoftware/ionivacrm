@@ -64,4 +64,14 @@ public interface ISaasAClient
         string? apiKey,
         int companyId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches the usage summary for a company via the EMS CRM API.
+    /// GET /api/v1/crm/companies/{companyId}/summary
+    /// Returns monthly maintenance/breakdown/proposal counts and overall totals.
+    /// </summary>
+    Task<EmsCompanySummaryResponse> GetCompanySummaryAsync(
+        string? apiKey,
+        int companyId,
+        CancellationToken cancellationToken = default);
 }

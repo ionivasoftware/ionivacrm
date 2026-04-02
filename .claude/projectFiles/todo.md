@@ -3,13 +3,25 @@
 <!-- Buraya yapılacak maddeleri ekle. Claude her oturumda bu dosyayı okur ve sırayla uygular. -->
 <!-- Format: - [ ] Açıklama -->
 
-- [x] [BACKEND] Müşteri Detayı — EMS Kullanıcı Listesi: `ISaasAClient`'a `GetCompanyUsersAsync(string apiKey, int companyId, CancellationToken)` metodu ekle. EMS endpoint: `GET /api/v1/crm/companies/{companyId}/users` (Authorization: Bearer <ems-api-key>). Response model: `EmsCompanyUser(string UserId, string Name, string Surname, string Email, string Role, string LoginName, string Password)`. Yeni CRM endpoint: `GET /api/v1/customers/{id}/ems-users` — müşteri EMS müşterisiyse (LegacyId sayısal veya "SAASA-{n}" formatında) companyId parse et, EMS'ten kullanıcıları çek ve döndür. EMS müşterisi değilse 400 döndür.
+## Fatura
 
-- [x] [FRONTEND] Müşteri Detayı — EMS Kullanıcı Listesi: Müşteri EMS müşterisiyse detay ekranına "Kullanıcılar" sekmesi ekle. `customers.ts`'e `useCustomerEmsUsers(customerId)` hook'u ekle. Kullanıcıları tablo olarak listele: Ad Soyad, E-posta, Rol, Kullanıcı Adı, Şifre. Şifre sütunu varsayılan gizli (••••••••), göz ikonuna basınca göster/gizle toggle'ı.
+- [x] Taslak faturaya iskonto ekleme: fatura oluşturma formuna iskonto alanı ekle (% veya ₺ seçilebilir), toplam hesaplamada dikkate alınsın, LinesJson'daki `discountValue` / `discountType` alanları kullanılsın
+- [ ] Faturalar sayfası projeden bağımsız olmalı: proje switcher değişse bile tüm yetkili projelerin faturaları gösterilmeli (SuperAdmin için tüm faturalar), `useInvoices` hook'u `projectId` filtresi kaldırılacak veya backend tüm projeleri dönecek
 
-- [x] [BACKEND] RezervAl Firma Sync: `ISaasBClient`'a `GetRezervalCompaniesAsync` metodunu ekle. Base URL: `https://rezback.rezerval.com`. Endpoint: `GET /v1/Crm/CompanyList` (Authorization: Bearer {RezervAlApiKey}). Response: `RezervalCompany(int Id, string Name, string Title, string Phone, string Email, string? Logo, DateTime ExperationDate, DateTime CreatedOn, bool IsDeleted, bool IsActiveOnline)`. `SaasSyncJob`'da `SyncRezervalCompaniesAsync` metodunu yaz: tüm firmaları çekip CRM müşterilerine upsert et. Durum hesaplama EMS ile aynı kural (CreatedOn + ExperationDate 40 gün eşiği, `ComputeStatusFromExpiration` kullan). LegacyId formatı: `"REZV-{id}"`.
+## Müşteri
 
-- [x] [BACKEND] RezervAl Firma Create/Edit: `ISaasBClient`'a `CreateRezervalCompanyAsync` ve `UpdateRezervalCompanyAsync` metodları ekle. POST/PUT `https://rezback.rezerval.com/v1/Crm/Company` multipart/form-data. Yeni CRM endpoint'leri: `POST /api/v1/customers/{id}/push-to-rezerval` (müşteriyi RezervAl'a gönder/güncelle). Create sonrası response'daki `companyId`'yi müşterinin LegacyId'si olarak kaydet (`"REZV-{companyId}"`). Alanlar: Name, Title, Phone, Email, TaxUnit, TaxNumber, TCNo, IsPersonCompany, Address, Language (default 1), CountryPhoneCode (default 90), ExperationDate, AdminNameSurname, AdminLoginName, AdminPassword, AdminEmail, AdminPhone, Logo (opsiyonel).
+- [ ] Müşteri detayına "Kullanım Özeti" sekmesi (EMS API): EMS kaynaklı müşterilerde sekme görünür olmalı; `GET /api/v1/crm/companies/{emsCompanyId}/summary` endpoint'i çağrılacak (proje EMS API key ile), aylık bakım/arıza/teklif sayıları bar chart + tablo ile gösterilecek, totals (müşteri/asansör/kullanıcı sayısı) kart olarak üstte yer alacak
+- [x] RezervAl projesi seçiliyken müşteri ekleme formu farklı olmalı: "Push to RezervAl" alanlarını içeren özel form gösterilmeli (ad, telefon, e-posta, vergi no/TC, adres, yönetici bilgileri vb.), standart CRM formu değil
 
-- [x] [FRONTEND] RezervAl Firma Create/Edit: Proje RezervAl ise müşteri detay sayfasına "RezervAl'a Gönder" butonu ekle. Müşteri henüz RezervAl'a gönderilmemişse (LegacyId "REZV-" ile başlamıyorsa) create, başlıyorsa update çağrısı yapsın. `customers.ts`'e `usePushToRezerval(customerId)` hook'u ekle.
+## Proje Yönetimi
 
+- [ ] Proje ayarlarında EMS ve RezervAl için ayrı yapılandırma alanları: her proje için `EmsBaseUrl`, `EmsApiKey`, `RezervAlBaseUrl`, `RezervAlApiKey` kaydedilebilmeli; mevcut `Project` entity ve settings sayfası güncellenmeli
+
+## Senkronizasyon
+
+- [ ] 15 dakikalık otomatik sync çalışmıyor: Railway'de hosted service / background job tetiklenmiyor, sadece manuel butona basınca çalışıyor; Railway cron job veya .NET `IHostedService` / Hangfire ile periyodik sync düzeltilmeli
+
+## Paraşüt
+
+- [ ] Paraşüt bağlantısı projeden bağımsız olmalı: hangi proje seçili olursa olsun aynı Paraşüt hesabına bağlanılmalı; `ParasutConnection` tek kayıt olarak tutulmalı (proje ID'ye göre değil global), bağlantı yoksa sistem otomatik bağlanmayı denemeli
+- [ ] Paraşüt ürün eşleştirme — RezervAl desteği: "RezervAl Aylık Lisans Bedeli" ürünü eklenebilmeli ve Paraşüt'teki ürünle eşlenebilmeli; EMS'ten farklı olarak fiyat ürün konfigürasyonunda değil **müşteri kaydında** tutulmalı; taslak fatura oluşturulurken müşteriye kayıtlı fiyat kullanılmalı

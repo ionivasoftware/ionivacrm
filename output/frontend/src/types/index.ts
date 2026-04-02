@@ -38,6 +38,7 @@ export type InvoiceStatus = 'Draft' | 'TransferredToParasut' | 'Paid' | 'Cancell
 export interface Invoice {
   id: string;
   projectId: string;
+  projectName: string;
   customerId: string;
   customerName: string;
   title: string;
@@ -78,6 +79,10 @@ export interface CreateCrmInvoiceRequest {
   grossTotal: number;
   netTotal: number;
   linesJson: string;
+}
+
+export interface UpdateCrmInvoiceRequest extends CreateCrmInvoiceRequest {
+  id: string;
 }
 
 export type SyncSource = 'SaasA' | 'SaasB';
@@ -195,6 +200,8 @@ export interface Customer {
   expirationDate: string | null;
   legacyId: string | null;
   parasutContactId: string | null;
+  /** Monthly license fee for RezervAl customers. Null for EMS customers. */
+  monthlyLicenseFee: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -218,6 +225,8 @@ export interface CreateCustomerRequest {
 
 export interface UpdateCustomerRequest extends CreateCustomerRequest {
   id: string;
+  /** Monthly license fee for RezervAl customers ("RezervAl Aylık Lisans Bedeli"). */
+  monthlyLicenseFee?: number | null;
 }
 
 export interface CustomerListParams {
@@ -346,7 +355,8 @@ export type ParasutProductKey =
   | 'sms_1000'
   | 'sms_2500'
   | 'sms_5000'
-  | 'sms_10000';
+  | 'sms_10000'
+  | 'rezerval_monthly';
 
 /** A saved mapping between a CRM product key and a Paraşüt product */
 export interface ParasutProduct {

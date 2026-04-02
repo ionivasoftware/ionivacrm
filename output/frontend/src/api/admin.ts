@@ -43,7 +43,9 @@ export interface AdminProject {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  emsBaseUrl: string | null;
   emsApiKey: string | null;
+  rezervAlBaseUrl: string | null;
   rezervAlApiKey: string | null;
   smsCount: number;
 }
@@ -55,7 +57,15 @@ export interface AddSmsResult {
 }
 
 export interface CreateProjectRequest { name: string; description?: string }
-export interface UpdateProjectRequest { name: string; description?: string; isActive: boolean }
+export interface UpdateProjectRequest {
+  name: string;
+  description?: string;
+  isActive: boolean;
+  emsBaseUrl?: string | null;
+  emsApiKey?: string | null;
+  rezervAlBaseUrl?: string | null;
+  rezervAlApiKey?: string | null;
+}
 export interface SetProjectApiKeysRequest { emsApiKey: string | null; rezervAlApiKey: string | null }
 
 // ── Users ──────────────────────────────────────────────────────────────────────

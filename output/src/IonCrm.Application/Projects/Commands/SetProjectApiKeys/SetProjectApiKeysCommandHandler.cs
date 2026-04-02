@@ -26,14 +26,16 @@ public class SetProjectApiKeysCommandHandler : IRequestHandler<SetProjectApiKeys
         if (project is null)
             return Result<ProjectDto>.Failure("Project not found.");
 
-        project.EmsApiKey      = string.IsNullOrWhiteSpace(request.EmsApiKey)      ? null : request.EmsApiKey.Trim();
-        project.RezervAlApiKey = string.IsNullOrWhiteSpace(request.RezervAlApiKey) ? null : request.RezervAlApiKey.Trim();
-        project.UpdatedAt      = DateTime.UtcNow;
+        project.EmsBaseUrl      = string.IsNullOrWhiteSpace(request.EmsBaseUrl)      ? null : request.EmsBaseUrl.Trim();
+        project.EmsApiKey       = string.IsNullOrWhiteSpace(request.EmsApiKey)       ? null : request.EmsApiKey.Trim();
+        project.RezervAlBaseUrl = string.IsNullOrWhiteSpace(request.RezervAlBaseUrl) ? null : request.RezervAlBaseUrl.Trim();
+        project.RezervAlApiKey  = string.IsNullOrWhiteSpace(request.RezervAlApiKey)  ? null : request.RezervAlApiKey.Trim();
+        project.UpdatedAt       = DateTime.UtcNow;
 
         await _projectRepository.UpdateAsync(project, cancellationToken);
 
         return Result<ProjectDto>.Success(new ProjectDto(
             project.Id, project.Name, project.Description, project.IsActive, project.CreatedAt,
-            project.EmsApiKey, project.RezervAlApiKey));
+            project.EmsBaseUrl, project.EmsApiKey, project.RezervAlBaseUrl, project.RezervAlApiKey));
     }
 }

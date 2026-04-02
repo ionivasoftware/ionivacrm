@@ -17,6 +17,7 @@ public class ParasutConnectionRepository : IParasutConnectionRepository
     }
 
     /// <inheritdoc />
+    /// <remarks>Strictly project-specific — does NOT fall back to the global connection.</remarks>
     public async Task<ParasutConnection?> GetByProjectIdAsync(
         Guid projectId,
         CancellationToken cancellationToken = default)
@@ -24,6 +25,25 @@ public class ParasutConnectionRepository : IParasutConnectionRepository
         return await _context.ParasutConnections
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.ProjectId == projectId && !c.IsDeleted, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<ParasutConnection?> GetEffectiveConnectionAsync(
+        Guid projectId,
+        CancellationToken cancellationToken = default)
+    {
+        // Project-specific takes priority; fall back to global (ProjectId == null)
+        var projectConn = await GetByProjectIdAsync(projectId, cancellationToken);
+        return projectConn ?? await GetGlobalAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<ParasutConnection?> GetGlobalAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.ParasutConnections
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.ProjectId == null && !c.IsDeleted, cancellationToken);
     }
 
     /// <inheritdoc />

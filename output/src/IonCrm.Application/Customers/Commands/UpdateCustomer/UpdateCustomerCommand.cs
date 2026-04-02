@@ -22,4 +22,9 @@ public record UpdateCustomerCommand : IRequest<Result<CustomerDto>>
     public string? Segment { get; init; }
     public CustomerLabel? Label { get; init; }
     public Guid? AssignedUserId { get; init; }
+    /// <summary>
+    /// Monthly license fee for RezervAl customers ("RezervAl Aylık Lisans Bedeli").
+    /// Only applies to RezervAl customers (LegacyId starts with "REZV-").
+    /// </summary>
+    public decimal? MonthlyLicenseFee { get; init; }
 }

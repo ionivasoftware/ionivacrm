@@ -81,6 +81,13 @@ public class Customer : BaseEntity
     /// </summary>
     public string? EInvoiceAddress { get; set; }
 
+    /// <summary>
+    /// Gets or sets the monthly license fee for RezervAl customers.
+    /// For EMS customers, pricing is stored in the ParasutProducts configuration.
+    /// For RezervAl customers, each customer has an individual monthly fee ("RezervAl Aylık Lisans Bedeli").
+    /// </summary>
+    public decimal? MonthlyLicenseFee { get; set; }
+
     // Navigation properties
     /// <summary>Gets or sets the project (tenant).</summary>
     public Project Project { get; set; } = null!;

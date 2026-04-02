@@ -29,6 +29,11 @@ public class CustomerDto
     public bool IsEInvoicePayer { get; set; }
     /// <summary>E-invoice inbox address (PK / GB envelope identifier).</summary>
     public string? EInvoiceAddress { get; set; }
+    /// <summary>
+    /// Monthly license fee for RezervAl customers ("RezervAl Aylık Lisans Bedeli").
+    /// Null for EMS customers (EMS pricing is stored in ParasutProducts configuration).
+    /// </summary>
+    public decimal? MonthlyLicenseFee { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

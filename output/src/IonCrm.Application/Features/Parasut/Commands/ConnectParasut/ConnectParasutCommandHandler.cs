@@ -11,6 +11,10 @@ namespace IonCrm.Application.Features.Parasut.Commands.ConnectParasut;
 /// <summary>
 /// Handles <see cref="ConnectParasutCommand"/>.
 /// Authenticates with Paraşüt OAuth, persists tokens, upserts the connection record.
+///
+/// When <c>ProjectId</c> is <c>null</c>, the connection is stored as the global connection
+/// (shared by all projects). When <c>ProjectId</c> has a value, a project-specific
+/// connection is upserted without touching the global one.
 /// </summary>
 public sealed class ConnectParasutCommandHandler
     : IRequestHandler<ConnectParasutCommand, Result<ConnectParasutDto>>
@@ -35,6 +39,10 @@ public sealed class ConnectParasutCommandHandler
         ConnectParasutCommand request,
         CancellationToken cancellationToken)
     {
+        var target = request.ProjectId.HasValue
+            ? $"project {request.ProjectId}"
+            : "global";
+
         try
         {
             // 1. Authenticate with Paraşüt
@@ -49,9 +57,11 @@ public sealed class ConnectParasutCommandHandler
 
             var expiresAt = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn - 60); // 60s buffer
 
-            // 2. Upsert connection record
-            var existing = await _connectionRepository.GetByProjectIdAsync(
-                request.ProjectId, cancellationToken);
+            // 2. Upsert connection record — use strict lookup (no fallback) so project-specific
+            //    and global connections are managed independently.
+            ParasutConnection? existing = request.ProjectId.HasValue
+                ? await _connectionRepository.GetByProjectIdAsync(request.ProjectId.Value, cancellationToken)
+                : await _connectionRepository.GetGlobalAsync(cancellationToken);
 
             if (existing is not null)
             {
@@ -63,13 +73,15 @@ public sealed class ConnectParasutCommandHandler
                 existing.AccessToken    = tokenResponse.AccessToken;
                 existing.RefreshToken   = tokenResponse.RefreshToken;
                 existing.TokenExpiresAt = expiresAt;
+                existing.LastError      = null;
+                existing.ReconnectAttempts = 0;
                 await _connectionRepository.UpdateAsync(existing, cancellationToken);
             }
             else
             {
                 var connection = new ParasutConnection
                 {
-                    ProjectId      = request.ProjectId,
+                    ProjectId      = request.ProjectId,   // null → global
                     CompanyId      = request.CompanyId,
                     ClientId       = request.ClientId,
                     ClientSecret   = request.ClientSecret,
@@ -83,8 +95,8 @@ public sealed class ConnectParasutCommandHandler
             }
 
             _logger.LogInformation(
-                "Paraşüt connected for project {ProjectId}. Company={CompanyId} TokenExpiry={Expiry:u}",
-                request.ProjectId, request.CompanyId, expiresAt);
+                "Paraşüt connected for {Target}. Company={CompanyId} TokenExpiry={Expiry:u}",
+                target, request.CompanyId, expiresAt);
 
             return Result<ConnectParasutDto>.Success(new ConnectParasutDto(
                 ProjectId:      request.ProjectId,
@@ -96,7 +108,7 @@ public sealed class ConnectParasutCommandHandler
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Failed to connect Paraşüt for project {ProjectId}.", request.ProjectId);
+                "Failed to connect Paraşüt for {Target}.", target);
             return Result<ConnectParasutDto>.Failure($"Paraşüt bağlantısı kurulamadı: {ex.Message}");
         }
     }

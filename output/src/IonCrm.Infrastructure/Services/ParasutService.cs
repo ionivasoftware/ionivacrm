@@ -45,7 +45,8 @@ public sealed class ParasutService : IParasutService
         Guid projectId,
         CancellationToken cancellationToken = default)
     {
-        var stored = await _connectionRepository.GetByProjectIdAsync(projectId, cancellationToken);
+        // GetEffectiveConnectionAsync: project-specific first, falls back to global (ProjectId = null).
+        var stored = await _connectionRepository.GetEffectiveConnectionAsync(projectId, cancellationToken);
 
         return await ParasutTokenHelper.EnsureValidTokenAsync(
             stored,
@@ -58,7 +59,7 @@ public sealed class ParasutService : IParasutService
     /// <inheritdoc />
     public async Task<bool> IsConnectedAsync(Guid projectId, CancellationToken cancellationToken = default)
     {
-        var connection = await _connectionRepository.GetByProjectIdAsync(projectId, cancellationToken);
+        var connection = await _connectionRepository.GetEffectiveConnectionAsync(projectId, cancellationToken);
         return connection?.IsConnected ?? false;
     }
 

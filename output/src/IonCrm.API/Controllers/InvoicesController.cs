@@ -3,6 +3,7 @@ using IonCrm.Application.Common.DTOs;
 using IonCrm.Application.Features.Invoices.Commands.CreateInvoice;
 using IonCrm.Application.Features.Invoices.Commands.ImportParasutInvoices;
 using IonCrm.Application.Features.Invoices.Commands.TransferInvoiceToParasut;
+using IonCrm.Application.Features.Invoices.Commands.UpdateInvoice;
 using IonCrm.Application.Features.Invoices.Queries.GetInvoiceById;
 using IonCrm.Application.Features.Invoices.Queries.GetInvoices;
 using MediatR;
@@ -32,10 +33,13 @@ public class InvoicesController : ControllerBase
 
     /// <summary>
     /// GET /api/v1/invoices?projectId={projectId}
-    /// Returns all CRM invoices for the given project, newest first.
+    /// Returns CRM invoices newest first.
+    /// - With projectId: scoped to that project (access-checked).
+    /// - Without projectId: returns all invoices the current user is authorised for
+    ///   (SuperAdmin → all projects; regular user → their project list).
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetInvoices([FromQuery] Guid projectId)
+    public async Task<IActionResult> GetInvoices([FromQuery] Guid? projectId = null)
     {
         var result = await _mediator.Send(new GetInvoicesQuery(projectId));
         if (result.IsFailure)
@@ -67,6 +71,23 @@ public class InvoicesController : ControllerBase
         if (result.IsFailure)
             return BadRequest(ApiResponse<object>.Fail(result.Errors));
         return Ok(ApiResponse<InvoiceDto>.Created(result.Value!));
+    }
+
+    /// <summary>
+    /// PUT /api/v1/invoices/{id}
+    /// Updates an existing Draft invoice.
+    /// NetTotal and GrossTotal are recomputed server-side from LinesJson (discount-aware).
+    /// Returns 400 if the invoice is not in Draft status.
+    /// </summary>
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> UpdateInvoice(Guid id, [FromBody] UpdateInvoiceCommand command)
+    {
+        // Bind the route id into the command record
+        var cmd = command with { InvoiceId = id };
+        var result = await _mediator.Send(cmd);
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<object>.Fail(result.Errors));
+        return Ok(ApiResponse<InvoiceDto>.Ok(result.Value!));
     }
 
     /// <summary>

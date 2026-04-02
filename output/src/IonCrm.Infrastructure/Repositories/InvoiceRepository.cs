@@ -21,6 +21,7 @@ public class InvoiceRepository : GenericRepository<Invoice>, IInvoiceRepository
         => await DbSet
             .AsNoTracking()
             .Include(i => i.Customer)
+            .Include(i => i.Project)
             .Where(i => i.ProjectId == projectId)
             .OrderByDescending(i => i.IssueDate)
             .ThenByDescending(i => i.CreatedAt)
@@ -33,8 +34,32 @@ public class InvoiceRepository : GenericRepository<Invoice>, IInvoiceRepository
         => await DbSet
             .AsNoTracking()
             .Include(i => i.Customer)
+            .Include(i => i.Project)
             .Where(i => i.CustomerId == customerId)
             .OrderByDescending(i => i.IssueDate)
             .ThenByDescending(i => i.CreatedAt)
             .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Invoice>> GetAllAsync(
+        List<Guid>? projectIds,
+        CancellationToken cancellationToken = default)
+    {
+        // IgnoreQueryFilters() bypasses the EF global tenant (ProjectId) filter
+        // so we can safely query across multiple projects.
+        var query = DbSet
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Include(i => i.Customer)
+            .Include(i => i.Project)
+            .Where(i => !i.IsDeleted); // preserve soft-delete filter manually
+
+        if (projectIds is not null)
+            query = query.Where(i => projectIds.Contains(i.ProjectId));
+
+        return await query
+            .OrderByDescending(i => i.IssueDate)
+            .ThenByDescending(i => i.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
 }

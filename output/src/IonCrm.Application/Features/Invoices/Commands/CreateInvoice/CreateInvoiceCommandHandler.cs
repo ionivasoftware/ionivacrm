@@ -1,4 +1,3 @@
-using System.Text.Json;
 using IonCrm.Application.Common.DTOs;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models;
@@ -51,6 +50,10 @@ public sealed class CreateInvoiceCommandHandler
         if (!_currentUser.IsSuperAdmin && !_currentUser.ProjectIds.Contains(customer.ProjectId))
             return Result<InvoiceDto>.Failure("Bu müşteriye erişim yetkiniz yok.");
 
+        // ── Compute totals from line items (discount-aware) ───────────────────
+        var lines = InvoiceLineCalculator.ParseLines(request.LinesJson);
+        var (netTotal, grossTotal) = InvoiceLineCalculator.ComputeTotals(lines);
+
         var invoice = new Invoice
         {
             ProjectId = customer.ProjectId,
@@ -62,8 +65,8 @@ public sealed class CreateInvoiceCommandHandler
             IssueDate = DateTime.SpecifyKind(request.IssueDate, DateTimeKind.Utc),
             DueDate = DateTime.SpecifyKind(request.DueDate, DateTimeKind.Utc),
             Currency = request.Currency,
-            GrossTotal = request.GrossTotal,
-            NetTotal = request.NetTotal,
+            GrossTotal = grossTotal,
+            NetTotal = netTotal,
             LinesJson = request.LinesJson,
             Status = InvoiceStatus.Draft
         };
@@ -73,15 +76,16 @@ public sealed class CreateInvoiceCommandHandler
             await _invoiceRepository.AddAsync(invoice, cancellationToken);
 
             _logger.LogInformation(
-                "Invoice {InvoiceId} created for customer {CustomerId} in project {ProjectId}",
-                invoice.Id, invoice.CustomerId, invoice.ProjectId);
+                "Invoice {InvoiceId} created for customer {CustomerId} in project {ProjectId} " +
+                "(NetTotal={NetTotal}, GrossTotal={GrossTotal})",
+                invoice.Id, invoice.CustomerId, invoice.ProjectId, netTotal, grossTotal);
 
             // ── Auto-transfer + officialize if customer has e-invoice info ────────
             if (customer.IsEInvoicePayer
                 && !string.IsNullOrEmpty(customer.ParasutContactId)
                 && !string.IsNullOrEmpty(customer.EInvoiceAddress))
             {
-                await TryAutoTransferAndOfficializeAsync(invoice, customer, cancellationToken);
+                await TryAutoTransferAndOfficializeAsync(invoice, customer, lines, cancellationToken);
             }
 
             return Result<InvoiceDto>.Success(invoice.ToDto());
@@ -101,7 +105,10 @@ public sealed class CreateInvoiceCommandHandler
     /// This is best-effort: failures are logged but the invoice creation still succeeds (stays Draft).
     /// </summary>
     private async Task TryAutoTransferAndOfficializeAsync(
-        Invoice invoice, Customer customer, CancellationToken cancellationToken)
+        Invoice invoice,
+        Customer customer,
+        List<InvoiceLineDto> lines,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -121,17 +128,25 @@ public sealed class CreateInvoiceCommandHandler
             }
 
             // 2. Build Paraşüt sales invoice request
-            var lines = ParseLines(invoice.LinesJson);
             var details = lines.Select(l => new SalesInvoiceDetailData
             {
                 Attributes = new ParasutSalesInvoiceDetailAttributes(
                     Quantity:      l.Quantity,
                     UnitPrice:     l.UnitPrice,
                     VatRate:       l.VatRate,
-                    DiscountType:  l.DiscountType ?? "percentage",
+                    DiscountType:  l.DiscountType == "amount" ? "amount" : "percentage",
                     DiscountValue: l.DiscountValue,
                     Description:   l.Description,
-                    Unit:          l.Unit ?? "Adet")
+                    Unit:          l.Unit ?? "Adet"),
+                Relationships = !string.IsNullOrEmpty(l.ParasutProductId)
+                    ? new SalesInvoiceDetailRelationships
+                    {
+                        Product = new ProductRelationship
+                        {
+                            Data = new ProductRelationshipData { Id = l.ParasutProductId }
+                        }
+                    }
+                    : null
             }).ToList();
 
             var relationships = new CreateSalesInvoiceRelationships
@@ -215,7 +230,8 @@ public sealed class CreateInvoiceCommandHandler
             {
                 // Officialize failed but transfer succeeded — invoice stays as TransferredToParasut
                 _logger.LogWarning(ex,
-                    "Auto-officialize failed for invoice {InvoiceId} (ParasutId={ParasutId}): {Error}. Invoice was transferred but not officialized.",
+                    "Auto-officialize failed for invoice {InvoiceId} (ParasutId={ParasutId}): {Error}. " +
+                    "Invoice was transferred but not officialized.",
                     invoice.Id, parasutInvoiceId, ex.InnerException?.Message ?? ex.Message);
             }
 
@@ -229,35 +245,5 @@ public sealed class CreateInvoiceCommandHandler
                 "Auto-transfer to Paraşüt failed for invoice {InvoiceId}: {Error}. Invoice saved as Draft.",
                 invoice.Id, ex.InnerException?.Message ?? ex.Message);
         }
-    }
-
-    /// <summary>Parses the denormalized LinesJson into structured line items.</summary>
-    private static List<InvoiceLine> ParseLines(string linesJson)
-    {
-        if (string.IsNullOrWhiteSpace(linesJson) || linesJson == "[]")
-            return new List<InvoiceLine>();
-
-        try
-        {
-            return JsonSerializer.Deserialize<List<InvoiceLine>>(linesJson,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                ?? new List<InvoiceLine>();
-        }
-        catch
-        {
-            return new List<InvoiceLine>();
-        }
-    }
-
-    /// <summary>Internal model for parsing LinesJson.</summary>
-    private sealed record InvoiceLine
-    {
-        public string? Description { get; init; }
-        public decimal Quantity { get; init; } = 1;
-        public decimal UnitPrice { get; init; }
-        public int VatRate { get; init; }
-        public decimal DiscountValue { get; init; }
-        public string? DiscountType { get; init; }
-        public string? Unit { get; init; }
     }
 }

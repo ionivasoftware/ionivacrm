@@ -29,7 +29,9 @@ public class ProjectsController : ApiControllerBase
             isActive = p.IsActive,
             createdAt = p.CreatedAt,
             updatedAt = p.UpdatedAt,
+            emsBaseUrl = p.EmsBaseUrl,
             emsApiKey = p.EmsApiKey,
+            rezervAlBaseUrl = p.RezervAlBaseUrl,
             rezervAlApiKey = p.RezervAlApiKey,
             smsCount = p.SmsCount
         });

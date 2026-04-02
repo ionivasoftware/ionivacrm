@@ -16,4 +16,14 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task<IReadOnlyList<Invoice>> GetByCustomerIdAsync(
         Guid customerId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns invoices across multiple projects, bypassing the EF global tenant filter.
+    /// When <paramref name="projectIds"/> is null, returns all invoices (SuperAdmin use).
+    /// When provided, returns only invoices whose ProjectId is in the list.
+    /// Results are ordered newest IssueDate first.
+    /// </summary>
+    Task<IReadOnlyList<Invoice>> GetAllAsync(
+        List<Guid>? projectIds,
+        CancellationToken cancellationToken = default);
 }

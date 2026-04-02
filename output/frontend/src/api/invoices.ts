@@ -1,21 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { useAuthStore } from '@/stores/authStore';
-import type { ApiResponse, Invoice, CreateCrmInvoiceRequest } from '@/types';
+import type { ApiResponse, Invoice, CreateCrmInvoiceRequest, UpdateCrmInvoiceRequest } from '@/types';
 
 // ── CRM Invoice Queries ──────────────────────────────────────────────────────
 
 export function useInvoices() {
-  const projectId = useAuthStore((s) => s.currentProjectId);
   return useQuery({
-    queryKey: ['invoices', projectId],
+    queryKey: ['invoices'],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse<Invoice[]>>(
-        `/invoices?projectId=${projectId}`
-      );
+      const res = await apiClient.get<ApiResponse<Invoice[]>>('/invoices');
       return res.data.data;
     },
-    enabled: !!projectId,
     staleTime: 30_000,
   });
 }
@@ -42,6 +37,20 @@ export function useCreateInvoice() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+}
+
+export function useUpdateInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: UpdateCrmInvoiceRequest) => {
+      const res = await apiClient.put<ApiResponse<Invoice>>(`/invoices/${id}`, data);
+      return res.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      qc.invalidateQueries({ queryKey: ['invoice', variables.id] });
     },
   });
 }

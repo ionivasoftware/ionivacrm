@@ -95,12 +95,16 @@ public sealed class ParasutAutoConnectService : BackgroundService
 
             foreach (var connection in connections)
             {
+                var connTarget = connection.ProjectId.HasValue
+                    ? $"project {connection.ProjectId}"
+                    : "global";
+
                 // Skip connections that already have a valid token
                 if (connection.IsConnected)
                 {
                     _logger.LogDebug(
-                        "ParasutAutoConnect: project {ProjectId} token still valid until {Expiry:u} — skipping.",
-                        connection.ProjectId, connection.TokenExpiresAt);
+                        "ParasutAutoConnect: {ConnTarget} token still valid until {Expiry:u} — skipping.",
+                        connTarget, connection.TokenExpiresAt);
                     skipped++;
                     continue;
                 }
@@ -109,9 +113,9 @@ public sealed class ParasutAutoConnectService : BackgroundService
                 if (connection.ReconnectAttempts >= MaxReconnectAttempts)
                 {
                     _logger.LogWarning(
-                        "ParasutAutoConnect: project {ProjectId} exceeded max reconnect attempts ({Attempts}/{Max}). " +
+                        "ParasutAutoConnect: {ConnTarget} exceeded max reconnect attempts ({Attempts}/{Max}). " +
                         "Last error: {Error}. Manual reconnect required.",
-                        connection.ProjectId, connection.ReconnectAttempts, MaxReconnectAttempts, connection.LastError);
+                        connTarget, connection.ReconnectAttempts, MaxReconnectAttempts, connection.LastError);
                     skipped++;
                     continue;
                 }
@@ -121,15 +125,15 @@ public sealed class ParasutAutoConnectService : BackgroundService
                     string.IsNullOrWhiteSpace(connection.RefreshToken))
                 {
                     _logger.LogWarning(
-                        "ParasutAutoConnect: project {ProjectId} has no credentials and no refresh token — cannot auto-connect.",
-                        connection.ProjectId);
+                        "ParasutAutoConnect: {ConnTarget} has no credentials and no refresh token — cannot auto-connect.",
+                        connTarget);
                     failed++;
                     continue;
                 }
 
                 _logger.LogInformation(
-                    "ParasutAutoConnect: token expired for project {ProjectId} (attempt {Attempt}). Attempting refresh/re-auth...",
-                    connection.ProjectId, connection.ReconnectAttempts + 1);
+                    "ParasutAutoConnect: token expired for {ConnTarget} (attempt {Attempt}). Attempting refresh/re-auth...",
+                    connTarget, connection.ReconnectAttempts + 1);
 
                 var (refreshedConn, error) = await ParasutTokenHelper.EnsureValidTokenAsync(
                     connection,
@@ -141,8 +145,8 @@ public sealed class ParasutAutoConnectService : BackgroundService
                 if (refreshedConn is not null)
                 {
                     _logger.LogInformation(
-                        "ParasutAutoConnect: project {ProjectId} reconnected. Token valid until {Expiry:u}.",
-                        connection.ProjectId, refreshedConn.TokenExpiresAt);
+                        "ParasutAutoConnect: {ConnTarget} reconnected. Token valid until {Expiry:u}.",
+                        connTarget, refreshedConn.TokenExpiresAt);
                     refreshed++;
                 }
                 else
@@ -156,13 +160,13 @@ public sealed class ParasutAutoConnectService : BackgroundService
                     catch (Exception ex)
                     {
                         _logger.LogError(ex,
-                            "ParasutAutoConnect: failed to persist reconnect failure for project {ProjectId}. {Inner}",
-                            connection.ProjectId, ex.InnerException?.Message);
+                            "ParasutAutoConnect: failed to persist reconnect failure for {ConnTarget}. {Inner}",
+                            connTarget, ex.InnerException?.Message);
                     }
 
                     _logger.LogWarning(
-                        "ParasutAutoConnect: project {ProjectId} auto-connect failed (attempt {Attempt}/{Max}) — {Error}",
-                        connection.ProjectId, connection.ReconnectAttempts, MaxReconnectAttempts, error);
+                        "ParasutAutoConnect: {ConnTarget} auto-connect failed (attempt {Attempt}/{Max}) — {Error}",
+                        connTarget, connection.ReconnectAttempts, MaxReconnectAttempts, error);
                     failed++;
                 }
             }

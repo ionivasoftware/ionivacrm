@@ -34,14 +34,18 @@ public static class ParasutTokenHelper
         if (connection.IsConnected)
             return (connection, null);
 
+        var connTarget = connection.ProjectId.HasValue
+            ? $"project {connection.ProjectId}"
+            : "global";
+
         // 2 ── Token expired — try refresh_token grant first
         if (!string.IsNullOrEmpty(connection.RefreshToken))
         {
             try
             {
                 logger.LogInformation(
-                    "Paraşüt access token expired for project {ProjectId}. Attempting refresh...",
-                    connection.ProjectId);
+                    "Paraşüt access token expired for {ConnTarget}. Attempting refresh...",
+                    connTarget);
 
                 var refreshed = await parasutClient.RefreshTokenAsync(
                     connection.RefreshToken,
@@ -53,16 +57,16 @@ public static class ParasutTokenHelper
                 await connectionRepository.UpdateAsync(connection, cancellationToken);
 
                 logger.LogInformation(
-                    "Paraşüt token refreshed for project {ProjectId}. New expiry: {Expiry:u}",
-                    connection.ProjectId, connection.TokenExpiresAt);
+                    "Paraşüt token refreshed for {ConnTarget}. New expiry: {Expiry:u}",
+                    connTarget, connection.TokenExpiresAt);
 
                 return (connection, null);
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex,
-                    "Paraşüt refresh_token grant failed for project {ProjectId}. Falling back to password grant.",
-                    connection.ProjectId);
+                    "Paraşüt refresh_token grant failed for {ConnTarget}. Falling back to password grant.",
+                    connTarget);
             }
         }
 
@@ -76,8 +80,8 @@ public static class ParasutTokenHelper
         try
         {
             logger.LogInformation(
-                "Paraşüt re-authenticating with stored credentials for project {ProjectId}.",
-                connection.ProjectId);
+                "Paraşüt re-authenticating with stored credentials for {ConnTarget}.",
+                connTarget);
 
             var newToken = await parasutClient.GetTokenAsync(
                 new ParasutTokenRequest(
@@ -92,15 +96,15 @@ public static class ParasutTokenHelper
             await connectionRepository.UpdateAsync(connection, cancellationToken);
 
             logger.LogInformation(
-                "Paraşüt re-authenticated for project {ProjectId}. New expiry: {Expiry:u}",
-                connection.ProjectId, connection.TokenExpiresAt);
+                "Paraşüt re-authenticated for {ConnTarget}. New expiry: {Expiry:u}",
+                connTarget, connection.TokenExpiresAt);
 
             return (connection, null);
         }
         catch (Exception ex)
         {
             logger.LogError(ex,
-                "Paraşüt re-authentication failed for project {ProjectId}.", connection.ProjectId);
+                "Paraşüt re-authentication failed for {ConnTarget}.", connTarget);
             return (null,
                 "Paraşüt'e otomatik bağlanılamadı. Lütfen Ayarlar'dan şifreyi kontrol edip tekrar bağlanın.");
         }

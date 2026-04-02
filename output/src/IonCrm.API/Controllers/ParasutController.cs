@@ -70,13 +70,14 @@ public class ParasutController : ControllerBase
     }
 
     /// <summary>
-    /// DELETE /api/v1/parasut/disconnect/{projectId}
+    /// DELETE /api/v1/parasut/disconnect?projectId={guid}
     /// Removes the Paraşüt connection for the given project.
-    /// Requires ProjectAdmin or SuperAdmin.
+    /// Omit <c>projectId</c> to disconnect the global connection.
+    /// Requires SuperAdmin.
     /// </summary>
-    [HttpDelete("disconnect/{projectId:guid}")]
+    [HttpDelete("disconnect")]
     [Authorize(Policy = "SuperAdmin")]
-    public async Task<IActionResult> Disconnect(Guid projectId)
+    public async Task<IActionResult> Disconnect([FromQuery] Guid? projectId = null)
     {
         var result = await _mediator.Send(new DisconnectParasutCommand(projectId));
         if (result.IsFailure)

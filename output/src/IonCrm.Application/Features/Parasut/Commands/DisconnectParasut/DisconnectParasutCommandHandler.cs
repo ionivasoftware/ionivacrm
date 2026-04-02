@@ -26,16 +26,28 @@ public sealed class DisconnectParasutCommandHandler
         DisconnectParasutCommand request,
         CancellationToken cancellationToken)
     {
-        var connection = await _connectionRepository.GetByProjectIdAsync(
-            request.ProjectId, cancellationToken);
+        // Strict lookup — do not use GetEffectiveConnectionAsync here to avoid accidentally
+        // soft-deleting the global connection when disconnecting a project.
+        var connection = request.ProjectId.HasValue
+            ? await _connectionRepository.GetByProjectIdAsync(request.ProjectId.Value, cancellationToken)
+            : await _connectionRepository.GetGlobalAsync(cancellationToken);
 
         if (connection is null)
-            return Result.Failure("Bu proje için Paraşüt bağlantısı bulunamadı.");
+        {
+            var notFound = request.ProjectId.HasValue
+                ? "Bu proje için Paraşüt bağlantısı bulunamadı."
+                : "Global Paraşüt bağlantısı bulunamadı.";
+            return Result.Failure(notFound);
+        }
 
         await _connectionRepository.DeleteAsync(connection, cancellationToken);
 
+        var target = request.ProjectId.HasValue
+            ? $"project {request.ProjectId}"
+            : "global";
+
         _logger.LogInformation(
-            "Paraşüt disconnected for project {ProjectId}.", request.ProjectId);
+            "Paraşüt disconnected for {Target}.", target);
 
         return Result.Success();
     }

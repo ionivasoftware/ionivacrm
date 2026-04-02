@@ -7,4 +7,13 @@ public record CreateProjectCommand(
     string Name,
     string? Description) : IRequest<Result<ProjectDto>>;
 
-public record ProjectDto(Guid Id, string Name, string? Description, bool IsActive, DateTime CreatedAt, string? EmsApiKey = null, string? RezervAlApiKey = null);
+public record ProjectDto(
+    Guid Id,
+    string Name,
+    string? Description,
+    bool IsActive,
+    DateTime CreatedAt,
+    string? EmsBaseUrl = null,
+    string? EmsApiKey = null,
+    string? RezervAlBaseUrl = null,
+    string? RezervAlApiKey = null);

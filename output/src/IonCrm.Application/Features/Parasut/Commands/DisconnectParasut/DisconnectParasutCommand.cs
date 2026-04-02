@@ -3,5 +3,9 @@ using MediatR;
 
 namespace IonCrm.Application.Features.Parasut.Commands.DisconnectParasut;
 
-/// <summary>Removes the Paraşüt connection for the given project.</summary>
-public record DisconnectParasutCommand(Guid ProjectId) : IRequest<Result>;
+/// <summary>
+/// Removes a Paraşüt connection.
+/// Pass <c>ProjectId = null</c> to disconnect the global connection.
+/// Pass a specific <c>ProjectId</c> to disconnect only that project's connection.
+/// </summary>
+public record DisconnectParasutCommand(Guid? ProjectId) : IRequest<Result>;

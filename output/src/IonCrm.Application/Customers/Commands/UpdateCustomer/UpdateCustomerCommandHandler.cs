@@ -52,6 +52,7 @@ public class UpdateCustomerCommandHandler : IRequestHandler<UpdateCustomerComman
         customer.Segment = request.Segment;
         customer.Label = request.Label;
         customer.AssignedUserId = request.AssignedUserId;
+        customer.MonthlyLicenseFee = request.MonthlyLicenseFee;
 
         await _customerRepository.UpdateAsync(customer, cancellationToken);
 

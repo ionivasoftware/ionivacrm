@@ -17,8 +17,14 @@ public class Project : BaseEntity
     /// <summary>Gets or sets a value indicating whether this project is active.</summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Gets or sets the base URL of the EMS (SaaS A) API for this project.</summary>
+    public string? EmsBaseUrl { get; set; }
+
     /// <summary>Gets or sets the API key used to authenticate with EMS (SaaS A).</summary>
     public string? EmsApiKey { get; set; }
+
+    /// <summary>Gets or sets the base URL of the RezervAl (SaaS B) API for this project.</summary>
+    public string? RezervAlBaseUrl { get; set; }
 
     /// <summary>Gets or sets the API key used to authenticate with Rezerval (SaaS B).</summary>
     public string? RezervAlApiKey { get; set; }

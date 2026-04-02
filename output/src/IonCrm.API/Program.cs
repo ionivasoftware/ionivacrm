@@ -165,11 +165,14 @@ app.Lifetime.ApplicationStarted.Register(() =>
             // Idempotent fallback: ensure columns added in later sprints exist.
             // Uses IF NOT EXISTS / USING cast so it is safe to run on every startup.
             await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ExpirationDate""    timestamp with time zone;
+                ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ExpirationDate""      timestamp with time zone;
                 ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ParasutContactId""  text;
                 ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""IsEInvoicePayer""   boolean NOT NULL DEFAULT false;
                 ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""EInvoiceAddress""   text;
+                ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""MonthlyLicenseFee"" numeric;
+                ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsBaseUrl""        text;
                 ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsApiKey""         text;
+                ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlBaseUrl""   text;
                 ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlApiKey""    text;
                 ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""SmsCount""          integer NOT NULL DEFAULT 0;
             ");
@@ -213,6 +216,22 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""ReconnectAttempts"" integer NOT NULL DEFAULT 0;
             ");
             Log.Information("ParasutConnections reconnect tracking columns ensured");
+
+            // Global connection support: ProjectId becomes nullable (NULL = global, shared by all projects).
+            // Replaces the old per-project unique index with two partial indexes:
+            //   1. ix_parasutconnections_projectid_notnull — one connection per project (non-null ProjectId)
+            //   2. ix_parasutconnections_global            — at most one global connection (ProjectId IS NULL)
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ParasutConnections"" ALTER COLUMN ""ProjectId"" DROP NOT NULL;
+                DROP INDEX IF EXISTS ""ix_parasutconnections_projectid"";
+                CREATE UNIQUE INDEX IF NOT EXISTS ""ix_parasutconnections_projectid_notnull""
+                    ON ""ParasutConnections"" (""ProjectId"")
+                    WHERE ""ProjectId"" IS NOT NULL AND ""IsDeleted"" = false;
+                CREATE UNIQUE INDEX IF NOT EXISTS ""ix_parasutconnections_global""
+                    ON ""ParasutConnections"" ((0))
+                    WHERE ""ProjectId"" IS NULL AND ""IsDeleted"" = false;
+            ");
+            Log.Information("ParasutConnections global connection support (nullable ProjectId) ensured");
 
             // Idempotent fallback: create Invoices table if EF migration hasn't run yet.
             await db.Database.ExecuteSqlRawAsync(@"

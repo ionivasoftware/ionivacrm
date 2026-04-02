@@ -12,6 +12,7 @@ public static class InvoiceMappings
         ProjectId = i.ProjectId,
         CustomerId = i.CustomerId,
         CustomerName = i.Customer?.CompanyName ?? string.Empty,
+        ProjectName = i.Project?.Name ?? string.Empty,
         Title = i.Title,
         Description = i.Description,
         InvoiceSeries = i.InvoiceSeries,

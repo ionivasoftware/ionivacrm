@@ -124,3 +124,28 @@ public record EmsCompanyUser(
 public record EmsCompanyUsersResponse(
     int CompanyId,
     List<EmsCompanyUser> Data);
+
+// ── EMS company summary ───────────────────────────────────────────────────────
+
+/// <summary>
+/// Response from EMS GET /api/v1/crm/companies/{companyId}/summary.
+/// Contains monthly activity counts and overall totals for the company.
+/// </summary>
+public record EmsCompanySummaryResponse(
+    int CompanyId,
+    EmsCompanySummaryTotals Totals,
+    List<EmsCompanyMonthlyStat> Monthly);
+
+/// <summary>Overall totals for the company (snapshot).</summary>
+public record EmsCompanySummaryTotals(
+    int CustomerCount,
+    int ElevatorCount,
+    int UserCount);
+
+/// <summary>Monthly activity breakdown for a single month.</summary>
+public record EmsCompanyMonthlyStat(
+    int Year,
+    int Month,
+    int MaintenanceCount,
+    int BreakdownCount,
+    int ProposalCount);

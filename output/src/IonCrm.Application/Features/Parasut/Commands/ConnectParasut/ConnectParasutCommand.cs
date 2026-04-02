@@ -4,17 +4,20 @@ using MediatR;
 namespace IonCrm.Application.Features.Parasut.Commands.ConnectParasut;
 
 /// <summary>
-/// Connects a project to Paraşüt by authenticating with OAuth 2.0 password grant
+/// Connects to Paraşüt by authenticating with OAuth 2.0 password grant
 /// and persisting the access/refresh tokens to the database.
 /// </summary>
-/// <param name="ProjectId">The CRM project (tenant) to link to Paraşüt.</param>
+/// <param name="ProjectId">
+/// The CRM project (tenant) to link to Paraşüt. Pass <c>null</c> to create a global
+/// connection that is shared by all projects (used when there is no per-project binding).
+/// </param>
 /// <param name="CompanyId">The numeric Paraşüt company (firma) ID.</param>
 /// <param name="ClientId">OAuth client ID provided by Paraşüt.</param>
 /// <param name="ClientSecret">OAuth client secret provided by Paraşüt.</param>
 /// <param name="Username">Paraşüt account e-mail address.</param>
 /// <param name="Password">Paraşüt account password.</param>
 public record ConnectParasutCommand(
-    Guid ProjectId,
+    Guid? ProjectId,
     long CompanyId,
     string ClientId,
     string ClientSecret,
@@ -24,7 +27,7 @@ public record ConnectParasutCommand(
 
 /// <summary>Response DTO for a successful Paraşüt connection.</summary>
 public record ConnectParasutDto(
-    Guid ProjectId,
+    Guid? ProjectId,
     long CompanyId,
     string Username,
     bool IsConnected,

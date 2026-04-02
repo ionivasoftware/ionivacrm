@@ -8,6 +8,7 @@ using IonCrm.Application.Customers.Commands.TransferLead;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
 using IonCrm.Application.Customers.Queries.GetCustomerEmsUsers;
+using IonCrm.Application.Customers.Queries.GetCustomerEmsSummary;
 using IonCrm.Application.Customers.Queries.GetCustomerWithDetails;
 using IonCrm.Application.Customers.Queries.GetCustomers;
 using IonCrm.Domain.Enums;
@@ -172,6 +173,20 @@ public class CustomersController : ApiControllerBase
     public async Task<IActionResult> GetEmsUsers(Guid id, CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(new GetCustomerEmsUsersQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// GET /api/v1/customers/{id}/ems-summary
+    /// Returns the EMS usage summary for an EMS-sourced customer.
+    /// Proxies to EMS GET /api/v1/crm/companies/{emsCompanyId}/summary.
+    /// Response includes: monthly maintenance/breakdown/proposal counts + totals (customer/elevator/user counts).
+    /// Returns 400 if the customer has no EMS mapping (LegacyId is null, "PC-...", "REZV-..." or non-numeric).
+    /// </summary>
+    [HttpGet("{id:guid}/ems-summary")]
+    public async Task<IActionResult> GetEmsSummary(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetCustomerEmsSummaryQuery(id), cancellationToken);
         return ResultToResponse(result);
     }
 

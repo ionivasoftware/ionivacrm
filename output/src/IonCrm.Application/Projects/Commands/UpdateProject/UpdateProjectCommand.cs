@@ -8,4 +8,8 @@ public record UpdateProjectCommand(
     Guid Id,
     string Name,
     string? Description,
-    bool IsActive) : IRequest<Result<ProjectDto>>;
+    bool IsActive,
+    string? EmsBaseUrl = null,
+    string? EmsApiKey = null,
+    string? RezervAlBaseUrl = null,
+    string? RezervAlApiKey = null) : IRequest<Result<ProjectDto>>;

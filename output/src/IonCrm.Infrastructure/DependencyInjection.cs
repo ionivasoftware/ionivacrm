@@ -110,6 +110,13 @@ public static class DependencyInjection
             // ── Background service: registers Hangfire recurring jobs ─────────────
             services.AddHostedService<SyncBackgroundService>();
         }
+        else
+        {
+            // Hangfire is disabled (default) — use a lightweight PeriodicTimer-based service.
+            // Runs every 15 minutes with a PostgreSQL advisory lock so that rolling deploys on
+            // Railway (briefly two containers) never execute a duplicate sync simultaneously.
+            services.AddHostedService<SyncTimerService>();
+        }
 
         return services;
     }

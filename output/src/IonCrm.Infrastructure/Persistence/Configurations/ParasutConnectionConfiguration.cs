@@ -36,15 +36,18 @@ public class ParasutConnectionConfiguration : IEntityTypeConfiguration<ParasutCo
         builder.Property(c => c.RefreshToken)
             .HasMaxLength(2000);
 
-        // One connection per project
-        builder.HasIndex(c => c.ProjectId).IsUnique();
+        // ProjectId is nullable — null means global connection.
+        // Uniqueness is enforced via partial indexes in Program.cs (idempotent SQL).
+        // EF does not own the index here to avoid conflicts with the raw-SQL schema.
 
         // Ignore computed property — not a column
         builder.Ignore(c => c.IsConnected);
 
+        // FK is optional — global connections have no owning project.
         builder.HasOne(c => c.Project)
             .WithMany()
             .HasForeignKey(c => c.ProjectId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

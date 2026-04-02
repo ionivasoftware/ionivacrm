@@ -21,7 +21,8 @@ public sealed class GetParasutStatusQueryHandler
         GetParasutStatusQuery request,
         CancellationToken cancellationToken)
     {
-        var connection = await _connectionRepository.GetByProjectIdAsync(
+        // Use effective connection — falls back to global if no project-specific connection exists.
+        var connection = await _connectionRepository.GetEffectiveConnectionAsync(
             request.ProjectId, cancellationToken);
 
         if (connection is null)

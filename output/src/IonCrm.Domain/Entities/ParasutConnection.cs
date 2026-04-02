@@ -8,8 +8,11 @@ namespace IonCrm.Domain.Entities;
 /// </summary>
 public class ParasutConnection : BaseEntity
 {
-    /// <summary>Gets or sets the project (tenant) this connection belongs to.</summary>
-    public Guid ProjectId { get; set; }
+    /// <summary>
+    /// Gets or sets the project (tenant) this connection belongs to.
+    /// <c>null</c> means this is the global Paraşüt connection shared by all projects.
+    /// </summary>
+    public Guid? ProjectId { get; set; }
 
     /// <summary>Gets or sets the Paraşüt company (firma) numeric identifier.</summary>
     public long CompanyId { get; set; }
@@ -60,6 +63,6 @@ public class ParasutConnection : BaseEntity
     public int ReconnectAttempts { get; set; }
 
     // ── Navigation ────────────────────────────────────────────────────────────
-    /// <summary>Gets or sets the project navigation property.</summary>
-    public Project Project { get; set; } = null!;
+    /// <summary>Gets or sets the project navigation property. Null when this is the global connection.</summary>
+    public Project? Project { get; set; }
 }

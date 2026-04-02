@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, Lock, Loader2, CheckCircle, Link2, Link2Off, Building2, Eye, EyeOff, Package, Search, ChevronDown } from 'lucide-react';
+import { User, Lock, Loader2, CheckCircle, Link2, Link2Off, Building2, Eye, EyeOff, Package, Search, ChevronDown, Server } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ import {
   useParasutProductList,
   useSaveParasutProduct,
 } from '@/api/parasut';
+import { useAdminProjects, useUpdateProject } from '@/api/admin';
 
 // ── Profile form ──────────────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ const CRM_PRODUCTS: CrmProductDef[] = [
   { key: 'sms_2500', label: '2500 SMS' },
   { key: 'sms_5000', label: '5000 SMS' },
   { key: 'sms_10000', label: '10000 SMS' },
+  { key: 'rezerval_monthly', label: 'RezervAl Aylık Lisans Bedeli' },
 ];
 
 // Inline searchable combobox for Paraşüt products
@@ -291,6 +293,49 @@ export function SettingsPage() {
   const disconnectParasut = useDisconnectParasut();
   const parasutProducts = useParasutProducts(currentProjectId);
   const parasutProductList = useParasutProductList(currentProjectId, loadParasutProductList);
+  // EMS & RezervAl config
+  const adminProjects = useAdminProjects();
+  const updateProject = useUpdateProject();
+  const currentProject = adminProjects.data?.find(p => p.id === currentProjectId) ?? null;
+  const [emsBaseUrl, setEmsBaseUrl] = useState('');
+  const [emsApiKey, setEmsApiKey] = useState('');
+  const [showEmsApiKey, setShowEmsApiKey] = useState(false);
+  const [rezervAlBaseUrl, setRezervAlBaseUrl] = useState('');
+  const [rezervAlApiKey, setRezervAlApiKey] = useState('');
+  const [showRezervAlApiKey, setShowRezervAlApiKey] = useState(false);
+  const [integrationSaved, setIntegrationSaved] = useState(false);
+
+  // Pre-populate fields when project data loads
+  useEffect(() => {
+    if (currentProject) {
+      setEmsBaseUrl(currentProject.emsBaseUrl ?? '');
+      setEmsApiKey(currentProject.emsApiKey ?? '');
+      setRezervAlBaseUrl(currentProject.rezervAlBaseUrl ?? '');
+      setRezervAlApiKey(currentProject.rezervAlApiKey ?? '');
+    }
+  }, [currentProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleIntegrationSave() {
+    if (!currentProject) return;
+    setIntegrationSaved(false);
+    try {
+      await updateProject.mutateAsync({
+        id: currentProject.id,
+        name: currentProject.name,
+        description: currentProject.description ?? undefined,
+        isActive: currentProject.isActive,
+        emsBaseUrl: emsBaseUrl.trim() || null,
+        emsApiKey: emsApiKey.trim() || null,
+        rezervAlBaseUrl: rezervAlBaseUrl.trim() || null,
+        rezervAlApiKey: rezervAlApiKey.trim() || null,
+      });
+      setIntegrationSaved(true);
+      setTimeout(() => setIntegrationSaved(false), 3000);
+      toast({ title: 'Entegrasyon ayarları kaydedildi' });
+    } catch {
+      toast({ title: 'Hata', description: 'Kaydedilemedi.', variant: 'destructive' });
+    }
+  }
 
   const parasutForm = useForm<ParasutForm>({
     resolver: zodResolver(parasutSchema),
@@ -609,6 +654,121 @@ export function SettingsPage() {
                     parasutProductsLoading={parasutProductList.isLoading}
                   />
                 ))}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── EMS & RezervAl Integration Config (SuperAdmin only) ── */}
+      {user?.isSuperAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Server className="h-4 w-4" /> EMS & RezervAl Yapılandırması
+            </CardTitle>
+            <CardDescription>
+              EMS (SaaS A) ve RezervAl (SaaS B) entegrasyonları için bağlantı adresi ve API anahtarı ayarları.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {adminProjects.isLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Proje verileri yükleniyor...
+              </div>
+            ) : !currentProject ? (
+              <p className="text-sm text-muted-foreground">
+                Yapılandırma için önce bir proje seçin.
+              </p>
+            ) : (
+              <>
+                {/* EMS */}
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-foreground">EMS (SaaS A)</p>
+                  <div className="space-y-1.5">
+                    <Label>EMS Base URL</Label>
+                    <Input
+                      value={emsBaseUrl}
+                      onChange={e => setEmsBaseUrl(e.target.value)}
+                      placeholder="https://api.ems-example.com"
+                      className="h-10 font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>EMS API Key</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type={showEmsApiKey ? 'text' : 'password'}
+                        value={emsApiKey}
+                        onChange={e => setEmsApiKey(e.target.value)}
+                        placeholder="Bearer token / API anahtarı"
+                        className="h-10 font-mono text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowEmsApiKey(v => !v)}
+                        className="flex-shrink-0"
+                      >
+                        {showEmsApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* RezervAl */}
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-foreground">RezervAl (SaaS B)</p>
+                  <div className="space-y-1.5">
+                    <Label>RezervAl Base URL</Label>
+                    <Input
+                      value={rezervAlBaseUrl}
+                      onChange={e => setRezervAlBaseUrl(e.target.value)}
+                      placeholder="https://api.rezerval-example.com"
+                      className="h-10 font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>RezervAl API Key</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type={showRezervAlApiKey ? 'text' : 'password'}
+                        value={rezervAlApiKey}
+                        onChange={e => setRezervAlApiKey(e.target.value)}
+                        placeholder="X-Api-Key değeri"
+                        className="h-10 font-mono text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowRezervAlApiKey(v => !v)}
+                        className="flex-shrink-0"
+                      >
+                        {showRezervAlApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    onClick={handleIntegrationSave}
+                    disabled={updateProject.isPending}
+                    className="gap-2"
+                  >
+                    {updateProject.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Kaydet
+                  </Button>
+                  {integrationSaved && (
+                    <span className="flex items-center gap-1 text-sm text-emerald-500">
+                      <CheckCircle className="h-4 w-4" /> Kaydedildi
+                    </span>
+                  )}
+                </div>
               </>
             )}
           </CardContent>

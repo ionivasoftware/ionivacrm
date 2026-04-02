@@ -72,6 +72,7 @@ import {
   useAddCustomerSms,
   useExtendEmsExpiration,
   useCustomerEmsUsers,
+  useUpdateCustomer,
 } from '@/api/customers';
 import { useAdminProjects } from '@/api/admin';
 import { CustomerStatusBadge, CustomerLabelBadge } from '@/components/customers/CustomerStatusBadge';
@@ -201,6 +202,110 @@ function isEmsCustomer(legacyId: string | null | undefined): boolean {
   if (!legacyId) return false;
   if (legacyId.startsWith('PC-')) return false;
   return /^\d/.test(legacyId) || legacyId.startsWith('SAASA-');
+}
+
+// ── RezervAl customer helper ──────────────────────────────────────────────────
+
+/** Returns true for RezervAl customers: SAASB-{n} (from sync) or REZV-{n} (after push) */
+function isRezervalCustomer(legacyId: string | null | undefined): boolean {
+  if (!legacyId) return false;
+  return legacyId.startsWith('SAASB-') || legacyId.startsWith('REZV-');
+}
+
+// ── RezervAl Monthly License Fee Section ─────────────────────────────────────
+
+import type { Customer as CustomerType } from '@/types';
+
+function RezervalLicenseFeeSection({ customer }: { customer: CustomerType }) {
+  const { toast } = useToast();
+  const updateCustomer = useUpdateCustomer();
+  const [feeValue, setFeeValue] = useState(
+    customer.monthlyLicenseFee != null ? customer.monthlyLicenseFee.toString() : ''
+  );
+  const [editing, setEditing] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSave() {
+    const parsed = feeValue.trim() === '' ? null : parseFloat(feeValue);
+    if (parsed !== null && isNaN(parsed)) {
+      toast({ title: 'Hata', description: 'Geçerli bir sayı girin.', variant: 'destructive' });
+      return;
+    }
+    try {
+      await updateCustomer.mutateAsync({
+        id: customer.id,
+        projectId: customer.projectId,
+        companyName: customer.companyName,
+        contactName: customer.contactName ?? undefined,
+        email: customer.email ?? undefined,
+        phone: customer.phone ?? undefined,
+        address: customer.address ?? undefined,
+        taxNumber: customer.taxNumber ?? undefined,
+        taxUnit: customer.taxUnit ?? undefined,
+        status: customer.status,
+        segment: customer.segment ?? undefined,
+        label: customer.label ?? undefined,
+        assignedUserId: customer.assignedUserId ?? undefined,
+        code: customer.code ?? undefined,
+        monthlyLicenseFee: parsed,
+      });
+      setSaved(true);
+      setEditing(false);
+      setTimeout(() => setSaved(false), 3000);
+      toast({ title: 'Aylık lisans bedeli güncellendi.' });
+    } catch {
+      toast({ title: 'Hata', description: 'Kaydedilemedi.', variant: 'destructive' });
+    }
+  }
+
+  const displayFee =
+    customer.monthlyLicenseFee != null
+      ? new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 2 }).format(customer.monthlyLicenseFee)
+      : '—';
+
+  return (
+    <div className="flex items-center gap-3 min-w-0">
+      <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+        <DollarSign className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground mb-0.5">Aylık Lisans Bedeli</p>
+        {editing ? (
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={feeValue}
+              onChange={(e) => setFeeValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false); }}
+              className="h-7 text-sm w-32"
+              placeholder="0.00"
+              autoFocus
+            />
+            <Button size="sm" className="h-7 px-3 text-xs" onClick={handleSave} disabled={updateCustomer.isPending}>
+              {updateCustomer.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Kaydet'}
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditing(false)}>
+              İptal
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-foreground">{displayFee}</p>
+            {saved && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />}
+            <button
+              onClick={() => { setFeeValue(customer.monthlyLicenseFee != null ? customer.monthlyLicenseFee.toString() : ''); setEditing(true); }}
+              className="text-xs text-muted-foreground hover:text-primary transition-colors"
+              title="Düzenle"
+            >
+              <Edit className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ── EMS Users Tab ─────────────────────────────────────────────────────────────

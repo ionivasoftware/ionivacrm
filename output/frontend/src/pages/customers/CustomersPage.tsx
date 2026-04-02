@@ -24,8 +24,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCustomers } from '@/api/customers';
+import { useAdminProjects } from '@/api/admin';
 import { CustomerCard } from '@/components/customers/CustomerCard';
 import { CustomerFormDialog } from '@/components/customers/CustomerForm';
+import { RezervalCustomerFormDialog } from '@/components/customers/RezervalCustomerFormDialog';
 import { AddContactHistoryDialog } from '@/components/customers/AddContactHistoryDialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/stores/authStore';
@@ -49,9 +51,18 @@ export function CustomersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | 'all'>('all');
   const [segmentFilter, setSegmentFilter] = useState<string>('all');
-  const { currentProjectId, projectNames } = useAuthStore();
+  const { currentProjectId, projectNames, projects: storeProjects } = useAuthStore();
   const projectName = currentProjectId ? projectNames[currentProjectId] : undefined;
   const segments = getSegmentsForProject(projectName);
+
+  // Detect if the currently selected project is a RezervAl project.
+  // SuperAdmin has full project objects in storeProjects; other users need a separate fetch.
+  const { data: adminProjects } = useAdminProjects();
+  const allProjects = storeProjects.length > 0 ? storeProjects : adminProjects ?? [];
+  const currentProject = allProjects.find((p) => p.id === currentProjectId);
+  const isRezervalProject = !!(
+    (currentProject as { rezervAlApiKey?: string | null } | undefined)?.rezervAlApiKey
+  );
   const [labelFilter, setLabelFilter] = useState<CustomerLabel | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
 
@@ -405,10 +416,17 @@ export function CustomersPage() {
       </Card>
 
       {/* ── Dialogs ── */}
-      <CustomerFormDialog
-        isOpen={showCreateDialog}
-        onClose={() => setShowCreateDialog(false)}
-      />
+      {isRezervalProject ? (
+        <RezervalCustomerFormDialog
+          isOpen={showCreateDialog}
+          onClose={() => setShowCreateDialog(false)}
+        />
+      ) : (
+        <CustomerFormDialog
+          isOpen={showCreateDialog}
+          onClose={() => setShowCreateDialog(false)}
+        />
+      )}
 
       {quickAction && (
         <AddContactHistoryDialog

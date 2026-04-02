@@ -431,6 +431,10 @@ export interface PushToRezervalRequest {
   adminPassword?: string;
   adminEmail?: string;
   adminPhone?: string;
+  /** Logo file encoded as Base64 string (optional) */
+  logoBase64?: string;
+  /** Logo file name e.g. "logo.png" (optional) */
+  logoFileName?: string;
 }
 
 export function usePushToRezerval(customerId: string) {

@@ -31,6 +31,7 @@ public static class CustomerMappings
         ParasutContactId = c.ParasutContactId,
         IsEInvoicePayer = c.IsEInvoicePayer,
         EInvoiceAddress = c.EInvoiceAddress,
+        MonthlyLicenseFee = c.MonthlyLicenseFee,
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt
     };

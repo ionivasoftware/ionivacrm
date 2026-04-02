@@ -25,11 +25,29 @@ public sealed class GetInvoicesQueryHandler
     public async Task<Result<List<InvoiceDto>>> Handle(
         GetInvoicesQuery request, CancellationToken cancellationToken)
     {
-        if (!_currentUser.IsSuperAdmin && !_currentUser.ProjectIds.Contains(request.ProjectId))
-            return Result<List<InvoiceDto>>.Failure("Bu projeye erişim yetkiniz yok.");
+        IReadOnlyList<Domain.Entities.Invoice> invoices;
 
-        var invoices = await _invoiceRepository.GetByProjectIdAsync(
-            request.ProjectId, cancellationToken);
+        if (request.ProjectId.HasValue)
+        {
+            // ── Scoped to a single project ────────────────────────────────
+            var projectId = request.ProjectId.Value;
+
+            if (!_currentUser.IsSuperAdmin && !_currentUser.ProjectIds.Contains(projectId))
+                return Result<List<InvoiceDto>>.Failure("Bu projeye erişim yetkiniz yok.");
+
+            invoices = await _invoiceRepository.GetByProjectIdAsync(projectId, cancellationToken);
+        }
+        else
+        {
+            // ── Cross-project: all authorised projects ────────────────────
+            // SuperAdmin → null means "no WHERE IN filter" → all invoices
+            // Regular user → WHERE ProjectId IN (user's project list)
+            List<Guid>? projectIds = _currentUser.IsSuperAdmin
+                ? null
+                : _currentUser.ProjectIds;
+
+            invoices = await _invoiceRepository.GetAllAsync(projectIds, cancellationToken);
+        }
 
         var dtos = invoices.Select(i => i.ToDto()).ToList();
         return Result<List<InvoiceDto>>.Success(dtos);
