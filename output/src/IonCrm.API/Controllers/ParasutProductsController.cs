@@ -64,24 +64,41 @@ public class ParasutProductsController : ApiControllerBase
     /// <summary>
     /// GET /api/v1/crm/parasut/products?projectId={projectId}
     /// Returns the live product/service list from the Paraşüt API for use in dropdowns.
+    /// Paginates through all pages (Paraşüt max page size is 25).
     /// </summary>
     [HttpGet("~/api/v1/crm/parasut/products")]
     public async Task<IActionResult> GetParasutLiveProducts([FromQuery] Guid projectId)
     {
-        var (data, error) = await _parasutService.GetProductsAsync(projectId, 1, 200, CancellationToken.None);
-        if (error is not null)
-            return BadRequest(new { error });
+        const int pageSize = 25;
+        var allItems = new List<object>();
+        int page = 1;
+        int totalPages = 1;
 
-        var items = data?.Data.Select(d => new
+        do
         {
-            id   = d.Id,
-            name = d.Attributes.Name,
-            vatRate = d.Attributes.VatRate,
-            salesPrice = d.Attributes.SalesPrice,
-            currency = d.Attributes.Currency,
-            unit = d.Attributes.Unit
-        }).ToList();
+            var (data, error) = await _parasutService.GetProductsAsync(
+                projectId, page, pageSize, CancellationToken.None);
 
-        return Ok(new { data = items });
+            if (error is not null)
+                return BadRequest(new { error });
+
+            if (data is null) break;
+
+            allItems.AddRange(data.Data.Select(d => (object)new
+            {
+                id         = d.Id,
+                name       = d.Attributes.Name,
+                vatRate    = d.Attributes.VatRate,
+                salesPrice = d.Attributes.SalesPrice,
+                currency   = d.Attributes.Currency,
+                unit       = d.Attributes.Unit
+            }));
+
+            totalPages = data.Meta?.TotalPages ?? 1;
+            page++;
+
+        } while (page <= totalPages);
+
+        return Ok(new { data = allItems });
     }
 }
