@@ -36,8 +36,9 @@ public class UpdateCustomerCommandHandler : IRequestHandler<UpdateCustomerComman
         if (!_currentUser.IsSuperAdmin && !_currentUser.ProjectIds.Contains(customer.ProjectId))
             return Result<CustomerDto>.Failure("Access denied to this customer.");
 
-        // Active status can only be set by SaaS sync — CRM users cannot select it manually
-        if (request.Status == CustomerStatus.Active)
+        // Active status can only be assigned by SaaS sync — CRM users cannot manually promote a
+        // customer TO Active, but they can keep editing an already-Active customer (status unchanged).
+        if (request.Status == CustomerStatus.Active && customer.Status != CustomerStatus.Active)
             return Result<CustomerDto>.Failure("'Aktif' durumu yalnızca SaaS senkronizasyonu tarafından atanabilir.");
 
         customer.Code = request.Code;

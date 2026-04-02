@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
+  Pencil,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -519,6 +520,285 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
   );
 }
 
+// ── Edit Invoice Dialog ──────────────────────────────────────────────────────
+
+interface EditInvoiceDialogProps {
+  invoice: Invoice;
+  onClose: () => void;
+}
+
+function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
+  const { toast } = useToast();
+  const updateInvoice = useUpdateInvoice();
+
+  const parsedLines: InvoiceLineForm[] = useMemo(() => {
+    try {
+      const raw: InvoiceLineItem[] = JSON.parse(invoice.linesJson);
+      return raw.map(l => ({
+        description: l.description ?? '',
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        vatRate: l.vatRate,
+        discountValue: l.discountValue,
+        discountType: (l.discountType === 'percent' ? 'percentage' : l.discountType) as DiscountType,
+        unit: l.unit ?? 'Adet',
+      }));
+    } catch {
+      return [{ description: '', quantity: 1, unitPrice: 0, vatRate: 20, discountValue: 0, discountType: 'percentage', unit: 'Adet' }];
+    }
+  }, [invoice.linesJson]);
+
+  const form = useForm<InvoiceFormData>({
+    defaultValues: {
+      customerId: invoice.customerId,
+      title: invoice.title,
+      description: invoice.description ?? '',
+      invoiceSeries: invoice.invoiceSeries ?? 'A',
+      issueDate: invoice.issueDate.split('T')[0],
+      dueDate: invoice.dueDate.split('T')[0],
+      currency: invoice.currency,
+      lines: parsedLines,
+    },
+  });
+
+  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'lines' });
+  const watchedLines = form.watch('lines');
+
+  const rawTotal = watchedLines.reduce((acc, l) => acc + (l.quantity || 0) * (l.unitPrice || 0), 0);
+  const totalDiscount = watchedLines.reduce((acc, l) => acc + calcLineDiscount(l), 0);
+  const subtotal = rawTotal - totalDiscount;
+  const vat = watchedLines.reduce((acc, l) => {
+    const lineTotal = (l.quantity || 0) * (l.unitPrice || 0);
+    const discount = calcLineDiscount(l);
+    return acc + (lineTotal - discount) * ((l.vatRate || 0) / 100);
+  }, 0);
+
+  async function onSubmit(data: InvoiceFormData) {
+    if (!data.title.trim()) {
+      toast({ title: 'Hata', description: 'Fatura başlığı zorunludur.', variant: 'destructive' });
+      return;
+    }
+
+    const lines: InvoiceLineItem[] = data.lines.map(l => ({
+      description: l.description || '',
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      vatRate: l.vatRate,
+      discountValue: l.discountValue,
+      discountType: l.discountType,
+      unit: l.unit || 'Adet',
+    }));
+
+    const netTotal = lines.reduce((acc, l) => {
+      const lt = l.quantity * l.unitPrice;
+      const d = l.discountType === 'amount' ? Math.min(l.discountValue, lt) : lt * (l.discountValue / 100);
+      return acc + lt - d;
+    }, 0);
+
+    const grossTotal = lines.reduce((acc, l) => {
+      const lt = l.quantity * l.unitPrice;
+      const d = l.discountType === 'amount' ? Math.min(l.discountValue, lt) : lt * (l.discountValue / 100);
+      const net = lt - d;
+      return acc + net + net * (l.vatRate / 100);
+    }, 0);
+
+    try {
+      await updateInvoice.mutateAsync({
+        id: invoice.id,
+        customerId: invoice.customerId,
+        title: data.title,
+        description: data.description || undefined,
+        invoiceSeries: data.invoiceSeries || undefined,
+        issueDate: data.issueDate,
+        dueDate: data.dueDate,
+        currency: data.currency,
+        grossTotal,
+        netTotal,
+        linesJson: JSON.stringify(lines),
+      });
+      toast({ title: 'Fatura güncellendi' });
+      onClose();
+    } catch {
+      toast({ title: 'Hata', description: 'Fatura güncellenemedi.', variant: 'destructive' });
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Faturayı Düzenle</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+          {/* Customer (read-only) & Title */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Müşteri</Label>
+              <div className="flex items-center h-9 w-full rounded-md border border-input bg-muted/40 px-3 py-1 text-sm text-muted-foreground">
+                {invoice.customerName}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Fatura Başlığı *</Label>
+              <Input {...form.register('title')} className="h-9" placeholder="Ör: Yıllık lisans faturası" />
+            </div>
+          </div>
+
+          {/* Dates & Currency */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Fatura Tarihi *</Label>
+              <Input type="date" {...form.register('issueDate')} className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Vade Tarihi *</Label>
+              <Input type="date" {...form.register('dueDate')} className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Döviz</Label>
+              <Select
+                defaultValue={invoice.currency}
+                onValueChange={v => form.setValue('currency', v)}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TRL">TRY ₺</SelectItem>
+                  <SelectItem value="USD">USD $</SelectItem>
+                  <SelectItem value="EUR">EUR €</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Fatura Serisi</Label>
+              <Input {...form.register('invoiceSeries')} className="h-9" placeholder="A" />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <Label>Açıklama</Label>
+            <Textarea {...form.register('description')} className="resize-none" rows={2} placeholder="İsteğe bağlı açıklama" />
+          </div>
+
+          {/* Line items */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Kalemler *</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                onClick={() => append({ description: '', quantity: 1, unitPrice: 0, vatRate: 20, discountValue: 0, discountType: 'percentage', unit: 'Adet' })}
+              >
+                <Plus className="h-3 w-3" /> Kalem Ekle
+              </Button>
+            </div>
+
+            <div className="rounded-lg border border-border overflow-hidden">
+              <div className="grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground">
+                <span>Açıklama</span>
+                <span>Miktar</span>
+                <span>Birim Fiyat</span>
+                <span>KDV %</span>
+                <span>İskonto</span>
+                <span />
+              </div>
+
+              {fields.map((field, idx) => (
+                <div key={field.id} className="grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 px-3 py-2 border-t border-border/50 items-center">
+                  <Input {...form.register(`lines.${idx}.description`)} className="h-8 text-sm" placeholder="Ürün / hizmet" />
+                  <Input type="number" step="0.01" min="0" {...form.register(`lines.${idx}.quantity`, { valueAsNumber: true })} className="h-8 text-sm" />
+                  <Input type="number" step="0.01" min="0" {...form.register(`lines.${idx}.unitPrice`, { valueAsNumber: true })} className="h-8 text-sm" />
+                  <Select
+                    defaultValue={String(parsedLines[idx]?.vatRate ?? 20)}
+                    onValueChange={v => form.setValue(`lines.${idx}.vatRate`, Number(v))}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[0, 1, 8, 10, 20].map(r => (
+                        <SelectItem key={r} value={String(r)}>%{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex h-8 rounded-md border border-input overflow-hidden text-sm focus-within:ring-1 focus-within:ring-ring">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      {...form.register(`lines.${idx}.discountValue`, { valueAsNumber: true })}
+                      className="w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
+                      placeholder="0"
+                    />
+                    <select
+                      {...form.register(`lines.${idx}.discountType`)}
+                      className="border-l border-input bg-muted text-xs px-1.5 cursor-pointer outline-none text-muted-foreground"
+                    >
+                      <option value="percentage">%</option>
+                      <option value="amount">₺</option>
+                    </select>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => remove(idx)}
+                    disabled={fields.length === 1}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {/* Totals */}
+            <div className="flex flex-col items-end gap-1 text-sm pt-1">
+              <div className="flex gap-6 text-muted-foreground">
+                <span>Ara Toplam:</span>
+                <span className="font-mono w-28 text-right">{formatCurrency(rawTotal)}</span>
+              </div>
+              {totalDiscount > 0 && (
+                <div className="flex gap-6 text-orange-400">
+                  <span>İskonto:</span>
+                  <span className="font-mono w-28 text-right">-{formatCurrency(totalDiscount)}</span>
+                </div>
+              )}
+              {totalDiscount > 0 && (
+                <div className="flex gap-6 text-muted-foreground">
+                  <span>Net Toplam:</span>
+                  <span className="font-mono w-28 text-right">{formatCurrency(subtotal)}</span>
+                </div>
+              )}
+              <div className="flex gap-6 text-muted-foreground">
+                <span>KDV:</span>
+                <span className="font-mono w-28 text-right">{formatCurrency(vat)}</span>
+              </div>
+              <div className="flex gap-6 font-semibold text-foreground border-t border-border pt-1">
+                <span>Genel Toplam:</span>
+                <span className="font-mono w-28 text-right">{formatCurrency(subtotal + vat)}</span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>İptal</Button>
+            <Button type="submit" disabled={updateInvoice.isPending} className="gap-2">
+              {updateInvoice.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Kaydet
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Transfer Confirm Dialog ──────────────────────────────────────────────────
 
 interface TransferDialogProps {
@@ -599,6 +879,7 @@ export function InvoicesPage() {
   const { currentProjectId } = useAuthStore();
   const canAccess = useCanAccessFinance();
   const [showCreate, setShowCreate] = useState(false);
+  const [editInvoice, setEditInvoice] = useState<Invoice | null>(null);
   const [transferInvoice, setTransferInvoice] = useState<Invoice | null>(null);
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -781,7 +1062,7 @@ export function InvoicesPage() {
           ) : (
             <>
               {/* Table header */}
-              <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_auto] gap-4 px-6 py-3 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
+              <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_6rem] gap-4 px-6 py-3 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
                 <span>Fatura</span>
                 <span>Müşteri</span>
                 <span>Proje</span>
@@ -798,6 +1079,7 @@ export function InvoicesPage() {
                     key={invoice.id}
                     invoice={invoice}
                     isParasutConnected={isParasutConnected}
+                    onEdit={() => setEditInvoice(invoice)}
                     onTransfer={() => setTransferInvoice(invoice)}
                   />
                 ))}
@@ -843,6 +1125,13 @@ export function InvoicesPage() {
         />
       )}
 
+      {editInvoice && (
+        <EditInvoiceDialog
+          invoice={editInvoice}
+          onClose={() => setEditInvoice(null)}
+        />
+      )}
+
       <TransferToParasutDialog
         invoice={transferInvoice}
         open={!!transferInvoice}
@@ -857,17 +1146,18 @@ export function InvoicesPage() {
 interface InvoiceRowProps {
   invoice: Invoice;
   isParasutConnected: boolean;
+  onEdit: () => void;
   onTransfer: () => void;
 }
 
-function InvoiceRow({ invoice, isParasutConnected, onTransfer }: InvoiceRowProps) {
+function InvoiceRow({ invoice, isParasutConnected, onEdit, onTransfer }: InvoiceRowProps) {
   const isOverdue = invoice.status === 'Draft' && new Date(invoice.dueDate) < new Date();
   const seriesLabel = invoice.invoiceSeries
     ? `${invoice.invoiceSeries}${invoice.invoiceNumber ? `-${invoice.invoiceNumber}` : ''}`
     : null;
 
   return (
-    <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_auto] gap-4 px-6 py-3.5 items-center hover:bg-muted/20 transition-colors text-sm">
+    <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_6rem] gap-4 px-6 py-3.5 items-center hover:bg-muted/20 transition-colors text-sm">
       {/* Title */}
       <div className="min-w-0">
         <div className="font-medium text-foreground truncate">{invoice.title}</div>
@@ -906,7 +1196,18 @@ function InvoiceRow({ invoice, isParasutConnected, onTransfer }: InvoiceRowProps
       </div>
 
       {/* Actions */}
-      <div className="w-20 flex justify-end">
+      <div className="flex justify-end gap-1.5">
+        {invoice.status === 'Draft' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            onClick={onEdit}
+            title="Düzenle"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
         {invoice.status === 'Draft' && isParasutConnected && (
           <Button
             variant="outline"
