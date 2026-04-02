@@ -217,8 +217,22 @@ public sealed class ParasutClient : IParasutClient
             ApplyBearer(req, accessToken);
             req.Content = JsonContent.Create(request, options: JsonOpts);
 
+            // Log request JSON for debugging
+            var reqJson = await req.Content.ReadAsStringAsync(ct);
+            _logger.LogDebug("Paraşüt create invoice request body: {Body}", reqJson);
+
             var response = await _httpClient.SendAsync(req, ct);
-            response.EnsureSuccessStatusCode();
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning(
+                    "Paraşüt invoice creation failed {Status}. Response: {Body}",
+                    (int)response.StatusCode, body);
+                throw new HttpRequestException(
+                    $"Paraşüt {(int)response.StatusCode}: {body}",
+                    null,
+                    response.StatusCode);
+            }
             var result = await response.Content.ReadFromJsonAsync<JsonApiResponse<ParasutSalesInvoiceAttributes>>(JsonOpts, ct);
             return result ?? throw new InvalidOperationException("Empty response from Paraşüt.");
         }, cancellationToken);
