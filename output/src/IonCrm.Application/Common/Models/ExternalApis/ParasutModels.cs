@@ -384,7 +384,7 @@ public record ParasutAccountAttributes(
 public record ParasutProductAttributes(
     [property: JsonPropertyName("code")]         string? Code,
     [property: JsonPropertyName("name")]         string Name,
-    [property: JsonPropertyName("vat_rate")]     int VatRate,
+    [property: JsonPropertyName("vat_rate")]     string? VatRate,
     [property: JsonPropertyName("sales_price")]  decimal? SalesPrice,
     [property: JsonPropertyName("sales_excise_duty_code")] string? SalesExciseDutyCode,
     [property: JsonPropertyName("unit")]         string? Unit,
