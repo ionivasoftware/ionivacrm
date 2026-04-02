@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import type { AxiosError } from 'axios';
 import { useForm, useFieldArray } from 'react-hook-form';
 import {
   FileText,
@@ -493,10 +494,12 @@ function TransferToParasutDialog({ invoice, open, onClose }: TransferDialogProps
         description: `"${invoice!.title}" faturası başarıyla Paraşüt'e gönderildi.`,
       });
       onClose();
-    } catch {
+    } catch (err) {
+      const axiosErr = err as AxiosError<{ errors?: string[] }>;
+      const apiMsg = axiosErr.response?.data?.errors?.[0];
       toast({
         title: 'Aktarım hatası',
-        description: 'Fatura Paraşüt\'e aktarılamadı. Paraşüt bağlantısını kontrol edin.',
+        description: apiMsg ?? 'Fatura Paraşüt\'e aktarılamadı. Paraşüt bağlantısını kontrol edin.',
         variant: 'destructive',
       });
     }
