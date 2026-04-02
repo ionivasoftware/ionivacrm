@@ -4,6 +4,7 @@ using IonCrm.Application.Common.Models.ExternalApis;
 using IonCrm.Domain.Interfaces;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using System.Net;
 
 namespace IonCrm.Application.Customers.Commands.PushCustomerToRezerval;
 
@@ -112,6 +113,21 @@ public sealed class PushCustomerToRezervalCommandHandler
             {
                 await _saasBClient.UpdateRezervalCompanyAsync(
                     existingCompanyId, formData, rezervAlApiKey, cancellationToken);
+
+                _logger.LogInformation(
+                    "Updated RezervAl company {RezervalId} for customer {CustomerId} ({Name}).",
+                    existingCompanyId, customer.Id, customer.CompanyName);
+
+                return Result<PushCustomerToRezervalDto>.Success(
+                    new PushCustomerToRezervalDto(existingCompanyId, customer.LegacyId!, WasCreated: false));
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                // Company no longer exists in Rezerval — fall through to create a new one.
+                _logger.LogWarning(
+                    "RezervAl company {RezervalId} not found (404) for customer {CustomerId}. Falling back to create.",
+                    existingCompanyId, customer.Id);
+                customer.LegacyId = null;
             }
             catch (Exception ex)
             {
@@ -121,44 +137,34 @@ public sealed class PushCustomerToRezervalCommandHandler
                 return Result<PushCustomerToRezervalDto>.Failure(
                     $"RezervAl'de firma güncellenemedi: {ex.Message}");
             }
-
-            _logger.LogInformation(
-                "Updated RezervAl company {RezervalId} for customer {CustomerId} ({Name}).",
-                existingCompanyId, customer.Id, customer.CompanyName);
-
-            return Result<PushCustomerToRezervalDto>.Success(
-                new PushCustomerToRezervalDto(existingCompanyId, customer.LegacyId!, WasCreated: false));
         }
-        else
+        // Create new company in RezervAl (either first-time or 404-fallback from update above)
+        RezervalCreateCompanyResponse createResponse;
+        try
         {
-            // Create new company in RezervAl
-            RezervalCreateCompanyResponse createResponse;
-            try
-            {
-                createResponse = await _saasBClient.CreateRezervalCompanyAsync(
-                    formData, rezervAlApiKey, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "RezervAl company create failed for customer {CustomerId}.",
-                    customer.Id);
-                return Result<PushCustomerToRezervalDto>.Failure(
-                    $"RezervAl'de firma oluşturulamadı: {ex.Message}");
-            }
-
-            // Persist the new LegacyId so future calls trigger update instead of create
-            var newLegacyId = $"REZV-{createResponse.CompanyId}";
-            customer.LegacyId = newLegacyId;
-            customer.UpdatedAt = DateTime.UtcNow;
-            await _customerRepository.UpdateAsync(customer, cancellationToken);
-
-            _logger.LogInformation(
-                "Created RezervAl company {RezervalId} for customer {CustomerId} ({Name}). LegacyId set to '{LegacyId}'.",
-                createResponse.CompanyId, customer.Id, customer.CompanyName, newLegacyId);
-
-            return Result<PushCustomerToRezervalDto>.Success(
-                new PushCustomerToRezervalDto(createResponse.CompanyId, newLegacyId, WasCreated: true));
+            createResponse = await _saasBClient.CreateRezervalCompanyAsync(
+                formData, rezervAlApiKey, cancellationToken);
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "RezervAl company create failed for customer {CustomerId}.",
+                customer.Id);
+            return Result<PushCustomerToRezervalDto>.Failure(
+                $"RezervAl'de firma oluşturulamadı: {ex.Message}");
+        }
+
+        // Persist the new LegacyId so future calls trigger update instead of create
+        var newLegacyId = $"REZV-{createResponse.CompanyId}";
+        customer.LegacyId  = newLegacyId;
+        customer.UpdatedAt = DateTime.UtcNow;
+        await _customerRepository.UpdateAsync(customer, cancellationToken);
+
+        _logger.LogInformation(
+            "Created RezervAl company {RezervalId} for customer {CustomerId} ({Name}). LegacyId set to '{LegacyId}'.",
+            createResponse.CompanyId, customer.Id, customer.CompanyName, newLegacyId);
+
+        return Result<PushCustomerToRezervalDto>.Success(
+            new PushCustomerToRezervalDto(createResponse.CompanyId, newLegacyId, WasCreated: true));
     }
 }

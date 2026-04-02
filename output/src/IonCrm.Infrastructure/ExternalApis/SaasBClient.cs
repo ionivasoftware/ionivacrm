@@ -188,7 +188,7 @@ public sealed class SaasBClient : ISaasBClient
             request.Content = BuildMultipartContent(data);
 
             var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, ct);
 
             var result = await response.Content.ReadFromJsonAsync<RezervalCreateCompanyResponse>(JsonOpts, ct);
             return result ?? throw new InvalidOperationException("Rezerval create company returned empty response.");
@@ -212,7 +212,7 @@ public sealed class SaasBClient : ISaasBClient
             request.Content = BuildMultipartContent(data);
 
             var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, ct);
         }, cancellationToken);
     }
 
@@ -301,6 +301,24 @@ public sealed class SaasBClient : ISaasBClient
         {
             _tokenLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Throws <see cref="HttpRequestException"/> with the response body included in the message
+    /// when the status code indicates failure, for actionable error details.
+    /// </summary>
+    private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.IsSuccessStatusCode) return;
+
+        string body = string.Empty;
+        try { body = await response.Content.ReadAsStringAsync(ct); } catch { }
+
+        var detail = string.IsNullOrWhiteSpace(body)
+            ? $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}"
+            : $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}: {body.Trim()}";
+
+        throw new HttpRequestException(detail, inner: null, statusCode: response.StatusCode);
     }
 
     /// <summary>
