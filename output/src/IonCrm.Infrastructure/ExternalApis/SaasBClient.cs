@@ -144,7 +144,25 @@ public sealed class SaasBClient : ISaasBClient
             var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<List<RezervalCompany>>(JsonOpts, ct);
+            // Rezerval API occasionally returns 200 OK with an empty body — treat as empty list.
+            var contentLength = response.Content.Headers.ContentLength;
+            if (contentLength == 0)
+            {
+                _logger.LogWarning("Rezerval CRM: CompanyList returned 200 OK with empty body — treating as empty list.");
+                return new List<RezervalCompany>();
+            }
+
+            string rawBody;
+            try { rawBody = await response.Content.ReadAsStringAsync(ct); }
+            catch { return new List<RezervalCompany>(); }
+
+            if (string.IsNullOrWhiteSpace(rawBody))
+            {
+                _logger.LogWarning("Rezerval CRM: CompanyList returned 200 OK with whitespace-only body — treating as empty list.");
+                return new List<RezervalCompany>();
+            }
+
+            var result = JsonSerializer.Deserialize<List<RezervalCompany>>(rawBody, JsonOpts);
             return result ?? new List<RezervalCompany>();
         }, cancellationToken);
     }
