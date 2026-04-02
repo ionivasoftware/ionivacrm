@@ -166,8 +166,9 @@ public sealed class SaasBClient : ISaasBClient
                 return new List<RezervalCompany>();
             }
 
-            var result = JsonSerializer.Deserialize<List<RezervalCompany>>(rawBody, JsonOpts);
-            return result ?? new List<RezervalCompany>();
+            // Response is wrapped: {"data":[...], "isSuccess":true, ...}
+            var envelope = JsonSerializer.Deserialize<RezervalCompanyListResponse>(rawBody, JsonOpts);
+            return envelope?.Data ?? new List<RezervalCompany>();
         }, cancellationToken);
     }
 

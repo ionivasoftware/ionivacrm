@@ -123,3 +123,6 @@ public record RezervalTokenResponse(RezervalTokenData? Data, bool IsSuccess, str
 
 /// <summary>Token data nested inside <see cref="RezervalTokenResponse"/>.</summary>
 public record RezervalTokenData(string Token);
+
+/// <summary>Envelope wrapper for Rezerval GET /v1/Crm/CompanyList response.</summary>
+public record RezervalCompanyListResponse(List<RezervalCompany>? Data, bool IsSuccess, string? Message);
