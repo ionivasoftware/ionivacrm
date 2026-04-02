@@ -117,3 +117,9 @@ public class RezervalCompanyFormData
 
 /// <summary>Response from RezervAl POST /v1/Crm/Company on successful creation.</summary>
 public record RezervalCreateCompanyResponse(int CompanyId, string? Message);
+
+/// <summary>Response from RezervAl POST /v1/Token/GetToken.</summary>
+public record RezervalTokenResponse(RezervalTokenData? Data, bool IsSuccess, string? Message);
+
+/// <summary>Token data nested inside <see cref="RezervalTokenResponse"/>.</summary>
+public record RezervalTokenData(string Token);

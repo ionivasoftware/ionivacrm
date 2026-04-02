@@ -31,6 +31,10 @@ public sealed class SaasBClient : ISaasBClient
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
+    // In-memory JWT cache keyed by ApiKey. Tokens are valid for ~1 hour; we refresh at 50 min.
+    private readonly Dictionary<string, (string Token, DateTime ExpiresAt)> _tokenCache = new();
+    private readonly SemaphoreSlim _tokenLock = new(1, 1);
+
     /// <summary>
     /// Initialises a new instance of <see cref="SaasBClient"/>.
     /// The <paramref name="httpClient"/> is pre-configured by DI (base address + X-Api-Key header).
@@ -135,11 +139,11 @@ public sealed class SaasBClient : ISaasBClient
         return await _retryPipeline.ExecuteAsync<List<RezervalCompany>>(async ct =>
         {
             // Absolute URL overrides the SaasBClient base address — Rezerval CRM uses
-            // a different host (rezback.rezerval.com) and Bearer token auth instead of X-Api-Key.
+            // a different host (rezback.rezerval.com) and Bearer JWT auth (obtained via GetToken).
             var request = new HttpRequestMessage(HttpMethod.Get,
                 "https://rezback.rezerval.com/v1/Crm/CompanyList");
 
-            ApplyBearerAuth(request, apiKey);
+            await ApplyBearerAuthAsync(request, apiKey, ct);
 
             var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
@@ -179,7 +183,7 @@ public sealed class SaasBClient : ISaasBClient
             var request = new HttpRequestMessage(HttpMethod.Post,
                 "https://rezback.rezerval.com/v1/Crm/Company");
 
-            ApplyBearerAuth(request, apiKey);
+            await ApplyBearerAuthAsync(request, apiKey, ct);
             request.Content = BuildMultipartContent(data);
 
             var response = await _httpClient.SendAsync(request, ct);
@@ -203,7 +207,7 @@ public sealed class SaasBClient : ISaasBClient
             var request = new HttpRequestMessage(HttpMethod.Put,
                 $"https://rezback.rezerval.com/v1/Crm/Company/{companyId}");
 
-            ApplyBearerAuth(request, apiKey);
+            await ApplyBearerAuthAsync(request, apiKey, ct);
             request.Content = BuildMultipartContent(data);
 
             var response = await _httpClient.SendAsync(request, ct);
@@ -264,11 +268,47 @@ public sealed class SaasBClient : ISaasBClient
     }
 
     /// <summary>
-    /// Sets Authorization: Bearer header for Rezerval CRM API endpoints that use Bearer token auth.
+    /// Exchanges the Rezerval ApiKey for a short-lived JWT via POST /v1/Token/GetToken.
+    /// Result is cached per ApiKey for 50 minutes to avoid redundant round-trips.
     /// </summary>
-    private static void ApplyBearerAuth(HttpRequestMessage request, string? apiKey)
+    private async Task<string> GetRezervalJwtAsync(string apiKey, CancellationToken ct)
     {
-        if (!string.IsNullOrWhiteSpace(apiKey))
-            request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
+        await _tokenLock.WaitAsync(ct);
+        try
+        {
+            if (_tokenCache.TryGetValue(apiKey, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
+                return cached.Token;
+
+            _logger.LogDebug("Rezerval: exchanging ApiKey for JWT.");
+
+            var response = await _httpClient.PostAsJsonAsync(
+                "https://rezback.rezerval.com/v1/Token/GetToken",
+                new { ApiKey = apiKey },
+                JsonOpts,
+                ct);
+
+            response.EnsureSuccessStatusCode();
+
+            var result = await response.Content.ReadFromJsonAsync<RezervalTokenResponse>(JsonOpts, ct);
+            var token = result?.Data?.Token
+                ?? throw new InvalidOperationException("Rezerval GetToken returned no token.");
+
+            _tokenCache[apiKey] = (token, DateTime.UtcNow.AddMinutes(50));
+            return token;
+        }
+        finally
+        {
+            _tokenLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Sets Authorization: Bearer header using a freshly obtained Rezerval JWT.
+    /// </summary>
+    private async Task ApplyBearerAuthAsync(HttpRequestMessage request, string? apiKey, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey)) return;
+        var jwt = await GetRezervalJwtAsync(apiKey, ct);
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", jwt);
     }
 }
