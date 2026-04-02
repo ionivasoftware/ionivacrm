@@ -184,7 +184,7 @@ public sealed class SaasAClient : ISaasAClient
                 new { durationType, amount },
                 options: JsonOpts);
             var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, ct);
             var result = await response.Content.ReadFromJsonAsync<EmsExtendExpirationResponse>(JsonOpts, ct);
             return result ?? throw new InvalidOperationException("Empty response from EMS extend-expiration.");
         }, cancellationToken);
@@ -207,7 +207,7 @@ public sealed class SaasAClient : ISaasAClient
             ApplyAuth(request, apiKey);
             request.Content = JsonContent.Create(new { count }, options: JsonOpts);
             var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, ct);
             var result = await response.Content.ReadFromJsonAsync<EmsAddSmsResponse>(JsonOpts, ct);
             return result ?? throw new InvalidOperationException("Empty response from EMS add-sms.");
         }, cancellationToken);
@@ -228,7 +228,7 @@ public sealed class SaasAClient : ISaasAClient
             var request = new HttpRequestMessage(HttpMethod.Get, uri);
             ApplyAuth(request, apiKey);
             var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, ct);
             var result = await response.Content.ReadFromJsonAsync<EmsCompanyUsersResponse>(JsonOpts, ct);
             return result?.Data ?? new List<EmsCompanyUser>();
         }, cancellationToken);
@@ -249,7 +249,7 @@ public sealed class SaasAClient : ISaasAClient
             var request = new HttpRequestMessage(HttpMethod.Get, uri);
             ApplyAuth(request, apiKey);
             var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, ct);
             var result = await response.Content.ReadFromJsonAsync<EmsCompanySummaryResponse>(JsonOpts, ct);
             return result ?? throw new InvalidOperationException("Empty response from EMS company summary.");
         }, cancellationToken);
@@ -263,5 +263,25 @@ public sealed class SaasAClient : ISaasAClient
     {
         if (!string.IsNullOrWhiteSpace(apiKey))
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+    }
+
+    /// <summary>
+    /// Throws <see cref="HttpRequestException"/> with the response body included in the message
+    /// when the status code indicates failure. Replaces <c>EnsureSuccessStatusCode()</c> to provide
+    /// actionable error details (e.g. EMS 500 body) instead of the generic "Response status code
+    /// does not indicate success" message.
+    /// </summary>
+    private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.IsSuccessStatusCode) return;
+
+        string body = string.Empty;
+        try { body = await response.Content.ReadAsStringAsync(ct); } catch { /* ignore read failure */ }
+
+        var detail = string.IsNullOrWhiteSpace(body)
+            ? $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}"
+            : $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}: {body.Trim()}";
+
+        throw new HttpRequestException(detail, inner: null, statusCode: response.StatusCode);
     }
 }

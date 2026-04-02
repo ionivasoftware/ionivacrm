@@ -307,12 +307,16 @@ export function ProjectsAdminPage() {
                       <p className="text-xs text-muted-foreground">
                         ID: <span className="font-mono">{project.id}</span>
                       </p>
-                      <span className={`text-xs flex items-center gap-1 ${project.emsApiKey ? 'text-green-500' : 'text-muted-foreground/50'}`}>
-                        <Key className="h-3 w-3" /> EMS
-                      </span>
-                      <span className={`text-xs flex items-center gap-1 ${project.rezervAlApiKey ? 'text-green-500' : 'text-muted-foreground/50'}`}>
-                        <Key className="h-3 w-3" /> Rezerval
-                      </span>
+                      {project.name.toLowerCase() === 'ems' && (
+                        <span className={`text-xs flex items-center gap-1 ${project.emsApiKey ? 'text-green-500' : 'text-muted-foreground/50'}`}>
+                          <Key className="h-3 w-3" /> EMS
+                        </span>
+                      )}
+                      {project.name.toLowerCase() === 'rezerval' && (
+                        <span className={`text-xs flex items-center gap-1 ${project.rezervAlApiKey ? 'text-green-500' : 'text-muted-foreground/50'}`}>
+                          <Key className="h-3 w-3" /> Rezerval
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
