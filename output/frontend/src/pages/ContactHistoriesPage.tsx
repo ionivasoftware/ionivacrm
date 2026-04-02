@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Phone, Mail, Users, StickyNote, MessageCircle, MapPin,
-  Search, Filter, ChevronLeft, ChevronRight, ArrowLeft, X,
+  Search, Filter, ChevronLeft, ChevronRight, ArrowLeft, X, Calendar,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,27 @@ import {
 } from '@/components/ui/select';
 import { useAllContactHistories } from '@/api/customers';
 import type { ContactType } from '@/types';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+type DatePreset = '3d' | '7d' | '30d' | '90d' | 'all';
+
+const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: '3d',  label: 'Son 3 gün' },
+  { value: '7d',  label: 'Son 7 gün' },
+  { value: '30d', label: 'Son 30 gün' },
+  { value: '90d', label: 'Son 90 gün' },
+  { value: 'all', label: 'Tümü' },
+];
+
+function presetToFromDate(preset: DatePreset): string | undefined {
+  if (preset === 'all') return undefined;
+  const days = parseInt(preset, 10);
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -59,11 +80,13 @@ export function ContactHistoriesPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ContactType | 'all'>('all');
+  const [datePreset, setDatePreset] = useState<DatePreset>('3d');
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
 
   const { data, isLoading } = useAllContactHistories({
     type: typeFilter !== 'all' ? typeFilter : undefined,
+    fromDate: presetToFromDate(datePreset),
     page,
     pageSize: PAGE_SIZE,
   });
@@ -89,7 +112,12 @@ export function ContactHistoriesPage() {
     setPage(1);
   }
 
-  const hasFilters = typeFilter !== 'all';
+  function handleDatePresetChange(value: string) {
+    setDatePreset(value as DatePreset);
+    setPage(1);
+  }
+
+  const hasFilters = typeFilter !== 'all' || datePreset !== '3d';
 
   return (
     <div className="space-y-6">
@@ -120,7 +148,9 @@ export function ContactHistoriesPage() {
           <Filter className="h-4 w-4" />
           Filtrele
           {hasFilters && (
-            <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">1</Badge>
+            <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">
+              {[typeFilter !== 'all', datePreset !== '3d'].filter(Boolean).length}
+            </Badge>
           )}
         </Button>
       </div>
@@ -137,6 +167,20 @@ export function ContactHistoriesPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 h-10"
               />
+            </div>
+            {/* Quick date preset — always visible */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Select value={datePreset} onValueChange={handleDatePresetChange}>
+                <SelectTrigger className="h-10 w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DATE_PRESETS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -159,10 +203,10 @@ export function ContactHistoriesPage() {
                   variant="ghost"
                   size="sm"
                   className="h-9 gap-1.5 text-muted-foreground"
-                  onClick={() => { setTypeFilter('all'); setPage(1); }}
+                  onClick={() => { setTypeFilter('all'); setDatePreset('3d'); setPage(1); }}
                 >
                   <X className="h-3.5 w-3.5" />
-                  Temizle
+                  Sıfırla
                 </Button>
               )}
             </div>
