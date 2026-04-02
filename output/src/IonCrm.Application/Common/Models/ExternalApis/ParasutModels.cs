@@ -108,30 +108,70 @@ public record ParasutSalesInvoiceAttributes(
     [property: JsonPropertyName("description")]        string? Description,
     [property: JsonPropertyName("issue_date")]         string IssueDate,       // yyyy-MM-dd
     [property: JsonPropertyName("due_date")]           string DueDate,         // yyyy-MM-dd
-    [property: JsonPropertyName("invoice_series")]     string? InvoiceSeries,
-    [property: JsonPropertyName("invoice_id")]         int? InvoiceId,
+    [property: JsonPropertyName("invoice_series")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? InvoiceSeries,
+    [property: JsonPropertyName("invoice_id")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    int? InvoiceId,
     [property: JsonPropertyName("currency")]           string Currency,         // "TRL"
-    [property: JsonPropertyName("exchange_rate")]      string? ExchangeRate,
-    [property: JsonPropertyName("withholding_rate")]   string? WithholdingRate,
-    [property: JsonPropertyName("vat_withholding_rate")] string? VatWithholdingRate,
-    [property: JsonPropertyName("invoice_discount_type")] string? InvoiceDiscountType,
-    [property: JsonPropertyName("invoice_discount")]   string? InvoiceDiscount,
-    [property: JsonPropertyName("billing_address")]    string? BillingAddress,
-    [property: JsonPropertyName("billing_phone")]      string? BillingPhone,
-    [property: JsonPropertyName("billing_fax")]        string? BillingFax,
-    [property: JsonPropertyName("tax_office")]         string? TaxOffice,
-    [property: JsonPropertyName("tax_number")]         string? TaxNumber,
-    [property: JsonPropertyName("city")]               string? City,
-    [property: JsonPropertyName("district")]           string? District,
-    [property: JsonPropertyName("payment_account_id")] int? PaymentAccountId,
+    [property: JsonPropertyName("exchange_rate")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? ExchangeRate,
+    [property: JsonPropertyName("withholding_rate")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? WithholdingRate,
+    [property: JsonPropertyName("vat_withholding_rate")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? VatWithholdingRate,
+    [property: JsonPropertyName("invoice_discount_type")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? InvoiceDiscountType,
+    [property: JsonPropertyName("invoice_discount")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? InvoiceDiscount,
+    [property: JsonPropertyName("billing_address")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? BillingAddress,
+    [property: JsonPropertyName("billing_phone")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? BillingPhone,
+    [property: JsonPropertyName("billing_fax")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? BillingFax,
+    [property: JsonPropertyName("tax_office")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? TaxOffice,
+    [property: JsonPropertyName("tax_number")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? TaxNumber,
+    [property: JsonPropertyName("city")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? City,
+    [property: JsonPropertyName("district")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? District,
+    [property: JsonPropertyName("payment_account_id")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    int? PaymentAccountId,
     [property: JsonPropertyName("is_abroad")]          bool IsAbroad = false,
-    // Read-only fields returned by the API.
+    // Read-only fields returned by the API — ignored when writing (POST/PATCH).
     // NOTE: Paraşüt returns these numeric fields as JSON strings (e.g. "1234.56"), not numbers.
-    [property: JsonPropertyName("net_total")]          string? NetTotal = null,
-    [property: JsonPropertyName("gross_total")]        string? GrossTotal = null,
-    [property: JsonPropertyName("total_paid")]         string? TotalPaid = null,
-    [property: JsonPropertyName("remaining")]          string? Remaining = null,
-    [property: JsonPropertyName("archiving_status")]   string? ArchivingStatus = null
+    [property: JsonPropertyName("net_total")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? NetTotal = null,
+    [property: JsonPropertyName("gross_total")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? GrossTotal = null,
+    [property: JsonPropertyName("total_paid")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? TotalPaid = null,
+    [property: JsonPropertyName("remaining")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? Remaining = null,
+    [property: JsonPropertyName("archiving_status")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? ArchivingStatus = null
 );
 
 /// <summary>A single line item (kalem) within a sales invoice.</summary>

@@ -80,7 +80,16 @@ public sealed class TransferInvoiceToParasutCommandHandler
                     DiscountType:  l.DiscountType ?? "percentage",
                     DiscountValue: l.DiscountValue,
                     Description:   l.Description,
-                    Unit:          l.Unit ?? "Adet")
+                    Unit:          l.Unit ?? "Adet"),
+                Relationships = !string.IsNullOrEmpty(l.ParasutProductId)
+                    ? new SalesInvoiceDetailRelationships
+                    {
+                        Product = new ProductRelationship
+                        {
+                            Data = new ProductRelationshipData { Id = l.ParasutProductId }
+                        }
+                    }
+                    : null
             }).ToList();
 
             // 4. Build relationships
@@ -188,6 +197,7 @@ public sealed class TransferInvoiceToParasutCommandHandler
         public decimal DiscountValue { get; init; }
         public string? DiscountType { get; init; }
         public string? Unit { get; init; }
+        public string? ParasutProductId { get; init; }
     }
 
     /// <summary>
