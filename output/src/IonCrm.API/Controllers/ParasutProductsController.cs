@@ -84,14 +84,26 @@ public class ParasutProductsController : ApiControllerBase
 
             if (data is null) break;
 
-            allItems.AddRange(data.Data.Select(d => (object)new
+            allItems.AddRange(data.Data.Select(d =>
             {
-                id        = d.Id,
-                name      = d.Attributes.Name,
-                vatRate   = int.TryParse(d.Attributes.VatRate, out var vr) ? vr : 0,
-                unitPrice = (double)(d.Attributes.SalesPrice ?? 0m),
-                currency  = d.Attributes.Currency ?? "TRY",
-                unit      = d.Attributes.Unit
+                var rawPrice = d.Attributes.SalesPrice
+                    ?? d.Attributes.ListPrice
+                    ?? d.Attributes.SalesPriceInTrl;
+                var unitPrice = decimal.TryParse(
+                    rawPrice,
+                    System.Globalization.NumberStyles.Number,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var p) ? p : 0m;
+                var vatRate = int.TryParse(d.Attributes.VatRate, out var vr) ? vr : 0;
+                return (object)new
+                {
+                    id        = d.Id,
+                    name      = d.Attributes.Name,
+                    vatRate,
+                    unitPrice = (double)unitPrice,
+                    currency  = d.Attributes.Currency ?? "TRY",
+                    unit      = d.Attributes.Unit
+                };
             }));
 
             totalPages = data.Meta?.TotalPages ?? 1;

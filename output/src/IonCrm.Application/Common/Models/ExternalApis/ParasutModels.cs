@@ -382,11 +382,15 @@ public record ParasutAccountAttributes(
 
 /// <summary>Attributes for a Paraşüt product or service.</summary>
 public record ParasutProductAttributes(
-    [property: JsonPropertyName("code")]         string? Code,
-    [property: JsonPropertyName("name")]         string Name,
-    [property: JsonPropertyName("vat_rate")]     string? VatRate,
-    [property: JsonPropertyName("sales_price")]  decimal? SalesPrice,
+    [property: JsonPropertyName("code")]                  string? Code,
+    [property: JsonPropertyName("name")]                  string Name,
+    [property: JsonPropertyName("vat_rate")]              string? VatRate,
+    // Paraşüt returns price as a JSON string ("100.00") not a number.
+    // Different product types may use different field names.
+    [property: JsonPropertyName("sales_price")]           string? SalesPrice,
+    [property: JsonPropertyName("list_price")]            string? ListPrice,
+    [property: JsonPropertyName("sales_price_in_trl")]    string? SalesPriceInTrl,
     [property: JsonPropertyName("sales_excise_duty_code")] string? SalesExciseDutyCode,
-    [property: JsonPropertyName("unit")]         string? Unit,
-    [property: JsonPropertyName("currency")]     string? Currency
+    [property: JsonPropertyName("unit")]                  string? Unit,
+    [property: JsonPropertyName("currency")]              string? Currency
 );
