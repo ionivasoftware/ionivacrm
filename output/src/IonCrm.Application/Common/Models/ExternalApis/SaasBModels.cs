@@ -82,7 +82,7 @@ public record RezervalCompany(
     DateTime ExperationDate,
     DateTime CreatedOn,
     bool IsDeleted,
-    bool IsActiveOnline);
+    bool? IsActiveOnline);
 
 // ── RezervAl Company Create/Update ───────────────────────────────────────────
 
