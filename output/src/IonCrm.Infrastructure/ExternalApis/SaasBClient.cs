@@ -192,9 +192,10 @@ public sealed class SaasBClient : ISaasBClient
 
             // Response is wrapped: {"data":{"companyId":123,...},"isSuccess":true,...}
             var envelope = await response.Content.ReadFromJsonAsync<RezervalCreateCompanyEnvelope>(JsonOpts, ct);
-            var data = envelope?.Data
-                ?? throw new InvalidOperationException("Rezerval create company returned no data.");
-            return new RezervalCreateCompanyResponse(data.CompanyId, data.Message);
+            var companyData = envelope?.Data;
+            if (companyData is null)
+                throw new InvalidOperationException("Rezerval create company returned no data.");
+            return new RezervalCreateCompanyResponse(companyData.CompanyId, companyData.Message);
         }, cancellationToken);
     }
 

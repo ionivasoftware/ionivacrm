@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace IonCrm.Application.Common.Models.ExternalApis;
 
 // ── SaaS B — Different endpoint structure, X-Api-Key auth ───────────────────
@@ -73,7 +75,7 @@ public record SaasBWebhookPayload(
 /// Note: "ExperationDate" is the field name used by the Rezerval API (typo preserved).
 /// </summary>
 public record RezervalCompany(
-    int Id,
+    [property: JsonPropertyName("id")] int Id,
     string Name,
     string? Title,
     string? Phone,
