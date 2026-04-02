@@ -86,12 +86,12 @@ public class ParasutProductsController : ApiControllerBase
 
             allItems.AddRange(data.Data.Select(d => (object)new
             {
-                id         = d.Id,
-                name       = d.Attributes.Name,
-                vatRate    = d.Attributes.VatRate,
-                salesPrice = d.Attributes.SalesPrice,
-                currency   = d.Attributes.Currency,
-                unit       = d.Attributes.Unit
+                id        = d.Id,
+                name      = d.Attributes.Name,
+                vatRate   = int.TryParse(d.Attributes.VatRate, out var vr) ? vr : 0,
+                unitPrice = (double)(d.Attributes.SalesPrice ?? 0m),
+                currency  = d.Attributes.Currency ?? "TRY",
+                unit      = d.Attributes.Unit
             }));
 
             totalPages = data.Meta?.TotalPages ?? 1;
