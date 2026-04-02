@@ -142,10 +142,12 @@ public record EmsCompanySummaryTotals(
     int ElevatorCount,
     int UserCount);
 
-/// <summary>Monthly activity breakdown for a single month.</summary>
+/// <summary>Monthly activity breakdown for a single month (EMS field names preserved).</summary>
 public record EmsCompanyMonthlyStat(
     int Year,
     int Month,
     int MaintenanceCount,
-    int BreakdownCount,
-    int ProposalCount);
+    int FaultCount,
+    int PartChangeOfferCount,
+    int RevisionOfferCount,
+    int AssemblyOfferCount);

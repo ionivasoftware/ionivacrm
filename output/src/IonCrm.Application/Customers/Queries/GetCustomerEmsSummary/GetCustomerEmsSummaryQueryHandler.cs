@@ -108,8 +108,8 @@ public sealed class GetCustomerEmsSummaryQueryHandler
                 m.Year,
                 m.Month,
                 m.MaintenanceCount,
-                m.BreakdownCount,
-                m.ProposalCount))
+                m.FaultCount,
+                m.PartChangeOfferCount + m.RevisionOfferCount + m.AssemblyOfferCount))
             .ToList();
 
         var dto = new EmsSummaryDto(emsCompanyId, totals, monthly);
