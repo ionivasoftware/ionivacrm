@@ -183,6 +183,17 @@ app.Lifetime.ApplicationStarted.Register(() =>
             ");
             Log.Information("Obsolete column cleanup complete");
 
+            // One-time cleanup: delete customers with LegacyId = 'REZV-0' — these were created
+            // by a bug where the Rezerval create-company response envelope was not unwrapped,
+            // causing CompanyId = 0 to be stored. Next sync will re-create them with correct IDs.
+            var deleted = await db.Database.ExecuteSqlRawAsync(@"
+                DELETE FROM ""Customers""
+                WHERE ""LegacyId"" = 'REZV-0'
+                  AND ""IsDeleted"" = false;
+            ");
+            if (deleted > 0)
+                Log.Warning("Cleaned up {Count} customer(s) with invalid LegacyId 'REZV-0'.", deleted);
+
             // Idempotent fallback: create ParasutConnections table if EF migration hasn't run yet.
             // Tenant-based: one row per project, stores OAuth credentials + access/refresh tokens.
             await db.Database.ExecuteSqlRawAsync(@"
