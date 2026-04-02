@@ -1078,13 +1078,13 @@ export function CustomerDetailPage() {
   const deleteMutation = useDeleteCustomer();
 
   // EMS users — only fetch when tab is active and customer is an EMS customer
-  const { data: emsUsersData, isLoading: emsUsersLoading } = useCustomerEmsUsers(
+  const { data: emsUsersData, isLoading: emsUsersLoading, error: emsUsersError } = useCustomerEmsUsers(
     customerId,
     activeTab === 'ems-users' && isEmsCustomer(customer?.legacyId)
   );
 
   // EMS summary — only fetch when tab is active and customer is an EMS customer
-  const { data: emsSummaryData, isLoading: emsSummaryLoading } = useCustomerEmsSummary(
+  const { data: emsSummaryData, isLoading: emsSummaryLoading, error: emsSummaryError } = useCustomerEmsSummary(
     customerId,
     activeTab === 'ems-summary' && isEmsCustomer(customer?.legacyId)
   );
@@ -1740,13 +1740,19 @@ export function CustomerDetailPage() {
               )}
 
               {!emsUsersLoading && (!emsUsersData || emsUsersData.length === 0) && (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                    <Users className="h-8 w-8 text-muted-foreground/40" />
+                <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                    {emsUsersError ? <AlertTriangle className="h-8 w-8 text-muted-foreground/40" /> : <Users className="h-8 w-8 text-muted-foreground/40" />}
                   </div>
-                  <p className="font-medium text-foreground mb-1">Kullanıcı bulunamadı</p>
-                  <p className="text-sm text-muted-foreground">
-                    Bu EMS firmasına ait kullanıcı kaydı bulunamadı.
+                  <p className="font-medium text-foreground">
+                    {emsUsersError ? 'Kullanıcı listesi alınamadı' : 'Kullanıcı bulunamadı'}
+                  </p>
+                  <p className="text-sm text-muted-foreground max-w-sm">
+                    {emsUsersError
+                      ? ((emsUsersError as { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0]
+                          ?? (emsUsersError as Error)?.message
+                          ?? 'Bilinmeyen hata')
+                      : 'Bu EMS firmasına ait kullanıcı kaydı bulunamadı.'}
                   </p>
                 </div>
               )}
@@ -1815,9 +1821,16 @@ export function CustomerDetailPage() {
               )}
 
               {!emsSummaryLoading && !emsSummaryData && (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground">Kullanım özeti alınamadı.</p>
+                <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+                  <AlertTriangle className="h-9 w-9 text-muted-foreground/40" />
+                  <p className="text-sm font-medium text-muted-foreground">Kullanım özeti alınamadı</p>
+                  {emsSummaryError && (
+                    <p className="text-xs text-muted-foreground/70 max-w-sm">
+                      {(emsSummaryError as { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0]
+                        ?? (emsSummaryError as Error)?.message
+                        ?? 'Bilinmeyen hata'}
+                    </p>
+                  )}
                 </div>
               )}
 
