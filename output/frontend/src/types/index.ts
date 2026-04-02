@@ -136,6 +136,8 @@ export interface Project {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  emsApiKey?: string | null;
+  rezervAlApiKey?: string | null;
 }
 
 // ----- User -----

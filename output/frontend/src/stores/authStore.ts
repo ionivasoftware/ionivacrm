@@ -49,6 +49,8 @@ interface AuthState {
   projectNames: Record<string, string>;
   /** All project IDs — for SuperAdmin includes all projects; for others only own projects */
   allProjectIds: string[];
+  /** Full project objects — populated for SuperAdmin; empty for regular users */
+  projects: Project[];
 
   login: (credentials: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
@@ -64,6 +66,7 @@ export const useAuthStore = create<AuthState>()(
     currentProjectId: null,
     projectNames: {},
     allProjectIds: [],
+    projects: [],
 
     login: async (credentials: LoginRequest) => {
       const response = await apiClient.post<ApiResponse<LoginResponse>>(
@@ -84,11 +87,12 @@ export const useAuthStore = create<AuthState>()(
       let allProjectIds = Object.keys(projectRoles);
 
       // SuperAdmin: also fetch all projects so the switcher shows every tenant
+      let allProjects: Project[] = [];
       if (user.isSuperAdmin) {
-        const projects = await fetchAllProjects();
-        if (projects.length > 0) {
-          projectNames = Object.fromEntries(projects.map((p) => [p.id, p.name]));
-          allProjectIds = projects.map((p) => p.id);
+        allProjects = await fetchAllProjects();
+        if (allProjects.length > 0) {
+          projectNames = Object.fromEntries(allProjects.map((p) => [p.id, p.name]));
+          allProjectIds = allProjects.map((p) => p.id);
         }
       }
 
@@ -103,6 +107,7 @@ export const useAuthStore = create<AuthState>()(
         currentProjectId: defaultProject,
         projectNames,
         allProjectIds,
+        projects: allProjects,
       });
     },
 
@@ -121,6 +126,7 @@ export const useAuthStore = create<AuthState>()(
           currentProjectId: null,
           projectNames: {},
           allProjectIds: [],
+          projects: [],
         });
       }
     },
@@ -159,11 +165,12 @@ export const useAuthStore = create<AuthState>()(
         let projectNames = projectNamesFromRoles(rawRoles);
         let allProjectIds = Object.keys(projectRoles);
 
+        let allProjects: Project[] = [];
         if (user.isSuperAdmin) {
-          const projects = await fetchAllProjects();
-          if (projects.length > 0) {
-            projectNames = Object.fromEntries(projects.map((p) => [p.id, p.name]));
-            allProjectIds = projects.map((p) => p.id);
+          allProjects = await fetchAllProjects();
+          if (allProjects.length > 0) {
+            projectNames = Object.fromEntries(allProjects.map((p) => [p.id, p.name]));
+            allProjectIds = allProjects.map((p) => p.id);
           }
         }
 
@@ -176,6 +183,7 @@ export const useAuthStore = create<AuthState>()(
           currentProjectId: defaultProject,
           projectNames,
           allProjectIds,
+          projects: allProjects,
           isLoading: false,
         });
       } catch {

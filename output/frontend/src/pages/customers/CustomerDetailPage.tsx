@@ -72,7 +72,6 @@ import {
   useAddCustomerSms,
   useExtendEmsExpiration,
   useCustomerEmsUsers,
-  usePushToRezerval,
 } from '@/api/customers';
 import { useAdminProjects } from '@/api/admin';
 import { CustomerStatusBadge, CustomerLabelBadge } from '@/components/customers/CustomerStatusBadge';
@@ -83,6 +82,7 @@ import {
   CONTACT_TYPE_ICONS,
 } from '@/components/customers/AddContactHistoryDialog';
 import { TransferLeadModal } from '@/components/customers/TransferLeadModal';
+import { RezervalPushDialog } from '@/components/customers/RezervalPushDialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useCanAccessFinance } from '@/lib/roles';
@@ -946,7 +946,7 @@ export function CustomerDetailPage() {
   const isRezervalProject = adminProjects?.some(
     (p) => p.id === currentProjectId && !!p.rezervAlApiKey
   ) ?? false;
-  const pushToRezerval = usePushToRezerval(id ?? '');
+  const [showRezervalDialog, setShowRezervalDialog] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(linkSearch); setLinkPage(1); }, 400);
@@ -988,23 +988,8 @@ export function CustomerDetailPage() {
     }
   }
 
-  async function handlePushToRezerval() {
-    const isUpdate = customer?.legacyId?.startsWith('REZV-');
-    try {
-      await pushToRezerval.mutateAsync();
-      toast({
-        title: isUpdate ? 'RezervAl güncellendi' : "RezervAl'a gönderildi",
-        description: isUpdate
-          ? `${customer?.companyName} RezervAl'da güncellendi.`
-          : `${customer?.companyName} RezervAl'a aktarıldı.`,
-      });
-    } catch {
-      toast({
-        title: 'Hata',
-        description: isUpdate ? 'RezervAl güncellenemedi.' : "RezervAl'a gönderilemedi.",
-        variant: 'destructive',
-      });
-    }
+  function handlePushToRezerval() {
+    setShowRezervalDialog(true);
   }
 
   // ── Loading ──
@@ -1153,12 +1138,8 @@ export function CustomerDetailPage() {
               variant="outline"
               className="gap-2 h-10 border-teal-500/40 text-teal-400 hover:bg-teal-500/10"
               onClick={handlePushToRezerval}
-              disabled={pushToRezerval.isPending}
             >
-              {pushToRezerval.isPending
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <Send className="h-4 w-4" />
-              }
+              <Send className="h-4 w-4" />
               {customer?.legacyId?.startsWith('REZV-') ? 'RezervAl Güncelle' : "RezervAl'a Gönder"}
             </Button>
           )}
@@ -1971,6 +1952,15 @@ export function CustomerDetailPage() {
           onOpenChange={setShowTransferModal}
           lead={customer}
           onSuccess={() => navigate('/customers')}
+        />
+      )}
+
+      {/* RezervAl Push Dialog */}
+      {customer && (
+        <RezervalPushDialog
+          isOpen={showRezervalDialog}
+          onClose={() => setShowRezervalDialog(false)}
+          customer={customer}
         />
       )}
     </div>

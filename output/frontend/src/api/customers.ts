@@ -39,6 +39,7 @@ export function useCustomers(params: CustomerListParams = {}) {
       if (params.label) queryParams.label = params.label;
       queryParams.page = params.page ?? 1;
       queryParams.pageSize = params.pageSize ?? 20;
+      if (projectId) queryParams.projectId = projectId;
 
       const response = await apiClient.get<ApiResponse<PaginatedResponse<Customer>>>(
         '/customers',
@@ -412,12 +413,33 @@ export function useCustomerEmsUsers(customerId: string, enabled: boolean) {
 
 // ── Push to RezervAl ─────────────────────────────────────────────────────────
 
+export interface PushToRezervalRequest {
+  name: string;
+  title: string;
+  phone: string;
+  email: string;
+  taxUnit: string;
+  taxNumber: string;
+  tcNo?: string;
+  isPersonCompany: boolean;
+  address: string;
+  language?: number;
+  countryPhoneCode?: number;
+  experationDate?: string;
+  adminNameSurname?: string;
+  adminLoginName?: string;
+  adminPassword?: string;
+  adminEmail?: string;
+  adminPhone?: string;
+}
+
 export function usePushToRezerval(customerId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (body: PushToRezervalRequest) => {
       const response = await apiClient.post<ApiResponse<Customer>>(
-        `/customers/${customerId}/push-to-rezerval`
+        `/customers/${customerId}/push-to-rezerval`,
+        body
       );
       return response.data.data;
     },
