@@ -158,17 +158,21 @@ function ApiKeyField({
 function ApiKeysDialog({ project, onClose }: { project: AdminProject; onClose: () => void }) {
   const { toast } = useToast();
   const mutation = useSetProjectApiKeys();
-  const [emsApiKey, setEmsApiKey] = useState(project.emsApiKey ?? '');
-  const [rezervAlApiKey, setRezervAlApiKey] = useState(project.rezervAlApiKey ?? '');
+  const [emsBaseUrl, setEmsBaseUrl]       = useState(project.emsBaseUrl ?? '');
+  const [emsApiKey, setEmsApiKey]         = useState(project.emsApiKey ?? '');
+  const [rezervAlBaseUrl, setRezervAlBaseUrl] = useState(project.rezervAlBaseUrl ?? '');
+  const [rezervAlApiKey, setRezervAlApiKey]   = useState(project.rezervAlApiKey ?? '');
 
   const handleSave = async () => {
     try {
       await mutation.mutateAsync({
         id: project.id,
-        emsApiKey: emsApiKey.trim() || null,
-        rezervAlApiKey: rezervAlApiKey.trim() || null,
+        emsBaseUrl:      emsBaseUrl.trim() || null,
+        emsApiKey:       emsApiKey.trim() || null,
+        rezervAlBaseUrl: rezervAlBaseUrl.trim() || null,
+        rezervAlApiKey:  rezervAlApiKey.trim() || null,
       });
-      toast({ title: 'API anahtarları kaydedildi' });
+      toast({ title: 'API ayarları kaydedildi' });
       onClose();
     } catch {
       toast({ title: 'Hata', description: 'Kayıt başarısız oldu.', variant: 'destructive' });
@@ -177,20 +181,47 @@ function ApiKeysDialog({ project, onClose }: { project: AdminProject; onClose: (
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Key className="h-4 w-4" />
-            API Anahtarları — {project.name}
+            API Ayarları — {project.name}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="p-3 rounded-lg bg-muted/40 text-xs text-muted-foreground space-y-1">
-            <p><span className="font-semibold text-foreground">EMS</span> → SaaS A — Bearer token ile kimlik doğrulama</p>
-            <p><span className="font-semibold text-foreground">Rezerval</span> → SaaS B — X-Api-Key header ile kimlik doğrulama</p>
+        <div className="space-y-5 py-2">
+
+          {/* EMS */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-foreground uppercase tracking-wide">EMS (SaaS A)</p>
+            <div className="space-y-1.5">
+              <Label>EMS Base URL</Label>
+              <Input
+                value={emsBaseUrl}
+                onChange={(e) => setEmsBaseUrl(e.target.value)}
+                placeholder="https://api.ems.example.com"
+                className="h-10 font-mono text-xs"
+              />
+            </div>
+            <ApiKeyField label="EMS API Key" value={emsApiKey} onChange={setEmsApiKey} />
           </div>
-          <ApiKeyField label="EMS API Key (SaaS A)" value={emsApiKey} onChange={setEmsApiKey} />
-          <ApiKeyField label="Rezerval API Key (SaaS B)" value={rezervAlApiKey} onChange={setRezervAlApiKey} />
+
+          <div className="border-t border-border" />
+
+          {/* RezervAl */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-foreground uppercase tracking-wide">RezervAl (SaaS B)</p>
+            <div className="space-y-1.5">
+              <Label>RezervAl Base URL</Label>
+              <Input
+                value={rezervAlBaseUrl}
+                onChange={(e) => setRezervAlBaseUrl(e.target.value)}
+                placeholder="https://api.rezerval.example.com"
+                className="h-10 font-mono text-xs"
+              />
+            </div>
+            <ApiKeyField label="RezervAl API Key" value={rezervAlApiKey} onChange={setRezervAlApiKey} />
+          </div>
+
         </div>
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" onClick={onClose}>İptal</Button>

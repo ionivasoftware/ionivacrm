@@ -66,7 +66,12 @@ export interface UpdateProjectRequest {
   rezervAlBaseUrl?: string | null;
   rezervAlApiKey?: string | null;
 }
-export interface SetProjectApiKeysRequest { emsApiKey: string | null; rezervAlApiKey: string | null }
+export interface SetProjectApiKeysRequest {
+  emsBaseUrl: string | null;
+  emsApiKey: string | null;
+  rezervAlBaseUrl: string | null;
+  rezervAlApiKey: string | null;
+}
 
 // ── Users ──────────────────────────────────────────────────────────────────────
 
