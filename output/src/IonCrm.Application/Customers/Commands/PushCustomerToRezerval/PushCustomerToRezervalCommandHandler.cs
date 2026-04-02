@@ -123,11 +123,16 @@ public sealed class PushCustomerToRezervalCommandHandler
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
-                // Company no longer exists in Rezerval — fall through to create a new one.
+                // Company no longer exists in Rezerval — clear LegacyId so next push creates a new one.
                 _logger.LogWarning(
-                    "RezervAl company {RezervalId} not found (404) for customer {CustomerId}. Falling back to create.",
+                    "RezervAl company {RezervalId} not found (404) for customer {CustomerId}. Clearing LegacyId.",
                     existingCompanyId, customer.Id);
                 customer.LegacyId = null;
+                customer.UpdatedAt = DateTime.UtcNow;
+                await _customerRepository.UpdateAsync(customer, cancellationToken);
+                return Result<PushCustomerToRezervalDto>.Failure(
+                    $"RezervAl'de {existingCompanyId} ID'li firma bulunamadı (silinmiş olabilir). " +
+                    "LegacyId temizlendi — tekrar gönderirseniz yeni firma oluşturulacak.");
             }
             catch (Exception ex)
             {

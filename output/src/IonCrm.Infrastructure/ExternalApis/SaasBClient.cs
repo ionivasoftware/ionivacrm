@@ -194,7 +194,12 @@ public sealed class SaasBClient : ISaasBClient
             var envelope = await response.Content.ReadFromJsonAsync<RezervalCreateCompanyEnvelope>(JsonOpts, ct);
             var companyData = envelope?.Data;
             if (companyData is null)
-                throw new InvalidOperationException("Rezerval create company returned no data.");
+            {
+                var reason = !string.IsNullOrWhiteSpace(envelope?.Message)
+                    ? envelope.Message
+                    : "Boş yanıt";
+                throw new InvalidOperationException($"Rezerval firma oluşturulamadı: {reason}");
+            }
             return new RezervalCreateCompanyResponse(companyData.CompanyId, companyData.Message);
         }, cancellationToken);
     }
