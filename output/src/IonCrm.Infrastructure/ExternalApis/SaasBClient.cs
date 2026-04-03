@@ -215,10 +215,10 @@ public sealed class SaasBClient : ISaasBClient
         await _retryPipeline.ExecuteAsync(async ct =>
         {
             var request = new HttpRequestMessage(HttpMethod.Put,
-                $"https://rezback.rezerval.com/v1/Crm/Company/{companyId}");
+                "https://rezback.rezerval.com/v1/Crm/Company");
 
             await ApplyBearerAuthAsync(request, apiKey, ct);
-            request.Content = BuildMultipartContent(data);
+            request.Content = BuildMultipartContent(data, companyId);
 
             var response = await _httpClient.SendAsync(request, ct);
             await EnsureSuccessAsync(response, ct);
@@ -229,26 +229,28 @@ public sealed class SaasBClient : ISaasBClient
     /// Builds a <see cref="MultipartFormDataContent"/> from <see cref="RezervalCompanyFormData"/>.
     /// All fields are sent as string parts; the optional logo is added as a file part when present.
     /// </summary>
-    private static MultipartFormDataContent BuildMultipartContent(RezervalCompanyFormData data)
+    private static MultipartFormDataContent BuildMultipartContent(RezervalCompanyFormData data, int? id = null)
     {
-        var form = new MultipartFormDataContent
-        {
-            { new StringContent(data.Name),                  "Name" },
-            { new StringContent(data.Title),                 "Title" },
-            { new StringContent(data.Phone),                 "Phone" },
-            { new StringContent(data.Email),                 "Email" },
-            { new StringContent(data.TaxUnit),               "TaxUnit" },
-            { new StringContent(data.TaxNumber),             "TaxNumber" },
-            { new StringContent(data.IsPersonCompany ? "true" : "false"), "IsPersonCompany" },
-            { new StringContent(data.Address),               "Address" },
-            { new StringContent(data.Language.ToString()),   "Language" },
-            { new StringContent(data.CountryPhoneCode.ToString()), "CountryPhoneCode" },
-            { new StringContent(data.AdminNameSurname),      "AdminNameSurname" },
-            { new StringContent(data.AdminLoginName),        "AdminLoginName" },
-            { new StringContent(data.AdminPassword),         "AdminPassword" },
-            { new StringContent(data.AdminEmail),            "AdminEmail" },
-            { new StringContent(data.AdminPhone),            "AdminPhone" },
-        };
+        var form = new MultipartFormDataContent();
+
+        if (id.HasValue)
+            form.Add(new StringContent(id.Value.ToString()), "Id");
+
+        form.Add(new StringContent(data.Name),                                    "Name");
+        form.Add(new StringContent(data.Title),                                   "Title");
+        form.Add(new StringContent(data.Phone),                                   "Phone");
+        form.Add(new StringContent(data.Email),                                   "Email");
+        form.Add(new StringContent(data.TaxUnit),                                 "TaxUnit");
+        form.Add(new StringContent(data.TaxNumber),                               "TaxNumber");
+        form.Add(new StringContent(data.IsPersonCompany ? "true" : "false"),      "IsPersonCompany");
+        form.Add(new StringContent(data.Address),                                 "Address");
+        form.Add(new StringContent(data.Language.ToString()),                     "Language");
+        form.Add(new StringContent(data.CountryPhoneCode.ToString()),             "CountryPhoneCode");
+        form.Add(new StringContent(data.AdminNameSurname),                        "AdminNameSurname");
+        form.Add(new StringContent(data.AdminLoginName),                          "AdminLoginName");
+        form.Add(new StringContent(data.AdminPassword),                           "AdminPassword");
+        form.Add(new StringContent(data.AdminEmail),                              "AdminEmail");
+        form.Add(new StringContent(data.AdminPhone),                              "AdminPhone");
 
         if (!string.IsNullOrWhiteSpace(data.TCNo))
             form.Add(new StringContent(data.TCNo), "TCNo");
