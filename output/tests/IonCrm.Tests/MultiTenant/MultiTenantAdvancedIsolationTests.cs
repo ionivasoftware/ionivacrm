@@ -236,7 +236,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
         syncRepoMock.Verify(
             r => r.GetPagedAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<Guid?>(),
                 It.IsAny<SyncSource?>(), It.IsAny<SyncDirection?>(), It.IsAny<SyncStatus?>(),
-                It.IsAny<CancellationToken>()),
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()),
             Times.Never,
             "repository must not be called when access is denied upfront");
     }
@@ -262,7 +262,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
         syncRepoMock.Verify(
             r => r.GetPagedAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<Guid?>(),
                 It.IsAny<SyncSource?>(), It.IsAny<SyncDirection?>(), It.IsAny<SyncStatus?>(),
-                It.IsAny<CancellationToken>()),
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -280,7 +280,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
             .Setup(r => r.GetPagedAsync(
                 It.IsAny<int>(), It.IsAny<int>(), _projectA,
                 It.IsAny<SyncSource?>(), It.IsAny<SyncDirection?>(), It.IsAny<SyncStatus?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new List<SyncLog>(), 0));
 
         var handler = new GetSyncLogsQueryHandler(syncRepoMock.Object, currentUserMock.Object);
@@ -294,7 +294,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
             r => r.GetPagedAsync(
                 It.IsAny<int>(), It.IsAny<int>(), _projectA,
                 It.IsAny<SyncSource?>(), It.IsAny<SyncDirection?>(), It.IsAny<SyncStatus?>(),
-                It.IsAny<CancellationToken>()),
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -312,7 +312,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
             .Setup(r => r.GetPagedAsync(
                 It.IsAny<int>(), It.IsAny<int>(), _projectB,
                 It.IsAny<SyncSource?>(), It.IsAny<SyncDirection?>(), It.IsAny<SyncStatus?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new List<SyncLog>
             {
                 new SyncLog { Id = Guid.NewGuid(), ProjectId = _projectB, Source = SyncSource.SaasA,
@@ -344,7 +344,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
             .Setup(r => r.GetPagedAsync(
                 It.IsAny<int>(), It.IsAny<int>(), null,        // null → all projects
                 It.IsAny<SyncSource?>(), It.IsAny<SyncDirection?>(), It.IsAny<SyncStatus?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new List<SyncLog>(), 0));
 
         var handler = new GetSyncLogsQueryHandler(syncRepoMock.Object, currentUserMock.Object);
@@ -358,7 +358,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
             r => r.GetPagedAsync(
                 It.IsAny<int>(), It.IsAny<int>(), null,
                 It.IsAny<SyncSource?>(), It.IsAny<SyncDirection?>(), It.IsAny<SyncStatus?>(),
-                It.IsAny<CancellationToken>()),
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -377,9 +377,9 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
             .Setup(r => r.GetPagedAsync(
                 It.IsAny<int>(), It.IsAny<int>(), It.IsAny<Guid?>(),
                 It.IsAny<SyncSource?>(), It.IsAny<SyncDirection?>(), It.IsAny<SyncStatus?>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<int, int, Guid?, SyncSource?, SyncDirection?, SyncStatus?, CancellationToken>(
-                (_, _, pid, _, _, _, _) => capturedProjectId = pid)
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+            .Callback<int, int, Guid?, SyncSource?, SyncDirection?, SyncStatus?, DateTime?, DateTime?, CancellationToken>(
+                (_, _, pid, _, _, _, _, _, _) => capturedProjectId = pid)
             .ReturnsAsync((new List<SyncLog>(), 0));
 
         var handler = new GetSyncLogsQueryHandler(syncRepoMock.Object, currentUserMock.Object);

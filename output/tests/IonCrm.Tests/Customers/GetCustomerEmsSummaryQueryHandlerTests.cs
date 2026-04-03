@@ -50,8 +50,8 @@ public class GetCustomerEmsSummaryQueryHandlerTests
             new EmsCompanySummaryTotals(10, 25, 5),
             new List<EmsCompanyMonthlyStat>
             {
-                new(2026, 1, 15, 3, 2),
-                new(2026, 2, 12, 1, 4)
+                new(2026, 1, 15, 3, 1, 1, 0),
+                new(2026, 2, 12, 1, 2, 1, 1)
             });
 
     // ── Authorization ─────────────────────────────────────────────────────────
@@ -220,7 +220,7 @@ public class GetCustomerEmsSummaryQueryHandlerTests
             new EmsCompanySummaryTotals(CustomerCount: 10, ElevatorCount: 25, UserCount: 5),
             new List<EmsCompanyMonthlyStat>
             {
-                new(Year: 2026, Month: 1, MaintenanceCount: 15, BreakdownCount: 3, ProposalCount: 2)
+                new(Year: 2026, Month: 1, MaintenanceCount: 15, FaultCount: 3, PartChangeOfferCount: 1, RevisionOfferCount: 1, AssemblyOfferCount: 0)
             });
 
         _saasAClientMock
