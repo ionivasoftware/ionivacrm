@@ -56,6 +56,18 @@ public sealed class SyncEmsPaymentsCommandHandler
 
         foreach (var project in emsProjects)
         {
+            // Summary log written at the start of each project scan — visible even when 0 payments
+            var summaryLog = new SyncLog
+            {
+                Id          = Guid.NewGuid(),
+                ProjectId   = project.Id,
+                Source      = SyncSource.SaasA,
+                Direction   = SyncDirection.Inbound,
+                EntityType  = "PaymentSync",
+                Status      = SyncStatus.Pending,
+            };
+            await _syncLogRepository.AddAsync(summaryLog, cancellationToken);
+
             try
             {
                 var response = await _saasAClient.GetRecentPaymentsAsync(
@@ -210,12 +222,23 @@ public sealed class SyncEmsPaymentsCommandHandler
                         "EMS payment sync: created invoice draft for customer {CustomerId} from EMS payment {PaymentId} (company {CompanyId}).",
                         customer.Id, payment.Id, payment.CompanyId);
                 }
+
+                // Update summary log with final result
+                summaryLog.Status   = SyncStatus.Success;
+                summaryLog.SyncedAt = DateTime.UtcNow;
+                summaryLog.Payload  = $"payments={response.Data.Count} created={invoicesCreated} skipped={skipped}";
+                await _syncLogRepository.UpdateAsync(summaryLog, cancellationToken);
             }
             catch (Exception ex)
             {
                 var msg = $"Project {project.Id} ({project.Name}): {ex.Message}";
                 errors.Add(msg);
                 _logger.LogError(ex, "EMS payment sync failed for project {ProjectId}.", project.Id);
+
+                summaryLog.Status       = SyncStatus.Failed;
+                summaryLog.ErrorMessage = ex.Message.Length > 2000 ? ex.Message[..2000] : ex.Message;
+                summaryLog.SyncedAt     = DateTime.UtcNow;
+                await _syncLogRepository.UpdateAsync(summaryLog, cancellationToken);
             }
         }
 
