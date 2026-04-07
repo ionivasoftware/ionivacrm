@@ -382,6 +382,25 @@ if (hangfireEnabled && !app.Environment.IsProduction())
 
 app.MapControllers();
 
+// ── Pre-startup: ensure new columns exist before accepting requests ────────────
+// Runs synchronously so EF Core never sees a missing column on the first request.
+// Wrapped in try/catch — Neon cold-start may fail here; the background task will retry.
+try
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await db.Database.ExecuteSqlRawAsync(@"
+        ALTER TABLE ""ParasutProducts"" ADD COLUMN IF NOT EXISTS ""ParasutProductName"" text;
+        ALTER TABLE ""ParasutProducts"" ADD COLUMN IF NOT EXISTS ""ProductKey""         text NOT NULL DEFAULT '';
+        ALTER TABLE ""ParasutProducts"" ADD COLUMN IF NOT EXISTS ""EmsProductId""       text;
+        ALTER TABLE ""Invoices""        ADD COLUMN IF NOT EXISTS ""EmsPaymentId""       text;
+    ");
+}
+catch (Exception ex)
+{
+    Log.Warning(ex, "Pre-startup column check failed (Neon cold-start?) — background task will retry.");
+}
+
 app.Run();
 
 // Make Program class accessible for integration tests
