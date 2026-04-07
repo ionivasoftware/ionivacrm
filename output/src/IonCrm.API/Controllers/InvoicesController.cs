@@ -1,7 +1,9 @@
 using IonCrm.API.Common;
 using IonCrm.Application.Common.DTOs;
 using IonCrm.Application.Features.Invoices.Commands.CreateInvoice;
+using IonCrm.Application.Features.Invoices.Commands.DeleteInvoice;
 using IonCrm.Application.Features.Invoices.Commands.ImportParasutInvoices;
+using IonCrm.Application.Features.Invoices.Commands.MergeInvoices;
 using IonCrm.Application.Features.Invoices.Commands.TransferInvoiceToParasut;
 using IonCrm.Application.Features.Invoices.Commands.UpdateInvoice;
 using IonCrm.Application.Features.Invoices.Queries.GetInvoiceById;
@@ -98,6 +100,33 @@ public class InvoicesController : ControllerBase
     public async Task<IActionResult> TransferToParasut(Guid id)
     {
         var result = await _mediator.Send(new TransferInvoiceToParasutCommand(id));
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<object>.Fail(result.Errors));
+        return Ok(ApiResponse<InvoiceDto>.Ok(result.Value!));
+    }
+
+    /// <summary>
+    /// DELETE /api/v1/invoices/{id}
+    /// Soft-deletes a Draft invoice. Returns 400 if the invoice is not Draft.
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> DeleteInvoice(Guid id)
+    {
+        var result = await _mediator.Send(new DeleteInvoiceCommand(id));
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<object>.Fail(result.Errors));
+        return Ok(ApiResponse<bool>.Ok(true));
+    }
+
+    /// <summary>
+    /// POST /api/v1/invoices/merge
+    /// Merges two or more Draft invoices for the same customer into a single new Draft.
+    /// Source invoices are soft-deleted. Returns the new merged invoice.
+    /// </summary>
+    [HttpPost("merge")]
+    public async Task<IActionResult> MergeInvoices([FromBody] MergeInvoicesCommand command)
+    {
+        var result = await _mediator.Send(command);
         if (result.IsFailure)
             return BadRequest(ApiResponse<object>.Fail(result.Errors));
         return Ok(ApiResponse<InvoiceDto>.Ok(result.Value!));

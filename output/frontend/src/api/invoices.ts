@@ -69,3 +69,31 @@ export function useTransferToParasut() {
     },
   });
 }
+
+export function useDeleteInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (invoiceId: string) => {
+      await apiClient.delete(`/invoices/${invoiceId}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+}
+
+export function useMergeInvoices() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { invoiceIds: string[]; title?: string }) => {
+      const res = await apiClient.post<ApiResponse<Invoice>>('/invoices/merge', {
+        invoiceIds: params.invoiceIds,
+        title: params.title ?? null,
+      });
+      return res.data.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+}

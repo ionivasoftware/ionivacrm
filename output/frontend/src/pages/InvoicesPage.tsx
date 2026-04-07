@@ -17,6 +17,8 @@ import {
   Clock,
   ExternalLink,
   Pencil,
+  Merge,
+  X,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,7 +44,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStore } from '@/stores/authStore';
 import { useCanAccessFinance } from '@/lib/roles';
 import { useCustomers } from '@/api/customers';
-import { useInvoices, useCreateInvoice, useUpdateInvoice, useTransferToParasut } from '@/api/invoices';
+import { useInvoices, useCreateInvoice, useUpdateInvoice, useTransferToParasut, useDeleteInvoice, useMergeInvoices } from '@/api/invoices';
 import { useParasutStatus } from '@/api/parasut';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -878,15 +880,20 @@ export function InvoicesPage() {
   const navigate = useNavigate();
   const { currentProjectId } = useAuthStore();
   const canAccess = useCanAccessFinance();
+  const { toast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
   const [editInvoice, setEditInvoice] = useState<Invoice | null>(null);
   const [transferInvoice, setTransferInvoice] = useState<Invoice | null>(null);
+  const [deleteInvoice, setDeleteInvoice] = useState<Invoice | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
 
   const invoicesQuery = useInvoices();
   const parasutStatus = useParasutStatus(currentProjectId);
+  const deleteInvoiceMutation = useDeleteInvoice();
+  const mergeInvoicesMutation = useMergeInvoices();
 
   const isParasutConnected = parasutStatus.data?.isConnected ?? false;
 
@@ -905,6 +912,43 @@ export function InvoicesPage() {
   }
 
   const allInvoices = invoicesQuery.data ?? [];
+
+  // Selection helpers
+  function handleSelect(id: string, checked: boolean) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      checked ? next.add(id) : next.delete(id);
+      return next;
+    });
+  }
+
+  const selectedInvoices = allInvoices.filter(i => selectedIds.has(i.id));
+  const allSameCustomer = selectedInvoices.length >= 2
+    && selectedInvoices.every(i => i.customerId === selectedInvoices[0].customerId);
+  const canMerge = allSameCustomer;
+
+  async function handleDelete() {
+    if (!deleteInvoice) return;
+    try {
+      await deleteInvoiceMutation.mutateAsync(deleteInvoice.id);
+      toast({ title: 'Fatura silindi' });
+      setDeleteInvoice(null);
+      setSelectedIds(prev => { const n = new Set(prev); n.delete(deleteInvoice.id); return n; });
+    } catch {
+      toast({ title: 'Hata', description: 'Fatura silinemedi.', variant: 'destructive' });
+    }
+  }
+
+  async function handleMerge() {
+    if (!canMerge) return;
+    try {
+      const merged = await mergeInvoicesMutation.mutateAsync({ invoiceIds: Array.from(selectedIds) });
+      toast({ title: 'Faturalar birleştirildi', description: merged?.title });
+      setSelectedIds(new Set());
+    } catch {
+      toast({ title: 'Hata', description: 'Faturalar birleştirilemedi.', variant: 'destructive' });
+    }
+  }
 
   // Client-side filter & search
   const filtered = useMemo(() => {
@@ -1002,7 +1046,7 @@ export function InvoicesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -1027,6 +1071,36 @@ export function InvoicesPage() {
             <SelectItem value="Cancelled">İptal</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Merge action bar — visible when drafts are selected */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 ml-auto bg-muted/60 border border-border rounded-lg px-3 py-1.5">
+            <span className="text-sm text-muted-foreground">{selectedIds.size} seçili</span>
+            {canMerge ? (
+              <Button
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={handleMerge}
+                disabled={mergeInvoicesMutation.isPending}
+              >
+                {mergeInvoicesMutation.isPending
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <Merge className="h-3 w-3" />}
+                Birleştir
+              </Button>
+            ) : (
+              <span className="text-xs text-amber-400">Birleştirmek için aynı müşteriye ait taslakları seçin</span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-muted-foreground"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Invoice table */}
@@ -1062,7 +1136,8 @@ export function InvoicesPage() {
           ) : (
             <>
               {/* Table header */}
-              <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_6rem] gap-4 px-6 py-3 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
+              <div className="grid grid-cols-[2rem_1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_7rem] gap-4 px-4 py-3 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
+                <span />
                 <span>Fatura</span>
                 <span>Müşteri</span>
                 <span>Proje</span>
@@ -1070,7 +1145,7 @@ export function InvoicesPage() {
                 <span>Vade</span>
                 <span className="text-right">Tutar</span>
                 <span>Durum</span>
-                <span className="w-20" />
+                <span />
               </div>
 
               <div className="divide-y divide-border">
@@ -1079,8 +1154,11 @@ export function InvoicesPage() {
                     key={invoice.id}
                     invoice={invoice}
                     isParasutConnected={isParasutConnected}
+                    selected={selectedIds.has(invoice.id)}
+                    onSelect={handleSelect}
                     onEdit={() => setEditInvoice(invoice)}
                     onTransfer={() => setTransferInvoice(invoice)}
+                    onDelete={() => setDeleteInvoice(invoice)}
                   />
                 ))}
               </div>
@@ -1137,6 +1215,32 @@ export function InvoicesPage() {
         open={!!transferInvoice}
         onClose={() => setTransferInvoice(null)}
       />
+
+      {/* Delete confirm dialog */}
+      <Dialog open={!!deleteInvoice} onOpenChange={() => setDeleteInvoice(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Faturayı Sil</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">&ldquo;{deleteInvoice?.title}&rdquo;</span>{' '}
+            taslak faturasını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteInvoice(null)}>İptal</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteInvoiceMutation.isPending}
+              className="gap-2"
+            >
+              {deleteInvoiceMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Trash2 className="h-4 w-4" />
+              Sil
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1146,18 +1250,33 @@ export function InvoicesPage() {
 interface InvoiceRowProps {
   invoice: Invoice;
   isParasutConnected: boolean;
+  selected: boolean;
+  onSelect: (id: string, checked: boolean) => void;
   onEdit: () => void;
   onTransfer: () => void;
+  onDelete: () => void;
 }
 
-function InvoiceRow({ invoice, isParasutConnected, onEdit, onTransfer }: InvoiceRowProps) {
+function InvoiceRow({ invoice, isParasutConnected, selected, onSelect, onEdit, onTransfer, onDelete }: InvoiceRowProps) {
   const isOverdue = invoice.status === 'Draft' && new Date(invoice.dueDate) < new Date();
   const seriesLabel = invoice.invoiceSeries
     ? `${invoice.invoiceSeries}${invoice.invoiceNumber ? `-${invoice.invoiceNumber}` : ''}`
     : null;
 
   return (
-    <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_6rem] gap-4 px-6 py-3.5 items-center hover:bg-muted/20 transition-colors text-sm">
+    <div className={`grid grid-cols-[2rem_1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_7rem] gap-4 px-4 py-3.5 items-center hover:bg-muted/20 transition-colors text-sm ${selected ? 'bg-primary/5' : ''}`}>
+      {/* Checkbox — only for Draft */}
+      <div className="flex items-center justify-center">
+        {invoice.status === 'Draft' ? (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(e) => onSelect(invoice.id, e.target.checked)}
+            className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+          />
+        ) : <span />}
+      </div>
+
       {/* Title */}
       <div className="min-w-0">
         <div className="font-medium text-foreground truncate">{invoice.title}</div>
@@ -1196,7 +1315,7 @@ function InvoiceRow({ invoice, isParasutConnected, onEdit, onTransfer }: Invoice
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end gap-1.5">
+      <div className="flex justify-end gap-1">
         {invoice.status === 'Draft' && (
           <Button
             variant="ghost"
@@ -1206,6 +1325,17 @@ function InvoiceRow({ invoice, isParasutConnected, onEdit, onTransfer }: Invoice
             title="Düzenle"
           >
             <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        {invoice.status === 'Draft' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+            onClick={onDelete}
+            title="Sil"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         )}
         {invoice.status === 'Draft' && isParasutConnected && (
