@@ -17,6 +17,7 @@ public sealed class SyncEmsPaymentsCommandHandler
     private readonly ICustomerRepository _customerRepository;
     private readonly IParasutProductRepository _productRepository;
     private readonly IInvoiceRepository _invoiceRepository;
+    private readonly ISyncLogRepository _syncLogRepository;
     private readonly ISaasAClient _saasAClient;
     private readonly ILogger<SyncEmsPaymentsCommandHandler> _logger;
 
@@ -26,6 +27,7 @@ public sealed class SyncEmsPaymentsCommandHandler
         ICustomerRepository customerRepository,
         IParasutProductRepository productRepository,
         IInvoiceRepository invoiceRepository,
+        ISyncLogRepository syncLogRepository,
         ISaasAClient saasAClient,
         ILogger<SyncEmsPaymentsCommandHandler> logger)
     {
@@ -33,6 +35,7 @@ public sealed class SyncEmsPaymentsCommandHandler
         _customerRepository = customerRepository;
         _productRepository  = productRepository;
         _invoiceRepository  = invoiceRepository;
+        _syncLogRepository  = syncLogRepository;
         _saasAClient        = saasAClient;
         _logger             = logger;
     }
@@ -90,6 +93,20 @@ public sealed class SyncEmsPaymentsCommandHandler
                         _logger.LogWarning(
                             "EMS payment sync: no customer found for EMS companyId={CompanyId} (paymentId={PaymentId}). Skipping.",
                             payment.CompanyId, payment.Id);
+
+                        await _syncLogRepository.AddAsync(new SyncLog
+                        {
+                            Id           = Guid.NewGuid(),
+                            ProjectId    = project.Id,
+                            Source       = SyncSource.SaasA,
+                            Direction    = SyncDirection.Inbound,
+                            EntityType   = "Payment",
+                            EntityId     = emsPaymentId,
+                            Status       = SyncStatus.Failed,
+                            ErrorMessage = $"Müşteri bulunamadı — EMS companyId={payment.CompanyId}",
+                            SyncedAt     = DateTime.UtcNow,
+                        }, cancellationToken);
+
                         skipped++;
                         continue;
                     }
@@ -146,7 +163,6 @@ public sealed class SyncEmsPaymentsCommandHandler
                     };
 
                     // 5. Persist draft invoice
-                    var today = DateTime.UtcNow.Date;
                     var invoice = new Invoice
                     {
                         ProjectId    = project.Id,
@@ -165,6 +181,30 @@ public sealed class SyncEmsPaymentsCommandHandler
 
                     await _invoiceRepository.AddAsync(invoice, cancellationToken);
                     invoicesCreated++;
+
+                    // 6. Write sync log entry for this payment
+                    await _syncLogRepository.AddAsync(new SyncLog
+                    {
+                        Id          = Guid.NewGuid(),
+                        ProjectId   = project.Id,
+                        Source      = SyncSource.SaasA,
+                        Direction   = SyncDirection.Inbound,
+                        EntityType  = "Payment",
+                        EntityId    = emsPaymentId,
+                        Status      = SyncStatus.Success,
+                        SyncedAt    = DateTime.UtcNow,
+                        Payload     = JsonSerializer.Serialize(new
+                        {
+                            payment.Id,
+                            payment.CompanyId,
+                            payment.ProductId,
+                            payment.ProductName,
+                            payment.PaymentType,
+                            payment.Price,
+                            payment.SubTotal,
+                            invoiceId = invoice.Id
+                        })
+                    }, cancellationToken);
 
                     _logger.LogInformation(
                         "EMS payment sync: created invoice draft for customer {CustomerId} from EMS payment {PaymentId} (company {CompanyId}).",
