@@ -57,6 +57,14 @@ public class Invoice : BaseEntity
     /// </summary>
     public string? ParasutId { get; set; }
 
+    /// <summary>
+    /// Gets or sets the EMS payment ID that triggered auto-creation of this invoice draft.
+    /// Used to prevent duplicate invoice drafts when the sync job runs multiple times
+    /// within the same payment window.
+    /// Null for invoices created manually.
+    /// </summary>
+    public string? EmsPaymentId { get; set; }
+
     // ── Navigation properties ─────────────────────────────────────────────────
 
     /// <summary>Gets or sets the project (tenant).</summary>

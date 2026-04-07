@@ -1,0 +1,191 @@
+using IonCrm.Application.Common.Interfaces;
+using IonCrm.Application.Common.Models;
+using IonCrm.Domain.Entities;
+using IonCrm.Domain.Enums;
+using IonCrm.Domain.Interfaces;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
+
+namespace IonCrm.Application.Features.Sync.Commands.SyncEmsPayments;
+
+/// <summary>Handles <see cref="SyncEmsPaymentsCommand"/>.</summary>
+public sealed class SyncEmsPaymentsCommandHandler
+    : IRequestHandler<SyncEmsPaymentsCommand, Result<SyncEmsPaymentsResult>>
+{
+    private readonly IProjectRepository _projectRepository;
+    private readonly ICustomerRepository _customerRepository;
+    private readonly IParasutProductRepository _productRepository;
+    private readonly IInvoiceRepository _invoiceRepository;
+    private readonly ISaasAClient _saasAClient;
+    private readonly ILogger<SyncEmsPaymentsCommandHandler> _logger;
+
+    /// <summary>Initialises a new instance of <see cref="SyncEmsPaymentsCommandHandler"/>.</summary>
+    public SyncEmsPaymentsCommandHandler(
+        IProjectRepository projectRepository,
+        ICustomerRepository customerRepository,
+        IParasutProductRepository productRepository,
+        IInvoiceRepository invoiceRepository,
+        ISaasAClient saasAClient,
+        ILogger<SyncEmsPaymentsCommandHandler> logger)
+    {
+        _projectRepository  = projectRepository;
+        _customerRepository = customerRepository;
+        _productRepository  = productRepository;
+        _invoiceRepository  = invoiceRepository;
+        _saasAClient        = saasAClient;
+        _logger             = logger;
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<SyncEmsPaymentsResult>> Handle(
+        SyncEmsPaymentsCommand request,
+        CancellationToken cancellationToken)
+    {
+        var projects       = await _projectRepository.GetAllAsync(cancellationToken);
+        var emsProjects    = projects.Where(p => !string.IsNullOrWhiteSpace(p.EmsApiKey)).ToList();
+
+        int projectsScanned  = 0;
+        int paymentsFetched  = 0;
+        int invoicesCreated  = 0;
+        int skipped          = 0;
+        var errors           = new List<string>();
+
+        foreach (var project in emsProjects)
+        {
+            try
+            {
+                var response = await _saasAClient.GetRecentPaymentsAsync(
+                    project.EmsApiKey,
+                    request.WindowMinutes,
+                    cancellationToken,
+                    project.EmsBaseUrl);
+
+                projectsScanned++;
+                paymentsFetched += response.Data.Count;
+
+                _logger.LogDebug(
+                    "EMS payment sync: project {ProjectId} returned {Count} payments (window={Window}min).",
+                    project.Id, response.Data.Count, request.WindowMinutes);
+
+                foreach (var payment in response.Data)
+                {
+                    var emsPaymentId = payment.Id.ToString();
+
+                    // 1. Dedup — skip if already recorded
+                    if (await _invoiceRepository.ExistsByEmsPaymentIdAsync(emsPaymentId, cancellationToken))
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    // 2. Resolve customer by EMS companyId
+                    //    LegacyId formats: "SAASA-{id}" or plain "{id}"
+                    var customer =
+                        await _customerRepository.GetByLegacyIdAsync($"SAASA-{payment.CompanyId}", cancellationToken)
+                        ?? await _customerRepository.GetByLegacyIdAsync(payment.CompanyId.ToString(), cancellationToken);
+
+                    if (customer is null)
+                    {
+                        _logger.LogWarning(
+                            "EMS payment sync: no customer found for EMS companyId={CompanyId} (paymentId={PaymentId}). Skipping.",
+                            payment.CompanyId, payment.Id);
+                        skipped++;
+                        continue;
+                    }
+
+                    // 3. Resolve product mapping (optional)
+                    string lineDescription;
+                    decimal unitPrice;
+                    decimal taxRate;
+
+                    if (payment.ProductId.HasValue)
+                    {
+                        var product = await _productRepository.GetByEmsProductIdAsync(
+                            project.Id,
+                            payment.ProductId.Value.ToString(),
+                            cancellationToken);
+
+                        if (product is not null)
+                        {
+                            lineDescription = product.ProductName;
+                            unitPrice       = product.UnitPrice > 0 ? product.UnitPrice : payment.SubTotal;
+                            taxRate         = product.TaxRate;
+                        }
+                        else
+                        {
+                            lineDescription = payment.ProductName ?? $"EMS Ürün #{payment.ProductId}";
+                            unitPrice       = payment.SubTotal;
+                            taxRate         = payment.SubTotal > 0
+                                ? Math.Round((payment.VatPrice / payment.SubTotal), 4)
+                                : 0.20m;
+                        }
+                    }
+                    else
+                    {
+                        lineDescription = $"EMS Ödeme #{payment.Id}";
+                        unitPrice       = payment.SubTotal;
+                        taxRate         = payment.SubTotal > 0
+                            ? Math.Round((payment.VatPrice / payment.SubTotal), 4)
+                            : 0.20m;
+                    }
+
+                    // 4. Build invoice line JSON
+                    var lines = new[]
+                    {
+                        new
+                        {
+                            description  = lineDescription,
+                            quantity     = 1,
+                            unitPrice,
+                            vatRate      = taxRate,
+                            discountValue = (decimal?)null,
+                            discountType  = (string?)null,
+                            unit          = (string?)null
+                        }
+                    };
+
+                    // 5. Persist draft invoice
+                    var today = DateTime.UtcNow.Date;
+                    var invoice = new Invoice
+                    {
+                        ProjectId    = project.Id,
+                        CustomerId   = customer.Id,
+                        Title        = $"EMS Ödeme - {payment.PaymentType} ({payment.CreatedOn:dd.MM.yyyy})",
+                        Description  = $"EMS ödeme ID: {payment.Id} | Firma: {payment.CompanyId} | İşlem: {payment.ConversationId}",
+                        IssueDate    = payment.CreatedOn,
+                        DueDate      = payment.CreatedOn.Date,
+                        Currency     = "TRL",
+                        GrossTotal   = payment.Price,
+                        NetTotal     = payment.SubTotal,
+                        LinesJson    = JsonSerializer.Serialize(lines),
+                        Status       = InvoiceStatus.Draft,
+                        EmsPaymentId = emsPaymentId
+                    };
+
+                    await _invoiceRepository.AddAsync(invoice, cancellationToken);
+                    invoicesCreated++;
+
+                    _logger.LogInformation(
+                        "EMS payment sync: created invoice draft for customer {CustomerId} from EMS payment {PaymentId} (company {CompanyId}).",
+                        customer.Id, payment.Id, payment.CompanyId);
+                }
+            }
+            catch (Exception ex)
+            {
+                var msg = $"Project {project.Id} ({project.Name}): {ex.Message}";
+                errors.Add(msg);
+                _logger.LogError(ex, "EMS payment sync failed for project {ProjectId}.", project.Id);
+            }
+        }
+
+        var result = new SyncEmsPaymentsResult(
+            projectsScanned, paymentsFetched, invoicesCreated, skipped, errors);
+
+        _logger.LogInformation(
+            "EMS payment sync complete. Projects={Projects} Payments={Payments} Created={Created} Skipped={Skipped} Errors={Errors}.",
+            projectsScanned, paymentsFetched, invoicesCreated, skipped, errors.Count);
+
+        return Result<SyncEmsPaymentsResult>.Success(result);
+    }
+}

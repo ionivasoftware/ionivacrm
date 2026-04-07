@@ -192,6 +192,7 @@ function ParasutProductRow({
   const [taxRate, setTaxRate] = useState(
     existing ? (existing.taxRate * 100).toFixed(0) : '20'
   );
+  const [emsProductId, setEmsProductId] = useState(existing?.emsProductId ?? '');
   const [saved, setSaved] = useState(false);
 
   function handleProductSelect(id: string, name: string, price: number, vatRate: number) {
@@ -221,6 +222,7 @@ function ParasutProductRow({
         parasutProductName: selectedName,
         unitPrice: parseFloat(unitPrice) || 0,
         taxRate: (parseFloat(taxRate) || 0) / 100,
+        emsProductId: emsProductId.trim() || undefined,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -231,7 +233,7 @@ function ParasutProductRow({
   }
 
   return (
-    <div className="grid grid-cols-[1.5fr_2fr_90px_72px_auto] gap-2 items-center py-3 border-b last:border-b-0">
+    <div className="grid grid-cols-[1.5fr_2fr_80px_80px_72px_72px_auto] gap-2 items-center py-3 border-b last:border-b-0">
       <span className="text-sm font-medium text-foreground truncate">{productDef.label}</span>
       <ParasutProductCombobox
         value={selectedId}
@@ -262,6 +264,13 @@ function ParasutProductRow({
         />
         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
       </div>
+      <Input
+        value={emsProductId}
+        onChange={e => setEmsProductId(e.target.value)}
+        placeholder="EMS ID"
+        className="h-9 text-center font-mono text-xs"
+        title="EMS ürün ID — ödeme eşleştirme için"
+      />
       <div className="flex items-center gap-1.5">
         <Button
           size="sm"
@@ -594,11 +603,12 @@ export function SettingsPage() {
             ) : (
               <>
                 {/* Column headers */}
-                <div className="grid grid-cols-[1.5fr_2fr_90px_72px_auto] gap-2 pb-2 border-b">
+                <div className="grid grid-cols-[1.5fr_2fr_80px_80px_72px_72px_auto] gap-2 pb-2 border-b">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CRM Ürünü</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Paraşüt Ürünü</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide text-right">Birim Fiyat</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide text-right">KDV</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide text-center">EMS ID</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide" />
                 </div>
                 {CRM_PRODUCTS.map(productDef => (

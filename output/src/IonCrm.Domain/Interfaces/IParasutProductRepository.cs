@@ -28,4 +28,14 @@ public interface IParasutProductRepository
 
     /// <summary>Removes a Paraşüt product (soft-delete).</summary>
     Task DeleteAsync(ParasutProduct product, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the product whose <see cref="ParasutProduct.EmsProductId"/> matches
+    /// the given EMS product ID within the project.
+    /// Used during EMS payment sync to locate the correct invoice line template.
+    /// </summary>
+    Task<ParasutProduct?> GetByEmsProductIdAsync(
+        Guid projectId,
+        string emsProductId,
+        CancellationToken cancellationToken = default);
 }

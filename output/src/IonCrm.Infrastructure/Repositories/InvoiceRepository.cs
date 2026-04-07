@@ -62,4 +62,12 @@ public class InvoiceRepository : GenericRepository<Invoice>, IInvoiceRepository
             .ThenByDescending(i => i.CreatedAt)
             .ToListAsync(cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task<bool> ExistsByEmsPaymentIdAsync(
+        string emsPaymentId,
+        CancellationToken cancellationToken = default)
+        => await DbSet
+            .IgnoreQueryFilters()
+            .AnyAsync(i => i.EmsPaymentId == emsPaymentId && !i.IsDeleted, cancellationToken);
 }

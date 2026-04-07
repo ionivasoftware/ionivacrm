@@ -78,4 +78,16 @@ public interface ISaasAClient
         int companyId,
         CancellationToken cancellationToken = default,
         string? baseUrl = null);
+
+    /// <summary>
+    /// Fetches recent completed payments from the EMS CRM API.
+    /// GET /api/v1/crm/payments/recent
+    /// Returns payments with CompletionPayment=1 created within the last <paramref name="windowMinutes"/> minutes,
+    /// ordered by CreatedOn DESC.
+    /// </summary>
+    Task<EmsRecentPaymentsResponse> GetRecentPaymentsAsync(
+        string? apiKey,
+        int windowMinutes = 20,
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null);
 }

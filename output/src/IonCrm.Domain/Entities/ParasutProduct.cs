@@ -39,6 +39,13 @@ public class ParasutProduct : BaseEntity
     /// </summary>
     public decimal TaxRate { get; set; }
 
+    /// <summary>
+    /// Gets or sets the EMS product ID used to match incoming EMS payments to this CRM product.
+    /// When an EMS payment arrives with a matching ProductId, this product's price/tax settings
+    /// are used to auto-generate the invoice draft line item.
+    /// </summary>
+    public string? EmsProductId { get; set; }
+
     // ── Navigation ────────────────────────────────────────────────────────────
     /// <summary>Gets or sets the project navigation property.</summary>
     public Project Project { get; set; } = null!;

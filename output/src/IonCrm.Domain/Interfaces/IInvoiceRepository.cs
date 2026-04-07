@@ -26,4 +26,13 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task<IReadOnlyList<Invoice>> GetAllAsync(
         List<Guid>? projectIds,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns true if an invoice draft already exists for the given EMS payment ID.
+    /// Used by the EMS payment sync job to prevent duplicate invoice drafts.
+    /// Bypasses global query filters so it works across tenants in background jobs.
+    /// </summary>
+    Task<bool> ExistsByEmsPaymentIdAsync(
+        string emsPaymentId,
+        CancellationToken cancellationToken = default);
 }

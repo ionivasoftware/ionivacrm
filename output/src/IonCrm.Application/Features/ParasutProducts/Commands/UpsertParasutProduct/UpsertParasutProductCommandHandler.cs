@@ -51,6 +51,7 @@ public class UpsertParasutProductCommandHandler
             existing.ParasutProductName = request.ParasutProductName;
             existing.UnitPrice          = request.UnitPrice;
             existing.TaxRate            = request.TaxRate;
+            existing.EmsProductId       = request.EmsProductId;
 
             await _productRepository.UpdateAsync(existing, cancellationToken);
             product = existing;
@@ -65,7 +66,8 @@ public class UpsertParasutProductCommandHandler
                 ParasutProductId    = request.ParasutProductId,
                 ParasutProductName  = request.ParasutProductName,
                 UnitPrice           = request.UnitPrice,
-                TaxRate             = request.TaxRate
+                TaxRate             = request.TaxRate,
+                EmsProductId        = request.EmsProductId
             };
 
             product = await _productRepository.AddAsync(newProduct, cancellationToken);
@@ -80,6 +82,7 @@ public class UpsertParasutProductCommandHandler
             ParasutProductName  = product.ParasutProductName,
             UnitPrice           = product.UnitPrice,
             TaxRate             = product.TaxRate,
+            EmsProductId        = product.EmsProductId,
             CreatedAt           = product.CreatedAt,
             UpdatedAt           = product.UpdatedAt
         });

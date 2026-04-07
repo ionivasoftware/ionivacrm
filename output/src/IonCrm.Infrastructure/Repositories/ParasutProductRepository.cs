@@ -82,4 +82,19 @@ public class ParasutProductRepository : IParasutProductRepository
         _context.ParasutProducts.Update(product);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task<ParasutProduct?> GetByEmsProductIdAsync(
+        Guid projectId,
+        string emsProductId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.ParasutProducts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                p => p.ProjectId == projectId
+                  && p.EmsProductId == emsProductId
+                  && !p.IsDeleted,
+                cancellationToken);
+    }
 }

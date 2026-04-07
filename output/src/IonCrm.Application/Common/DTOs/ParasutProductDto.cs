@@ -10,6 +10,7 @@ public class ParasutProductDto
     public string? ParasutProductName { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal TaxRate { get; set; }
+    public string? EmsProductId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

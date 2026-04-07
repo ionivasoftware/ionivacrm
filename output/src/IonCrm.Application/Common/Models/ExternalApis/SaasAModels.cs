@@ -151,3 +151,31 @@ public record EmsCompanyMonthlyStat(
     int PartChangeOfferCount,
     int RevisionOfferCount,
     int AssemblyOfferCount);
+
+// ── EMS recent payments ───────────────────────────────────────────────────────
+
+/// <summary>
+/// Response from EMS GET /api/v1/crm/payments/recent.
+/// Returns payments with CompletionPayment=1 created within the last <see cref="WindowMinutes"/> minutes.
+/// </summary>
+public record EmsRecentPaymentsResponse(
+    DateTime AsOf,
+    int WindowMinutes,
+    List<EmsPayment> Data);
+
+/// <summary>A single payment record from the EMS recent payments endpoint.</summary>
+public record EmsPayment(
+    int Id,
+    int CompanyId,
+    int UserId,
+    string PaymentType,
+    decimal Price,
+    decimal SubTotal,
+    decimal VatPrice,
+    int InstallmentCount,
+    string? ConversationId,
+    bool CompletionPayment,
+    string? CompletionProcess,
+    int? ProductId,
+    string? ProductName,
+    DateTime CreatedOn);

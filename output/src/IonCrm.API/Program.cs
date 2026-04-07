@@ -301,6 +301,10 @@ app.Lifetime.ApplicationStarted.Register(() =>
             await db.Database.ExecuteSqlRawAsync(@"
                 ALTER TABLE ""ParasutProducts""
                     ADD COLUMN IF NOT EXISTS ""ParasutProductName"" text;
+                ALTER TABLE ""ParasutProducts""
+                    ADD COLUMN IF NOT EXISTS ""EmsProductId"" text;
+                ALTER TABLE ""Invoices""
+                    ADD COLUMN IF NOT EXISTS ""EmsPaymentId"" text;
             ");
 
             // Fix: Segment was originally created as integer (enum) but the entity

@@ -369,6 +369,8 @@ export interface ParasutProduct {
   unitPrice: number;
   /** Tax rate as decimal: 0.20 = 20% */
   taxRate: number;
+  /** EMS product ID for matching incoming EMS payments to this product */
+  emsProductId: string | null;
   createdAt: string;
   updatedAt: string;
 }

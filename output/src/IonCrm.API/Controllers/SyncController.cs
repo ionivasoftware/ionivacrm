@@ -2,6 +2,7 @@ using Hangfire;
 using IonCrm.API.Common;
 using IonCrm.Application.Common.Models.ExternalApis;
 using IonCrm.Application.Features.Sync.Commands.NotifySaas;
+using IonCrm.Application.Features.Sync.Commands.SyncEmsPayments;
 using IonCrm.Application.Features.Sync.Commands.ProcessWebhook;
 using IonCrm.Application.Features.Sync.Queries.GetSyncLogs;
 using IonCrm.Domain.Enums;
@@ -220,5 +221,23 @@ public sealed class SyncController : ApiControllerBase
 
         return OkResponse(new { JobId = (string?)null, Mode = "direct" },
             "Sync job started in background.");
+    }
+
+    /// <summary>
+    /// Fetches recent completed payments from all EMS-connected projects and
+    /// auto-creates invoice drafts for any payment not yet recorded.
+    /// SuperAdmin only.
+    /// </summary>
+    /// <param name="windowMinutes">How many minutes back to look for payments (default: 20).</param>
+    [HttpPost("ems-payments")]
+    [Authorize(Policy = "SuperAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<SyncEmsPaymentsResult>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> SyncEmsPayments(
+        [FromQuery] int windowMinutes = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new SyncEmsPaymentsCommand(windowMinutes), cancellationToken);
+        return ResultToResponse(result);
     }
 }

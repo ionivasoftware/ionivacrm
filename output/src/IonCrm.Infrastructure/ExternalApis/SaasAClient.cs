@@ -265,6 +265,27 @@ public sealed class SaasAClient : ISaasAClient
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
     }
 
+    /// <inheritdoc />
+    public async Task<EmsRecentPaymentsResponse> GetRecentPaymentsAsync(
+        string? apiKey,
+        int windowMinutes = 20,
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null)
+    {
+        _logger.LogDebug("SaaS A: fetching recent payments (window={WindowMinutes}min).", windowMinutes);
+
+        return await _retryPipeline.ExecuteAsync<EmsRecentPaymentsResponse>(async ct =>
+        {
+            var uri = BuildRequestUri($"api/v1/crm/payments/recent?windowMinutes={windowMinutes}", baseUrl);
+            var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            ApplyAuth(request, apiKey);
+            var response = await _httpClient.SendAsync(request, ct);
+            await EnsureSuccessAsync(response, ct);
+            var result = await response.Content.ReadFromJsonAsync<EmsRecentPaymentsResponse>(JsonOpts, ct);
+            return result ?? new EmsRecentPaymentsResponse(DateTime.UtcNow, windowMinutes, new List<EmsPayment>());
+        }, cancellationToken);
+    }
+
     /// <summary>
     /// Throws <see cref="HttpRequestException"/> with the response body included in the message
     /// when the status code indicates failure. Replaces <c>EnsureSuccessStatusCode()</c> to provide

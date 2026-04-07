@@ -251,6 +251,8 @@ export interface SaveParasutProductRequest {
   unitPrice: number;
   /** Tax rate as decimal: 0.20 = 20% */
   taxRate: number;
+  /** EMS product ID to match incoming EMS payments to this product */
+  emsProductId?: string;
 }
 
 /** Fetch saved CRM→Paraşüt product mappings from our DB */
