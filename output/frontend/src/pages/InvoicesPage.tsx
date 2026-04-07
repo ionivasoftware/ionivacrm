@@ -86,27 +86,29 @@ type DatePreset = '3months' | 'last_month' | 'this_month' | 'custom';
 
 function getPresetRange(preset: DatePreset, customFrom: string, customTo: string): { from: Date; to: Date } {
   const now = new Date();
+  // End of today (local midnight)
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
   if (preset === 'this_month') {
     return {
       from: new Date(now.getFullYear(), now.getMonth(), 1),
-      to: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59),
+      to: endOfToday,
     };
   }
   if (preset === 'last_month') {
     return {
       from: new Date(now.getFullYear(), now.getMonth() - 1, 1),
-      to: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59),
+      to: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999),
     };
   }
   if (preset === 'custom') {
     const from = customFrom ? new Date(customFrom) : new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
-    const to = customTo ? new Date(customTo + 'T23:59:59') : now;
+    const to = customTo ? new Date(customTo + 'T23:59:59') : endOfToday;
     return { from, to };
   }
-  // default: 3months
-  const from = new Date(now);
-  from.setMonth(from.getMonth() - 3);
-  return { from, to: now };
+  // default: 3months — start of same day 3 months ago → end of today
+  const from = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+  return { from, to: endOfToday };
 }
 
 // ── Status Badge ─────────────────────────────────────────────────────────────

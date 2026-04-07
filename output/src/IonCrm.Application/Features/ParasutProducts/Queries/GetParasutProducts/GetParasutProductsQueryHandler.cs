@@ -33,6 +33,7 @@ public class GetParasutProductsQueryHandler : IRequestHandler<GetParasutProducts
             ParasutProductName = p.ParasutProductName,
             UnitPrice          = p.UnitPrice,
             TaxRate            = p.TaxRate,
+            EmsProductId       = p.EmsProductId,
             CreatedAt          = p.CreatedAt,
             UpdatedAt          = p.UpdatedAt
         }).ToList();
