@@ -129,7 +129,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                     // 3. Resolve product mapping (optional)
                     string lineDescription;
                     decimal unitPrice;
-                    decimal taxRate;
+                    int     vatRate;           // integer percentage: 20 = %20
                     string? parasutProductId   = null;
                     string? parasutProductName = null;
 
@@ -173,7 +173,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                                                     ? product.ParasutProductName
                                                     : product.ProductName;
                             unitPrice          = product.UnitPrice > 0 ? product.UnitPrice : payment.SubTotal;
-                            taxRate            = product.TaxRate;
+                            vatRate            = (int)(product.TaxRate * 100);
                             parasutProductId   = product.ParasutProductId;
                             parasutProductName = product.ParasutProductName;
                         }
@@ -181,18 +181,18 @@ public sealed class SyncEmsPaymentsCommandHandler
                         {
                             lineDescription = payment.ProductName ?? $"EMS Ürün #{payment.ProductId}";
                             unitPrice       = payment.SubTotal;
-                            taxRate         = payment.SubTotal > 0
-                                ? Math.Round((payment.VatPrice / payment.SubTotal), 4)
-                                : 0.20m;
+                            vatRate         = payment.SubTotal > 0
+                                ? (int)Math.Round(payment.VatPrice / payment.SubTotal * 100)
+                                : 20;
                         }
                     }
                     else
                     {
                         lineDescription = $"EMS Ödeme #{payment.Id}";
                         unitPrice       = payment.SubTotal;
-                        taxRate         = payment.SubTotal > 0
-                            ? Math.Round((payment.VatPrice / payment.SubTotal), 4)
-                            : 0.20m;
+                        vatRate         = payment.SubTotal > 0
+                            ? (int)Math.Round(payment.VatPrice / payment.SubTotal * 100)
+                            : 20;
                     }
 
                     // 4. Build invoice line JSON (parasutProductId included when mapping exists)
@@ -203,7 +203,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                             description      = lineDescription,
                             quantity         = 1,
                             unitPrice,
-                            vatRate          = taxRate,
+                            vatRate,
                             discountValue    = (decimal?)null,
                             discountType     = (string?)null,
                             unit             = (string?)null,
