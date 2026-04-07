@@ -1,9 +1,11 @@
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models.ExternalApis;
+using IonCrm.Application.Features.Sync.Commands.SyncEmsPayments;
 using IonCrm.Domain.Entities;
 using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
 using IonCrm.Infrastructure.Persistence;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +31,7 @@ public sealed class SaasSyncJob
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<SaasSyncJob> _logger;
+    private readonly IMediator _mediator;
 
     // Retry pipeline is built per-call so OnRetry can close over the SyncLog instance
     // and update RetryCount + status in the database on each failed attempt.
@@ -64,7 +67,8 @@ public sealed class SaasSyncJob
         IProjectRepository projectRepository,
         IServiceScopeFactory scopeFactory,
         IConfiguration configuration,
-        ILogger<SaasSyncJob> logger)
+        ILogger<SaasSyncJob> logger,
+        IMediator mediator)
     {
         _saasAClient = saasAClient;
         _saasBClient = saasBClient;
@@ -72,6 +76,7 @@ public sealed class SaasSyncJob
         _scopeFactory = scopeFactory;
         _configuration = configuration;
         _logger = logger;
+        _mediator = mediator;
     }
 
     /// <summary>
@@ -84,6 +89,7 @@ public sealed class SaasSyncJob
 
         await SyncEmsCrmCustomersAsync(cancellationToken);
         await SyncRezervalCompaniesAsync(cancellationToken);
+        await SyncEmsPaymentsAsync(cancellationToken);
         // await SyncSaasAAsync(cancellationToken);
         // await SyncSaasBAsync(cancellationToken);
 
@@ -379,6 +385,42 @@ public sealed class SaasSyncJob
                 "Rezerval CRM upsert SaveChanges failed. Inner: {Inner}",
                 ex.InnerException?.Message ?? ex.Message);
             throw;
+        }
+    }
+
+    // ── EMS payment → invoice draft sync ─────────────────────────────────────
+
+    /// <summary>
+    /// Fetches EMS payments from the last 20 minutes and creates invoice drafts
+    /// for any payment not yet recorded. Uses MediatR to reuse the same logic as
+    /// the manual <c>POST /api/v1/sync/ems-payments</c> endpoint.
+    /// </summary>
+    private async Task SyncEmsPaymentsAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var result = await mediator.Send(new SyncEmsPaymentsCommand(WindowMinutes: 20), ct);
+
+            if (result.IsSuccess)
+            {
+                _logger.LogInformation(
+                    "EMS payment sync: projects={Projects} payments={Payments} created={Created} skipped={Skipped} errors={Errors}.",
+                    result.Value!.ProjectsScanned,
+                    result.Value.PaymentsFetched,
+                    result.Value.InvoicesCreated,
+                    result.Value.Skipped,
+                    result.Value.Errors.Count);
+            }
+            else
+            {
+                _logger.LogWarning("EMS payment sync returned failure: {Errors}", result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "EMS payment sync threw an unhandled exception.");
         }
     }
 
