@@ -5,6 +5,7 @@ using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
 using IonCrm.Infrastructure.BackgroundServices;
 using IonCrm.Infrastructure.Persistence;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +33,7 @@ public class SaasSyncJobTests
     private readonly Mock<ILogger<SaasSyncJob>> _loggerMock = new();
     private readonly Mock<IServiceScopeFactory> _scopeFactoryMock = new();
     private readonly Mock<IConfiguration> _configMock = new();
+    private readonly Mock<IMediator> _mediatorMock = new();
 
     private SaasSyncJob CreateJob() => new(
         _saasAClientMock.Object,
@@ -39,7 +41,8 @@ public class SaasSyncJobTests
         _projectRepoMock.Object,
         _scopeFactoryMock.Object,
         _configMock.Object,
-        _loggerMock.Object);
+        _loggerMock.Object,
+        _mediatorMock.Object);
 
     /// <summary>
     /// Creates an in-memory ApplicationDbContext suitable for unit tests.

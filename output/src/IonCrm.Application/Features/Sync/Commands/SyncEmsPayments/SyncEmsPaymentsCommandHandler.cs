@@ -127,6 +127,8 @@ public sealed class SyncEmsPaymentsCommandHandler
                     string lineDescription;
                     decimal unitPrice;
                     decimal taxRate;
+                    string? parasutProductId   = null;
+                    string? parasutProductName = null;
 
                     if (payment.ProductId.HasValue)
                     {
@@ -137,9 +139,11 @@ public sealed class SyncEmsPaymentsCommandHandler
 
                         if (product is not null)
                         {
-                            lineDescription = product.ProductName;
-                            unitPrice       = product.UnitPrice > 0 ? product.UnitPrice : payment.SubTotal;
-                            taxRate         = product.TaxRate;
+                            lineDescription    = product.ProductName;
+                            unitPrice          = product.UnitPrice > 0 ? product.UnitPrice : payment.SubTotal;
+                            taxRate            = product.TaxRate;
+                            parasutProductId   = product.ParasutProductId;
+                            parasutProductName = product.ParasutProductName;
                         }
                         else
                         {
@@ -159,18 +163,20 @@ public sealed class SyncEmsPaymentsCommandHandler
                             : 0.20m;
                     }
 
-                    // 4. Build invoice line JSON
+                    // 4. Build invoice line JSON (parasutProductId included when mapping exists)
                     var lines = new[]
                     {
                         new
                         {
-                            description  = lineDescription,
-                            quantity     = 1,
+                            description      = lineDescription,
+                            quantity         = 1,
                             unitPrice,
-                            vatRate      = taxRate,
-                            discountValue = (decimal?)null,
-                            discountType  = (string?)null,
-                            unit          = (string?)null
+                            vatRate          = taxRate,
+                            discountValue    = (decimal?)null,
+                            discountType     = (string?)null,
+                            unit             = (string?)null,
+                            parasutProductId,
+                            parasutProductName
                         }
                     };
 
