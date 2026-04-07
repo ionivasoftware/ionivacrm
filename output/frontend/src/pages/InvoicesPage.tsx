@@ -19,6 +19,7 @@ import {
   Pencil,
   Merge,
   X,
+  CalendarDays,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -77,6 +78,35 @@ function daysLater(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() + n);
   return d.toISOString().split('T')[0];
+}
+
+// ── Date preset helpers ───────────────────────────────────────────────────────
+
+type DatePreset = '3months' | 'last_month' | 'this_month' | 'custom';
+
+function getPresetRange(preset: DatePreset, customFrom: string, customTo: string): { from: Date; to: Date } {
+  const now = new Date();
+  if (preset === 'this_month') {
+    return {
+      from: new Date(now.getFullYear(), now.getMonth(), 1),
+      to: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59),
+    };
+  }
+  if (preset === 'last_month') {
+    return {
+      from: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+      to: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59),
+    };
+  }
+  if (preset === 'custom') {
+    const from = customFrom ? new Date(customFrom) : new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+    const to = customTo ? new Date(customTo + 'T23:59:59') : now;
+    return { from, to };
+  }
+  // default: 3months
+  const from = new Date(now);
+  from.setMonth(from.getMonth() - 3);
+  return { from, to: now };
 }
 
 // ── Status Badge ─────────────────────────────────────────────────────────────
@@ -887,6 +917,9 @@ export function InvoicesPage() {
   const [deleteInvoice, setDeleteInvoice] = useState<Invoice | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
+  const [datePreset, setDatePreset] = useState<DatePreset>('3months');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
 
@@ -952,7 +985,15 @@ export function InvoicesPage() {
 
   // Client-side filter & search
   const filtered = useMemo(() => {
+    const { from, to } = getPresetRange(datePreset, customFrom, customTo);
     let result = allInvoices;
+
+    // Date filter on issueDate
+    result = result.filter(i => {
+      const d = new Date(i.issueDate);
+      return d >= from && d <= to;
+    });
+
     if (statusFilter !== 'all') {
       result = result.filter(i => i.status === statusFilter);
     }
@@ -966,7 +1007,7 @@ export function InvoicesPage() {
       );
     }
     return result;
-  }, [allInvoices, statusFilter, searchQuery]);
+  }, [allInvoices, statusFilter, searchQuery, datePreset, customFrom, customTo]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -1056,6 +1097,43 @@ export function InvoicesPage() {
             onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
           />
         </div>
+
+        {/* Date preset */}
+        <div className="flex items-center gap-2">
+          <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Select
+            value={datePreset}
+            onValueChange={(v) => { setDatePreset(v as DatePreset); setPage(1); }}
+          >
+            <SelectTrigger className="h-9 w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="3months">Son 3 Ay</SelectItem>
+              <SelectItem value="last_month">Geçen Ay</SelectItem>
+              <SelectItem value="this_month">Bu Ay</SelectItem>
+              <SelectItem value="custom">Özel Aralık</SelectItem>
+            </SelectContent>
+          </Select>
+          {datePreset === 'custom' && (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <span className="text-muted-foreground text-sm">–</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => { setCustomTo(e.target.value); setPage(1); }}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+          )}
+        </div>
+
         <Select
           value={statusFilter}
           onValueChange={(v) => { setStatusFilter(v as InvoiceStatus | 'all'); setPage(1); }}
