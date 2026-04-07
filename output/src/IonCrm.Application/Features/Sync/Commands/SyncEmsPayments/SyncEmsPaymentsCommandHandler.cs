@@ -19,6 +19,7 @@ public sealed class SyncEmsPaymentsCommandHandler
     private readonly IInvoiceRepository _invoiceRepository;
     private readonly ISyncLogRepository _syncLogRepository;
     private readonly ISaasAClient _saasAClient;
+    private readonly IParasutService _parasutService;
     private readonly ILogger<SyncEmsPaymentsCommandHandler> _logger;
 
     /// <summary>Initialises a new instance of <see cref="SyncEmsPaymentsCommandHandler"/>.</summary>
@@ -29,6 +30,7 @@ public sealed class SyncEmsPaymentsCommandHandler
         IInvoiceRepository invoiceRepository,
         ISyncLogRepository syncLogRepository,
         ISaasAClient saasAClient,
+        IParasutService parasutService,
         ILogger<SyncEmsPaymentsCommandHandler> logger)
     {
         _projectRepository  = projectRepository;
@@ -37,6 +39,7 @@ public sealed class SyncEmsPaymentsCommandHandler
         _invoiceRepository  = invoiceRepository;
         _syncLogRepository  = syncLogRepository;
         _saasAClient        = saasAClient;
+        _parasutService     = parasutService;
         _logger             = logger;
     }
 
@@ -139,7 +142,36 @@ public sealed class SyncEmsPaymentsCommandHandler
 
                         if (product is not null)
                         {
-                            lineDescription    = product.ParasutProductName ?? product.ProductName;
+                            // If product data is incomplete, enrich from Paraşüt API
+                            if (!string.IsNullOrEmpty(product.ParasutProductId) &&
+                                (string.IsNullOrEmpty(product.ParasutProductName) || product.TaxRate == 0 || product.UnitPrice == 0))
+                            {
+                                var (parasutData, _) = await _parasutService.GetProductByIdAsync(
+                                    project.Id, product.ParasutProductId, cancellationToken);
+
+                                if (parasutData?.Data?.Attributes is { } attrs)
+                                {
+                                    if (string.IsNullOrEmpty(product.ParasutProductName))
+                                        product.ParasutProductName = attrs.Name;
+
+                                    if (product.TaxRate == 0 && int.TryParse(attrs.VatRate, out var vr))
+                                        product.TaxRate = vr / 100m;
+
+                                    if (product.UnitPrice == 0)
+                                    {
+                                        var priceStr = attrs.SalesPrice ?? attrs.ListPrice ?? attrs.SalesPriceInTrl;
+                                        if (decimal.TryParse(priceStr, System.Globalization.NumberStyles.Any,
+                                                System.Globalization.CultureInfo.InvariantCulture, out var p))
+                                            product.UnitPrice = p;
+                                    }
+
+                                    await _productRepository.UpdateAsync(product, cancellationToken);
+                                }
+                            }
+
+                            lineDescription    = !string.IsNullOrEmpty(product.ParasutProductName)
+                                                    ? product.ParasutProductName
+                                                    : product.ProductName;
                             unitPrice          = product.UnitPrice > 0 ? product.UnitPrice : payment.SubTotal;
                             taxRate            = product.TaxRate;
                             parasutProductId   = product.ParasutProductId;

@@ -19,6 +19,7 @@ public sealed class AddCustomerSmsCommandHandler
     private readonly ISaasAClient _saasAClient;
     private readonly IInvoiceRepository _invoiceRepository;
     private readonly IParasutProductRepository _productRepository;
+    private readonly IParasutService _parasutService;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<AddCustomerSmsCommandHandler> _logger;
 
@@ -28,6 +29,7 @@ public sealed class AddCustomerSmsCommandHandler
         ISaasAClient saasAClient,
         IInvoiceRepository invoiceRepository,
         IParasutProductRepository productRepository,
+        IParasutService parasutService,
         ICurrentUserService currentUser,
         ILogger<AddCustomerSmsCommandHandler> logger)
     {
@@ -36,6 +38,7 @@ public sealed class AddCustomerSmsCommandHandler
         _saasAClient        = saasAClient;
         _invoiceRepository  = invoiceRepository;
         _productRepository  = productRepository;
+        _parasutService     = parasutService;
         _currentUser        = currentUser;
         _logger             = logger;
     }
@@ -132,6 +135,33 @@ public sealed class AddCustomerSmsCommandHandler
             var productName   = $"{count} SMS";
             var configProduct = await _productRepository.GetByNameAsync(projectId, productName, ct);
 
+            // Auto-enrich from Paraşüt if product data is incomplete
+            if (configProduct is not null && !string.IsNullOrEmpty(configProduct.ParasutProductId) &&
+                (string.IsNullOrEmpty(configProduct.ParasutProductName) || configProduct.TaxRate == 0 || configProduct.UnitPrice == 0))
+            {
+                var (parasutData, _) = await _parasutService.GetProductByIdAsync(
+                    projectId, configProduct.ParasutProductId, ct);
+
+                if (parasutData?.Data?.Attributes is { } attrs)
+                {
+                    if (string.IsNullOrEmpty(configProduct.ParasutProductName))
+                        configProduct.ParasutProductName = attrs.Name;
+
+                    if (configProduct.TaxRate == 0 && int.TryParse(attrs.VatRate, out var vr))
+                        configProduct.TaxRate = vr / 100m;
+
+                    if (configProduct.UnitPrice == 0)
+                    {
+                        var priceStr = attrs.SalesPrice ?? attrs.ListPrice ?? attrs.SalesPriceInTrl;
+                        if (decimal.TryParse(priceStr, System.Globalization.NumberStyles.Any,
+                                System.Globalization.CultureInfo.InvariantCulture, out var p))
+                            configProduct.UnitPrice = p;
+                    }
+
+                    await _productRepository.UpdateAsync(configProduct, ct);
+                }
+            }
+
             decimal unitPrice  = configProduct?.UnitPrice ?? 0m;
             int     vatRate    = configProduct is not null ? (int)(configProduct.TaxRate * 100) : 20;
             decimal netTotal   = unitPrice;
@@ -141,7 +171,9 @@ public sealed class AddCustomerSmsCommandHandler
             {
                 new
                 {
-                    description        = configProduct?.ParasutProductName ?? $"{count:N0} SMS Kredisi — {companyName}",
+                    description        = !string.IsNullOrEmpty(configProduct?.ParasutProductName)
+                                            ? configProduct.ParasutProductName
+                                            : $"{count:N0} SMS Kredisi — {companyName}",
                     quantity           = count,
                     unitPrice,
                     vatRate,

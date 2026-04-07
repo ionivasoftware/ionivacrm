@@ -113,4 +113,10 @@ public interface IParasutService
         int page = 1,
         int pageSize = 25,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Returns a single product/service by its Paraşüt ID.</summary>
+    Task<(JsonApiResponse<ParasutProductAttributes>? Data, string? Error)> GetProductByIdAsync(
+        Guid projectId,
+        string productId,
+        CancellationToken cancellationToken = default);
 }

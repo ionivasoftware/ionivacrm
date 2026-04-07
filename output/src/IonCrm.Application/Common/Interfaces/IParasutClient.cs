@@ -104,6 +104,13 @@ public interface IParasutClient
         int pageSize = 25,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Returns a single product/service by its Paraşüt ID.</summary>
+    Task<JsonApiResponse<ParasutProductAttributes>> GetProductByIdAsync(
+        string accessToken,
+        long companyId,
+        string productId,
+        CancellationToken cancellationToken = default);
+
     // ── Accounts (Kasalar / Banka Hesapları) ──────────────────────────────────
 
     /// <summary>Returns all bank accounts and cash registers for the given company.</summary>

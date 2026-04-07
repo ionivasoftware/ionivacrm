@@ -318,4 +318,25 @@ public sealed class ParasutService : IParasutService
             return (null, $"Ürünler alınamadı: {ex.Message}");
         }
     }
+
+    /// <inheritdoc />
+    public async Task<(JsonApiResponse<ParasutProductAttributes>? Data, string? Error)> GetProductByIdAsync(
+        Guid projectId, string productId,
+        CancellationToken cancellationToken = default)
+    {
+        var (conn, error) = await GetConnectionAsync(projectId, cancellationToken);
+        if (conn is null) return (null, error);
+
+        try
+        {
+            var data = await _parasutClient.GetProductByIdAsync(
+                conn.AccessToken!, conn.CompanyId, productId, cancellationToken);
+            return (data, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Paraşüt GetProductById failed for project {ProjectId}, product {ProductId}.", projectId, productId);
+            return (null, $"Ürün alınamadı: {ex.Message}");
+        }
+    }
 }

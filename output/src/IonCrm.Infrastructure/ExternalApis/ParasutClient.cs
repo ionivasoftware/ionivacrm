@@ -272,6 +272,17 @@ public sealed class ParasutClient : IParasutClient
         return await GetListAsync<ParasutProductAttributes>(accessToken, url, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<JsonApiResponse<ParasutProductAttributes>> GetProductByIdAsync(
+        string accessToken, long companyId, string productId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Paraşüt: fetching product {ProductId}. Company={CompanyId}", productId, companyId);
+        var url = $"v4/{companyId}/products/{productId}";
+
+        return await GetSingleAsync<ParasutProductAttributes>(accessToken, url, cancellationToken);
+    }
+
     // ── Accounts ──────────────────────────────────────────────────────────────
 
     /// <inheritdoc />
