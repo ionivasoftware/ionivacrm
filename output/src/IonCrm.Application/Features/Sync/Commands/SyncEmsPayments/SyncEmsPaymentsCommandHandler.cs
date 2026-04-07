@@ -204,9 +204,9 @@ public sealed class SyncEmsPaymentsCommandHandler
                             quantity         = 1,
                             unitPrice,
                             vatRate,
-                            discountValue    = (decimal?)null,
-                            discountType     = (string?)null,
-                            unit             = (string?)null,
+                            discountValue    = 0m,
+                            discountType     = "percentage",
+                            unit             = "Adet",
                             parasutProductId,
                             parasutProductName
                         }
