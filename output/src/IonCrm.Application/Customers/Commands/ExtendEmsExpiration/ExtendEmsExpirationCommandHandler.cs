@@ -164,14 +164,15 @@ public sealed class ExtendEmsExpirationCommandHandler
             {
                 new
                 {
-                    description       = $"{durationLabel} EMS Lisans — {companyName}",
-                    quantity          = 1,
+                    description        = configProduct?.ParasutProductName ?? $"{durationLabel} EMS Lisans — {companyName}",
+                    quantity           = 1,
                     unitPrice,
                     vatRate,
-                    discountValue     = 0,
-                    discountType      = "percentage",
-                    unit              = "Adet",
-                    parasutProductId  = configProduct?.ParasutProductId
+                    discountValue      = 0,
+                    discountType       = "percentage",
+                    unit               = "Adet",
+                    parasutProductId   = configProduct?.ParasutProductId,
+                    parasutProductName = configProduct?.ParasutProductName
                 }
             };
 

@@ -139,7 +139,7 @@ public sealed class SyncEmsPaymentsCommandHandler
 
                         if (product is not null)
                         {
-                            lineDescription    = product.ProductName;
+                            lineDescription    = product.ParasutProductName ?? product.ProductName;
                             unitPrice          = product.UnitPrice > 0 ? product.UnitPrice : payment.SubTotal;
                             taxRate            = product.TaxRate;
                             parasutProductId   = product.ParasutProductId;

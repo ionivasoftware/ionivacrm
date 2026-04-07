@@ -141,14 +141,15 @@ public sealed class AddCustomerSmsCommandHandler
             {
                 new
                 {
-                    description      = $"{count:N0} SMS Kredisi — {companyName}",
-                    quantity         = count,
+                    description        = configProduct?.ParasutProductName ?? $"{count:N0} SMS Kredisi — {companyName}",
+                    quantity           = count,
                     unitPrice,
                     vatRate,
-                    discountValue    = 0,
-                    discountType     = "percentage",
-                    unit             = "Adet",
-                    parasutProductId = configProduct?.ParasutProductId
+                    discountValue      = 0,
+                    discountType       = "percentage",
+                    unit               = "Adet",
+                    parasutProductId   = configProduct?.ParasutProductId,
+                    parasutProductName = configProduct?.ParasutProductName
                 }
             };
 
