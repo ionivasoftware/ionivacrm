@@ -276,7 +276,7 @@ public sealed class SaasAClient : ISaasAClient
 
         return await _retryPipeline.ExecuteAsync<EmsRecentPaymentsResponse>(async ct =>
         {
-            var uri = BuildRequestUri($"api/v1/crm/payments/recent?windowMinutes={windowMinutes}", baseUrl);
+            var uri = BuildRequestUri("api/v1/crm/payments/recent", baseUrl);
             var request = new HttpRequestMessage(HttpMethod.Get, uri);
             ApplyAuth(request, apiKey);
             var response = await _httpClient.SendAsync(request, ct);
