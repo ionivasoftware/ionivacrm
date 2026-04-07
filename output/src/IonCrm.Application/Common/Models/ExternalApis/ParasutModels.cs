@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace IonCrm.Application.Common.Models.ExternalApis;
@@ -424,7 +425,9 @@ public record ParasutAccountAttributes(
 public record ParasutProductAttributes(
     [property: JsonPropertyName("code")]                  string? Code,
     [property: JsonPropertyName("name")]                  string Name,
-    [property: JsonPropertyName("vat_rate")]              string? VatRate,
+    // Paraşüt may return vat_rate as a JSON number (20) or string ("20").
+    // JsonElement handles both; use VatRateInt helper to get the integer value.
+    [property: JsonPropertyName("vat_rate")]              JsonElement? VatRate,
     // Paraşüt returns price as a JSON string ("100.00") not a number.
     // Different product types may use different field names.
     [property: JsonPropertyName("sales_price")]           string? SalesPrice,
@@ -433,4 +436,17 @@ public record ParasutProductAttributes(
     [property: JsonPropertyName("sales_excise_duty_code")] string? SalesExciseDutyCode,
     [property: JsonPropertyName("unit")]                  string? Unit,
     [property: JsonPropertyName("currency")]              string? Currency
-);
+)
+{
+    /// <summary>
+    /// Returns vat_rate as an integer (e.g. 20 for 20%) regardless of whether
+    /// Paraşüt sent it as a JSON number or a JSON string.
+    /// Returns null if the field is absent or unparseable.
+    /// </summary>
+    public int? VatRateInt =>
+        VatRate is { } el
+            ? el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out var n) ? n
+            : el.ValueKind == JsonValueKind.String && int.TryParse(el.GetString(), out var s) ? s
+            : (int?)null
+            : null;
+}

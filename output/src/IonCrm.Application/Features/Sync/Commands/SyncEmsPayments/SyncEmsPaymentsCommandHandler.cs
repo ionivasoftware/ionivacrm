@@ -154,10 +154,8 @@ public sealed class SyncEmsPaymentsCommandHandler
                                     if (string.IsNullOrEmpty(product.ParasutProductName))
                                         product.ParasutProductName = attrs.Name;
 
-                                    if (product.TaxRate == 0 && decimal.TryParse(attrs.VatRate,
-                                            System.Globalization.NumberStyles.Any,
-                                            System.Globalization.CultureInfo.InvariantCulture, out var vr))
-                                        product.TaxRate = vr > 1 ? vr / 100m : vr;
+                                    if (product.TaxRate == 0 && attrs.VatRateInt is { } vr)
+                                        product.TaxRate = vr / 100m;
 
                                     if (product.UnitPrice == 0)
                                     {

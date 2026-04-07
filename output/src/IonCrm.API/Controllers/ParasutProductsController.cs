@@ -94,7 +94,7 @@ public class ParasutProductsController : ApiControllerBase
                     System.Globalization.NumberStyles.Number,
                     System.Globalization.CultureInfo.InvariantCulture,
                     out var p) ? p : 0m;
-                var vatRate = int.TryParse(d.Attributes.VatRate, out var vr) ? vr : 0;
+                var vatRate = d.Attributes.VatRateInt ?? 0;
                 return (object)new
                 {
                     id        = d.Id,
