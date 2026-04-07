@@ -154,8 +154,10 @@ public sealed class SyncEmsPaymentsCommandHandler
                                     if (string.IsNullOrEmpty(product.ParasutProductName))
                                         product.ParasutProductName = attrs.Name;
 
-                                    if (product.TaxRate == 0 && int.TryParse(attrs.VatRate, out var vr))
-                                        product.TaxRate = vr / 100m;
+                                    if (product.TaxRate == 0 && decimal.TryParse(attrs.VatRate,
+                                            System.Globalization.NumberStyles.Any,
+                                            System.Globalization.CultureInfo.InvariantCulture, out var vr))
+                                        product.TaxRate = vr > 1 ? vr / 100m : vr;
 
                                     if (product.UnitPrice == 0)
                                     {
@@ -218,7 +220,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                         ProjectId    = project.Id,
                         CustomerId   = customer.Id,
                         Title        = $"EMS Ödeme - {payment.PaymentType} ({payment.CreatedOn:dd.MM.yyyy})",
-                        Description  = $"EMS ödeme ID: {payment.Id} | Firma: {payment.CompanyId} | İşlem: {payment.ConversationId}",
+                        Description  = null,
                         IssueDate    = payment.CreatedOn,
                         DueDate      = payment.CreatedOn.Date,
                         Currency     = "TRL",

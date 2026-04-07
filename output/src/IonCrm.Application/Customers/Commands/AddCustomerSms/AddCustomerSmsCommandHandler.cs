@@ -147,8 +147,10 @@ public sealed class AddCustomerSmsCommandHandler
                     if (string.IsNullOrEmpty(configProduct.ParasutProductName))
                         configProduct.ParasutProductName = attrs.Name;
 
-                    if (configProduct.TaxRate == 0 && int.TryParse(attrs.VatRate, out var vr))
-                        configProduct.TaxRate = vr / 100m;
+                    if (configProduct.TaxRate == 0 && decimal.TryParse(attrs.VatRate,
+                            System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.InvariantCulture, out var vr))
+                        configProduct.TaxRate = vr > 1 ? vr / 100m : vr;
 
                     if (configProduct.UnitPrice == 0)
                     {
@@ -190,7 +192,7 @@ public sealed class AddCustomerSmsCommandHandler
                 ProjectId   = projectId,
                 CustomerId  = customerId,
                 Title       = $"{count:N0} SMS Kredisi — {companyName}",
-                Description = $"{count:N0} adet SMS kredisi",
+                Description = null,
                 IssueDate   = DateTime.UtcNow,
                 DueDate     = DateTime.UtcNow.AddDays(30),
                 Currency    = "TRL",

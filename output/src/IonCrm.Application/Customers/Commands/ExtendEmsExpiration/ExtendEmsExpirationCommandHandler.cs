@@ -170,8 +170,10 @@ public sealed class ExtendEmsExpirationCommandHandler
                     if (string.IsNullOrEmpty(configProduct.ParasutProductName))
                         configProduct.ParasutProductName = attrs.Name;
 
-                    if (configProduct.TaxRate == 0 && int.TryParse(attrs.VatRate, out var vr))
-                        configProduct.TaxRate = vr / 100m;
+                    if (configProduct.TaxRate == 0 && decimal.TryParse(attrs.VatRate,
+                            System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.InvariantCulture, out var vr))
+                        configProduct.TaxRate = vr > 1 ? vr / 100m : vr;
 
                     if (configProduct.UnitPrice == 0)
                     {
@@ -213,7 +215,7 @@ public sealed class ExtendEmsExpirationCommandHandler
                 ProjectId    = projectId,
                 CustomerId   = customerId,
                 Title        = $"{durationLabel} EMS Lisans Yenileme — {companyName}",
-                Description  = $"{durationLabel} üyelik yenileme faturası",
+                Description  = null,
                 IssueDate    = today,
                 DueDate      = dueDate,
                 Currency     = "TRL",
