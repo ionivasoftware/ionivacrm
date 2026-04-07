@@ -45,6 +45,7 @@ public class ParasutProductRepository : IParasutProductRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.ParasutProducts
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(
                 p => p.ProjectId == projectId && p.ProductName == productName && !p.IsDeleted,
@@ -90,6 +91,7 @@ public class ParasutProductRepository : IParasutProductRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.ParasutProducts
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(
                 p => p.ProjectId == projectId
