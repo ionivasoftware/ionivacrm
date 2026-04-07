@@ -11,7 +11,12 @@ public class ProjectRepository : IProjectRepository
     public ProjectRepository(ApplicationDbContext db) => _db = db;
 
     public async Task<IReadOnlyList<Project>> GetAllAsync(CancellationToken cancellationToken = default)
-        => await _db.Projects.OrderBy(p => p.Name).AsNoTracking().ToListAsync(cancellationToken);
+        => await _db.Projects
+            .IgnoreQueryFilters()
+            .Where(p => !p.IsDeleted)
+            .OrderBy(p => p.Name)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
 
     public async Task<Project?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => await _db.Projects.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
