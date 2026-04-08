@@ -134,3 +134,61 @@ public record RezervalTokenData(string Token);
 
 /// <summary>Envelope wrapper for Rezerval GET /v1/Crm/CompanyList response.</summary>
 public record RezervalCompanyListResponse(List<RezervalCompany>? Data, bool IsSuccess, string? Message);
+
+// ── RezervAl Subscription Create (iyzico-backed) ─────────────────────────────
+
+/// <summary>
+/// JSON request body sent to the RezervAl subscription endpoint.
+/// RezervAl creates an iyzico subscription + payment plan from this and returns the resulting refs.
+/// </summary>
+public record RezervalSubscriptionRequest(
+    [property: JsonPropertyName("rezervalCompanyId")] int RezervalCompanyId,
+    [property: JsonPropertyName("subscriptionName")] string SubscriptionName,
+    [property: JsonPropertyName("monthlyAmount")] decimal MonthlyAmount,
+    [property: JsonPropertyName("paymentType")] string PaymentType,   // "CreditCard" | "EftWire"
+    [property: JsonPropertyName("startDate")] string StartDate,        // "yyyy-MM-dd"
+    [property: JsonPropertyName("durationMonths")] int? DurationMonths,
+    [property: JsonPropertyName("currency")] string Currency = "TRY");
+
+/// <summary>Envelope wrapper returned by the RezervAl subscription endpoint.</summary>
+public record RezervalSubscriptionResponse(
+    [property: JsonPropertyName("data")] RezervalSubscriptionData? Data,
+    [property: JsonPropertyName("isSuccess")] bool IsSuccess,
+    [property: JsonPropertyName("message")] string? Message);
+
+/// <summary>Data payload inside <see cref="RezervalSubscriptionResponse"/>.</summary>
+public record RezervalSubscriptionData(
+    [property: JsonPropertyName("rezervalSubscriptionId")] string? RezervalSubscriptionId,
+    [property: JsonPropertyName("rezervalPaymentPlanId")] string? RezervalPaymentPlanId,
+    [property: JsonPropertyName("message")] string? Message);
+
+// ── RezervAl Company Summary ─────────────────────────────────────────────────
+
+/// <summary>
+/// Envelope wrapper returned by GET https://rezback.rezerval.com/v1/Crm/CompanySummary?companyId={id}
+/// </summary>
+public record RezervalCompanySummaryResponse(
+    [property: JsonPropertyName("data")] RezervalCompanySummary? Data,
+    [property: JsonPropertyName("isSuccess")] bool IsSuccess,
+    [property: JsonPropertyName("message")] string? Message);
+
+/// <summary>Top-level summary payload returned by Rezerval CompanySummary endpoint.</summary>
+public record RezervalCompanySummary(
+    [property: JsonPropertyName("companyId")] int CompanyId,
+    [property: JsonPropertyName("companyName")] string? CompanyName,
+    [property: JsonPropertyName("lastWeek")] RezervalSummaryPeriod? LastWeek,
+    [property: JsonPropertyName("lastMonth")] RezervalSummaryPeriod? LastMonth,
+    [property: JsonPropertyName("last3Months")] RezervalSummaryPeriod? Last3Months);
+
+/// <summary>Aggregated metrics for a single time-window in the company summary.</summary>
+public record RezervalSummaryPeriod(
+    [property: JsonPropertyName("startDate")] DateTime? StartDate,
+    [property: JsonPropertyName("endDate")] DateTime? EndDate,
+    [property: JsonPropertyName("reservationCount")] int ReservationCount,
+    [property: JsonPropertyName("personCount")] int PersonCount,
+    [property: JsonPropertyName("completedReservationCount")] int CompletedReservationCount,
+    [property: JsonPropertyName("cancelledReservationCount")] int CancelledReservationCount,
+    [property: JsonPropertyName("onlineReservationCount")] int OnlineReservationCount,
+    [property: JsonPropertyName("walkInCount")] int WalkInCount,
+    [property: JsonPropertyName("walkInPersonCount")] int WalkInPersonCount,
+    [property: JsonPropertyName("smsSentCount")] int SmsSentCount);

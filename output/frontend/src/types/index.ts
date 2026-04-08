@@ -421,6 +421,29 @@ export interface EmsSummary {
   monthly: EmsSummaryMonthlyStat[];
 }
 
+// ----- Rezerval Summary -----
+
+export interface RezervalSummaryPeriod {
+  startDate: string | null;
+  endDate: string | null;
+  reservationCount: number;
+  personCount: number;
+  completedReservationCount: number;
+  cancelledReservationCount: number;
+  onlineReservationCount: number;
+  walkInCount: number;
+  walkInPersonCount: number;
+  smsSentCount: number;
+}
+
+export interface RezervalSummary {
+  rezervalCompanyId: number;
+  companyName: string | null;
+  lastWeek: RezervalSummaryPeriod | null;
+  lastMonth: RezervalSummaryPeriod | null;
+  last3Months: RezervalSummaryPeriod | null;
+}
+
 // ----- Dashboard -----
 
 export interface ExpiringCustomer {

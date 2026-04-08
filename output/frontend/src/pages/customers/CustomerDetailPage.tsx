@@ -31,6 +31,9 @@ import {
   Eye,
   EyeOff,
   Send,
+  FileText,
+  Banknote,
+  CreditCard,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -73,7 +76,9 @@ import {
   useExtendEmsExpiration,
   useCustomerEmsUsers,
   useCustomerEmsSummary,
+  useCustomerRezervalSummary,
   useUpdateCustomer,
+  useActiveCustomerContract,
 } from '@/api/customers';
 import { useAdminProjects } from '@/api/admin';
 import { CustomerStatusBadge, CustomerLabelBadge } from '@/components/customers/CustomerStatusBadge';
@@ -85,6 +90,7 @@ import {
 } from '@/components/customers/AddContactHistoryDialog';
 import { TransferLeadModal } from '@/components/customers/TransferLeadModal';
 import { RezervalPushDialog } from '@/components/customers/RezervalPushDialog';
+import { CreateContractDialog } from '@/components/customers/CreateContractDialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useCanAccessFinance } from '@/lib/roles';
@@ -427,7 +433,7 @@ function QuickInvoiceForm({ projectId, contactId, customerName, onSuccess, onErr
 
 // ── Tab type ──────────────────────────────────────────────────────────────────
 
-type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari' | 'ems-users' | 'ems-summary';
+type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari' | 'ems-users' | 'ems-summary' | 'rezerval-summary';
 
 // ── Inline Schemas ────────────────────────────────────────────────────────────
 
@@ -1060,6 +1066,9 @@ export function CustomerDetailPage() {
   ) ?? false;
   const [showRezervalDialog, setShowRezervalDialog] = useState(false);
 
+  // Customer subscription contract (Rezerval-only)
+  const [showContractDialog, setShowContractDialog] = useState(false);
+
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(linkSearch); setLinkPage(1); }, 400);
     return () => clearTimeout(t);
@@ -1071,6 +1080,12 @@ export function CustomerDetailPage() {
     isLoading: customerLoading,
     isError: customerError,
   } = useCustomer(customerId);
+
+  // Active contract — only fetched for Rezerval customers
+  const { data: activeContract } = useActiveCustomerContract(
+    customerId,
+    isRezervalProject && isRezervalCustomer(customer?.legacyId),
+  );
 
   const { data: historyData, isLoading: historyLoading } = useContactHistory(customerId);
   const { data: tasksData, isLoading: tasksLoading } = useCustomerTasks(customerId);
@@ -1087,6 +1102,12 @@ export function CustomerDetailPage() {
   const { data: emsSummaryData, isLoading: emsSummaryLoading, error: emsSummaryError } = useCustomerEmsSummary(
     customerId,
     activeTab === 'ems-summary' && isEmsCustomer(customer?.legacyId)
+  );
+
+  // Rezerval summary — only fetch when tab is active and customer is a Rezerval customer
+  const { data: rezervalSummaryData, isLoading: rezervalSummaryLoading, error: rezervalSummaryError } = useCustomerRezervalSummary(
+    customerId,
+    activeTab === 'rezerval-summary' && isRezervalCustomer(customer?.legacyId)
   );
 
   function openAddContact(type: ContactType) {
@@ -1178,6 +1199,7 @@ export function CustomerDetailPage() {
     ...(canAccessFinance ? [{ id: 'cari' as ActiveTab, label: 'Cari / Fatura' }] : []),
     ...(isEmsCustomer(customer?.legacyId) ? [{ id: 'ems-users' as ActiveTab, label: 'Kullanıcılar' }] : []),
     ...(isEmsCustomer(customer?.legacyId) ? [{ id: 'ems-summary' as ActiveTab, label: 'Kullanım Özeti' }] : []),
+    ...(isRezervalCustomer(customer?.legacyId) ? [{ id: 'rezerval-summary' as ActiveTab, label: 'RezervAl Özeti' }] : []),
   ];
 
   return (
@@ -1260,6 +1282,17 @@ export function CustomerDetailPage() {
             >
               <Send className="h-4 w-4" />
               {customer?.legacyId?.startsWith('REZV-') ? 'RezervAl Güncelle' : "RezervAl'a Gönder"}
+            </Button>
+          )}
+          {/* Sözleşme Oluştur / Yenile — only Rezerval customers in a Rezerval project */}
+          {isRezervalProject && isRezervalCustomer(customer?.legacyId) && (
+            <Button
+              variant="outline"
+              className="gap-2 h-10 border-purple-500/40 text-purple-400 hover:bg-purple-500/10"
+              onClick={() => setShowContractDialog(true)}
+            >
+              <FileText className="h-4 w-4" />
+              {activeContract ? 'Sözleşme Yenile' : 'Sözleşme Oluştur'}
             </Button>
           )}
           <Button onClick={() => setShowEditDialog(true)} className="gap-2 h-10">
@@ -1365,6 +1398,72 @@ export function CustomerDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Active Contract Card (Rezerval-only) ── */}
+      {isRezervalProject && isRezervalCustomer(customer?.legacyId) && activeContract && (
+        <Card className="border-purple-500/30 bg-purple-500/5">
+          <CardContent className="p-5">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                <FileText className="h-5 w-5 text-purple-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <h3 className="font-semibold text-sm text-foreground">Aktif Sözleşme</h3>
+                  <Badge
+                    variant="outline"
+                    className="border-purple-500/40 text-purple-300 bg-purple-500/10"
+                  >
+                    {activeContract.paymentType === 0 ? (
+                      <span className="flex items-center gap-1">
+                        <CreditCard className="h-3 w-3" /> Kredi Kartı
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <Banknote className="h-3 w-3" /> EFT/Havale
+                      </span>
+                    )}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <p className="text-muted-foreground">Aylık Tutar</p>
+                    <p className="font-medium text-foreground">
+                      {activeContract.monthlyAmount.toLocaleString('tr-TR', {
+                        style: 'currency',
+                        currency: 'TRY',
+                        minimumFractionDigits: 2,
+                      })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Başlangıç</p>
+                    <p className="font-medium text-foreground">
+                      {new Date(activeContract.startDate).toLocaleDateString('tr-TR')}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Süre</p>
+                    <p className="font-medium text-foreground">
+                      {activeContract.durationMonths
+                        ? `${activeContract.durationMonths} ay`
+                        : 'Süresiz'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Sonraki Fatura</p>
+                    <p className="font-medium text-foreground">
+                      {activeContract.nextInvoiceDate
+                        ? new Date(activeContract.nextInvoiceDate).toLocaleDateString('tr-TR')
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Tabs ── */}
       <div>
@@ -1890,6 +1989,15 @@ export function CustomerDetailPage() {
             </div>
           )}
 
+          {/* ── Rezerval Summary Tab ── */}
+          {activeTab === 'rezerval-summary' && (
+            <RezervalSummaryTabContent
+              isLoading={rezervalSummaryLoading}
+              data={rezervalSummaryData}
+              error={rezervalSummaryError}
+            />
+          )}
+
           {/* ── Cari Tab ── */}
           {activeTab === 'cari' && (
             <div className="space-y-4">
@@ -2170,6 +2278,16 @@ export function CustomerDetailPage() {
           customer={customer}
         />
       )}
+
+      {/* Customer Subscription Contract Dialog (Rezerval-only) */}
+      {customer && (
+        <CreateContractDialog
+          isOpen={showContractDialog}
+          onClose={() => setShowContractDialog(false)}
+          customer={customer}
+          activeContract={activeContract ?? null}
+        />
+      )}
     </div>
   );
 }
@@ -2204,6 +2322,160 @@ function InfoItem({ icon: Icon, label, value, href }: InfoItemProps) {
           <p className="text-sm font-medium text-foreground truncate">{value}</p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Rezerval Summary Tab Content ─────────────────────────────────────────────
+
+interface RezervalSummaryTabContentProps {
+  isLoading: boolean;
+  data: import('@/types').RezervalSummary | undefined;
+  error: unknown;
+}
+
+function RezervalSummaryTabContent({ isLoading, data, error }: RezervalSummaryTabContentProps) {
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-72 rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+        <AlertTriangle className="h-9 w-9 text-muted-foreground/40" />
+        <p className="text-sm font-medium text-muted-foreground">RezervAl özeti alınamadı</p>
+        {error != null && (
+          <p className="text-xs text-muted-foreground/70 max-w-sm">
+            {(error as { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0]
+              ?? (error as Error)?.message
+              ?? 'Bilinmeyen hata'}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  const periods: Array<{
+    label: string;
+    period: import('@/types').RezervalSummaryPeriod | null;
+    accent: string;
+  }> = [
+    { label: 'Son 1 Hafta', period: data.lastWeek, accent: 'text-purple-400' },
+    { label: 'Son 1 Ay', period: data.lastMonth, accent: 'text-emerald-400' },
+    { label: 'Son 3 Ay', period: data.last3Months, accent: 'text-blue-400' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {data.companyName && (
+        <p className="text-sm text-muted-foreground">
+          RezervAl Şirketi:{' '}
+          <span className="font-medium text-foreground">{data.companyName}</span>
+          <span className="font-mono text-xs ml-2">#{data.rezervalCompanyId}</span>
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {periods.map(({ label, period, accent }) => (
+          <RezervalSummaryPeriodCard
+            key={label}
+            label={label}
+            period={period}
+            accent={accent}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface RezervalSummaryPeriodCardProps {
+  label: string;
+  period: import('@/types').RezervalSummaryPeriod | null;
+  accent: string;
+}
+
+function RezervalSummaryPeriodCard({ label, period, accent }: RezervalSummaryPeriodCardProps) {
+  if (!period) {
+    return (
+      <div className="rounded-lg border border-border p-4">
+        <p className={cn('text-xs font-semibold uppercase tracking-wider mb-3', accent)}>
+          {label}
+        </p>
+        <p className="text-sm text-muted-foreground">Veri yok</p>
+      </div>
+    );
+  }
+
+  const dateRange = period.startDate && period.endDate
+    ? `${new Date(period.startDate).toLocaleDateString('tr-TR')} – ${new Date(period.endDate).toLocaleDateString('tr-TR')}`
+    : null;
+
+  return (
+    <div className="rounded-lg border border-border p-4 space-y-3">
+      <div>
+        <p className={cn('text-xs font-semibold uppercase tracking-wider', accent)}>
+          {label}
+        </p>
+        {dateRange && (
+          <p className="text-[10px] text-muted-foreground/70 mt-0.5">{dateRange}</p>
+        )}
+      </div>
+
+      {/* Headline metric */}
+      <div>
+        <p className="text-3xl font-bold text-foreground tabular-nums">
+          {period.reservationCount}
+        </p>
+        <p className="text-xs text-muted-foreground">Toplam Rezervasyon</p>
+      </div>
+
+      <div className="border-t border-border/50 pt-3 space-y-1.5 text-xs">
+        <SummaryRow label="Kişi Sayısı" value={period.personCount} />
+        <SummaryRow
+          label="Tamamlanan"
+          value={period.completedReservationCount}
+          valueClass="text-emerald-400"
+        />
+        <SummaryRow
+          label="İptal"
+          value={period.cancelledReservationCount}
+          valueClass="text-red-400"
+        />
+        <SummaryRow label="Online" value={period.onlineReservationCount} />
+        <SummaryRow
+          label="Walk-in"
+          value={`${period.walkInCount} (${period.walkInPersonCount} kişi)`}
+        />
+        <SummaryRow
+          label="Gönderilen SMS"
+          value={period.smsSentCount}
+          valueClass="text-blue-400"
+        />
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string;
+  value: number | string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn('font-medium tabular-nums text-foreground', valueClass)}>{value}</span>
     </div>
   );
 }

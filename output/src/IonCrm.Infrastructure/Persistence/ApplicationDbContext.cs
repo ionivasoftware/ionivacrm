@@ -59,6 +59,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Gets or sets the ParasutProducts table (per-project product catalog for invoices).</summary>
     public DbSet<ParasutProduct> ParasutProducts => Set<ParasutProduct>();
 
+    /// <summary>Gets or sets the CustomerContracts table (per-customer recurring subscription contracts).</summary>
+    public DbSet<CustomerContract> CustomerContracts => Set<CustomerContract>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -125,6 +128,11 @@ public class ApplicationDbContext : DbContext
                  _currentUser.ProjectIds.Contains(e.ProjectId)));
 
         modelBuilder.Entity<ParasutProduct>()
+            .HasQueryFilter(e => !e.IsDeleted &&
+                (_currentUser.IsSuperAdmin ||
+                 _currentUser.ProjectIds.Contains(e.ProjectId)));
+
+        modelBuilder.Entity<CustomerContract>()
             .HasQueryFilter(e => !e.IsDeleted &&
                 (_currentUser.IsSuperAdmin ||
                  _currentUser.ProjectIds.Contains(e.ProjectId)));

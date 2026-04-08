@@ -1,14 +1,17 @@
 using IonCrm.Application.Customers.Commands.AddCustomerSms;
 using IonCrm.Application.Customers.Commands.ConvertLeadToCustomer;
 using IonCrm.Application.Customers.Commands.CreateCustomer;
+using IonCrm.Application.Customers.Commands.CreateCustomerContract;
 using IonCrm.Application.Customers.Commands.DeleteCustomer;
 using IonCrm.Application.Customers.Commands.ExtendEmsExpiration;
 using IonCrm.Application.Customers.Commands.PushCustomerToRezerval;
 using IonCrm.Application.Customers.Commands.TransferLead;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
+using IonCrm.Application.Customers.Queries.GetActiveContractByCustomerId;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
 using IonCrm.Application.Customers.Queries.GetCustomerEmsUsers;
 using IonCrm.Application.Customers.Queries.GetCustomerEmsSummary;
+using IonCrm.Application.Customers.Queries.GetCustomerRezervalSummary;
 using IonCrm.Application.Customers.Queries.GetCustomerWithDetails;
 using IonCrm.Application.Customers.Queries.GetCustomers;
 using IonCrm.Domain.Enums;
@@ -191,6 +194,21 @@ public class CustomersController : ApiControllerBase
     }
 
     /// <summary>
+    /// GET /api/v1/customers/{id}/rezerval-summary
+    /// Returns the Rezerval reservation/SMS summary for a Rezerval-sourced customer.
+    /// Proxies to Rezerval GET /v1/Crm/CompanySummary?companyId={id}.
+    /// Response includes lastWeek / lastMonth / last3Months periods, each with reservation,
+    /// person, completed, cancelled, online, walk-in and SMS counts.
+    /// Returns 400 when the customer is not Rezerval-sourced.
+    /// </summary>
+    [HttpGet("{id:guid}/rezerval-summary")]
+    public async Task<IActionResult> GetRezervalSummary(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetCustomerRezervalSummaryQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
     /// POST /api/v1/customers/{id}/push-to-rezerval
     /// Pushes the customer to the RezervAl CRM system.
     /// If the customer already has a "REZV-{n}" LegacyId an update (PUT) is performed;
@@ -232,6 +250,39 @@ public class CustomersController : ApiControllerBase
         return ResultToResponse(result);
     }
 
+    /// <summary>
+    /// Creates (or renews) a recurring monthly subscription contract for a Rezerval customer.
+    /// Calls the Rezerval subscription endpoint to create an iyzico subscription + payment plan
+    /// on the Rezerval side, then stores the contract locally. For EFT contracts, the background
+    /// sync job will auto-create monthly draft invoices priced at the contract's monthly amount.
+    /// </summary>
+    [HttpPost("{id:guid}/contracts")]
+    public async Task<IActionResult> CreateContract(
+        Guid id,
+        [FromBody] CreateContractRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        var command = new CreateCustomerContractCommand(
+            CustomerId:     id,
+            MonthlyAmount:  body.MonthlyAmount,
+            PaymentType:    body.PaymentType,
+            StartDate:      body.StartDate,
+            DurationMonths: body.DurationMonths);
+
+        var result = await Mediator.Send(command, cancellationToken);
+        return ResultToResponse(result, created: true);
+    }
+
+    /// <summary>Returns the active contract for a customer, or null when none exists.</summary>
+    [HttpGet("{id:guid}/contracts/active")]
+    public async Task<IActionResult> GetActiveContract(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetActiveContractByCustomerIdQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
 }
 
 /// <summary>Request body for POST /api/v1/customers/{id}/extend-expiration.</summary>
@@ -239,6 +290,13 @@ public record ExtendEmsExpirationRequest(string DurationType, int Amount);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/add-sms.</summary>
 public record AddCustomerSmsRequest(int Count);
+
+/// <summary>Request body for POST /api/v1/customers/{id}/contracts.</summary>
+public record CreateContractRequest(
+    decimal MonthlyAmount,
+    ContractPaymentType PaymentType,
+    DateTime StartDate,
+    int? DurationMonths);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/push-to-rezerval.</summary>
 public record PushCustomerToRezervalRequest(

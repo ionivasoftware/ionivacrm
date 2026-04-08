@@ -20,6 +20,7 @@ import type {
   OpportunityStage,
   EmsUser,
   EmsSummary,
+  RezervalSummary,
 } from '@/types';
 
 // ── Customer CRUD ─────────────────────────────────────────────────────────────
@@ -428,6 +429,22 @@ export function useCustomerEmsSummary(customerId: string, enabled: boolean) {
   });
 }
 
+// ── Rezerval Company Summary ──────────────────────────────────────────────────
+
+export function useCustomerRezervalSummary(customerId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['customerRezervalSummary', customerId],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<RezervalSummary>>(
+        `/customers/${customerId}/rezerval-summary`
+      );
+      return response.data.data;
+    },
+    enabled: !!customerId && enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 // ── Push to RezervAl ─────────────────────────────────────────────────────────
 
 export interface PushToRezervalRequest {
@@ -494,6 +511,77 @@ export function useExtendEmsExpiration(customerId: string) {
       queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+}
+
+// ── Customer Contracts (Rezerval recurring subscription) ─────────────────────
+
+/** Numeric values match the C# enum: 0 = CreditCard, 1 = EftWire. */
+export type ContractPaymentType = 0 | 1;
+/** Numeric values match the C# enum: 0 = Active, 1 = Completed, 2 = Cancelled. */
+export type ContractStatus = 0 | 1 | 2;
+
+export interface CustomerContract {
+  id: string;
+  customerId: string;
+  title: string;
+  monthlyAmount: number;
+  paymentType: ContractPaymentType;
+  startDate: string;
+  durationMonths: number | null;
+  endDate: string | null;
+  status: ContractStatus;
+  rezervalSubscriptionId: string | null;
+  rezervalPaymentPlanId: string | null;
+  nextInvoiceDate: string | null;
+  lastInvoiceGeneratedDate: string | null;
+  createdAt: string;
+}
+
+export interface CreateContractRequest {
+  monthlyAmount: number;
+  paymentType: ContractPaymentType;
+  /** ISO date "yyyy-MM-dd" — backend converts to UTC midnight. */
+  startDate: string;
+  durationMonths: number | null;
+}
+
+/**
+ * Returns the currently active contract for a customer, or null when none exists.
+ * Caller should pass `enabled` only when the customer is a Rezerval customer.
+ */
+export function useActiveCustomerContract(customerId: string, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['customer-contract', customerId],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<CustomerContract | null>>(
+        `/customers/${customerId}/contracts/active`
+      );
+      return response.data.data;
+    },
+    enabled: !!customerId && enabled,
+  });
+}
+
+/**
+ * Creates (or renews) a customer contract. Renewal semantics: any existing
+ * active contract is automatically marked Completed before the new one is created.
+ */
+export function useCreateCustomerContract(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: CreateContractRequest) => {
+      const response = await apiClient.post<ApiResponse<CustomerContract>>(
+        `/customers/${customerId}/contracts`,
+        body
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-contract', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
     },
   });

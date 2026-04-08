@@ -1,6 +1,7 @@
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models.ExternalApis;
 using IonCrm.Application.Features.Sync.Commands.SyncEmsPayments;
+using IonCrm.Application.Features.Sync.Commands.SyncRezervalContractInvoices;
 using IonCrm.Domain.Entities;
 using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
@@ -90,6 +91,7 @@ public sealed class SaasSyncJob
         await SyncEmsCrmCustomersAsync(cancellationToken);
         await SyncRezervalCompaniesAsync(cancellationToken);
         await SyncEmsPaymentsAsync(cancellationToken);
+        await SyncRezervalContractInvoicesAsync(cancellationToken);
         // await SyncSaasAAsync(cancellationToken);
         // await SyncSaasBAsync(cancellationToken);
 
@@ -421,6 +423,42 @@ public sealed class SaasSyncJob
         catch (Exception ex)
         {
             _logger.LogError(ex, "EMS payment sync threw an unhandled exception.");
+        }
+    }
+
+    // ── Rezerval contract → monthly EFT invoice sync ─────────────────────────
+
+    /// <summary>
+    /// Generates monthly draft invoices for active EFT/Wire customer contracts whose
+    /// <c>NextInvoiceDate</c> is on or before today.  Idempotent: each (contract, month) pair
+    /// is uniquely keyed in <c>Invoice.EmsPaymentId</c> so re-running the job is safe.
+    /// </summary>
+    private async Task SyncRezervalContractInvoicesAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var result = await mediator.Send(new SyncRezervalContractInvoicesCommand(), ct);
+
+            if (result.IsSuccess)
+            {
+                _logger.LogInformation(
+                    "Rezerval contract invoice sync: scanned={Scanned} created={Created} skipped={Skipped} completed={Completed} errors={Errors}.",
+                    result.Value!.ContractsScanned,
+                    result.Value.InvoicesCreated,
+                    result.Value.Skipped,
+                    result.Value.ContractsCompleted,
+                    result.Value.Errors.Count);
+            }
+            else
+            {
+                _logger.LogWarning("Rezerval contract invoice sync returned failure: {Errors}", result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Rezerval contract invoice sync threw an unhandled exception.");
         }
     }
 

@@ -225,6 +225,73 @@ public sealed class SaasBClient : ISaasBClient
         }, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<RezervalCompanySummaryResponse> GetCompanySummaryAsync(
+        int companyId,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Rezerval CRM: fetching company summary for companyId={CompanyId}.", companyId);
+
+        return await _retryPipeline.ExecuteAsync<RezervalCompanySummaryResponse>(async ct =>
+        {
+            var http = new HttpRequestMessage(HttpMethod.Get,
+                $"https://rezback.rezerval.com/v1/Crm/CompanySummary?companyId={companyId}");
+
+            await ApplyBearerAuthAsync(http, apiKey, ct);
+
+            var response = await _httpClient.SendAsync(http, ct);
+            await EnsureSuccessAsync(response, ct);
+
+            var envelope = await response.Content.ReadFromJsonAsync<RezervalCompanySummaryResponse>(JsonOpts, ct);
+            if (envelope is null)
+                throw new InvalidOperationException("Rezerval şirket özeti yanıtı boş döndü.");
+
+            if (!envelope.IsSuccess)
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(envelope.Message)
+                        ? "Rezerval şirket özeti alınamadı."
+                        : $"Rezerval şirket özeti alınamadı: {envelope.Message}");
+
+            return envelope;
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<RezervalSubscriptionResponse> CreateRezervalSubscriptionAsync(
+        RezervalSubscriptionRequest request,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Rezerval CRM: creating subscription '{Name}' (companyId={CompanyId}, amount={Amount}, type={Type}).",
+            request.SubscriptionName, request.RezervalCompanyId, request.MonthlyAmount, request.PaymentType);
+
+        return await _retryPipeline.ExecuteAsync<RezervalSubscriptionResponse>(async ct =>
+        {
+            var http = new HttpRequestMessage(HttpMethod.Post,
+                "https://rezback.rezerval.com/v1/Crm/Subscription");
+
+            await ApplyBearerAuthAsync(http, apiKey, ct);
+            http.Content = JsonContent.Create(request, options: JsonOpts);
+
+            var response = await _httpClient.SendAsync(http, ct);
+            await EnsureSuccessAsync(response, ct);
+
+            var envelope = await response.Content.ReadFromJsonAsync<RezervalSubscriptionResponse>(JsonOpts, ct);
+            if (envelope is null)
+                throw new InvalidOperationException("Rezerval abonelik yanıtı boş döndü.");
+
+            if (!envelope.IsSuccess)
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(envelope.Message)
+                        ? "Rezerval aboneliği oluşturamadı."
+                        : $"Rezerval aboneliği oluşturamadı: {envelope.Message}");
+
+            return envelope;
+        }, cancellationToken);
+    }
+
     /// <summary>
     /// Builds a <see cref="MultipartFormDataContent"/> from <see cref="RezervalCompanyFormData"/>.
     /// All fields are sent as string parts; the optional logo is added as a file part when present.

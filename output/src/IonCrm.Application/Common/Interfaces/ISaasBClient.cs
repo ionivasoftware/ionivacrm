@@ -55,4 +55,28 @@ public interface ISaasBClient
         RezervalCompanyFormData data,
         string? apiKey = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates an iyzico subscription + payment plan for a RezervAl customer.
+    /// RezervAl handles the iyzico API call internally and returns the resulting subscription
+    /// and payment plan references which the CRM stores on the local <c>CustomerContract</c>.
+    /// Endpoint: POST https://rezback.rezerval.com/v1/Crm/Subscription
+    /// Auth: Authorization: Bearer {jwt}
+    /// Content-Type: application/json
+    /// </summary>
+    Task<RezervalSubscriptionResponse> CreateRezervalSubscriptionAsync(
+        RezervalSubscriptionRequest request,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns aggregated reservation/SMS metrics for a Rezerval company over the last week,
+    /// last month, and last 3 months.
+    /// Endpoint: GET https://rezback.rezerval.com/v1/Crm/CompanySummary?companyId={id}
+    /// Auth: Authorization: Bearer {jwt}
+    /// </summary>
+    Task<RezervalCompanySummaryResponse> GetCompanySummaryAsync(
+        int companyId,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default);
 }

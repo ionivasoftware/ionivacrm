@@ -60,6 +60,7 @@ public static class DependencyInjection
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+        services.AddScoped<ICustomerContractRepository, CustomerContractRepository>();
 
         // ── Auth services ─────────────────────────────────────────────────────
         services.AddScoped<ITokenService, TokenService>();

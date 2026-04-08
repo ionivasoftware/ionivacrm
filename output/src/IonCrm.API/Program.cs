@@ -307,6 +307,46 @@ app.Lifetime.ApplicationStarted.Register(() =>
                     ADD COLUMN IF NOT EXISTS ""EmsPaymentId"" text;
             ");
 
+            // Idempotent fallback: create CustomerContracts table (per-customer recurring subscription contracts).
+            // PaymentType: 0 = CreditCard, 1 = EftWire.  Status: 0 = Active, 1 = Completed, 2 = Cancelled.
+            // Background job (SyncRezervalContractInvoices) generates monthly draft invoices for EFT contracts
+            // whose NextInvoiceDate <= today and EndDate is null or not yet passed.
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CustomerContracts"" (
+                    ""Id""                       uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                    ""ProjectId""                uuid         NOT NULL,
+                    ""CustomerId""               uuid         NOT NULL,
+                    ""Title""                    text         NOT NULL DEFAULT '',
+                    ""MonthlyAmount""            numeric(18,2) NOT NULL DEFAULT 0,
+                    ""PaymentType""              integer      NOT NULL DEFAULT 0,
+                    ""StartDate""                timestamp with time zone NOT NULL DEFAULT now(),
+                    ""DurationMonths""           integer,
+                    ""EndDate""                  timestamp with time zone,
+                    ""Status""                   integer      NOT NULL DEFAULT 0,
+                    ""RezervalSubscriptionId""   text,
+                    ""RezervalPaymentPlanId""    text,
+                    ""NextInvoiceDate""          timestamp with time zone,
+                    ""LastInvoiceGeneratedDate"" timestamp with time zone,
+                    ""CreatedAt""                timestamp with time zone NOT NULL DEFAULT now(),
+                    ""UpdatedAt""                timestamp with time zone NOT NULL DEFAULT now(),
+                    ""IsDeleted""                boolean      NOT NULL DEFAULT false,
+                    CONSTRAINT ""fk_customercontracts_projects"" FOREIGN KEY (""ProjectId"")
+                        REFERENCES ""Projects"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""fk_customercontracts_customers"" FOREIGN KEY (""CustomerId"")
+                        REFERENCES ""Customers"" (""Id"") ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS ""ix_customercontracts_projectid_customerid""
+                    ON ""CustomerContracts"" (""ProjectId"", ""CustomerId"")
+                    WHERE ""IsDeleted"" = false;
+                CREATE INDEX IF NOT EXISTS ""ix_customercontracts_customerid_status""
+                    ON ""CustomerContracts"" (""CustomerId"", ""Status"")
+                    WHERE ""IsDeleted"" = false;
+                CREATE INDEX IF NOT EXISTS ""ix_customercontracts_due""
+                    ON ""CustomerContracts"" (""Status"", ""PaymentType"", ""NextInvoiceDate"")
+                    WHERE ""IsDeleted"" = false;
+            ");
+            Log.Information("CustomerContracts table ensured");
+
             // Fix: Segment was originally created as integer (enum) but the entity
             // uses string. Convert to text so EMS API string values can be stored.
             await db.Database.ExecuteSqlRawAsync(@"
