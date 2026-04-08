@@ -162,6 +162,24 @@ app.Lifetime.ApplicationStarted.Register(() =>
             await db.Database.MigrateAsync();
             Log.Information("EF Core migrations applied successfully");
 
+            // Local helper: runs an idempotent bootstrap SQL block in its own try/catch so a
+            // single failing block does NOT prevent the rest of the bootstrap from executing.
+            // Previously a single outer catch swallowed the first exception and skipped every
+            // subsequent table-creation step, causing late tables (e.g. CustomerContracts) to
+            // never get created — observed in prod as a 500 "relation does not exist".
+            async Task RunSafe(string label, string sql)
+            {
+                try
+                {
+                    await db.Database.ExecuteSqlRawAsync(sql);
+                    Log.Information("Bootstrap OK: {Label}", label);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Bootstrap FAILED (continuing): {Label}", label);
+                }
+            }
+
             // Idempotent fallback: ensure columns added in later sprints exist.
             // Uses IF NOT EXISTS / USING cast so it is safe to run on every startup.
             await db.Database.ExecuteSqlRawAsync(@"
@@ -232,7 +250,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
             // Replaces the old per-project unique index with two partial indexes:
             //   1. ix_parasutconnections_projectid_notnull — one connection per project (non-null ProjectId)
             //   2. ix_parasutconnections_global            — at most one global connection (ProjectId IS NULL)
-            await db.Database.ExecuteSqlRawAsync(@"
+            await RunSafe("ParasutConnections nullable + partial indexes", @"
                 ALTER TABLE ""ParasutConnections"" ALTER COLUMN ""ProjectId"" DROP NOT NULL;
                 DROP INDEX IF EXISTS ""ix_parasutconnections_projectid"";
                 CREATE UNIQUE INDEX IF NOT EXISTS ""ix_parasutconnections_projectid_notnull""
@@ -242,7 +260,6 @@ app.Lifetime.ApplicationStarted.Register(() =>
                     ON ""ParasutConnections"" ((0))
                     WHERE ""ProjectId"" IS NULL AND ""IsDeleted"" = false;
             ");
-            Log.Information("ParasutConnections global connection support (nullable ProjectId) ensured");
 
             // Idempotent fallback: create Invoices table if EF migration hasn't run yet.
             await db.Database.ExecuteSqlRawAsync(@"
@@ -311,41 +328,52 @@ app.Lifetime.ApplicationStarted.Register(() =>
             // PaymentType: 0 = CreditCard, 1 = EftWire.  Status: 0 = Active, 1 = Completed, 2 = Cancelled.
             // Background job (SyncRezervalContractInvoices) generates monthly draft invoices for EFT contracts
             // whose NextInvoiceDate <= today and EndDate is null or not yet passed.
-            await db.Database.ExecuteSqlRawAsync(@"
-                CREATE TABLE IF NOT EXISTS ""CustomerContracts"" (
-                    ""Id""                       uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-                    ""ProjectId""                uuid         NOT NULL,
-                    ""CustomerId""               uuid         NOT NULL,
-                    ""Title""                    text         NOT NULL DEFAULT '',
-                    ""MonthlyAmount""            numeric(18,2) NOT NULL DEFAULT 0,
-                    ""PaymentType""              integer      NOT NULL DEFAULT 0,
-                    ""StartDate""                timestamp with time zone NOT NULL DEFAULT now(),
-                    ""DurationMonths""           integer,
-                    ""EndDate""                  timestamp with time zone,
-                    ""Status""                   integer      NOT NULL DEFAULT 0,
-                    ""RezervalSubscriptionId""   text,
-                    ""RezervalPaymentPlanId""    text,
-                    ""NextInvoiceDate""          timestamp with time zone,
-                    ""LastInvoiceGeneratedDate"" timestamp with time zone,
-                    ""CreatedAt""                timestamp with time zone NOT NULL DEFAULT now(),
-                    ""UpdatedAt""                timestamp with time zone NOT NULL DEFAULT now(),
-                    ""IsDeleted""                boolean      NOT NULL DEFAULT false,
-                    CONSTRAINT ""fk_customercontracts_projects"" FOREIGN KEY (""ProjectId"")
-                        REFERENCES ""Projects"" (""Id"") ON DELETE CASCADE,
-                    CONSTRAINT ""fk_customercontracts_customers"" FOREIGN KEY (""CustomerId"")
-                        REFERENCES ""Customers"" (""Id"") ON DELETE CASCADE
-                );
-                CREATE INDEX IF NOT EXISTS ""ix_customercontracts_projectid_customerid""
-                    ON ""CustomerContracts"" (""ProjectId"", ""CustomerId"")
-                    WHERE ""IsDeleted"" = false;
-                CREATE INDEX IF NOT EXISTS ""ix_customercontracts_customerid_status""
-                    ON ""CustomerContracts"" (""CustomerId"", ""Status"")
-                    WHERE ""IsDeleted"" = false;
-                CREATE INDEX IF NOT EXISTS ""ix_customercontracts_due""
-                    ON ""CustomerContracts"" (""Status"", ""PaymentType"", ""NextInvoiceDate"")
-                    WHERE ""IsDeleted"" = false;
-            ");
-            Log.Information("CustomerContracts table ensured");
+            //
+            // Wrapped in its own try/catch so an earlier idempotent block failing does NOT prevent
+            // this table from being created — observed in prod where the outer catch swallowed an
+            // earlier failure and the contract endpoint then 500'd with "relation does not exist".
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(@"
+                    CREATE TABLE IF NOT EXISTS ""CustomerContracts"" (
+                        ""Id""                       uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                        ""ProjectId""                uuid         NOT NULL,
+                        ""CustomerId""               uuid         NOT NULL,
+                        ""Title""                    text         NOT NULL DEFAULT '',
+                        ""MonthlyAmount""            numeric(18,2) NOT NULL DEFAULT 0,
+                        ""PaymentType""              integer      NOT NULL DEFAULT 0,
+                        ""StartDate""                timestamp with time zone NOT NULL DEFAULT now(),
+                        ""DurationMonths""           integer,
+                        ""EndDate""                  timestamp with time zone,
+                        ""Status""                   integer      NOT NULL DEFAULT 0,
+                        ""RezervalSubscriptionId""   text,
+                        ""RezervalPaymentPlanId""    text,
+                        ""NextInvoiceDate""          timestamp with time zone,
+                        ""LastInvoiceGeneratedDate"" timestamp with time zone,
+                        ""CreatedAt""                timestamp with time zone NOT NULL DEFAULT now(),
+                        ""UpdatedAt""                timestamp with time zone NOT NULL DEFAULT now(),
+                        ""IsDeleted""                boolean      NOT NULL DEFAULT false,
+                        CONSTRAINT ""fk_customercontracts_projects"" FOREIGN KEY (""ProjectId"")
+                            REFERENCES ""Projects"" (""Id"") ON DELETE CASCADE,
+                        CONSTRAINT ""fk_customercontracts_customers"" FOREIGN KEY (""CustomerId"")
+                            REFERENCES ""Customers"" (""Id"") ON DELETE CASCADE
+                    );
+                    CREATE INDEX IF NOT EXISTS ""ix_customercontracts_projectid_customerid""
+                        ON ""CustomerContracts"" (""ProjectId"", ""CustomerId"")
+                        WHERE ""IsDeleted"" = false;
+                    CREATE INDEX IF NOT EXISTS ""ix_customercontracts_customerid_status""
+                        ON ""CustomerContracts"" (""CustomerId"", ""Status"")
+                        WHERE ""IsDeleted"" = false;
+                    CREATE INDEX IF NOT EXISTS ""ix_customercontracts_due""
+                        ON ""CustomerContracts"" (""Status"", ""PaymentType"", ""NextInvoiceDate"")
+                        WHERE ""IsDeleted"" = false;
+                ");
+                Log.Information("CustomerContracts table ensured");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "CustomerContracts table creation failed (continuing startup)");
+            }
 
             // Fix: Segment was originally created as integer (enum) but the entity
             // uses string. Convert to text so EMS API string values can be stored.
