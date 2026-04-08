@@ -42,11 +42,11 @@ public class ParasutController : ControllerBase
     // ── Connection ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// GET /api/v1/parasut/status
-    /// Returns connection status for the given project.
+    /// GET /api/v1/parasut/status?projectId={guid?}
+    /// Returns connection status. Omit <c>projectId</c> to query the global connection.
     /// </summary>
     [HttpGet("status")]
-    public async Task<IActionResult> GetStatus([FromQuery] Guid projectId)
+    public async Task<IActionResult> GetStatus([FromQuery] Guid? projectId = null)
     {
         var result = await _mediator.Send(new GetParasutStatusQuery(projectId));
         if (result.IsFailure)

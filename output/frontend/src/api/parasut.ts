@@ -12,7 +12,8 @@ export interface ParasutStatus {
 }
 
 export interface ConnectParasutRequest {
-  projectId: string;
+  /** Pass null to create a global (project-independent) connection. */
+  projectId: string | null;
   companyId: number;
   clientId: string;
   clientSecret: string;
@@ -21,7 +22,7 @@ export interface ConnectParasutRequest {
 }
 
 export interface ConnectParasutResponse {
-  projectId: string;
+  projectId: string | null;
   companyId: number;
   username: string;
   isConnected: boolean;
@@ -67,16 +68,21 @@ export interface ParasutInvoicesDto {
 
 // ── API hooks ─────────────────────────────────────────────────────────────────
 
-export function useParasutStatus(projectId: string | null) {
+/**
+ * Fetches Paraşüt connection status.
+ * Pass `null`/omit `projectId` to query the global connection directly.
+ * Pass a project id to query that project (with fallback to global).
+ */
+export function useParasutStatus(projectId?: string | null) {
   return useQuery({
-    queryKey: ['parasutStatus', projectId],
+    queryKey: ['parasutStatus', projectId ?? 'global'],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse<ParasutStatus>>(
-        `/parasut/status?projectId=${projectId}`
-      );
+      const url = projectId
+        ? `/parasut/status?projectId=${projectId}`
+        : `/parasut/status`;
+      const res = await apiClient.get<ApiResponse<ParasutStatus>>(url);
       return res.data.data;
     },
-    enabled: !!projectId,
     staleTime: 30_000,
   });
 }
@@ -91,20 +97,28 @@ export function useConnectParasut() {
       );
       return res.data.data;
     },
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['parasutStatus', vars.projectId] });
+    onSuccess: () => {
+      // Invalidate every parasutStatus cache entry — global + per-project consumers all need to refetch.
+      qc.invalidateQueries({ queryKey: ['parasutStatus'] });
     },
   });
 }
 
+/**
+ * Disconnects a Paraşüt connection.
+ * Pass `null`/omit to disconnect the global connection.
+ */
 export function useDisconnectParasut() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (projectId: string) => {
-      await apiClient.delete(`/parasut/disconnect/${projectId}`);
+    mutationFn: async (projectId?: string | null) => {
+      const url = projectId
+        ? `/parasut/disconnect?projectId=${projectId}`
+        : `/parasut/disconnect`;
+      await apiClient.delete(url);
     },
-    onSuccess: (_data, projectId) => {
-      qc.invalidateQueries({ queryKey: ['parasutStatus', projectId] });
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['parasutStatus'] });
     },
   });
 }

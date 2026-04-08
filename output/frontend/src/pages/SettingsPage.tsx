@@ -296,8 +296,8 @@ export function SettingsPage() {
   const [showParasutSecret, setShowParasutSecret] = useState(false);
   const [showParasutPassword, setShowParasutPassword] = useState(false);
   const [loadParasutProductList, setLoadParasutProductList] = useState(false);
-  // Paraşüt
-  const parasutStatus = useParasutStatus(currentProjectId);
+  // Paraşüt — connection is global (project-independent)
+  const parasutStatus = useParasutStatus();
   const connectParasut = useConnectParasut();
   const disconnectParasut = useDisconnectParasut();
   const parasutProducts = useParasutProducts(currentProjectId);
@@ -350,10 +350,9 @@ export function SettingsPage() {
   }
 
   async function handleParasutConnect(data: ParasutForm) {
-    if (!currentProjectId) return;
     try {
       await connectParasut.mutateAsync({
-        projectId: currentProjectId,
+        projectId: null, // global connection — shared by all projects
         companyId: Number(data.companyId),
         clientId: data.clientId,
         clientSecret: data.clientSecret,
@@ -368,9 +367,8 @@ export function SettingsPage() {
   }
 
   async function handleParasutDisconnect() {
-    if (!currentProjectId) return;
     try {
-      await disconnectParasut.mutateAsync(currentProjectId);
+      await disconnectParasut.mutateAsync(null);
       toast({ title: 'Paraşüt bağlantısı kaldırıldı' });
     } catch {
       toast({ title: 'Hata', description: 'Bağlantı kaldırılamadı.', variant: 'destructive' });
