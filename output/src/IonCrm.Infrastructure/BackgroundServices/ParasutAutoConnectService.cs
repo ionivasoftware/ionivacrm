@@ -8,14 +8,27 @@ using Microsoft.Extensions.Logging;
 namespace IonCrm.Infrastructure.BackgroundServices;
 
 /// <summary>
-/// Background service that keeps all stored Paraşüt connections alive.
+/// Background service that keeps all stored Paraşüt connections alive AND ensures
+/// the connection is project-independent (global) so all projects share the same
+/// Paraşüt company.
 ///
 /// Behaviour:
-///   1. On startup — immediately refreshes/re-authenticates all expired tokens (fire-and-forget
-///      so Railway health-check is not blocked).
-///   2. Periodically (every 30 minutes) — checks all connections and refreshes any that have
-///      expired since the last cycle. This prevents the first user API call from triggering a
-///      slow re-auth round-trip even if the server has been running for a while.
+///   1. On startup — promotes any pre-existing project-specific connection to global
+///      (sets <c>ProjectId = null</c>) when no global connection exists yet, then
+///      refreshes/re-authenticates all expired tokens (fire-and-forget so the Railway
+///      health-check is not blocked).
+///   2. Periodically (every 30 minutes) — checks all connections and refreshes any
+///      that have expired since the last cycle. This prevents the first user API call
+///      from triggering a slow re-auth round-trip.
+///
+/// Promotion rules (one-time, idempotent):
+///   • Global connection exists           → no-op
+///   • No global, no project-specific     → no-op (manual setup mode)
+///   • No global, project-specific exists → take the most recently updated one and
+///                                           set its ProjectId to null (promote to global).
+///                                           This handles the migration of users who
+///                                           configured Paraşüt before the global-connection
+///                                           feature shipped.
 ///
 /// For each <c>ParasutConnection</c> with an expired token, the service attempts:
 ///   1. Silent refresh via the stored refresh_token (if present)
@@ -49,7 +62,7 @@ public sealed class ParasutAutoConnectService : BackgroundService
         ILogger<ParasutAutoConnectService> logger)
     {
         _scopeFactory = scopeFactory;
-        _logger = logger;
+        _logger       = logger;
     }
 
     /// <inheritdoc />
@@ -75,6 +88,11 @@ public sealed class ParasutAutoConnectService : BackgroundService
             await using var scope = _scopeFactory.CreateAsyncScope();
             var connectionRepo  = scope.ServiceProvider.GetRequiredService<IParasutConnectionRepository>();
             var parasutClient   = scope.ServiceProvider.GetRequiredService<IParasutClient>();
+
+            // Promote any pre-existing project-specific connection to global BEFORE the
+            // refresh loop, so the freshly-promoted connection is picked up by the
+            // GetAllAsync() call below.
+            await EnsureGlobalConnectionExistsAsync(connectionRepo, cancellationToken);
 
             // GetAllAsync() uses IgnoreQueryFilters() — required for background services.
             var connections = await connectionRepo.GetAllAsync(cancellationToken);
@@ -185,6 +203,73 @@ public sealed class ParasutAutoConnectService : BackgroundService
             // Never crash the service — log and continue to next cycle.
             _logger.LogError(ex,
                 "ParasutAutoConnect: unexpected error during token refresh cycle.");
+        }
+    }
+
+    /// <summary>
+    /// Ensures a project-independent (global, <c>ProjectId = null</c>) Paraşüt connection
+    /// exists.  If no global connection is found but at least one project-specific
+    /// connection exists, the most recently updated project-specific connection is
+    /// promoted to global by setting its <c>ProjectId</c> to <c>null</c>.
+    /// </summary>
+    /// <remarks>
+    /// This is a one-time auto-migration for users who configured Paraşüt via the Settings
+    /// UI before the "global connection" feature shipped — their connection was saved with
+    /// the current project's id but the new Settings UI only queries the global connection,
+    /// so the existing record was effectively orphaned.  Idempotent on subsequent runs.
+    /// </remarks>
+    private async Task EnsureGlobalConnectionExistsAsync(
+        IParasutConnectionRepository connectionRepo,
+        CancellationToken cancellationToken)
+    {
+        var existingGlobal = await connectionRepo.GetGlobalAsync(cancellationToken);
+        if (existingGlobal is not null)
+        {
+            // Already global — nothing to do
+            return;
+        }
+
+        // No global yet — look for project-specific connections to promote
+        var allConnections = await connectionRepo.GetAllAsync(cancellationToken);
+        var projectSpecific = allConnections
+            .Where(c => c.ProjectId.HasValue)
+            .OrderByDescending(c => c.UpdatedAt)
+            .ToList();
+
+        if (projectSpecific.Count == 0)
+        {
+            _logger.LogDebug(
+                "ParasutAutoConnect: no global or project-specific connection found — manual setup required.");
+            return;
+        }
+
+        var promote = projectSpecific[0];
+        var oldProjectId = promote.ProjectId;
+        promote.ProjectId = null;
+
+        try
+        {
+            await connectionRepo.UpdateAsync(promote, cancellationToken);
+
+            _logger.LogInformation(
+                "ParasutAutoConnect: promoted project-specific Paraşüt connection (was project {OldProjectId}) " +
+                "to global. CompanyId={CompanyId} Username={Username}. " +
+                "All projects now share this connection.",
+                oldProjectId, promote.CompanyId, promote.Username);
+
+            if (projectSpecific.Count > 1)
+            {
+                _logger.LogWarning(
+                    "ParasutAutoConnect: {Count} additional project-specific connections still exist — " +
+                    "they remain project-bound. Promoted the most recently updated one.",
+                    projectSpecific.Count - 1);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "ParasutAutoConnect: failed to promote project-specific connection {Id} to global. {Inner}",
+                promote.Id, ex.InnerException?.Message ?? ex.Message);
         }
     }
 }
