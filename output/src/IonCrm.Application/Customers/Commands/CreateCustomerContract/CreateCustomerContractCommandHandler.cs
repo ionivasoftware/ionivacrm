@@ -118,46 +118,63 @@ public sealed class CreateCustomerContractCommandHandler
                 $"Rezerval'da abonelik oluşturulamadı: {ex.Message}");
         }
 
-        // 6. Renewal semantics: complete any currently-active contract before adding the new one.
-        var existingActive = await _contractRepository.GetActiveByCustomerIdAsync(customer.Id, cancellationToken);
-        if (existingActive is not null)
+        // 6-8. DB writes — wrapped so any persistence error surfaces with a meaningful message
+        // instead of bubbling up as a generic 500. Rezerval has already been hit at this point
+        // so a failure here means the local state is out of sync; logging is critical.
+        CustomerContract saved;
+        try
         {
-            existingActive.Status = ContractStatus.Completed;
-            existingActive.NextInvoiceDate = null;
-            await _contractRepository.UpdateAsync(existingActive, cancellationToken);
+            // 6. Renewal semantics: complete any currently-active contract before adding the new one.
+            var existingActive = await _contractRepository.GetActiveByCustomerIdAsync(customer.Id, cancellationToken);
+            if (existingActive is not null)
+            {
+                existingActive.Status = ContractStatus.Completed;
+                existingActive.NextInvoiceDate = null;
+                await _contractRepository.UpdateAsync(existingActive, cancellationToken);
 
-            _logger.LogInformation(
-                "Marked previous contract {OldId} Completed before renewal for customer {CustomerId}.",
-                existingActive.Id, customer.Id);
+                _logger.LogInformation(
+                    "Marked previous contract {OldId} Completed before renewal for customer {CustomerId}.",
+                    existingActive.Id, customer.Id);
+            }
+
+            // 7. Insert new contract
+            var contract = new CustomerContract
+            {
+                ProjectId               = customer.ProjectId,
+                CustomerId              = customer.Id,
+                Title                   = $"{customer.CompanyName} Abonelik",
+                MonthlyAmount           = request.MonthlyAmount,
+                PaymentType             = request.PaymentType,
+                StartDate               = startDate,
+                DurationMonths          = request.DurationMonths,
+                EndDate                 = endDate,
+                Status                  = ContractStatus.Active,
+                RezervalSubscriptionId  = rezervalResponse.Data?.RezervalSubscriptionId,
+                RezervalPaymentPlanId   = rezervalResponse.Data?.RezervalPaymentPlanId,
+                // EFT: schedule first invoice on the start date. CreditCard: never auto-invoice (iyzico handles it).
+                NextInvoiceDate         = request.PaymentType == ContractPaymentType.EftWire ? startDate : (DateTime?)null,
+                LastInvoiceGeneratedDate = null
+            };
+
+            saved = await _contractRepository.AddAsync(contract, cancellationToken);
+
+            // 8. Sync MonthlyLicenseFee on the Customer record so the existing
+            //    CreateRezervAlDraftInvoice flow (manual) stays in agreement with the contract price.
+            if (customer.MonthlyLicenseFee != request.MonthlyAmount)
+            {
+                customer.MonthlyLicenseFee = request.MonthlyAmount;
+                await _customerRepository.UpdateAsync(customer, cancellationToken);
+            }
         }
-
-        // 7. Insert new contract
-        var contract = new CustomerContract
+        catch (Exception ex)
         {
-            ProjectId               = customer.ProjectId,
-            CustomerId              = customer.Id,
-            Title                   = $"{customer.CompanyName} Abonelik",
-            MonthlyAmount           = request.MonthlyAmount,
-            PaymentType             = request.PaymentType,
-            StartDate               = startDate,
-            DurationMonths          = request.DurationMonths,
-            EndDate                 = endDate,
-            Status                  = ContractStatus.Active,
-            RezervalSubscriptionId  = rezervalResponse.Data?.RezervalSubscriptionId,
-            RezervalPaymentPlanId   = rezervalResponse.Data?.RezervalPaymentPlanId,
-            // EFT: schedule first invoice on the start date. CreditCard: never auto-invoice (iyzico handles it).
-            NextInvoiceDate         = request.PaymentType == ContractPaymentType.EftWire ? startDate : (DateTime?)null,
-            LastInvoiceGeneratedDate = null
-        };
+            _logger.LogError(ex,
+                "Contract persistence failed for customer {CustomerId} after Rezerval succeeded " +
+                "(rezervalSubId={SubId}). Local DB state may be out of sync.",
+                customer.Id, rezervalResponse.Data?.RezervalSubscriptionId);
 
-        var saved = await _contractRepository.AddAsync(contract, cancellationToken);
-
-        // 8. Sync MonthlyLicenseFee on the Customer record so the existing
-        //    CreateRezervAlDraftInvoice flow (manual) stays in agreement with the contract price.
-        if (customer.MonthlyLicenseFee != request.MonthlyAmount)
-        {
-            customer.MonthlyLicenseFee = request.MonthlyAmount;
-            await _customerRepository.UpdateAsync(customer, cancellationToken);
+            return Result<CustomerContractDto>.Failure(
+                $"Sözleşme kaydedilemedi: {ex.GetBaseException().Message}");
         }
 
         _logger.LogInformation(
