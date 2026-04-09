@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -47,10 +47,42 @@ export function CustomersPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Search & filter state
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<CustomerStatus | 'all'>('all');
-  const [segmentFilter, setSegmentFilter] = useState<string>('all');
+  // ── Filter / pagination state lives in the URL ──────────────────────────
+  // Persists across navigation (customer detail back button), refresh, browser
+  // history navigation, and is bookmark/shareable. Replaces useState so the
+  // detail-page round trip no longer resets the user's filters.
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const search        = searchParams.get('q')       ?? '';
+  const statusFilter  = (searchParams.get('status')  ?? 'all') as CustomerStatus | 'all';
+  const segmentFilter = searchParams.get('segment') ?? 'all';
+  const labelFilter   = (searchParams.get('label')   ?? 'all') as CustomerLabel | 'all';
+  const page          = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+
+  /**
+   * Patches the URL search params. Empty string / 'all' / undefined values are
+   * removed so the URL stays clean. By default also resets `page` to 1 since
+   * any filter change should restart pagination — pass `resetPage: false` for
+   * pure paging clicks.
+   */
+  function patchParams(updates: Record<string, string | undefined>, resetPage = true) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [key, value] of Object.entries(updates)) {
+          if (value === undefined || value === '' || value === 'all') {
+            next.delete(key);
+          } else {
+            next.set(key, value);
+          }
+        }
+        if (resetPage) next.delete('page');
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
   const { currentProjectId, projectNames, projects: storeProjects } = useAuthStore();
   const projectName = currentProjectId ? projectNames[currentProjectId] : undefined;
   const segments = getSegmentsForProject(projectName);
@@ -63,11 +95,13 @@ export function CustomersPage() {
   const isRezervalProject = !!(
     (currentProject as { rezervAlApiKey?: string | null } | undefined)?.rezervAlApiKey
   );
-  const [labelFilter, setLabelFilter] = useState<CustomerLabel | 'all'>('all');
-  const [showFilters, setShowFilters] = useState(false);
 
-  // Pagination
-  const [page, setPage] = useState(1);
+  // Filter bar visibility — start expanded if any filter is already active so the
+  // user immediately sees what's applied after returning from a customer detail.
+  const initialFiltersOpen =
+    statusFilter !== 'all' || segmentFilter !== 'all' || labelFilter !== 'all';
+  const [showFilters, setShowFilters] = useState(initialFiltersOpen);
+
   const PAGE_SIZE = 20;
 
   // Dialog state
@@ -91,30 +125,27 @@ export function CustomersPage() {
   ].filter(Boolean).length;
 
   function handleSearch(value: string) {
-    setSearch(value);
-    setPage(1);
+    patchParams({ q: value });
   }
 
   function handleStatusChange(value: string) {
-    setStatusFilter(value as CustomerStatus | 'all');
-    setPage(1);
+    patchParams({ status: value });
   }
 
   function handleSegmentChange(value: string) {
-    setSegmentFilter(value);
-    setPage(1);
+    patchParams({ segment: value });
   }
 
   function handleLabelChange(value: string) {
-    setLabelFilter(value as CustomerLabel | 'all');
-    setPage(1);
+    patchParams({ label: value });
   }
 
   function clearFilters() {
-    setStatusFilter('all');
-    setSegmentFilter('all');
-    setLabelFilter('all');
-    setPage(1);
+    patchParams({ status: undefined, segment: undefined, label: undefined });
+  }
+
+  function goToPage(nextPage: number) {
+    patchParams({ page: String(nextPage) }, /* resetPage */ false);
   }
 
   function handleQuickAction(customerId: string, type: ContactType) {
@@ -364,7 +395,7 @@ export function CustomersPage() {
                       variant="outline"
                       size="sm"
                       className="h-9 w-9 p-0"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      onClick={() => goToPage(Math.max(1, page - 1))}
                       disabled={page <= 1}
                     >
                       <ChevronLeft className="h-4 w-4" />
@@ -385,7 +416,7 @@ export function CustomersPage() {
                         return (
                           <button
                             key={pageNum}
-                            onClick={() => setPage(pageNum)}
+                            onClick={() => goToPage(pageNum)}
                             className={`w-8 h-8 rounded text-sm font-medium transition-colors ${
                               pageNum === page
                                 ? 'bg-primary text-primary-foreground'
@@ -401,7 +432,7 @@ export function CustomersPage() {
                       variant="outline"
                       size="sm"
                       className="h-9 w-9 p-0"
-                      onClick={() => setPage((p) => Math.min(data.totalPages, p + 1))}
+                      onClick={() => goToPage(Math.min(data.totalPages, page + 1))}
                       disabled={page >= data.totalPages}
                     >
                       <ChevronRight className="h-4 w-4" />
