@@ -292,6 +292,50 @@ public sealed class SaasBClient : ISaasBClient
         }, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<RezervalCancelSubscriptionResponse> CancelRezervalSubscriptionAsync(
+        RezervalCancelSubscriptionRequest request,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Rezerval CRM: cancelling subscription for companyId={CompanyId}.",
+            request.RezervalCompanyId);
+
+        return await _retryPipeline.ExecuteAsync<RezervalCancelSubscriptionResponse>(async ct =>
+        {
+            var http = new HttpRequestMessage(HttpMethod.Post,
+                "https://rezback.rezerval.com/v1/Crm/Subscription/Cancel");
+
+            await ApplyBearerAuthAsync(http, apiKey, ct);
+            http.Content = JsonContent.Create(request, options: JsonOpts);
+
+            var response = await _httpClient.SendAsync(http, ct);
+            await EnsureSuccessAsync(response, ct);
+
+            var envelope = await response.Content.ReadFromJsonAsync<RezervalCancelSubscriptionResponse>(JsonOpts, ct);
+            if (envelope is null)
+                throw new InvalidOperationException("Rezerval iptal yanıtı boş döndü.");
+
+            if (!envelope.IsSuccess)
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(envelope.Message)
+                        ? "Rezerval aboneliği iptal edilemedi."
+                        : $"Rezerval aboneliği iptal edilemedi: {envelope.Message}");
+
+            // Iyzico-side warnings (e.g. plan already deleted, product missing) are surfaced
+            // through envelope.Data.IyzicoWarnings — caller decides whether to display them.
+            if (envelope.Data?.IyzicoWarnings is { Count: > 0 } warnings)
+            {
+                _logger.LogWarning(
+                    "Rezerval cancel returned {Count} iyzico warning(s) for companyId={CompanyId}: {Warnings}",
+                    warnings.Count, request.RezervalCompanyId, string.Join("; ", warnings));
+            }
+
+            return envelope;
+        }, cancellationToken);
+    }
+
     /// <summary>
     /// Builds a <see cref="MultipartFormDataContent"/> from <see cref="RezervalCompanyFormData"/>.
     /// All fields are sent as string parts; the optional logo is added as a file part when present.

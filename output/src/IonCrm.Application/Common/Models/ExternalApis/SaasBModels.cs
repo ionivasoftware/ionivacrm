@@ -162,6 +162,28 @@ public record RezervalSubscriptionData(
     [property: JsonPropertyName("rezervalPaymentPlanId")] string? RezervalPaymentPlanId,
     [property: JsonPropertyName("message")] string? Message);
 
+// ── RezervAl Subscription Cancel ─────────────────────────────────────────────
+
+/// <summary>
+/// JSON request body sent to POST https://rezback.rezerval.com/v1/Crm/Subscription/Cancel.
+/// Cancels the active subscription for a Rezerval company. Tolerant on the Rezerval side:
+/// iyzico-side failures (already deleted, network timeout) are returned as warnings rather
+/// than throwing — local cleanup always runs.
+/// </summary>
+public record RezervalCancelSubscriptionRequest(
+    [property: JsonPropertyName("rezervalCompanyId")] int RezervalCompanyId);
+
+/// <summary>Envelope wrapper returned by the RezervAl subscription cancel endpoint.</summary>
+public record RezervalCancelSubscriptionResponse(
+    [property: JsonPropertyName("data")] RezervalCancelSubscriptionData? Data,
+    [property: JsonPropertyName("isSuccess")] bool IsSuccess,
+    [property: JsonPropertyName("message")] string? Message);
+
+/// <summary>Data payload inside <see cref="RezervalCancelSubscriptionResponse"/>.</summary>
+public record RezervalCancelSubscriptionData(
+    [property: JsonPropertyName("rezervalCompanyId")] int RezervalCompanyId,
+    [property: JsonPropertyName("iyzicoWarnings")] List<string>? IyzicoWarnings);
+
 // ── RezervAl Company Summary ─────────────────────────────────────────────────
 
 /// <summary>

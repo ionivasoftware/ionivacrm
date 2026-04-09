@@ -34,6 +34,7 @@ import {
   FileText,
   Banknote,
   CreditCard,
+  XCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -91,6 +92,7 @@ import {
 import { TransferLeadModal } from '@/components/customers/TransferLeadModal';
 import { RezervalPushDialog } from '@/components/customers/RezervalPushDialog';
 import { CreateContractDialog } from '@/components/customers/CreateContractDialog';
+import { CancelContractDialog } from '@/components/customers/CancelContractDialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useCanAccessFinance } from '@/lib/roles';
@@ -1068,6 +1070,7 @@ export function CustomerDetailPage() {
 
   // Customer subscription contract (Rezerval-only)
   const [showContractDialog, setShowContractDialog] = useState(false);
+  const [showCancelContractDialog, setShowCancelContractDialog] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(linkSearch); setLinkPage(1); }, 400);
@@ -1424,6 +1427,15 @@ export function CustomerDetailPage() {
                       </span>
                     )}
                   </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto h-7 gap-1.5 border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                    onClick={() => setShowCancelContractDialog(true)}
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                    İptal Et
+                  </Button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
@@ -2286,6 +2298,16 @@ export function CustomerDetailPage() {
           onClose={() => setShowContractDialog(false)}
           customer={customer}
           activeContract={activeContract ?? null}
+        />
+      )}
+
+      {/* Cancel Contract Confirmation Dialog (Rezerval-only) */}
+      {customer && activeContract && (
+        <CancelContractDialog
+          isOpen={showCancelContractDialog}
+          onClose={() => setShowCancelContractDialog(false)}
+          customer={customer}
+          contract={activeContract}
         />
       )}
     </div>

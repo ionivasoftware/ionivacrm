@@ -586,3 +586,34 @@ export function useCreateCustomerContract(customerId: string) {
     },
   });
 }
+
+/**
+ * Response from POST /customers/{id}/contracts/cancel.
+ * `iyzicoWarnings` is non-empty when Rezerval reported iyzico-side issues
+ * (already deleted plan/product, network timeout) — local cleanup still ran.
+ */
+export interface CancelContractResponse {
+  contract: CustomerContract;
+  iyzicoWarnings: string[];
+}
+
+/**
+ * Cancels the active recurring contract for a Rezerval customer.
+ * Tolerant: even when iyzico warnings are returned, the local contract is marked Cancelled.
+ */
+export function useCancelCustomerContract(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post<ApiResponse<CancelContractResponse>>(
+        `/customers/${customerId}/contracts/cancel`
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-contract', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+}

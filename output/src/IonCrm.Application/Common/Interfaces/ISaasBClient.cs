@@ -70,6 +70,19 @@ public interface ISaasBClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Cancels the active iyzico subscription for a RezervAl customer. Tolerant on the Rezerval
+    /// side: iyzico-side failures (already deleted, network timeout) are returned as warnings in
+    /// <see cref="RezervalCancelSubscriptionData.IyzicoWarnings"/> rather than throwing.
+    /// Endpoint: POST https://rezback.rezerval.com/v1/Crm/Subscription/Cancel
+    /// Auth: Authorization: Bearer {jwt}
+    /// Content-Type: application/json
+    /// </summary>
+    Task<RezervalCancelSubscriptionResponse> CancelRezervalSubscriptionAsync(
+        RezervalCancelSubscriptionRequest request,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns aggregated reservation/SMS metrics for a Rezerval company over the last week,
     /// last month, and last 3 months.
     /// Endpoint: GET https://rezback.rezerval.com/v1/Crm/CompanySummary?companyId={id}

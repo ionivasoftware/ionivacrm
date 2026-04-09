@@ -1,4 +1,5 @@
 using IonCrm.Application.Customers.Commands.AddCustomerSms;
+using IonCrm.Application.Customers.Commands.CancelCustomerContract;
 using IonCrm.Application.Customers.Commands.ConvertLeadToCustomer;
 using IonCrm.Application.Customers.Commands.CreateCustomer;
 using IonCrm.Application.Customers.Commands.CreateCustomerContract;
@@ -280,6 +281,21 @@ public class CustomersController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(new GetActiveContractByCustomerIdQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// Cancels the active recurring subscription contract for a Rezerval customer.
+    /// Calls the Rezerval cancel endpoint (which deletes the iyzico pricing plan + product
+    /// and tolerates iyzico-side failures via warnings) and marks the local contract as
+    /// Cancelled. Returns the updated contract DTO + any iyzico warnings surfaced.
+    /// </summary>
+    [HttpPost("{id:guid}/contracts/cancel")]
+    public async Task<IActionResult> CancelContract(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new CancelCustomerContractCommand(id), cancellationToken);
         return ResultToResponse(result);
     }
 
