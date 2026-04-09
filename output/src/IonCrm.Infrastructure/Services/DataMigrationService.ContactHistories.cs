@@ -247,10 +247,12 @@ public sealed partial class DataMigrationService
     /// <summary>
     /// Resolves the new <see cref="Guid"/> Customer ID from a legacy contact record.
     ///
-    /// Resolution logic:
-    ///   isPotential = false  → look up "EMS-{CustomerId}"
-    ///   isPotential = true   → look up "PC-{CustomerId}";
-    ///                          if converted (in potentialToCompanyMap) look up "EMS-{companyId}"
+    /// Resolution logic for an EMS company id:
+    ///   1. plain numeric form    "3"        ← canonical (matches SaasSyncJob)
+    ///   2. legacy prefixed form  "EMS-3"    ← earlier migration runs
+    ///   3. SaaS-A prefixed form  "SAASA-3"  ← oldest sync runs
+    ///
+    /// PotentialCustomer rows always use the "PC-{id}" prefix.
     /// Returns <see cref="Guid.Empty"/> when no matching customer is found.
     /// </summary>
     private static Guid ResolveCustomerId(
@@ -267,20 +269,33 @@ public sealed partial class DataMigrationService
 
         if (!isPotential)
         {
-            customerMap.TryGetValue($"EMS-{rawId}", out var id);
-            return id;
+            return ResolveEmsCustomer(rawId, customerMap);
         }
 
         // PotentialCustomer that was converted → redirect to EMS company
         if (potentialToCompanyMap.TryGetValue(rawId, out int companyId))
         {
-            customerMap.TryGetValue($"EMS-{companyId}", out var emsId);
-            return emsId;
+            return ResolveEmsCustomer(companyId, customerMap);
         }
 
         // Standalone potential customer
         customerMap.TryGetValue($"PC-{rawId}", out var pcId);
         return pcId;
+    }
+
+    /// <summary>
+    /// Tries every known LegacyId format an EMS company row may have been written under
+    /// (canonical plain numeric, or one of the historical prefixes), returning the first hit.
+    /// </summary>
+    private static Guid ResolveEmsCustomer(int companyId, Dictionary<string, Guid> customerMap)
+    {
+        if (customerMap.TryGetValue(companyId.ToString(), out var canonical))
+            return canonical;
+        if (customerMap.TryGetValue($"EMS-{companyId}", out var prefixed))
+            return prefixed;
+        if (customerMap.TryGetValue($"SAASA-{companyId}", out var saasa))
+            return saasa;
+        return Guid.Empty;
     }
 
     // ── DateTime helpers ──────────────────────────────────────────────────────

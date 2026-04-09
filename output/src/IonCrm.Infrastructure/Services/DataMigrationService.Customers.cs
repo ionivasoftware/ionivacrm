@@ -58,7 +58,13 @@ public sealed partial class DataMigrationService
 
             await SaveCustomerBatchAsync(
                 rows,
-                row => $"EMS-{row["ID"]}",
+                // Canonical LegacyId for EMS rows = plain numeric ID, matching what
+                // SaasSyncJob.SyncEmsCrmCustomersAsync writes for the same companies.
+                // The dedupe step below ALSO checks the legacy "EMS-{id}" format so
+                // earlier migration runs that used the prefixed form are recognized
+                // and not duplicated.
+                row => row["ID"]!.ToString()!,
+                row => new[] { $"EMS-{row["ID"]}", $"SAASA-{row["ID"]}" },
                 (row, legacyId) => new Customer
                 {
                     Id          = Guid.NewGuid(),
@@ -122,7 +128,10 @@ public sealed partial class DataMigrationService
 
             await SaveCustomerBatchAsync(
                 rows,
+                // PotentialCustomers have no live sync counterpart — keep the "PC-{id}"
+                // prefix as the canonical form. No legacy alternates to check.
                 row => $"PC-{row["ID"]}",
+                _ => Array.Empty<string>(),
                 (row, legacyId) => new Customer
                 {
                     Id          = Guid.NewGuid(),
@@ -153,15 +162,31 @@ public sealed partial class DataMigrationService
     /// Checks a batch of rows for existing LegacyIds (single IN query) then
     /// inserts only the new ones as <see cref="Customer"/> entities.
     /// </summary>
+    /// <param name="getLegacyId">
+    /// Returns the canonical LegacyId to write when inserting a new row.
+    /// </param>
+    /// <param name="getAlternateLegacyIds">
+    /// Returns any other LegacyId formats that may already exist in the database for the
+    /// same source row (e.g. an earlier migration run that used a different prefix). The
+    /// dedupe check considers a row as already migrated if EITHER the canonical id OR any
+    /// alternate id is present in Customers.
+    /// </param>
     private async Task SaveCustomerBatchAsync(
         List<Dictionary<string, object?>> rows,
         Func<Dictionary<string, object?>, string> getLegacyId,
+        Func<Dictionary<string, object?>, IEnumerable<string>> getAlternateLegacyIds,
         Func<Dictionary<string, object?>, string, Customer> buildEntity,
         bool isCustomer,
         CancellationToken ct)
     {
-        // Collect all legacy IDs in this batch
-        var batchIds = rows.Select(getLegacyId).ToList();
+        // Collect every id we need to check (canonical + alternates) in a single batch query.
+        var canonicalById = rows.ToDictionary(r => r, getLegacyId);
+        var alternatesById = rows.ToDictionary(r => r, r => getAlternateLegacyIds(r).ToArray());
+
+        var allLookupIds = canonicalById.Values
+            .Concat(alternatesById.Values.SelectMany(a => a))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
 
         using var scope = _scopeFactory.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -169,29 +194,32 @@ public sealed partial class DataMigrationService
         // One query per batch — much cheaper than N individual AnyAsync calls
         var existingIds = (await ctx.Customers
             .IgnoreQueryFilters()
-            .Where(c => batchIds.Contains(c.LegacyId!))
+            .Where(c => allLookupIds.Contains(c.LegacyId!))
             .Select(c => c.LegacyId!)
             .ToListAsync(ct))
             .ToHashSet(StringComparer.Ordinal);
 
         foreach (var row in rows)
         {
-            var legacyId = getLegacyId(row);
+            var canonicalId = canonicalById[row];
+            var alternates  = alternatesById[row];
             try
             {
-                if (existingIds.Contains(legacyId))
+                bool alreadyExists = existingIds.Contains(canonicalId)
+                                     || alternates.Any(a => existingIds.Contains(a));
+                if (alreadyExists)
                 {
                     _currentStatus.SkippedCustomers++;
                 }
                 else
                 {
-                    ctx.Customers.Add(buildEntity(row, legacyId));
+                    ctx.Customers.Add(buildEntity(row, canonicalId));
                     _currentStatus.MigratedCustomers++;
                 }
             }
             catch (Exception ex)
             {
-                var msg = $"Customer {legacyId}: {ex.Message}";
+                var msg = $"Customer {canonicalId}: {ex.Message}";
                 _currentStatus.Errors.Add(msg);
                 _logger.LogWarning("Migration row error: {Error}", msg);
             }
