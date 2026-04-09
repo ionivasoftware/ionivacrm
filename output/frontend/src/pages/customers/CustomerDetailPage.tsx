@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -1025,10 +1025,19 @@ function AddSmsDialog({ open, onOpenChange, companyName, addSms }: AddSmsDialogP
 export function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const customerId = id ?? '';
   const { currentProjectId } = useAuthStore();
   const canAccessFinance = useCanAccessFinance();
+
+  // The customer list page passes its current URL (with active filters and page
+  // number) as navigation state when opening the detail. The "back" button reuses
+  // it so users return to the exact filtered view they came from. Falls back to
+  // the bare /customers route if the page was opened directly (deep link).
+  const backUrl =
+    (location.state as { from?: string } | null)?.from ?? '/customers';
+  const goBackToList = () => navigate(backUrl);
 
   // UI state
   const [activeTab, setActiveTab] = useState<ActiveTab>('timeline');
@@ -1124,7 +1133,7 @@ export function CustomerDetailPage() {
     try {
       await deleteMutation.mutateAsync(customerId);
       toast({ title: 'Müşteri silindi', description: `${customer.companyName} kayıttan silindi.` });
-      navigate('/customers');
+      goBackToList();
     } catch {
       toast({ title: 'Hata', description: 'Müşteri silinemedi.', variant: 'destructive' });
     }
@@ -1175,7 +1184,7 @@ export function CustomerDetailPage() {
         <p className="text-muted-foreground mb-6">
           Bu müşteri kaydı mevcut değil veya erişim yetkiniz bulunmuyor.
         </p>
-        <Button variant="outline" onClick={() => navigate('/customers')} className="gap-2">
+        <Button variant="outline" onClick={goBackToList} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
           Müşterilere Dön
         </Button>
@@ -1212,7 +1221,7 @@ export function CustomerDetailPage() {
         <Button
           variant="ghost"
           className="gap-2 text-muted-foreground hover:text-foreground -ml-2"
-          onClick={() => navigate('/customers')}
+          onClick={goBackToList}
         >
           <ArrowLeft className="h-4 w-4" />
           Müşteriler
@@ -2278,7 +2287,7 @@ export function CustomerDetailPage() {
           open={showTransferModal}
           onOpenChange={setShowTransferModal}
           lead={customer}
-          onSuccess={() => navigate('/customers')}
+          onSuccess={goBackToList}
         />
       )}
 

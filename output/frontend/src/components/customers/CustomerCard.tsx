@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Phone, Mail, StickyNote, MoreVertical, MapPin, FolderOpen } from 'lucide-react';
 import { CustomerStatusBadge, CustomerLabelBadge } from './CustomerStatusBadge';
 import { Button } from '@/components/ui/button';
@@ -27,15 +27,24 @@ interface CustomerCardProps {
 
 export function CustomerCard({ customer, onQuickAction }: CustomerCardProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, projectNames } = useAuthStore();
   const initials = customer.companyName.slice(0, 2).toUpperCase();
   // Show project badge for SuperAdmin who can see multiple projects
   const showProjectBadge = user?.isSuperAdmin && Object.keys(projectNames).length > 1;
   const projectName = projectNames[customer.projectId];
 
+  // Pass the current list URL (with filters) as navigation state so the
+  // detail page's "back" button can return to the same filtered view.
+  function openDetail() {
+    navigate(`/customers/${customer.id}`, {
+      state: { from: location.pathname + location.search },
+    });
+  }
+
   return (
     <div
-      onClick={() => navigate(`/customers/${customer.id}`)}
+      onClick={openDetail}
       className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/40 cursor-pointer transition-colors"
     >
       {/* Left: avatar + info */}
