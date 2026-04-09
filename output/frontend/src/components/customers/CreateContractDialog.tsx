@@ -151,10 +151,10 @@ export function CreateContractDialog({
 
           <Separator />
 
-          {/* Monthly amount */}
+          {/* Monthly amount (VAT-inclusive) */}
           <div className="space-y-1.5">
             <Label htmlFor="monthlyAmount">
-              Aylık Tutar (TL) <span className="text-destructive">*</span>
+              Aylık Tutar — KDV Dahil (TL) <span className="text-destructive">*</span>
             </Label>
             <Input
               id="monthlyAmount"
@@ -164,6 +164,9 @@ export function CreateContractDialog({
               {...register('monthlyAmount')}
               className={cn('h-11', errors.monthlyAmount && 'border-destructive')}
             />
+            <p className="text-xs text-muted-foreground">
+              Girdiğiniz tutar KDV dahildir. Faturada KDV otomatik olarak ayrıştırılır.
+            </p>
             {errors.monthlyAmount && (
               <p className="text-xs text-destructive">{errors.monthlyAmount.message}</p>
             )}

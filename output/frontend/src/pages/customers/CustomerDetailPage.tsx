@@ -1439,7 +1439,7 @@ export function CustomerDetailPage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
-                    <p className="text-muted-foreground">Aylık Tutar</p>
+                    <p className="text-muted-foreground">Aylık Tutar (KDV Dahil)</p>
                     <p className="font-medium text-foreground">
                       {activeContract.monthlyAmount.toLocaleString('tr-TR', {
                         style: 'currency',

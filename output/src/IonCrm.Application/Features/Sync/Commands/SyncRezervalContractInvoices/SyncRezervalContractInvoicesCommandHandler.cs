@@ -152,11 +152,31 @@ public sealed class SyncRezervalContractInvoicesCommandHandler
                     continue;
                 }
 
-                // 5. Build invoice line — quantity 1 × MonthlyAmount, vatRate from product
-                int vatRate = (int)(product.TaxRate * 100);
-                decimal unitPrice = contract.MonthlyAmount;
-                decimal netTotal = unitPrice;
-                decimal grossTotal = unitPrice * (1 + vatRate / 100m);
+                // 5. Build invoice line.
+                //
+                //  • contract.MonthlyAmount is VAT-INCLUSIVE (gross) — that's how the user
+                //    enters it in the CreateContractDialog. The invoice line stores the
+                //    KDV-hariç unitPrice + vatRate separately, so we back out the net amount
+                //    here. This way the total at the bottom of the invoice equals exactly
+                //    the contract MonthlyAmount.
+                //
+                //  • product.TaxRate may be 0 if the mapping has no rate set and the Paraşüt
+                //    auto-enrich call (above) couldn't fill it (e.g. Paraşüt down, product
+                //    has no rate). Falling back to 20% means the invoice still ships with a
+                //    correct VAT line instead of an empty one — observed in prod where the
+                //    user reported "kdv oranı faturaya gelmemiş".
+                int vatRate = (int)Math.Round(product.TaxRate * 100);
+                if (vatRate <= 0)
+                {
+                    _logger.LogWarning(
+                        "Contract invoice sync: product '{Name}' has no TaxRate; defaulting to %20 for contract {ContractId}.",
+                        product.ProductName, contract.Id);
+                    vatRate = 20;
+                }
+
+                decimal grossTotal = contract.MonthlyAmount;
+                decimal netTotal   = Math.Round(grossTotal / (1 + vatRate / 100m), 2);
+                decimal unitPrice  = netTotal;
 
                 var lines = new[]
                 {

@@ -109,7 +109,7 @@ export function CancelContractDialog({
               <span className="font-medium truncate ml-2">{customer.companyName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Aylık tutar</span>
+              <span className="text-muted-foreground">Aylık tutar (KDV dahil)</span>
               <span className="font-mono font-medium">{formatCurrency(contract.monthlyAmount)}</span>
             </div>
             <div className="flex justify-between">
