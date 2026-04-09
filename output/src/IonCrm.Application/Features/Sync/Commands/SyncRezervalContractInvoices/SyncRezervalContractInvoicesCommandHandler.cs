@@ -72,7 +72,9 @@ public sealed class SyncRezervalContractInvoicesCommandHandler
                 var customer = await _customerRepository.GetByIdAsync(contract.CustomerId, cancellationToken);
                 if (customer is null)
                 {
-                    errors.Add($"Contract {contract.Id}: customer {contract.CustomerId} bulunamadı.");
+                    var msg = $"Contract {contract.Id}: customer {contract.CustomerId} bulunamadı.";
+                    errors.Add(msg);
+                    _logger.LogWarning("Contract invoice sync SKIP: {Reason}", msg);
                     skipped++;
                     continue;
                 }
@@ -87,8 +89,11 @@ public sealed class SyncRezervalContractInvoicesCommandHandler
 
                 if (product is null || string.IsNullOrEmpty(product.ParasutProductId))
                 {
-                    errors.Add(
-                        $"Contract {contract.Id}: '{RezervalMonthlyProductName}' Paraşüt ürün eşleştirmesi yok.");
+                    var msg = $"Contract {contract.Id} (project {contract.ProjectId}): " +
+                              $"'{RezervalMonthlyProductName}' Paraşüt ürün eşleştirmesi yok " +
+                              $"(product={(product is null ? "null" : "found but ParasutProductId empty")}).";
+                    errors.Add(msg);
+                    _logger.LogWarning("Contract invoice sync SKIP: {Reason}", msg);
                     skipped++;
                     continue;
                 }
@@ -236,6 +241,15 @@ public sealed class SyncRezervalContractInvoicesCommandHandler
         _logger.LogInformation(
             "Contract invoice sync complete. Scanned={Scanned} Created={Created} Skipped={Skipped} Completed={Completed} Errors={Errors}.",
             contractsScanned, invoicesCreated, skipped, contractsCompleted, errors.Count);
+
+        // Dump every error so we can see the actual skip reason in Railway logs,
+        // not just the count.
+        if (errors.Count > 0)
+        {
+            _logger.LogWarning(
+                "Contract invoice sync errors ({Count}):\n{Errors}",
+                errors.Count, string.Join("\n", errors));
+        }
 
         return Result<SyncRezervalContractInvoicesResult>.Success(result);
     }
