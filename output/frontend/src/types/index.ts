@@ -358,11 +358,13 @@ export type ParasutProductKey =
   | 'sms_10000'
   | 'rezerval_monthly';
 
-/** A saved mapping between a CRM product key and a Paraşüt product */
+/**
+ * A saved mapping between a CRM product key and a Paraşüt product.
+ * Mappings are project-independent (global) — one catalog shared by all projects,
+ * mirroring the global Paraşüt connection.
+ */
 export interface ParasutProduct {
   id: string;
-  projectId: string;
-  productKey: ParasutProductKey;
   productName: string;
   parasutProductId: string;
   parasutProductName: string | null;

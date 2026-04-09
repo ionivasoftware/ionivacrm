@@ -133,7 +133,7 @@ public sealed class AddCustomerSmsCommandHandler
         try
         {
             var productName   = $"{count} SMS";
-            var configProduct = await _productRepository.GetByNameAsync(projectId, productName, ct);
+            var configProduct = await _productRepository.GetByNameAsync(productName, ct);
 
             // Auto-enrich from Paraşüt if product data is incomplete
             if (configProduct is not null && !string.IsNullOrEmpty(configProduct.ParasutProductId) &&

@@ -1,10 +1,12 @@
 namespace IonCrm.Application.Common.DTOs;
 
-/// <summary>Paraşüt product data transfer object.</summary>
+/// <summary>
+/// Paraşüt product mapping DTO. Mappings are project-independent (global) — there is one
+/// global catalog shared by all projects, mirroring the global Paraşüt connection.
+/// </summary>
 public class ParasutProductDto
 {
     public Guid Id { get; set; }
-    public Guid ProjectId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public string ParasutProductId { get; set; } = string.Empty;
     public string? ParasutProductName { get; set; }

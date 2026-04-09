@@ -5,12 +5,11 @@ using MediatR;
 namespace IonCrm.Application.Features.ParasutProducts.Commands.UpsertParasutProduct;
 
 /// <summary>
-/// Upsert (create-or-update) a Paraşüt product configuration by name.
-/// Since the 6 product names are fixed, this command either creates a new record
-/// or updates the existing one for the same project + product name.
+/// Upsert (create-or-update) a global Paraşüt product mapping by name.
+/// The product catalog is project-independent — there is one global mapping per ProductName
+/// shared by all projects, mirroring the global Paraşüt connection.
 /// </summary>
 public record UpsertParasutProductCommand(
-    Guid ProjectId,
     string ProductName,
     string ParasutProductId,
     decimal UnitPrice,

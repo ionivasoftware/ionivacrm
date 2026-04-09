@@ -254,10 +254,9 @@ export function useParasutInvoices(projectId: string | null, page = 1, enabled =
   });
 }
 
-// ── Paraşüt Product Mapping ──────────────────────────────────────────────────
+// ── Paraşüt Product Mapping (global / project-independent) ──────────────────
 
 export interface SaveParasutProductRequest {
-  projectId: string;
   productKey: ParasutProductKey;
   productName: string;
   parasutProductId: string;
@@ -269,37 +268,45 @@ export interface SaveParasutProductRequest {
   emsProductId?: string;
 }
 
-/** Fetch saved CRM→Paraşüt product mappings from our DB */
-export function useParasutProducts(projectId: string | null) {
+/**
+ * Fetch the global CRM→Paraşüt product catalog. Mappings are project-independent —
+ * one catalog shared by all projects.
+ */
+export function useParasutProducts() {
   return useQuery({
-    queryKey: ['parasutProducts', projectId],
+    queryKey: ['parasutProducts'],
     queryFn: async () => {
       const res = await apiClient.get<ApiResponse<ParasutProduct[]>>(
-        `/crm/parasut-products?projectId=${projectId}`
+        `/crm/parasut-products`
       );
       return res.data.data;
     },
-    enabled: !!projectId,
     staleTime: 30_000,
   });
 }
 
-/** Fetch live product list from Paraşüt API */
+/**
+ * Fetch live product list from Paraşüt API.
+ * The Paraşüt connection itself is global, but the existing endpoint still expects a
+ * projectId query parameter to look up the connection — pass any project the user has
+ * access to (or omit to use the global connection directly).
+ */
 export function useParasutProductList(projectId: string | null, enabled = false) {
   return useQuery({
-    queryKey: ['parasutProductList', projectId],
+    queryKey: ['parasutProductList', projectId ?? 'global'],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse<ParasutProductListItem[]>>(
-        `/crm/parasut/products?projectId=${projectId}`
-      );
+      const url = projectId
+        ? `/crm/parasut/products?projectId=${projectId}`
+        : `/crm/parasut/products`;
+      const res = await apiClient.get<ApiResponse<ParasutProductListItem[]>>(url);
       return res.data.data;
     },
-    enabled: !!projectId && enabled,
+    enabled,
     staleTime: 5 * 60_000,
   });
 }
 
-/** Create or update a CRM→Paraşüt product mapping (POST creates, PUT updates by id) */
+/** Create or update a global CRM→Paraşüt product mapping (POST creates, PUT updates by id) */
 export function useSaveParasutProduct() {
   const qc = useQueryClient();
   return useMutation({
@@ -317,8 +324,8 @@ export function useSaveParasutProduct() {
       );
       return res.data.data;
     },
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['parasutProducts', vars.projectId] });
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['parasutProducts'] });
     },
   });
 }

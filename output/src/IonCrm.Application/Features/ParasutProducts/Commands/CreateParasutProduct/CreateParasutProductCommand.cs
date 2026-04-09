@@ -5,11 +5,11 @@ using MediatR;
 namespace IonCrm.Application.Features.ParasutProducts.Commands.CreateParasutProduct;
 
 /// <summary>
-/// Command to create a new Paraşüt product configuration.
-/// Maps a CRM product (e.g., "1 Aylık Üyelik") to Paraşüt product ID, price, and tax rate.
+/// Command to create a new global Paraşüt product mapping.
+/// The product catalog is project-independent — one mapping per ProductName shared by all
+/// projects, mirroring the global Paraşüt connection.
 /// </summary>
 public record CreateParasutProductCommand(
-    Guid ProjectId,
     string ProductName,
     string ParasutProductId,
     decimal UnitPrice,

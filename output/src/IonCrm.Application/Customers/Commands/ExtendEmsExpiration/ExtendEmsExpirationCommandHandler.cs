@@ -156,7 +156,7 @@ public sealed class ExtendEmsExpirationCommandHandler
             var dueDate       = today.AddDays(30);
 
             // Look up the configured product to get unit price and VAT rate
-            var configProduct = await _productRepository.GetByNameAsync(projectId, productName, ct);
+            var configProduct = await _productRepository.GetByNameAsync(productName, ct);
 
             // Auto-enrich from Paraşüt if product data is incomplete
             if (configProduct is not null && !string.IsNullOrEmpty(configProduct.ParasutProductId) &&

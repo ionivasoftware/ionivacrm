@@ -84,12 +84,14 @@ public sealed class SyncRezervalContractInvoicesCommandHandler
                     continue;
                 }
 
-                // 2. Resolve "RezervAl Aylık Lisans Bedeli" product mapping for the project
-                if (!productCache.TryGetValue(contract.ProjectId, out var product))
+                // 2. Resolve "RezervAl Aylık Lisans Bedeli" product mapping (global — one
+                //    catalog shared by every project, so this lookup is project-independent).
+                //    Cache by a single sentinel key since there is only one global mapping.
+                if (!productCache.TryGetValue(Guid.Empty, out var product))
                 {
                     product = await _productRepository.GetByNameAsync(
-                        contract.ProjectId, RezervalMonthlyProductName, cancellationToken);
-                    productCache[contract.ProjectId] = product;
+                        RezervalMonthlyProductName, cancellationToken);
+                    productCache[Guid.Empty] = product;
                 }
 
                 if (product is null || string.IsNullOrEmpty(product.ParasutProductId))

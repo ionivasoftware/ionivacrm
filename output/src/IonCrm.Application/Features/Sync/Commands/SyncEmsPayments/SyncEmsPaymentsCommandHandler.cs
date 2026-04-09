@@ -136,7 +136,6 @@ public sealed class SyncEmsPaymentsCommandHandler
                     if (payment.ProductId.HasValue)
                     {
                         var product = await _productRepository.GetByEmsProductIdAsync(
-                            project.Id,
                             payment.ProductId.Value.ToString(),
                             cancellationToken);
 

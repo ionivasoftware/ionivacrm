@@ -9,8 +9,9 @@ namespace IonCrm.Application.Features.ParasutProducts.Commands.UpsertParasutProd
 
 /// <summary>
 /// Handler for <see cref="UpsertParasutProductCommand"/>.
-/// Creates a new product or updates the existing one with the same project + product name.
-/// Designed for the 6 fixed product catalog: memberships (1-month, 1-year) + SMS packages.
+/// Creates or updates a global Paraşüt product mapping by name. The product catalog is
+/// project-independent — there is one mapping per ProductName shared by all projects,
+/// mirroring the global Paraşüt connection.
 /// </summary>
 public class UpsertParasutProductCommandHandler
     : IRequestHandler<UpsertParasutProductCommand, Result<ParasutProductDto>>
@@ -31,8 +32,8 @@ public class UpsertParasutProductCommandHandler
         CancellationToken cancellationToken)
     {
         _logger.LogInformation(
-            "ParasutProduct upsert: project={ProjectId} name='{Name}' parasutId={ParasutId} unitPrice={Price} taxRate={Tax}",
-            request.ProjectId, request.ProductName, request.ParasutProductId, request.UnitPrice, request.TaxRate);
+            "ParasutProduct upsert: name='{Name}' parasutId={ParasutId} unitPrice={Price} taxRate={Tax}",
+            request.ProductName, request.ParasutProductId, request.UnitPrice, request.TaxRate);
 
         // Validate inputs
         if (string.IsNullOrWhiteSpace(request.ProductName))
@@ -47,9 +48,9 @@ public class UpsertParasutProductCommandHandler
         if (request.TaxRate < 0 || request.TaxRate > 1)
             return Result<ParasutProductDto>.Failure("KDV oranı 0 ile 1 arasında olmalıdır (örn. 0.20 = %20).");
 
-        // Try to find existing record for this project + product name
+        // Try to find an existing global mapping for this product name.
         var existing = await _productRepository.GetByNameAsync(
-            request.ProjectId, request.ProductName, cancellationToken);
+            request.ProductName, cancellationToken);
 
         ParasutProduct product;
 
@@ -69,22 +70,22 @@ public class UpsertParasutProductCommandHandler
             catch (Exception ex)
             {
                 _logger.LogError(ex,
-                    "ParasutProduct update FAILED: id={Id} project={ProjectId} name='{Name}'",
-                    existing.Id, request.ProjectId, request.ProductName);
+                    "ParasutProduct update FAILED: id={Id} name='{Name}'",
+                    existing.Id, request.ProductName);
                 return Result<ParasutProductDto>.Failure(
                     $"Ürün eşleştirmesi güncellenemedi: {ex.GetBaseException().Message}");
             }
             product = existing;
             _logger.LogInformation(
-                "ParasutProduct UPDATED: id={Id} project={ProjectId} name='{Name}'",
-                product.Id, product.ProjectId, product.ProductName);
+                "ParasutProduct UPDATED: id={Id} name='{Name}'",
+                product.Id, product.ProductName);
         }
         else
         {
-            // Create new
+            // Create new global mapping (ProjectId = null)
             var newProduct = new ParasutProduct
             {
-                ProjectId           = request.ProjectId,
+                ProjectId           = null,
                 ProductName         = request.ProductName,
                 ParasutProductId    = request.ParasutProductId,
                 ParasutProductName  = request.ParasutProductName,
@@ -100,20 +101,19 @@ public class UpsertParasutProductCommandHandler
             catch (Exception ex)
             {
                 _logger.LogError(ex,
-                    "ParasutProduct insert FAILED: project={ProjectId} name='{Name}'",
-                    request.ProjectId, request.ProductName);
+                    "ParasutProduct insert FAILED: name='{Name}'",
+                    request.ProductName);
                 return Result<ParasutProductDto>.Failure(
                     $"Ürün eşleştirmesi kaydedilemedi: {ex.GetBaseException().Message}");
             }
             _logger.LogInformation(
-                "ParasutProduct INSERTED: id={Id} project={ProjectId} name='{Name}'",
-                product.Id, product.ProjectId, product.ProductName);
+                "ParasutProduct INSERTED: id={Id} name='{Name}'",
+                product.Id, product.ProductName);
         }
 
         return Result<ParasutProductDto>.Success(new ParasutProductDto
         {
             Id                  = product.Id,
-            ProjectId           = product.ProjectId,
             ProductName         = product.ProductName,
             ParasutProductId    = product.ParasutProductId,
             ParasutProductName  = product.ParasutProductName,

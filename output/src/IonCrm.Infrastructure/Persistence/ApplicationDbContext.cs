@@ -127,10 +127,9 @@ public class ApplicationDbContext : DbContext
                 (_currentUser.IsSuperAdmin ||
                  _currentUser.ProjectIds.Contains(e.ProjectId)));
 
+        // ParasutProduct: project-independent (global). Soft-delete only — no tenant filter.
         modelBuilder.Entity<ParasutProduct>()
-            .HasQueryFilter(e => !e.IsDeleted &&
-                (_currentUser.IsSuperAdmin ||
-                 _currentUser.ProjectIds.Contains(e.ProjectId)));
+            .HasQueryFilter(e => !e.IsDeleted);
 
         modelBuilder.Entity<CustomerContract>()
             .HasQueryFilter(e => !e.IsDeleted &&

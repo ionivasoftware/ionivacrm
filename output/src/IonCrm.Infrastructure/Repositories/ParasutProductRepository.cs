@@ -5,7 +5,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace IonCrm.Infrastructure.Repositories;
 
-/// <summary>EF Core repository for <see cref="ParasutProduct"/>.</summary>
+/// <summary>
+/// EF Core repository for <see cref="ParasutProduct"/>.
+/// All reads ignore query filters: the entity has no tenant filter (it's project-independent)
+/// but we keep IgnoreQueryFilters() so background jobs without HTTP context behave the same
+/// as user-driven requests, and so soft-delete is the only filter applied.
+/// </summary>
 public class ParasutProductRepository : IParasutProductRepository
 {
     private readonly ApplicationDbContext _context;
@@ -17,18 +22,13 @@ public class ParasutProductRepository : IParasutProductRepository
     }
 
     /// <inheritdoc />
-    public async Task<List<ParasutProduct>> GetByProjectIdAsync(
-        Guid projectId,
+    public async Task<List<ParasutProduct>> GetAllAsync(
         CancellationToken cancellationToken = default)
     {
-        // IgnoreQueryFilters: matches the rest of this repo's read methods. The Settings UI
-        // is SuperAdmin-only and projectId is passed explicitly, so we don't need the global
-        // tenant filter to scope it. Background jobs (which have no HTTP context and would
-        // otherwise see zero rows) also depend on this.
         return await _context.ParasutProducts
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(p => p.ProjectId == projectId && !p.IsDeleted)
+            .Where(p => !p.IsDeleted)
             .OrderBy(p => p.ProductName)
             .ToListAsync(cancellationToken);
     }
@@ -46,7 +46,6 @@ public class ParasutProductRepository : IParasutProductRepository
 
     /// <inheritdoc />
     public async Task<ParasutProduct?> GetByNameAsync(
-        Guid projectId,
         string productName,
         CancellationToken cancellationToken = default)
     {
@@ -54,7 +53,7 @@ public class ParasutProductRepository : IParasutProductRepository
             .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                p => p.ProjectId == projectId && p.ProductName == productName && !p.IsDeleted,
+                p => p.ProductName == productName && !p.IsDeleted,
                 cancellationToken);
     }
 
@@ -92,7 +91,6 @@ public class ParasutProductRepository : IParasutProductRepository
 
     /// <inheritdoc />
     public async Task<ParasutProduct?> GetByEmsProductIdAsync(
-        Guid projectId,
         string emsProductId,
         CancellationToken cancellationToken = default)
     {
@@ -100,9 +98,7 @@ public class ParasutProductRepository : IParasutProductRepository
             .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                p => p.ProjectId == projectId
-                  && p.EmsProductId == emsProductId
-                  && !p.IsDeleted,
+                p => p.EmsProductId == emsProductId && !p.IsDeleted,
                 cancellationToken);
     }
 }

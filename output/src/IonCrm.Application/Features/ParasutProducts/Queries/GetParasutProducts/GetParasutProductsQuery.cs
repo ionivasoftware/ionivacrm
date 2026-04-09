@@ -5,7 +5,7 @@ using MediatR;
 namespace IonCrm.Application.Features.ParasutProducts.Queries.GetParasutProducts;
 
 /// <summary>
-/// Query to retrieve all Paraşüt products for a given project.
-/// Returns the product catalog used for invoice line items.
+/// Query to retrieve the global Paraşüt product catalog. Mappings are project-independent —
+/// one global catalog shared by all projects, mirroring the global Paraşüt connection.
 /// </summary>
-public record GetParasutProductsQuery(Guid ProjectId) : IRequest<Result<List<ParasutProductDto>>>;
+public record GetParasutProductsQuery : IRequest<Result<List<ParasutProductDto>>>;

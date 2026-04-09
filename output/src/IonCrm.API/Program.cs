@@ -385,6 +385,49 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 ADD COLUMN IF NOT EXISTS ""EmsPaymentId"" text;
         ");
 
+        // ── ParasutProducts → global mapping migration ─────────────────────────
+        // Mappings are now project-independent (one global catalog shared by every project,
+        // mirroring the global Paraşüt connection). Steps:
+        //   1. Drop the FK constraint to Projects so ProjectId can be null/legacy.
+        //   2. Make ProjectId nullable so new global rows can be inserted with NULL.
+        //   3. Soft-delete duplicate ProductName rows, keeping the most recently updated one
+        //      so the unique index can be created.
+        //   4. Add a partial unique index on ProductName so the upsert-by-name logic in
+        //      UpsertParasutProductCommandHandler is enforced at the DB level.
+        await RunSafe("ParasutProducts drop FK to Projects", @"
+            ALTER TABLE ""ParasutProducts""
+                DROP CONSTRAINT IF EXISTS ""fk_parasutproducts_projects"";
+        ");
+
+        await RunSafe("ParasutProducts ProjectId nullable", @"
+            ALTER TABLE ""ParasutProducts""
+                ALTER COLUMN ""ProjectId"" DROP NOT NULL;
+        ");
+
+        await RunSafe("ParasutProducts dedupe duplicate names", @"
+            WITH ranked AS (
+                SELECT ""Id"",
+                       ROW_NUMBER() OVER (
+                           PARTITION BY ""ProductName""
+                           ORDER BY ""UpdatedAt"" DESC, ""CreatedAt"" DESC
+                       ) AS rn
+                FROM ""ParasutProducts""
+                WHERE ""IsDeleted"" = false
+            )
+            UPDATE ""ParasutProducts"" p
+            SET ""IsDeleted"" = true,
+                ""UpdatedAt"" = now()
+            FROM ranked r
+            WHERE p.""Id"" = r.""Id"" AND r.rn > 1;
+        ");
+
+        await RunSafe("ParasutProducts unique productname index", @"
+            DROP INDEX IF EXISTS ""ix_parasutproducts_projectid"";
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_parasutproducts_productname""
+                ON ""ParasutProducts"" (""ProductName"")
+                WHERE ""IsDeleted"" = false;
+        ");
+
         // Fix: Segment was originally created as integer (enum) but the entity
         // uses string. Convert to text so EMS API string values can be stored.
         await RunSafe("Customers.Segment integer→text", @"

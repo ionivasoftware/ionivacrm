@@ -50,17 +50,16 @@ public class UpdateParasutProductCommandHandler : IRequestHandler<UpdateParasutP
             return Result<ParasutProductDto>.Failure("Tax rate must be between 0 and 1 (e.g., 0.20 for 20%).");
         }
 
-        // Check if renaming to an existing product name in the same project
+        // Check if renaming to a name that another global mapping already uses
         if (product.ProductName != request.ProductName)
         {
             var existing = await _productRepository.GetByNameAsync(
-                product.ProjectId,
                 request.ProductName,
                 cancellationToken);
 
             if (existing != null && existing.Id != product.Id)
             {
-                return Result<ParasutProductDto>.Failure($"Product '{request.ProductName}' already exists in this project.");
+                return Result<ParasutProductDto>.Failure($"Product '{request.ProductName}' already exists.");
             }
         }
 
@@ -74,7 +73,6 @@ public class UpdateParasutProductCommandHandler : IRequestHandler<UpdateParasutP
         var dto = new ParasutProductDto
         {
             Id = product.Id,
-            ProjectId = product.ProjectId,
             ProductName = product.ProductName,
             ParasutProductId = product.ParasutProductId,
             UnitPrice = product.UnitPrice,

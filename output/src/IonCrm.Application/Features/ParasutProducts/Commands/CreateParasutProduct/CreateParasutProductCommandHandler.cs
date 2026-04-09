@@ -23,15 +23,14 @@ public class CreateParasutProductCommandHandler : IRequestHandler<CreateParasutP
         CreateParasutProductCommand request,
         CancellationToken cancellationToken)
     {
-        // Check if product with same name already exists in this project
+        // Check if a global product with the same name already exists.
         var existing = await _productRepository.GetByNameAsync(
-            request.ProjectId,
             request.ProductName,
             cancellationToken);
 
         if (existing != null)
         {
-            return Result<ParasutProductDto>.Failure($"Product '{request.ProductName}' already exists in this project.");
+            return Result<ParasutProductDto>.Failure($"Product '{request.ProductName}' already exists.");
         }
 
         // Validate inputs
@@ -57,7 +56,7 @@ public class CreateParasutProductCommandHandler : IRequestHandler<CreateParasutP
 
         var product = new ParasutProduct
         {
-            ProjectId = request.ProjectId,
+            ProjectId = null, // global mapping
             ProductName = request.ProductName,
             ParasutProductId = request.ParasutProductId,
             UnitPrice = request.UnitPrice,
@@ -69,7 +68,6 @@ public class CreateParasutProductCommandHandler : IRequestHandler<CreateParasutP
         var dto = new ParasutProductDto
         {
             Id = created.Id,
-            ProjectId = created.ProjectId,
             ProductName = created.ProductName,
             ParasutProductId = created.ParasutProductId,
             UnitPrice = created.UnitPrice,

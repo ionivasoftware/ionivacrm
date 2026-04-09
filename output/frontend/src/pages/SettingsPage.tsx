@@ -174,13 +174,11 @@ function ParasutProductCombobox({
 function ParasutProductRow({
   productDef,
   existing,
-  projectId,
   parasutProducts,
   parasutProductsLoading,
 }: {
   productDef: CrmProductDef;
   existing: ParasutProduct | undefined;
-  projectId: string;
   parasutProducts: ParasutProductListItem[];
   parasutProductsLoading: boolean;
 }) {
@@ -215,7 +213,6 @@ function ParasutProductRow({
     try {
       await save.mutateAsync({
         existingId: existing?.id,
-        projectId,
         productKey: productDef.key,
         productName: productDef.label,
         parasutProductId: selectedId,
@@ -300,7 +297,8 @@ export function SettingsPage() {
   const parasutStatus = useParasutStatus();
   const connectParasut = useConnectParasut();
   const disconnectParasut = useDisconnectParasut();
-  const parasutProducts = useParasutProducts(currentProjectId);
+  // Paraşüt product mappings are now project-independent (one global catalog).
+  const parasutProducts = useParasutProducts();
   const parasutProductList = useParasutProductList(currentProjectId, loadParasutProductList);
 
   const parasutForm = useForm<ParasutForm>({
@@ -691,7 +689,7 @@ export function SettingsPage() {
                   CRM ürünlerini Paraşüt'teki ürünlerle eşleştirin. Fatura oluştururken bu eşleştirmeler otomatik kullanılır.
                 </CardDescription>
               </div>
-              {currentProjectId && !loadParasutProductList && (
+              {!loadParasutProductList && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -714,10 +712,6 @@ export function SettingsPage() {
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
                 <Loader2 className="h-4 w-4 animate-spin" /> Yükleniyor...
               </div>
-            ) : !currentProjectId ? (
-              <p className="text-sm text-muted-foreground py-6 text-center">
-                Ürün eşleştirmesi için önce bir proje seçin.
-              </p>
             ) : (
               <div className="overflow-x-auto">
                 {/* Column headers */}
@@ -734,7 +728,6 @@ export function SettingsPage() {
                     key={productDef.key}
                     productDef={productDef}
                     existing={parasutProducts.data?.find(p => p.productName === productDef.label)}
-                    projectId={currentProjectId}
                     parasutProducts={parasutProductList.data ?? []}
                     parasutProductsLoading={parasutProductList.isLoading}
                   />

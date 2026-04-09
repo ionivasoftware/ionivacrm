@@ -22,12 +22,11 @@ public class GetParasutProductsQueryHandler : IRequestHandler<GetParasutProducts
         GetParasutProductsQuery request,
         CancellationToken cancellationToken)
     {
-        var products = await _productRepository.GetByProjectIdAsync(request.ProjectId, cancellationToken);
+        var products = await _productRepository.GetAllAsync(cancellationToken);
 
         var dtos = products.Select(p => new ParasutProductDto
         {
             Id                 = p.Id,
-            ProjectId          = p.ProjectId,
             ProductName        = p.ProductName,
             ParasutProductId   = p.ParasutProductId,
             ParasutProductName = p.ParasutProductName,

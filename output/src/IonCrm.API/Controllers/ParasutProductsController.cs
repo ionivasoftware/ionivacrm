@@ -26,13 +26,14 @@ public class ParasutProductsController : ApiControllerBase
     }
 
     /// <summary>
-    /// GET /api/v1/crm/parasut-products?projectId={projectId}
-    /// Returns saved CRM→Paraşüt product mappings for the given project.
+    /// GET /api/v1/crm/parasut-products
+    /// Returns the global Paraşüt product mapping catalog. Mappings are project-independent.
+    /// The legacy <c>?projectId=</c> query parameter is accepted but ignored.
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] Guid projectId)
+    public async Task<IActionResult> GetAll()
     {
-        var result = await Mediator.Send(new GetParasutProductsQuery(projectId));
+        var result = await Mediator.Send(new GetParasutProductsQuery());
         return ResultToResponse(result);
     }
 
