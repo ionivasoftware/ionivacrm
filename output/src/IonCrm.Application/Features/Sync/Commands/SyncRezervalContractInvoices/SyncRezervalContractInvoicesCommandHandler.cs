@@ -242,13 +242,14 @@ public sealed class SyncRezervalContractInvoicesCommandHandler
             "Contract invoice sync complete. Scanned={Scanned} Created={Created} Skipped={Skipped} Completed={Completed} Errors={Errors}.",
             contractsScanned, invoicesCreated, skipped, contractsCompleted, errors.Count);
 
-        // Dump every error so we can see the actual skip reason in Railway logs,
-        // not just the count.
-        if (errors.Count > 0)
+        // Dump every error on its own log line — Railway's log sink truncates
+        // multi-line messages after the first '\n', so a bulk dump with embedded
+        // newlines shows up empty in the viewer.
+        for (int i = 0; i < errors.Count; i++)
         {
             _logger.LogWarning(
-                "Contract invoice sync errors ({Count}):\n{Errors}",
-                errors.Count, string.Join("\n", errors));
+                "Contract invoice sync error #{Index}/{Total}: {Error}",
+                i + 1, errors.Count, errors[i]);
         }
 
         return Result<SyncRezervalContractInvoicesResult>.Success(result);
