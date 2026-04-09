@@ -154,10 +154,18 @@ app.Lifetime.ApplicationStarted.Register(() =>
 {
     _ = Task.Run(async () =>
     {
-        ApplicationDbContext? db = null;
+        // CRITICAL: scope must live for the ENTIRE bootstrap, not just for the assignment.
+        // Previously this was inside a try block with `using var scope`, which disposed the
+        // scope immediately on try-block exit. Every subsequent ExecuteSqlRawAsync call then
+        // hit ObjectDisposedException — silently swallowed by RunSafe — and NOTHING was
+        // actually created in the database. Observed in prod as CustomerContracts (and
+        // every other late table) never appearing despite "Bootstrap OK" logs. (They weren't
+        // even OK — the OK log never printed because the call threw before logging.)
+        IServiceScope? scope;
+        ApplicationDbContext db;
         try
         {
-            using var scope = app.Services.CreateScope();
+            scope = app.Services.CreateScope();
             db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         }
         catch (Exception ex)
@@ -168,9 +176,6 @@ app.Lifetime.ApplicationStarted.Register(() =>
 
         // Local helper: runs an idempotent bootstrap SQL block in its own try/catch so a
         // single failing block does NOT prevent the rest of the bootstrap from executing.
-        // Previously a single outer catch swallowed the first exception and skipped every
-        // subsequent table-creation step, causing late tables (e.g. CustomerContracts) to
-        // never get created — observed in prod as a 500 "relation does not exist".
         async Task RunSafe(string label, string sql)
         {
             try
@@ -183,6 +188,9 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 Log.Error(ex, "Bootstrap FAILED (continuing): {Label}", label);
             }
         }
+
+        try
+        {
 
         // EF Core migrations — isolated so a migration failure does NOT skip the
         // idempotent CREATE TABLE fallback blocks below (they exist precisely to recover
@@ -402,7 +410,16 @@ app.Lifetime.ApplicationStarted.Register(() =>
               AND ""IsDeleted"" = false;
         ");
 
-        Log.Information("Startup bootstrap complete");
+            Log.Information("Startup bootstrap complete");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Startup bootstrap aborted by unexpected exception");
+        }
+        finally
+        {
+            scope.Dispose();
+        }
     });
 });
 
