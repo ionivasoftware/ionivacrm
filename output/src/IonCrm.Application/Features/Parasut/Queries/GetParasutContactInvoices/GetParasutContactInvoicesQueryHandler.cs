@@ -31,7 +31,7 @@ public sealed class GetParasutContactInvoicesQueryHandler
         GetParasutContactInvoicesQuery request,
         CancellationToken cancellationToken)
     {
-        var connection = await _connectionRepository.GetByProjectIdAsync(
+        var connection = await _connectionRepository.GetEffectiveConnectionAsync(
             request.ProjectId, cancellationToken);
 
         var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(

@@ -112,8 +112,8 @@ public sealed class CreateInvoiceCommandHandler
     {
         try
         {
-            // 1. Get Paraşüt connection + ensure valid token
-            var connection = await _connectionRepository.GetByProjectIdAsync(
+            // 1. Get Paraşüt connection (project-specific first, fall back to global) + ensure valid token
+            var connection = await _connectionRepository.GetEffectiveConnectionAsync(
                 invoice.ProjectId, cancellationToken);
 
             var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(

@@ -56,8 +56,8 @@ public sealed class TransferInvoiceToParasutCommandHandler
         if (!string.IsNullOrEmpty(invoice.ParasutId))
             return Result<InvoiceDto>.Failure("Bu fatura zaten Paraşüt'e aktarılmış.");
 
-        // 2. Load Paraşüt connection + refresh token
-        var connection = await _connectionRepository.GetByProjectIdAsync(
+        // 2. Load Paraşüt connection (project-specific first, fall back to global) + refresh token
+        var connection = await _connectionRepository.GetEffectiveConnectionAsync(
             invoice.ProjectId, cancellationToken);
 
         var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(

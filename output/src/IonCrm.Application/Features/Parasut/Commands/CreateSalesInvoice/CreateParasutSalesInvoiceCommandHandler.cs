@@ -31,8 +31,8 @@ public sealed class CreateParasutSalesInvoiceCommandHandler
         CreateParasutSalesInvoiceCommand request,
         CancellationToken cancellationToken)
     {
-        // 1. Load connection + auto-refresh if needed
-        var connection = await _connectionRepository.GetByProjectIdAsync(
+        // 1. Load connection (project-specific first, fall back to global) + auto-refresh if needed
+        var connection = await _connectionRepository.GetEffectiveConnectionAsync(
             request.ProjectId, cancellationToken);
 
         var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
