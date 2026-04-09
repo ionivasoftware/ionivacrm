@@ -30,6 +30,15 @@ public interface ICustomerRepository : IRepository<Customer>
         string legacyId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns a customer by primary key, bypassing tenant filters and soft-delete check.
+    /// Used by background jobs (no HTTP context → empty ProjectIds → tenant filter would
+    /// hide every row). Returns null only if the row genuinely does not exist.
+    /// </summary>
+    Task<Customer?> GetByIdIgnoringTenantAsync(
+        Guid id,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Updates only the ParasutContactId column via targeted SQL — avoids full entity update.</summary>
     Task SetParasutContactIdAsync(Guid customerId, string? parasutContactId, CancellationToken cancellationToken = default);
 

@@ -68,8 +68,13 @@ public sealed class SyncRezervalContractInvoicesCommandHandler
 
             try
             {
-                // 1. Resolve customer (load fresh — needed for company name in invoice title)
-                var customer = await _customerRepository.GetByIdAsync(contract.CustomerId, cancellationToken);
+                // 1. Resolve customer (load fresh — needed for company name in invoice title).
+                // IMPORTANT: Use the tenant-bypass lookup. Background jobs run with no HTTP
+                // context → ICurrentUserService.ProjectIds is empty → the global query filter
+                // on Customer would hide every row, even though the contract row found above
+                // (via the contract repo's IgnoreQueryFilters path) clearly proves the
+                // customer exists. The plain GetByIdAsync would return null here.
+                var customer = await _customerRepository.GetByIdIgnoringTenantAsync(contract.CustomerId, cancellationToken);
                 if (customer is null)
                 {
                     var msg = $"Contract {contract.Id}: customer {contract.CustomerId} bulunamadı.";

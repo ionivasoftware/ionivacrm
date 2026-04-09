@@ -97,6 +97,17 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
     }
 
     /// <inheritdoc />
+    public async Task<Customer?> GetByIdIgnoringTenantAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return await DbSet
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task SetParasutContactIdAsync(
         Guid customerId, string? parasutContactId,
         CancellationToken cancellationToken = default)
