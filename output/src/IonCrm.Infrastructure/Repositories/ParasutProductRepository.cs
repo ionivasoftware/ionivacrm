@@ -21,7 +21,12 @@ public class ParasutProductRepository : IParasutProductRepository
         Guid projectId,
         CancellationToken cancellationToken = default)
     {
+        // IgnoreQueryFilters: matches the rest of this repo's read methods. The Settings UI
+        // is SuperAdmin-only and projectId is passed explicitly, so we don't need the global
+        // tenant filter to scope it. Background jobs (which have no HTTP context and would
+        // otherwise see zero rows) also depend on this.
         return await _context.ParasutProducts
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(p => p.ProjectId == projectId && !p.IsDeleted)
             .OrderBy(p => p.ProductName)
@@ -34,6 +39,7 @@ public class ParasutProductRepository : IParasutProductRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.ParasutProducts
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
     }
