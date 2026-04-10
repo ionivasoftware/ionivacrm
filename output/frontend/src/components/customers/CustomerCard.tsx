@@ -49,9 +49,17 @@ export function CustomerCard({ customer, onQuickAction }: CustomerCardProps) {
     >
       {/* Left: avatar + info */}
       <div className="flex items-center gap-3 min-w-0 flex-1">
-        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-          <span className="text-primary text-sm font-semibold">{initials}</span>
-        </div>
+        {customer.logoUrl ? (
+          <img
+            src={customer.logoUrl}
+            alt={customer.companyName}
+            className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-border"
+          />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span className="text-primary text-sm font-semibold">{initials}</span>
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-medium text-foreground truncate leading-tight">

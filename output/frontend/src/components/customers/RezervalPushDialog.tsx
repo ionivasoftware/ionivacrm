@@ -303,6 +303,14 @@ export function RezervalPushDialog({ isOpen, onClose, customer }: RezervalPushDi
                     <X className="w-3 h-3" />
                   </button>
                 </div>
+              ) : customer.logoUrl ? (
+                <div className="w-20 h-20 rounded-lg border border-border overflow-hidden flex-shrink-0">
+                  <img
+                    src={customer.logoUrl}
+                    alt="Mevcut logo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
               ) : (
                 <div className="w-20 h-20 rounded-lg border border-dashed border-border flex items-center justify-center flex-shrink-0 bg-muted/50">
                   <Building2 className="w-8 h-8 text-muted-foreground/40" />

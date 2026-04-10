@@ -1320,11 +1320,19 @@ export function CustomerDetailPage() {
           <div className="flex flex-col sm:flex-row sm:items-start gap-4">
             {/* Avatar + Name */}
             <div className="flex items-start gap-4 flex-1 min-w-0">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-primary text-xl font-bold">
-                  {customer.companyName.slice(0, 2).toUpperCase()}
-                </span>
-              </div>
+              {customer.logoUrl ? (
+                <img
+                  src={customer.logoUrl}
+                  alt={customer.companyName}
+                  className="w-16 h-16 rounded-2xl object-cover flex-shrink-0 border border-border"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-primary text-xl font-bold">
+                    {customer.companyName.slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+              )}
               <div className="min-w-0 flex-1 pt-1">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <h1 className="text-xl font-bold text-foreground leading-tight">
