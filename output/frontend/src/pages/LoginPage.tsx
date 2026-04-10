@@ -84,16 +84,9 @@ export function LoginPage() {
 
       <div className="w-full max-w-md relative">
         {/* Logo */}
-        <div className="flex justify-center mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/25">
-              <span className="text-white font-bold text-lg">ION</span>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">ION CRM</h1>
-              <p className="text-xs text-muted-foreground">Müşteri İlişkileri Yönetimi</p>
-            </div>
-          </div>
+        <div className="flex flex-col items-center mb-8 gap-3">
+          <img src="/logo.png" alt="IONIVA" className="h-12 object-contain" />
+          <p className="text-xs text-muted-foreground">Müşteri İlişkileri Yönetimi</p>
         </div>
 
         <Card className="border-border shadow-xl">
@@ -213,7 +206,7 @@ export function LoginPage() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          © {new Date().getFullYear()} ION CRM. Tüm hakları saklıdır.
+          © {new Date().getFullYear()} IONIVA. Tüm hakları saklıdır.
         </p>
       </div>
     </div>
