@@ -57,6 +57,7 @@ export function CustomersPage() {
   const statusFilter  = (searchParams.get('status')  ?? 'all') as CustomerStatus | 'all';
   const segmentFilter = searchParams.get('segment') ?? 'all';
   const labelFilter   = (searchParams.get('label')   ?? 'all') as CustomerLabel | 'all';
+  const sortBy        = searchParams.get('sort')     ?? 'activity_desc';
   const page          = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
 
   /**
@@ -113,6 +114,7 @@ export function CustomersPage() {
     status: statusFilter !== 'all' ? statusFilter : undefined,
     segment: segmentFilter !== 'all' ? segmentFilter : undefined,
     label: labelFilter !== 'all' ? labelFilter : undefined,
+    sortBy,
     page,
     pageSize: PAGE_SIZE,
   });
@@ -237,6 +239,19 @@ export function CustomersPage() {
                 </button>
               )}
             </div>
+            <Select value={sortBy} onValueChange={(v) => patchParams({ sort: v })}>
+              <SelectTrigger className="h-11 w-[180px]">
+                <SelectValue placeholder="Sırala" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="activity_desc">Son Aktivite (Yeni)</SelectItem>
+                <SelectItem value="activity">Son Aktivite (Eski)</SelectItem>
+                <SelectItem value="name">İsim (A-Z)</SelectItem>
+                <SelectItem value="name_desc">İsim (Z-A)</SelectItem>
+                <SelectItem value="created_desc">Kayıt Tarihi (Yeni)</SelectItem>
+                <SelectItem value="created">Kayıt Tarihi (Eski)</SelectItem>
+              </SelectContent>
+            </Select>
             <Button
               variant={showFilters ? 'secondary' : 'outline'}
               className="gap-2 h-11 relative"

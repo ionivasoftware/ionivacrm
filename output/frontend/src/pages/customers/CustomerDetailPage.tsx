@@ -1407,6 +1407,13 @@ export function CustomerDetailPage() {
               label="Kayıt Tarihi"
               value={formatDateShort(customer.createdAt)}
             />
+            {(customer.status === 'Active' || customer.status === 'Demo') && customer.expirationDate && (
+              <InfoItem
+                icon={Calendar}
+                label="Abonelik Bitiş"
+                value={formatDateShort(customer.expirationDate)}
+              />
+            )}
           </div>
         </CardContent>
       </Card>

@@ -6,8 +6,8 @@ namespace IonCrm.Domain.Interfaces;
 /// <summary>Repository interface for <see cref="Customer"/> with paged search support.</summary>
 public interface ICustomerRepository : IRepository<Customer>
 {
-    /// <summary>Returns a paginated, filtered list of customers (tenant filter auto-applied via global query filter).</summary>
-    Task<(IReadOnlyList<Customer> Items, int TotalCount)> GetPagedAsync(
+    /// <summary>Returns a paginated, filtered list of customers with their last activity date.</summary>
+    Task<(IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)> Items, int TotalCount)> GetPagedAsync(
         Guid? projectId,
         string? search,
         CustomerStatus? status,
@@ -16,6 +16,7 @@ public interface ICustomerRepository : IRepository<Customer>
         Guid? assignedUserId,
         int page,
         int pageSize,
+        string? sortBy = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Returns a customer with all navigation properties loaded (contact histories, tasks, assigned user).</summary>

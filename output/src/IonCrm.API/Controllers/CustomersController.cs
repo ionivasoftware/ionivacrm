@@ -43,6 +43,7 @@ public class CustomersController : ApiControllerBase
         [FromQuery] Guid? assignedUserId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
+        [FromQuery] string? sortBy = null,
         CancellationToken cancellationToken = default)
     {
         var query = new GetCustomersQuery
@@ -54,7 +55,8 @@ public class CustomersController : ApiControllerBase
             Label = label,
             AssignedUserId = assignedUserId,
             Page = page,
-            PageSize = pageSize
+            PageSize = pageSize,
+            SortBy = sortBy
         };
 
         var result = await Mediator.Send(query, cancellationToken);

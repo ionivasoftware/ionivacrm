@@ -31,9 +31,16 @@ public class GetCustomersQueryHandler : IRequestHandler<GetCustomersQuery, Resul
             request.AssignedUserId,
             page,
             pageSize,
+            request.SortBy,
             cancellationToken);
 
-        var dtos = items.Select(c => c.ToDto()).ToList().AsReadOnly();
+        var dtos = items.Select(x =>
+        {
+            var dto = x.Customer.ToDto();
+            dto.LastActivityDate = x.LastActivityDate;
+            return dto;
+        }).ToList().AsReadOnly();
+
         var pagedResult = new PagedResult<CustomerDto>(dtos, totalCount, page, pageSize);
 
         return Result<PagedResult<CustomerDto>>.Success(pagedResult);

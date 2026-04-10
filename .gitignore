@@ -43,3 +43,4 @@ output/frontend/dist/
 # .NET build outputs
 **/bin/
 **/obj/
+*.bak

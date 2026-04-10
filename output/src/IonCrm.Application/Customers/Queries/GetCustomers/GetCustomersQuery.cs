@@ -17,4 +17,9 @@ public record GetCustomersQuery : IRequest<Result<PagedResult<CustomerDto>>>
     public Guid? AssignedUserId { get; init; }
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
+    /// <summary>
+    /// Sort key. Default (null / "activity_desc") = last activity date descending.
+    /// Other options: "name", "name_desc", "created", "created_desc", "activity".
+    /// </summary>
+    public string? SortBy { get; init; }
 }

@@ -16,7 +16,7 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
     public CustomerRepository(ApplicationDbContext context) : base(context) { }
 
     /// <inheritdoc />
-    public async Task<(IReadOnlyList<Customer> Items, int TotalCount)> GetPagedAsync(
+    public async Task<(IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)> Items, int TotalCount)> GetPagedAsync(
         Guid? projectId,
         string? search,
         CustomerStatus? status,
@@ -25,6 +25,7 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
         Guid? assignedUserId,
         int page,
         int pageSize,
+        string? sortBy = null,
         CancellationToken cancellationToken = default)
     {
         var query = DbSet
@@ -32,12 +33,9 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
             .AsNoTracking()
             .AsQueryable();
 
-        // Project filter (global query filter already restricts to user's projects;
-        // this adds an extra explicit filter when a specific project is requested)
         if (projectId.HasValue)
             query = query.Where(c => c.ProjectId == projectId.Value);
 
-        // Full-text search across key fields
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLower();
@@ -63,13 +61,38 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
 
         var totalCount = await query.CountAsync(cancellationToken);
 
-        var items = await query
-            .OrderBy(c => c.CompanyName)
+        // Project customers with their most recent ContactHistory date via a correlated
+        // subquery. EF Core translates this into a single SQL query with a scalar subselect.
+        var projected = query.Select(c => new
+        {
+            Customer = c,
+            LastActivityDate = Context.ContactHistories
+                .Where(h => h.CustomerId == c.Id && !h.IsDeleted)
+                .Max(h => (DateTime?)h.ContactedAt)
+        });
+
+        // Sort: default is lastActivity descending (newest first).
+        var sorted = sortBy switch
+        {
+            "name"         => projected.OrderBy(x => x.Customer.CompanyName),
+            "name_desc"    => projected.OrderByDescending(x => x.Customer.CompanyName),
+            "created"      => projected.OrderBy(x => x.Customer.CreatedAt),
+            "created_desc" => projected.OrderByDescending(x => x.Customer.CreatedAt),
+            "activity"     => projected.OrderBy(x => x.LastActivityDate),
+            _              => projected.OrderByDescending(x => x.LastActivityDate)
+                                       .ThenByDescending(x => x.Customer.CreatedAt), // "activity_desc" or default
+        };
+
+        var items = await sorted
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return (items, totalCount);
+        var result = items
+            .Select(x => (x.Customer, x.LastActivityDate))
+            .ToList();
+
+        return (result, totalCount);
     }
 
     /// <inheritdoc />

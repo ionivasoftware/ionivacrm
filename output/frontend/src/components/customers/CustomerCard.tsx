@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Phone, Mail, StickyNote, MoreVertical, MapPin, FolderOpen } from 'lucide-react';
+import { Phone, Mail, StickyNote, MoreVertical, MapPin, FolderOpen, Clock } from 'lucide-react';
 import { CustomerStatusBadge, CustomerLabelBadge } from './CustomerStatusBadge';
 import { Button } from '@/components/ui/button';
 import {
@@ -85,11 +85,19 @@ export function CustomerCard({ customer, onQuickAction }: CustomerCardProps) {
         </div>
       </div>
 
-      {/* Right: badges + actions */}
+      {/* Right: last activity + badges + actions */}
       <div
         className="flex items-center gap-2 flex-shrink-0 ml-3"
         onClick={(e) => e.stopPropagation()}
       >
+        {customer.lastActivityDate && (
+          <span className="text-xs text-muted-foreground hidden md:flex items-center gap-1" title="Son aktivite">
+            <Clock className="h-3 w-3" />
+            {new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short' }).format(
+              new Date(customer.lastActivityDate)
+            )}
+          </span>
+        )}
         {showProjectBadge && projectName && (
           <span className="text-xs text-muted-foreground hidden lg:inline px-2 py-0.5 rounded-full border border-primary/30 bg-primary/5 gap-1 flex items-center">
             <FolderOpen className="h-3 w-3 inline" /> {projectName}

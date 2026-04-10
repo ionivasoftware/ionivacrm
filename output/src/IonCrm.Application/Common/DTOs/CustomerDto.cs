@@ -36,4 +36,9 @@ public class CustomerDto
     public decimal? MonthlyLicenseFee { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    /// <summary>
+    /// Date of the most recent ContactHistory entry for this customer.
+    /// Null when no contact history exists. Computed by the list query, not stored.
+    /// </summary>
+    public DateTime? LastActivityDate { get; set; }
 }

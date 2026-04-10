@@ -204,6 +204,8 @@ export interface Customer {
   monthlyLicenseFee: number | null;
   createdAt: string;
   updatedAt: string;
+  /** Most recent ContactHistory date. Null when no history exists. */
+  lastActivityDate: string | null;
 }
 
 export interface CreateCustomerRequest {
@@ -238,6 +240,8 @@ export interface CustomerListParams {
   segment?: CustomerSegment;
   label?: CustomerLabel;
   assignedUserId?: string;
+  /** Sort key. Default "activity_desc" = last activity newest first. */
+  sortBy?: string;
 }
 
 // ----- Contact History -----
