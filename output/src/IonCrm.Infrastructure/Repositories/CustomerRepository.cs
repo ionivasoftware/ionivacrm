@@ -38,13 +38,15 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim().ToLower();
+            // Use PostgreSQL ILIKE for proper Turkish case-insensitive matching.
+            // ToLower() doesn't handle I/İ and ı/i correctly with default collation.
+            var pattern = $"%{search.Trim()}%";
             query = query.Where(c =>
-                c.CompanyName.ToLower().Contains(term) ||
-                (c.ContactName != null && c.ContactName.ToLower().Contains(term)) ||
-                (c.Email != null && c.Email.ToLower().Contains(term)) ||
-                (c.Phone != null && c.Phone.Contains(term)) ||
-                (c.Code != null && c.Code.ToLower().Contains(term)));
+                EF.Functions.ILike(c.CompanyName, pattern) ||
+                (c.ContactName != null && EF.Functions.ILike(c.ContactName, pattern)) ||
+                (c.Email != null && EF.Functions.ILike(c.Email, pattern)) ||
+                (c.Phone != null && EF.Functions.ILike(c.Phone, pattern)) ||
+                (c.Code != null && EF.Functions.ILike(c.Code, pattern)));
         }
 
         if (status.HasValue)
