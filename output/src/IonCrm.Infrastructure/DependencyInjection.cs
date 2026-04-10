@@ -84,39 +84,47 @@ public static class DependencyInjection
         RegisterSaasBClient(services, configuration);
 
         // SaasSyncJob is always registered so the trigger endpoint can run it directly
-        // regardless of whether Hangfire is enabled.
+        // regardless of whether the automatic sync scheduler is enabled.
         services.AddScoped<SaasSyncJob>();
 
-        // ── Hangfire (background job scheduler + server) ──────────────────────
-        var enableHangfire = configuration.GetValue<bool>("Hangfire:Enabled", false);
-        if (enableHangfire)
+        // ── Automatic sync scheduler ─────────────────────────────────────────
+        // Set Sync:Enabled = false in environment variables to disable the
+        // automatic 15-minute sync cycle (e.g. in production where sync should
+        // only run on the development environment). Manual trigger via
+        // POST /api/v1/sync/trigger still works regardless of this flag.
+        var enableSync = configuration.GetValue<bool>("Sync:Enabled", true);
+        if (!enableSync)
         {
-            services.AddHangfire(cfg =>
-            {
-                cfg.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-                   .UseSimpleAssemblyNameTypeSerializer()
-                   .UseRecommendedSerializerSettings()
-                   .UsePostgreSqlStorage(options =>
-                   {
-                       options.UseNpgsqlConnection(connectionString);
-                   });
-            });
-
-            services.AddHangfireServer(options =>
-            {
-                options.WorkerCount = 2;
-                options.Queues = new[] { "default" };
-            });
-
-            // ── Background service: registers Hangfire recurring jobs ─────────────
-            services.AddHostedService<SyncBackgroundService>();
+            // No automatic sync — manual trigger only
         }
         else
         {
-            // Hangfire is disabled (default) — use a lightweight PeriodicTimer-based service.
-            // Runs every 15 minutes with a PostgreSQL advisory lock so that rolling deploys on
-            // Railway (briefly two containers) never execute a duplicate sync simultaneously.
-            services.AddHostedService<SyncTimerService>();
+            var enableHangfire = configuration.GetValue<bool>("Hangfire:Enabled", false);
+            if (enableHangfire)
+            {
+                services.AddHangfire(cfg =>
+                {
+                    cfg.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+                       .UseSimpleAssemblyNameTypeSerializer()
+                       .UseRecommendedSerializerSettings()
+                       .UsePostgreSqlStorage(options =>
+                       {
+                           options.UseNpgsqlConnection(connectionString);
+                       });
+                });
+
+                services.AddHangfireServer(options =>
+                {
+                    options.WorkerCount = 2;
+                    options.Queues = new[] { "default" };
+                });
+
+                services.AddHostedService<SyncBackgroundService>();
+            }
+            else
+            {
+                services.AddHostedService<SyncTimerService>();
+            }
         }
 
         return services;
