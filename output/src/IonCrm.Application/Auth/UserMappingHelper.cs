@@ -19,6 +19,7 @@ internal static class UserMappingHelper
         FullName = user.FullName,
         IsSuperAdmin = user.IsSuperAdmin,
         IsActive = user.IsActive,
+        ThemePreference = user.ThemePreference,
         CreatedAt = user.CreatedAt,
         ProjectRoles = user.UserProjectRoles
             .Select(r => new UserProjectRoleDto

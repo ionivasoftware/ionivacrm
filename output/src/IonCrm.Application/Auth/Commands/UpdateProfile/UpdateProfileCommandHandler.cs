@@ -41,6 +41,12 @@ public class UpdateProfileCommandHandler : IRequestHandler<UpdateProfileCommand,
             user.PasswordHash = _passwordHasher.Hash(request.NewPassword);
         }
 
+        if (!string.IsNullOrWhiteSpace(request.ThemePreference)
+            && request.ThemePreference is "dark" or "light")
+        {
+            user.ThemePreference = request.ThemePreference;
+        }
+
         await _userRepository.UpdateAsync(user, cancellationToken);
         return Result.Success();
     }

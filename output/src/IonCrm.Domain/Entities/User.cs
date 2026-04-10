@@ -29,6 +29,9 @@ public class User : BaseEntity
     /// <summary>Gets or sets a value indicating whether this user account is active.</summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Gets or sets the user's preferred UI theme ("dark" or "light"). Defaults to "dark".</summary>
+    public string ThemePreference { get; set; } = "dark";
+
     /// <summary>Gets the user's full name.</summary>
     public string FullName => $"{FirstName} {LastName}".Trim();
 

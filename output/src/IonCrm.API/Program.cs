@@ -244,6 +244,11 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 WHERE ""IsDeleted"" = false;
         ");
 
+        // ── User theme preference ────────────────────────────────────────────────
+        await RunSafe("Users ThemePreference column", @"
+            ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""ThemePreference"" text NOT NULL DEFAULT 'dark';
+        ");
+
         // ── Idempotent column adds (later-sprint additions) ─────────────────────
         await RunSafe("Customers/Projects ADD COLUMN IF NOT EXISTS", @"
             ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""ExpirationDate""      timestamp with time zone;

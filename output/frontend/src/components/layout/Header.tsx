@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/stores/authStore';
 import { useThemeStore } from '@/stores/themeStore';
+import { apiClient } from '@/api/client';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { useNotifications } from '@/api/dashboard';
@@ -106,11 +107,20 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
 
       {/* Right: actions */}
       <div className="flex items-center gap-2">
-        {/* Theme toggle */}
+        {/* Theme toggle — persists to backend so preference follows the user across devices */}
         <Button
           variant="ghost"
           size="icon"
-          onClick={toggleTheme}
+          onClick={() => {
+            toggleTheme();
+            const newTheme = theme === 'dark' ? 'light' : 'dark';
+            // Fire-and-forget — don't block UI on a preference save
+            apiClient.put('/auth/profile', {
+              firstName: user?.firstName ?? '',
+              lastName: user?.lastName ?? '',
+              themePreference: newTheme,
+            }).catch(() => {/* swallow — local store is the source of truth until next login */});
+          }}
           className="h-11 w-11 text-muted-foreground hover:text-foreground"
           aria-label={theme === 'dark' ? 'Açık tema' : 'Koyu tema'}
         >

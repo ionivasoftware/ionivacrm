@@ -36,7 +36,8 @@ function PageLoader() {
 
 function AppInitializer({ children }: { children: React.ReactNode }) {
   const initializeAuth = useAuthStore((s) => s.initializeAuth);
-  const { theme } = useThemeStore();
+  const user = useAuthStore((s) => s.user);
+  const { theme, setTheme } = useThemeStore();
 
   useEffect(() => {
     // Apply theme on mount
@@ -52,6 +53,17 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
     // Initialize auth (try refresh token)
     initializeAuth();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync theme from the user's server-side preference after login.
+  // Runs when `user` changes (login, token refresh, page reload with cached user).
+  useEffect(() => {
+    if (user && (user as { themePreference?: string }).themePreference) {
+      const pref = (user as { themePreference?: string }).themePreference as 'dark' | 'light';
+      if (pref !== theme) {
+        setTheme(pref);
+      }
+    }
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <>{children}</>;
 }

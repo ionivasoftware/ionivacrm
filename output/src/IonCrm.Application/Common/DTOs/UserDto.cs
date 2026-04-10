@@ -24,6 +24,9 @@ public class UserDto
     /// <summary>Gets or sets a value indicating whether the user account is active.</summary>
     public bool IsActive { get; set; }
 
+    /// <summary>Gets or sets the user's preferred UI theme ("dark" or "light").</summary>
+    public string ThemePreference { get; set; } = "dark";
+
     /// <summary>Gets or sets the UTC timestamp when the account was created.</summary>
     public DateTime CreatedAt { get; set; }
 
