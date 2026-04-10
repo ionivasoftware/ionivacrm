@@ -126,7 +126,7 @@ export function TransferLeadModal({ open, onOpenChange, lead, onSuccess }: Trans
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ArrowRight className="h-5 w-5 text-primary" />
@@ -160,7 +160,7 @@ export function TransferLeadModal({ open, onOpenChange, lead, onSuccess }: Trans
             </div>
 
             {/* List */}
-            <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
+            <div className="max-h-[40vh] overflow-y-auto space-y-1 pr-1">
               {isLoading && (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
