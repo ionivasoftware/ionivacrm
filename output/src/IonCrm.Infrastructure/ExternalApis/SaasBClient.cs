@@ -357,11 +357,19 @@ public sealed class SaasBClient : ISaasBClient
         form.Add(new StringContent(data.Address),                                 "Address");
         form.Add(new StringContent(data.Language.ToString()),                     "Language");
         form.Add(new StringContent(data.CountryPhoneCode.ToString()),             "CountryPhoneCode");
-        form.Add(new StringContent(data.AdminNameSurname),                        "AdminNameSurname");
-        form.Add(new StringContent(data.AdminLoginName),                          "AdminLoginName");
-        form.Add(new StringContent(data.AdminPassword),                           "AdminPassword");
-        form.Add(new StringContent(data.AdminEmail),                              "AdminEmail");
-        form.Add(new StringContent(data.AdminPhone),                              "AdminPhone");
+        // Only send admin fields when they have values — on update the UI hides
+        // admin fields so they arrive as empty strings; sending empty strings to
+        // Rezerval would clear the existing admin user.
+        if (!string.IsNullOrWhiteSpace(data.AdminNameSurname))
+            form.Add(new StringContent(data.AdminNameSurname), "AdminNameSurname");
+        if (!string.IsNullOrWhiteSpace(data.AdminLoginName))
+            form.Add(new StringContent(data.AdminLoginName), "AdminLoginName");
+        if (!string.IsNullOrWhiteSpace(data.AdminPassword))
+            form.Add(new StringContent(data.AdminPassword), "AdminPassword");
+        if (!string.IsNullOrWhiteSpace(data.AdminEmail))
+            form.Add(new StringContent(data.AdminEmail), "AdminEmail");
+        if (!string.IsNullOrWhiteSpace(data.AdminPhone))
+            form.Add(new StringContent(data.AdminPhone), "AdminPhone");
 
         if (!string.IsNullOrWhiteSpace(data.TCNo))
             form.Add(new StringContent(data.TCNo), "TCNo");
@@ -372,9 +380,18 @@ public sealed class SaasBClient : ISaasBClient
         if (data.LogoBytes is not null && data.LogoBytes.Length > 0)
         {
             var logoContent = new ByteArrayContent(data.LogoBytes);
+            var fileName = data.LogoFileName ?? "logo.png";
+            var mimeType = fileName.ToLowerInvariant() switch
+            {
+                _ when fileName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+                    || fileName.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) => "image/jpeg",
+                _ when fileName.EndsWith(".gif", StringComparison.OrdinalIgnoreCase)  => "image/gif",
+                _ when fileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) => "image/webp",
+                _ => "image/png"
+            };
             logoContent.Headers.ContentType =
-                new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
-            form.Add(logoContent, "Logo", data.LogoFileName ?? "logo.png");
+                new System.Net.Http.Headers.MediaTypeHeaderValue(mimeType);
+            form.Add(logoContent, "Logo", fileName);
         }
 
         return form;

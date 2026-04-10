@@ -95,14 +95,17 @@ public sealed class PushCustomerToRezervalCommandHandler
         };
 
         // 6. Determine create vs. update from LegacyId
-        //    LegacyId "REZV-{n}" → update existing Rezerval company
+        //    LegacyId "REZV-{n}" or "SAASB-{n}" → update existing Rezerval company
         //    Any other value (null, numeric, "PC-...", etc.) → create new
-        bool isUpdate = customer.LegacyId?.StartsWith("REZV-", StringComparison.OrdinalIgnoreCase) == true;
+        bool isUpdate = customer.LegacyId?.StartsWith("REZV-", StringComparison.OrdinalIgnoreCase) == true
+                     || customer.LegacyId?.StartsWith("SAASB-", StringComparison.OrdinalIgnoreCase) == true;
 
         if (isUpdate)
         {
-            // Extract numeric Rezerval company ID from "REZV-{n}"
-            var rawId = customer.LegacyId!["REZV-".Length..];
+            // Extract numeric Rezerval company ID from "REZV-{n}" or "SAASB-{n}"
+            var prefix = customer.LegacyId!.StartsWith("REZV-", StringComparison.OrdinalIgnoreCase)
+                ? "REZV-" : "SAASB-";
+            var rawId = customer.LegacyId![prefix.Length..];
             if (!int.TryParse(rawId, out var existingCompanyId))
             {
                 return Result<PushCustomerToRezervalDto>.Failure(
