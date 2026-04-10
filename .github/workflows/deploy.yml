@@ -12,6 +12,7 @@ env:
   BACKEND_SERVICE_ID: "987799b6-18b9-4223-81c6-505ffc6717ba"
   FRONTEND_SERVICE_ID: "8e6ec2df-e4a1-4fe1-afd9-31c22c5b2e59"
   DEV_ENVIRONMENT_ID: "c319cc09-f1a9-4d11-8119-a23815b9883a"
+  PROD_ENVIRONMENT_ID: "3a43d00a-371c-4dc5-8a9d-e093afb5f857"
 
 jobs:
   # ── Backend Tests ──────────────────────────────────────────
@@ -95,7 +96,7 @@ jobs:
           curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"987799b6-18b9-4223-81c6-505ffc6717ba\\\", environmentId: \\\"c319cc09-f1a9-4d11-8119-a23815b9883a\\\") }\"}"
+            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"${{ env.BACKEND_SERVICE_ID }}\\\", environmentId: \\\"${{ env.DEV_ENVIRONMENT_ID }}\\\") }\"}"
 
       - name: Deploy Frontend to Development
         env:
@@ -104,7 +105,7 @@ jobs:
           curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"8e6ec2df-e4a1-4fe1-afd9-31c22c5b2e59\\\", environmentId: \\\"c319cc09-f1a9-4d11-8119-a23815b9883a\\\") }\"}"
+            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"${{ env.FRONTEND_SERVICE_ID }}\\\", environmentId: \\\"${{ env.DEV_ENVIRONMENT_ID }}\\\") }\"}"
 
       - name: Wait and health check
         run: |
@@ -130,7 +131,7 @@ jobs:
           curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"987799b6-18b9-4223-81c6-505ffc6717ba\\\") }\"}"
+            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"${{ env.BACKEND_SERVICE_ID }}\\\", environmentId: \\\"${{ env.PROD_ENVIRONMENT_ID }}\\\") }\"}"
 
       - name: Deploy Frontend to Production
         env:
@@ -139,7 +140,7 @@ jobs:
           curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"8e6ec2df-e4a1-4fe1-afd9-31c22c5b2e59\\\") }\"}"
+            -d "{\"query\":\"mutation { serviceInstanceDeploy(serviceId: \\\"${{ env.FRONTEND_SERVICE_ID }}\\\", environmentId: \\\"${{ env.PROD_ENVIRONMENT_ID }}\\\") }\"}"
 
       - name: Wait and health check
         run: |
