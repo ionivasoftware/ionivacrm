@@ -355,16 +355,17 @@ public sealed class SaasSyncJob
                 if (existing.IsDeleted) continue;
 
                 bool changed = false;
-                if (existing.CompanyName    != src.Name)    { existing.CompanyName    = src.Name;    changed = true; }
-                if (existing.Email          != src.Email)   { existing.Email          = src.Email;   changed = true; }
-                if (existing.Phone          != src.Phone)   { existing.Phone          = src.Phone;   changed = true; }
-                if (existing.ExpirationDate != expDate)     { existing.ExpirationDate = expDate;     changed = true; }
-                if (existing.Status         != newStatus)   { existing.Status         = newStatus;   changed = true; }
-                if (existing.LogoUrl        != src.Logo)    { existing.LogoUrl        = src.Logo;    changed = true; }
-                if (existing.CreatedAt      != createdOn)   { existing.CreatedAt      = createdOn;   changed = true; }
-                // Do NOT overwrite Address, TaxNumber, TaxUnit, ContactName, Segment —
-                // these are entered manually via the CRM UI and the Rezerval CompanyList
-                // API does not return them. Title is the company title (ünvan), not segment.
+                if (existing.CompanyName    != src.Name)      { existing.CompanyName    = src.Name;      changed = true; }
+                if (existing.Email          != src.Email)     { existing.Email          = src.Email;     changed = true; }
+                if (existing.Phone          != src.Phone)     { existing.Phone          = src.Phone;     changed = true; }
+                if (existing.Address        != src.Address)   { existing.Address        = src.Address;   changed = true; }
+                if (existing.TaxNumber      != src.TaxNumber) { existing.TaxNumber      = src.TaxNumber; changed = true; }
+                if (existing.TaxUnit        != src.TaxUnit)   { existing.TaxUnit        = src.TaxUnit;   changed = true; }
+                if (existing.ExpirationDate != expDate)       { existing.ExpirationDate = expDate;       changed = true; }
+                if (existing.Status         != newStatus)     { existing.Status         = newStatus;     changed = true; }
+                if (existing.LogoUrl        != src.Logo)      { existing.LogoUrl        = src.Logo;      changed = true; }
+                if (existing.CreatedAt      != createdOn)     { existing.CreatedAt      = createdOn;     changed = true; }
+                // ContactName and Segment are CRM-only fields — not in CompanyList API.
                 if (changed) existing.UpdatedAt = DateTime.UtcNow;
             }
             else
@@ -377,6 +378,9 @@ public sealed class SaasSyncJob
                     CompanyName    = src.Name,
                     Email          = src.Email,
                     Phone          = src.Phone,
+                    Address        = src.Address,
+                    TaxNumber      = src.TaxNumber,
+                    TaxUnit        = src.TaxUnit,
                     LogoUrl        = src.Logo,
                     ExpirationDate = expDate,
                     Status         = newStatus,
