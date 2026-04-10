@@ -588,6 +588,24 @@ export function useCreateCustomerContract(customerId: string) {
   });
 }
 
+/** Changes the payment type of the active contract. */
+export function useUpdateContractPaymentType(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (paymentType: ContractPaymentType) => {
+      const response = await apiClient.patch<ApiResponse<CustomerContract>>(
+        `/customers/${customerId}/contracts/payment-type`,
+        { paymentType }
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-contract', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+    },
+  });
+}
+
 /**
  * Response from POST /customers/{id}/contracts/cancel.
  * `iyzicoWarnings` is non-empty when Rezerval reported iyzico-side issues

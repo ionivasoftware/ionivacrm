@@ -7,6 +7,7 @@ using IonCrm.Application.Customers.Commands.DeleteCustomer;
 using IonCrm.Application.Customers.Commands.ExtendEmsExpiration;
 using IonCrm.Application.Customers.Commands.PushCustomerToRezerval;
 using IonCrm.Application.Customers.Commands.TransferLead;
+using IonCrm.Application.Customers.Commands.UpdateContractPaymentType;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
 using IonCrm.Application.Customers.Queries.GetActiveContractByCustomerId;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
@@ -301,7 +302,22 @@ public class CustomersController : ApiControllerBase
         return ResultToResponse(result);
     }
 
+    /// <summary>Changes the payment type (CreditCard / EftWire) of the active contract.</summary>
+    [HttpPatch("{id:guid}/contracts/payment-type")]
+    public async Task<IActionResult> UpdateContractPaymentType(
+        Guid id,
+        [FromBody] UpdatePaymentTypeRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(
+            new UpdateContractPaymentTypeCommand(id, body.PaymentType), cancellationToken);
+        return ResultToResponse(result);
+    }
+
 }
+
+/// <summary>Request body for PATCH /api/v1/customers/{id}/contracts/payment-type.</summary>
+public record UpdatePaymentTypeRequest(ContractPaymentType PaymentType);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/extend-expiration.</summary>
 public record ExtendEmsExpirationRequest(string DurationType, int Amount);

@@ -80,6 +80,7 @@ import {
   useCustomerRezervalSummary,
   useUpdateCustomer,
   useActiveCustomerContract,
+  useUpdateContractPaymentType,
 } from '@/api/customers';
 import { useAdminProjects } from '@/api/admin';
 import { CustomerStatusBadge, CustomerLabelBadge } from '@/components/customers/CustomerStatusBadge';
@@ -1098,6 +1099,7 @@ export function CustomerDetailPage() {
     customerId,
     isRezervalProject && isRezervalCustomer(customer?.legacyId),
   );
+  const updatePaymentType = useUpdateContractPaymentType(customerId);
 
   const { data: historyData, isLoading: historyLoading } = useContactHistory(customerId);
   const { data: tasksData, isLoading: tasksLoading } = useCustomerTasks(customerId);
@@ -1437,20 +1439,30 @@ export function CustomerDetailPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   <h3 className="font-semibold text-sm text-foreground">Aktif Sözleşme</h3>
-                  <Badge
-                    variant="outline"
-                    className="border-purple-500/40 text-purple-300 bg-purple-500/10"
+                  <button
+                    type="button"
+                    title="Ödeme tipini değiştirmek için tıklayın"
+                    disabled={updatePaymentType.isPending}
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors cursor-pointer border-purple-500/40 text-purple-300 bg-purple-500/10 hover:bg-purple-500/20"
+                    onClick={async () => {
+                      const newType = activeContract.paymentType === 0 ? 1 : 0;
+                      try {
+                        await updatePaymentType.mutateAsync(newType);
+                        toast({
+                          title: 'Ödeme tipi güncellendi',
+                          description: newType === 0 ? 'Kredi Kartı olarak değiştirildi.' : 'EFT/Havale olarak değiştirildi.',
+                        });
+                      } catch {
+                        toast({ title: 'Hata', description: 'Ödeme tipi güncellenemedi.', variant: 'destructive' });
+                      }
+                    }}
                   >
                     {activeContract.paymentType === 0 ? (
-                      <span className="flex items-center gap-1">
-                        <CreditCard className="h-3 w-3" /> Kredi Kartı
-                      </span>
+                      <><CreditCard className="h-3 w-3" /> Kredi Kartı</>
                     ) : (
-                      <span className="flex items-center gap-1">
-                        <Banknote className="h-3 w-3" /> EFT/Havale
-                      </span>
+                      <><Banknote className="h-3 w-3" /> EFT/Havale</>
                     )}
-                  </Badge>
+                  </button>
                   <Button
                     variant="outline"
                     size="sm"
