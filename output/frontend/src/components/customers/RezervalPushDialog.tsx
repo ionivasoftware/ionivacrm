@@ -39,7 +39,8 @@ const schema = z.object({
   isPersonCompany: z.enum(['true', 'false']),
   address: z.string(),
   experationDate: z.string(),
-  adminNameSurname: z.string(),
+  adminFirstName: z.string(),
+  adminLastName: z.string(),
   adminLoginName: z.string(),
   adminPassword: z.string(),
   adminEmail: z.string(),
@@ -80,6 +81,9 @@ export function RezervalPushDialog({ isOpen, onClose, customer }: RezervalPushDi
 
   const onSubmit = async (data: FormData) => {
     try {
+      const adminFullName = [data.adminFirstName, data.adminLastName]
+        .filter(Boolean)
+        .join(' ');
       await pushMutation.mutateAsync({
         name: data.name,
         title: data.title,
@@ -93,7 +97,7 @@ export function RezervalPushDialog({ isOpen, onClose, customer }: RezervalPushDi
         language: 1,
         countryPhoneCode: 90,
         experationDate: data.experationDate || undefined,
-        adminNameSurname: data.adminNameSurname || undefined,
+        adminNameSurname: adminFullName || undefined,
         adminLoginName: data.adminLoginName || undefined,
         adminPassword: data.adminPassword || undefined,
         adminEmail: data.adminEmail || undefined,
@@ -232,26 +236,32 @@ export function RezervalPushDialog({ isOpen, onClose, customer }: RezervalPushDi
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="adminNameSurname">Ad Soyad</Label>
-                <Input id="adminNameSurname" {...register('adminNameSurname')} className="h-11" />
+                <Label htmlFor="adminFirstName">Yönetici Adı</Label>
+                <Input id="adminFirstName" placeholder="Ad" {...register('adminFirstName')} className="h-11" />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="adminLastName">Yönetici Soyadı</Label>
+                <Input id="adminLastName" placeholder="Soyad" {...register('adminLastName')} className="h-11" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="adminLoginName">Kullanıcı Adı</Label>
                 <Input id="adminLoginName" {...register('adminLoginName')} className="h-11" />
               </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="adminPassword">Şifre</Label>
                 <Input id="adminPassword" type="password" {...register('adminPassword')} className="h-11" />
               </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="adminEmail">E-posta</Label>
+                <Label htmlFor="adminEmail">Yönetici E-posta</Label>
                 <Input id="adminEmail" type="email" {...register('adminEmail')} className="h-11" />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="adminPhone">Telefon</Label>
-                <Input id="adminPhone" {...register('adminPhone')} className="h-11" />
+                <Label htmlFor="adminPhone">Yönetici Telefonu</Label>
+                <Input id="adminPhone" type="tel" {...register('adminPhone')} className="h-11" />
               </div>
             </div>
           </div>
@@ -278,6 +288,9 @@ export function RezervalPushDialog({ isOpen, onClose, customer }: RezervalPushDi
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getDefaults(customer: Customer): FormData {
+  const nameParts = (customer.contactName ?? '').split(' ');
+  const firstName = nameParts[0] ?? '';
+  const lastName = nameParts.slice(1).join(' ');
   return {
     name: customer.companyName,
     title: customer.companyName,
@@ -291,7 +304,8 @@ function getDefaults(customer: Customer): FormData {
     experationDate: customer.expirationDate
       ? new Date(customer.expirationDate).toISOString().split('T')[0]
       : '',
-    adminNameSurname: customer.contactName ?? '',
+    adminFirstName: firstName,
+    adminLastName: lastName,
     adminLoginName: '',
     adminPassword: '',
     adminEmail: customer.email ?? '',

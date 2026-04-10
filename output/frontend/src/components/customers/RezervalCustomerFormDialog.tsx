@@ -33,15 +33,20 @@ import type { ApiResponse, Customer } from '@/types';
 const schema = z.object({
   // Firma bilgileri
   name: z.string().min(1, 'Firma adı gereklidir'),
+  title: z.string(),
   phone: z.string().min(1, 'Telefon numarası gereklidir'),
   email: z.string().min(1, 'E-posta gereklidir'),
   taxNumber: z.string(),
+  taxUnit: z.string(),
   tcNo: z.string(),
   address: z.string(),
   isPersonCompany: z.enum(['true', 'false']),
+  experationDate: z.string(),
   // Yönetici bilgileri
   adminFirstName: z.string(),
   adminLastName: z.string(),
+  adminLoginName: z.string(),
+  adminPassword: z.string(),
   adminEmail: z.string(),
   adminPhone: z.string(),
 });
@@ -149,6 +154,8 @@ export function RezervalCustomerFormDialog({
         email: data.email || undefined,
         address: data.address || undefined,
         taxNumber: data.taxNumber || undefined,
+        taxUnit: data.taxUnit || undefined,
+        contactName: [data.adminFirstName, data.adminLastName].filter(Boolean).join(' ') || undefined,
         // RezervAl customers start as Active
         status: 'Active',
       });
@@ -162,19 +169,20 @@ export function RezervalCustomerFormDialog({
         `/customers/${newCustomer.id}/push-to-rezerval`,
         {
           name: data.name,
-          title: data.name,
+          title: data.title || data.name,
           phone: data.phone,
           email: data.email,
-          taxUnit: '',
+          taxUnit: data.taxUnit || '',
           taxNumber: data.taxNumber || '',
           tcNo: data.tcNo || undefined,
           isPersonCompany: data.isPersonCompany === 'true',
           address: data.address || '',
           language: 1,
           countryPhoneCode: 90,
+          experationDate: data.experationDate || undefined,
           adminNameSurname: adminFullName || undefined,
-          adminLoginName: undefined,
-          adminPassword: undefined,
+          adminLoginName: data.adminLoginName || undefined,
+          adminPassword: data.adminPassword || undefined,
           adminEmail: data.adminEmail || undefined,
           adminPhone: data.adminPhone || undefined,
           logoBase64: logoBase64 || undefined,
@@ -225,19 +233,30 @@ export function RezervalCustomerFormDialog({
               Firma Bilgileri
             </p>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="rz-name">
-                Firma Adı <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="rz-name"
-                placeholder="Firma veya müşteri adını giriniz"
-                {...register('name')}
-                className={cn('h-11', errors.name && 'border-destructive')}
-              />
-              {errors.name && (
-                <p className="text-xs text-destructive">{errors.name.message}</p>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="rz-name">
+                  Firma Adı <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="rz-name"
+                  placeholder="Firma veya müşteri adını giriniz"
+                  {...register('name')}
+                  className={cn('h-11', errors.name && 'border-destructive')}
+                />
+                {errors.name && (
+                  <p className="text-xs text-destructive">{errors.name.message}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="rz-title">Ünvan</Label>
+                <Input
+                  id="rz-title"
+                  placeholder="Firma ünvanı"
+                  {...register('title')}
+                  className="h-11"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -294,6 +313,15 @@ export function RezervalCustomerFormDialog({
                 />
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="rz-taxUnit">Vergi Dairesi</Label>
+                <Input
+                  id="rz-taxUnit"
+                  placeholder="Vergi dairesi adı"
+                  {...register('taxUnit')}
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="rz-tcNo">TC Kimlik No</Label>
                 <Input
                   id="rz-tcNo"
@@ -302,6 +330,9 @@ export function RezervalCustomerFormDialog({
                   className="h-11"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Firma Tipi</Label>
                 <Controller
@@ -318,6 +349,15 @@ export function RezervalCustomerFormDialog({
                       </SelectContent>
                     </Select>
                   )}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="rz-experationDate">Bitiş Tarihi</Label>
+                <Input
+                  id="rz-experationDate"
+                  type="date"
+                  {...register('experationDate')}
+                  className="h-11"
                 />
               </div>
             </div>
@@ -410,6 +450,27 @@ export function RezervalCustomerFormDialog({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
+                <Label htmlFor="rz-adminLoginName">Kullanıcı Adı</Label>
+                <Input
+                  id="rz-adminLoginName"
+                  placeholder="Giriş kullanıcı adı"
+                  {...register('adminLoginName')}
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="rz-adminPassword">Şifre</Label>
+                <Input
+                  id="rz-adminPassword"
+                  type="password"
+                  placeholder="Giriş şifresi"
+                  {...register('adminPassword')}
+                  className="h-11"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
                 <Label htmlFor="rz-adminEmail">Yönetici E-posta</Label>
                 <Input
                   id="rz-adminEmail"
@@ -462,14 +523,19 @@ export function RezervalCustomerFormDialog({
 function getDefaultValues(): FormData {
   return {
     name: '',
+    title: '',
     phone: '',
     email: '',
     taxNumber: '',
+    taxUnit: '',
     tcNo: '',
     address: '',
     isPersonCompany: 'false',
+    experationDate: '',
     adminFirstName: '',
     adminLastName: '',
+    adminLoginName: '',
+    adminPassword: '',
     adminEmail: '',
     adminPhone: '',
   };
