@@ -141,7 +141,12 @@ export function DashboardPage() {
           title="Toplam Müşteri"
           value={stats?.totalCustomers ?? 0}
           icon={Users}
-          description={stats ? `${stats.activeCustomers} aktif müşteri` : undefined}
+          description={stats ? (() => {
+            const demo = stats.customersByStatus?.find(s => s.status === 'Demo')?.count ?? 0;
+            return demo > 0
+              ? `${stats.activeCustomers} aktif, ${demo} demo`
+              : `${stats.activeCustomers} aktif müşteri`;
+          })() : undefined}
           isLoading={isLoading}
         />
         <StatCard
