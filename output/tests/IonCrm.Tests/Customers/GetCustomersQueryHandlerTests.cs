@@ -33,8 +33,9 @@ public class GetCustomersQueryHandlerTests
                 It.IsAny<Guid?>(),
                 It.IsAny<int>(),
                 It.IsAny<int>(),
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<Customer>)customers, 5));
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)customers.Select(c => (c, (DateTime?)null)).ToList(), 5));
 
         var query = new GetCustomersQuery { Page = 1, PageSize = 10 };
 
@@ -58,8 +59,8 @@ public class GetCustomersQueryHandlerTests
         // Arrange
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
-                null, null, null, null, null, null, 1, 100, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<Customer>)new List<Customer>(), 0));
+                null, null, null, null, null, null, 1, 100, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)new List<(Customer, DateTime?)>(), 0));
 
         var query = new GetCustomersQuery { Page = 1, PageSize = 9999 };
 
@@ -69,7 +70,7 @@ public class GetCustomersQueryHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _customerRepoMock.Verify(r => r.GetPagedAsync(
-            null, null, null, null, null, null, 1, 100, It.IsAny<CancellationToken>()), Times.Once);
+            null, null, null, null, null, null, 1, 100, null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -78,8 +79,8 @@ public class GetCustomersQueryHandlerTests
         // Arrange
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
-                null, null, null, null, null, null, 1, 20, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<Customer>)new List<Customer>(), 0));
+                null, null, null, null, null, null, 1, 20, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)new List<(Customer, DateTime?)>(), 0));
 
         var query = new GetCustomersQuery { Page = -5, PageSize = 20 };
 
@@ -89,6 +90,6 @@ public class GetCustomersQueryHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _customerRepoMock.Verify(r => r.GetPagedAsync(
-            null, null, null, null, null, null, 1, 20, It.IsAny<CancellationToken>()), Times.Once);
+            null, null, null, null, null, null, 1, 20, null, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

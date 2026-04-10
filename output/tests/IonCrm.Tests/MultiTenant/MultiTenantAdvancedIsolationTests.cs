@@ -75,8 +75,8 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
 
         // Assert — user sees ALL three customers across both projects
         total.Should().Be(3, "user in both projects must see all their data");
-        items.Should().Contain(c => c.ProjectId == _projectA);
-        items.Should().Contain(c => c.ProjectId == _projectB);
+        items.Should().Contain(c => c.Customer.ProjectId == _projectA);
+        items.Should().Contain(c => c.Customer.ProjectId == _projectB);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
 
         // Assert — strict isolation: Project A user sees ONLY Project A rows
         total.Should().Be(2, "only Project A has 2 customers");
-        items.Should().NotContain(c => c.CompanyName == "Beta Corp",
+        items.Should().NotContain(c => c.Customer.CompanyName == "Beta Corp",
             "Project B data must be invisible to Project A user");
     }
 
@@ -417,8 +417,8 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
 
         // Assert — soft-deleted record must be invisible
         total.Should().Be(1);
-        items.Should().ContainSingle(c => c.Id == activeId);
-        items.Should().NotContain(c => c.Id == deletedId, "soft-deleted records must be filtered out");
+        items.Should().ContainSingle(c => c.Customer.Id == activeId);
+        items.Should().NotContain(c => c.Customer.Id == deletedId, "soft-deleted records must be filtered out");
     }
 
     [Fact]

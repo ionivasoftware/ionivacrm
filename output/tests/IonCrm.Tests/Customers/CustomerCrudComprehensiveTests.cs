@@ -493,7 +493,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
         // Assert — must not appear in paged queries
         var (after, afterTotal) = await _realRepo.GetPagedAsync(
             null, null, null, null, null, null, 1, 50);
-        after.Should().NotContain(c => c.Id == customerId,
+        after.Should().NotContain(c => c.Customer.Id == customerId,
             "soft-deleted customer must not appear in GetPagedAsync results");
     }
 

@@ -23,8 +23,8 @@ public class GetCustomersWithFiltersTests
         // Arrange
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
-                _projectId, null, null, null, null, null, 1, 20, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<Customer>)new List<Customer>(), 0));
+                _projectId, null, null, null, null, null, 1, 20, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)new List<(Customer, DateTime?)>(), 0));
 
         var query = new GetCustomersQuery { ProjectId = _projectId };
 
@@ -34,7 +34,7 @@ public class GetCustomersWithFiltersTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _customerRepoMock.Verify(r => r.GetPagedAsync(
-            _projectId, null, null, null, null, null, 1, 20, It.IsAny<CancellationToken>()),
+            _projectId, null, null, null, null, null, 1, 20, null, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -44,8 +44,8 @@ public class GetCustomersWithFiltersTests
         // Arrange
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
-                null, null, null, null, CustomerLabel.YuksekPotansiyel, null, 1, 20, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<Customer>)new List<Customer>(), 0));
+                null, null, null, null, CustomerLabel.YuksekPotansiyel, null, 1, 20, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)new List<(Customer, DateTime?)>(), 0));
 
         var query = new GetCustomersQuery { Label = CustomerLabel.YuksekPotansiyel };
 
@@ -55,7 +55,7 @@ public class GetCustomersWithFiltersTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         _customerRepoMock.Verify(r => r.GetPagedAsync(
-            null, null, null, null, CustomerLabel.YuksekPotansiyel, null, 1, 20, It.IsAny<CancellationToken>()),
+            null, null, null, null, CustomerLabel.YuksekPotansiyel, null, 1, 20, null, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -74,8 +74,9 @@ public class GetCustomersWithFiltersTests
                 CustomerLabel.Potansiyel,
                 assignedUserId,
                 2, 15,
+                null,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<Customer>)new List<Customer>(), 0));
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)new List<(Customer, DateTime?)>(), 0));
 
         var query = new GetCustomersQuery
         {
@@ -96,7 +97,7 @@ public class GetCustomersWithFiltersTests
         result.IsSuccess.Should().BeTrue();
         _customerRepoMock.Verify(r => r.GetPagedAsync(
             _projectId, "test search", CustomerStatus.Active, "Enterprise",
-            CustomerLabel.Potansiyel, assignedUserId, 2, 15, It.IsAny<CancellationToken>()),
+            CustomerLabel.Potansiyel, assignedUserId, 2, 15, null, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 }

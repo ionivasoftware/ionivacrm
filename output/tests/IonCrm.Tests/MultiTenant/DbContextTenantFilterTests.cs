@@ -72,8 +72,8 @@ public class DbContextTenantFilterTests : IDisposable
 
         // Assert — user in Project A must ONLY see Project A customers
         items.Should().HaveCount(1);
-        items.Should().AllSatisfy(c => c.ProjectId.Should().Be(_projectA));
-        items.Should().NotContain(c => c.ProjectId == _projectB);
+        items.Should().AllSatisfy(c => c.Customer.ProjectId.Should().Be(_projectA));
+        items.Should().NotContain(c => c.Customer.ProjectId == _projectB);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class DbContextTenantFilterTests : IDisposable
 
         // Assert
         items.Should().HaveCount(1);
-        items.Should().AllSatisfy(c => c.ProjectId.Should().Be(_projectB));
+        items.Should().AllSatisfy(c => c.Customer.ProjectId.Should().Be(_projectB));
     }
 
     [Fact]
@@ -114,8 +114,8 @@ public class DbContextTenantFilterTests : IDisposable
 
         // Assert — superadmin bypasses filter and sees both tenants
         total.Should().Be(2);
-        items.Should().Contain(c => c.ProjectId == _projectA);
-        items.Should().Contain(c => c.ProjectId == _projectB);
+        items.Should().Contain(c => c.Customer.ProjectId == _projectA);
+        items.Should().Contain(c => c.Customer.ProjectId == _projectB);
     }
 
     [Fact]
@@ -162,8 +162,8 @@ public class DbContextTenantFilterTests : IDisposable
         // Assert — soft-deleted customer must be invisible
         total.Should().Be(1);
         items.Should().HaveCount(1);
-        items[0].CompanyName.Should().Be("Active Corp");
-        items.Should().NotContain(c => c.CompanyName == "Deleted Corp");
+        items[0].Customer.CompanyName.Should().Be("Active Corp");
+        items.Should().NotContain(c => c.Customer.CompanyName == "Deleted Corp");
     }
 
     [Fact]

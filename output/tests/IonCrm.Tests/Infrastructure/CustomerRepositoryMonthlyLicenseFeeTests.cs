@@ -134,7 +134,7 @@ public class CustomerRepositoryMonthlyLicenseFeeTests : IDisposable
 
         // Assert
         items.Should().ContainSingle();
-        items[0].MonthlyLicenseFee.Should().Be(399.00m);
+        items[0].Customer.MonthlyLicenseFee.Should().Be(399.00m);
     }
 
     [Fact]
