@@ -72,10 +72,13 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
         });
 
         // Sort: default is lastActivity descending (newest first).
+        // Name sorts use Turkish ICU collation so Ş/Ç/Ö/Ü/İ etc. land in the
+        // correct positions instead of being sorted by raw Unicode codepoint.
+        const string trCollation = "tr-x-icu";
         var sorted = sortBy switch
         {
-            "name"         => projected.OrderBy(x => x.Customer.CompanyName),
-            "name_desc"    => projected.OrderByDescending(x => x.Customer.CompanyName),
+            "name"         => projected.OrderBy(x => EF.Functions.Collate(x.Customer.CompanyName, trCollation)),
+            "name_desc"    => projected.OrderByDescending(x => EF.Functions.Collate(x.Customer.CompanyName, trCollation)),
             "created"      => projected.OrderBy(x => x.Customer.CreatedAt),
             "created_desc" => projected.OrderByDescending(x => x.Customer.CreatedAt),
             "activity"     => projected.OrderBy(x => x.LastActivityDate),
