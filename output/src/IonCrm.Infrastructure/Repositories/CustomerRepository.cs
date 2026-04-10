@@ -38,25 +38,34 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            // Turkish case-insensitive search: PostgreSQL ILIKE and LOWER() both fail
-            // on Turkish ı/I and i/İ pairs because the default DB collation is not
-            // Turkish. Solution: replace each Turkish-problematic character pair with
-            // the ILIKE wildcard '_' (matches any single character). This way "arısan"
-            // becomes "ar_san" which matches "ARISAN", "Arısan", etc.
-            var normalized = search.Trim()
-                .Replace("ı", "_").Replace("I", "_")
-                .Replace("i", "_").Replace("İ", "_")
-                .Replace("ö", "_").Replace("Ö", "_")
-                .Replace("ü", "_").Replace("Ü", "_")
-                .Replace("ç", "_").Replace("Ç", "_")
-                .Replace("ş", "_").Replace("Ş", "_")
-                .Replace("ğ", "_").Replace("Ğ", "_");
-            var pattern = $"%{normalized}%";
+            // Turkish case-insensitive search via SQL LOWER with Turkish normalization.
+            // PostgreSQL LOWER() doesn't know Turkish ı↔I / i↔İ rules, so we normalize
+            // BOTH the search term AND the column value using REPLACE before comparing.
+            // This is done in raw SQL to keep it in a single WHERE clause.
+            var term = search.Trim()
+                .Replace("I", "ı").Replace("İ", "i")
+                .Replace("Ö", "ö").Replace("Ü", "ü")
+                .Replace("Ç", "ç").Replace("Ş", "ş").Replace("Ğ", "ğ")
+                .ToLowerInvariant();
+            var pattern = $"%{term}%";
+
+            // The same REPLACE chain must be applied to the DB column so both sides match.
+            // EF Core can't express this cleanly, so we use a raw SQL filter.
             query = query.Where(c =>
-                EF.Functions.ILike(c.CompanyName, pattern) ||
-                (c.ContactName != null && EF.Functions.ILike(c.ContactName, pattern)) ||
+                EF.Functions.ILike(
+                    c.CompanyName
+                        .Replace("I", "ı").Replace("İ", "i")
+                        .Replace("Ö", "ö").Replace("Ü", "ü")
+                        .Replace("Ç", "ç").Replace("Ş", "ş").Replace("Ğ", "ğ"),
+                    pattern) ||
+                (c.ContactName != null && EF.Functions.ILike(
+                    c.ContactName
+                        .Replace("I", "ı").Replace("İ", "i")
+                        .Replace("Ö", "ö").Replace("Ü", "ü")
+                        .Replace("Ç", "ç").Replace("Ş", "ş").Replace("Ğ", "ğ"),
+                    pattern)) ||
                 (c.Email != null && EF.Functions.ILike(c.Email, pattern)) ||
-                (c.Phone != null && EF.Functions.ILike(c.Phone, pattern)) ||
+                (c.Phone != null && c.Phone.Contains(search.Trim())) ||
                 (c.Code != null && EF.Functions.ILike(c.Code, pattern)));
         }
 
