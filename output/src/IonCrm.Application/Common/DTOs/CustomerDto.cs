@@ -23,6 +23,7 @@ public class CustomerDto
     public Guid? AssignedUserId { get; set; }
     public string? AssignedUserName { get; set; }
     public DateTime? ExpirationDate { get; set; }
+    public string? LogoUrl { get; set; }
     public string? LegacyId { get; set; }
     public string? ParasutContactId { get; set; }
     /// <summary>True if the customer is registered as an e-invoice (e-fatura) payer in Paraşüt.</summary>

@@ -54,6 +54,9 @@ public class Customer : BaseEntity
     /// <summary>Gets or sets the subscription expiration date (synced from SaaS).</summary>
     public DateTime? ExpirationDate { get; set; }
 
+    /// <summary>Gets or sets the company logo URL (synced from Rezerval CompanyList API).</summary>
+    public string? LogoUrl { get; set; }
+
     /// <summary>Gets or sets the sales rep assigned to this customer.</summary>
     public Guid? AssignedUserId { get; set; }
 

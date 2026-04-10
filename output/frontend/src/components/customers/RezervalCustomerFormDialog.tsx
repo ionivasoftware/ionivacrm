@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2, Building2, Upload, X } from 'lucide-react';
+import { Loader2, Building2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -22,16 +21,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCreateCustomer } from '@/api/customers';
-import { apiClient } from '@/api/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
-import type { ApiResponse, Customer } from '@/types';
+import type { Customer } from '@/types';
 
 // ── Schema ───────────────────────────────────────────────────────────────────
+// Logo, bitiş tarihi ve yönetici alanları Rezerval Güncelle modalında.
+// Bu modal sadece CRM + temel Rezerval kaydı oluşturur.
 
 const schema = z.object({
-  // Firma bilgileri
   name: z.string().min(1, 'Firma adı gereklidir'),
   title: z.string(),
   phone: z.string().min(1, 'Telefon numarası gereklidir'),
@@ -41,14 +40,7 @@ const schema = z.object({
   tcNo: z.string(),
   address: z.string(),
   isPersonCompany: z.enum(['true', 'false']),
-  experationDate: z.string(),
-  // Yönetici bilgileri
-  adminFirstName: z.string(),
-  adminLastName: z.string(),
-  adminLoginName: z.string(),
-  adminPassword: z.string(),
-  adminEmail: z.string(),
-  adminPhone: z.string(),
+  contactName: z.string(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -71,12 +63,6 @@ export function RezervalCustomerFormDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createMutation = useCreateCustomer();
-
-  // ── Logo upload state ────────────────────────────────────────────────────
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
-  const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
@@ -90,113 +76,32 @@ export function RezervalCustomerFormDialog({
     defaultValues: getDefaultValues(),
   });
 
-  // Reset form when dialog opens/closes
   useEffect(() => {
-    if (isOpen) {
-      reset(getDefaultValues());
-      setLogoFile(null);
-      setLogoPreviewUrl(null);
-      setLogoBase64(null);
-    }
+    if (isOpen) reset(getDefaultValues());
   }, [isOpen, reset]);
-
-  // ── Logo file handling ────────────────────────────────────────────────────
-
-  const handleLogoChange = useCallback((file: File | null) => {
-    if (!file) {
-      setLogoFile(null);
-      setLogoPreviewUrl(null);
-      setLogoBase64(null);
-      return;
-    }
-
-    setLogoFile(file);
-    const objectUrl = URL.createObjectURL(file);
-    setLogoPreviewUrl(objectUrl);
-
-    // Convert to base64
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      // Strip the data URL prefix (e.g. "data:image/png;base64,")
-      const base64 = result.split(',')[1] ?? '';
-      setLogoBase64(base64);
-    };
-    reader.readAsDataURL(file);
-  }, []);
-
-  function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    handleLogoChange(file);
-  }
-
-  function handleRemoveLogo() {
-    handleLogoChange(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  }
-
-  // Cleanup object URL when component unmounts or logo changes
-  useEffect(() => {
-    return () => {
-      if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl);
-    };
-  }, [logoPreviewUrl]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
-      // Step 1: Create a basic CRM customer entry
       const newCustomer = await createMutation.mutateAsync({
         companyName: data.name,
+        contactName: data.contactName || undefined,
         phone: data.phone || undefined,
         email: data.email || undefined,
         address: data.address || undefined,
         taxNumber: data.taxNumber || undefined,
         taxUnit: data.taxUnit || undefined,
-        contactName: [data.adminFirstName, data.adminLastName].filter(Boolean).join(' ') || undefined,
-        // RezervAl customers start as Active
         status: 'Active',
       });
 
-      // Step 2: Push to RezervAl via existing endpoint
-      const adminFullName = [data.adminFirstName, data.adminLastName]
-        .filter(Boolean)
-        .join(' ');
-
-      await apiClient.post<ApiResponse<Customer>>(
-        `/customers/${newCustomer.id}/push-to-rezerval`,
-        {
-          name: data.name,
-          title: data.title || data.name,
-          phone: data.phone,
-          email: data.email,
-          taxUnit: data.taxUnit || '',
-          taxNumber: data.taxNumber || '',
-          tcNo: data.tcNo || undefined,
-          isPersonCompany: data.isPersonCompany === 'true',
-          address: data.address || '',
-          language: 1,
-          countryPhoneCode: 90,
-          experationDate: data.experationDate || undefined,
-          adminNameSurname: adminFullName || undefined,
-          adminLoginName: data.adminLoginName || undefined,
-          adminPassword: data.adminPassword || undefined,
-          adminEmail: data.adminEmail || undefined,
-          adminPhone: data.adminPhone || undefined,
-          logoBase64: logoBase64 || undefined,
-          logoFileName: logoFile?.name || undefined,
-        }
-      );
-
-      // Invalidate caches
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
 
       toast({
         title: 'Müşteri oluşturuldu',
-        description: `${data.name} RezervAl'a başarıyla aktarıldı.`,
+        description: `${data.name} başarıyla kaydedildi. RezervAl'a göndermek için detay sayfasından "RezervAl Güncelle" butonunu kullanabilirsiniz.`,
       });
 
       onSuccess?.(newCustomer);
@@ -206,7 +111,7 @@ export function RezervalCustomerFormDialog({
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       toast({
         title: 'Hata oluştu',
-        description: errMsg ?? 'Müşteri oluşturulurken bir hata oluştu. Lütfen tekrar deneyiniz.',
+        description: errMsg ?? 'Müşteri oluşturulurken bir hata oluştu.',
         variant: 'destructive',
       });
     } finally {
@@ -240,7 +145,7 @@ export function RezervalCustomerFormDialog({
                 </Label>
                 <Input
                   id="rz-name"
-                  placeholder="Firma veya müşteri adını giriniz"
+                  placeholder="Firma veya müşteri adı"
                   {...register('name')}
                   className={cn('h-11', errors.name && 'border-destructive')}
                 />
@@ -352,146 +257,20 @@ export function RezervalCustomerFormDialog({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="rz-experationDate">Bitiş Tarihi</Label>
+                <Label htmlFor="rz-contactName">İletişim Kişisi</Label>
                 <Input
-                  id="rz-experationDate"
-                  type="date"
-                  {...register('experationDate')}
+                  id="rz-contactName"
+                  placeholder="Ad Soyad"
+                  {...register('contactName')}
                   className="h-11"
                 />
               </div>
             </div>
           </div>
 
-          <Separator />
-
-          {/* ── Logo ── */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Logo
-            </p>
-            <div className="flex items-center gap-4">
-              {logoPreviewUrl ? (
-                <div className="relative w-20 h-20 rounded-lg border border-border overflow-hidden flex-shrink-0">
-                  <img
-                    src={logoPreviewUrl}
-                    alt="Logo önizleme"
-                    className="w-full h-full object-contain"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleRemoveLogo}
-                    className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center hover:opacity-90"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ) : (
-                <div className="w-20 h-20 rounded-lg border border-dashed border-border flex items-center justify-center flex-shrink-0 bg-muted/50">
-                  <Building2 className="w-8 h-8 text-muted-foreground/40" />
-                </div>
-              )}
-              <div className="flex-1 space-y-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="h-4 w-4" />
-                  {logoFile ? 'Logoyu Değiştir' : 'Logo Yükle'}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  PNG, JPG veya GIF · Maks. 2 MB
-                </p>
-                {logoFile && (
-                  <p className="text-xs text-foreground font-medium truncate max-w-[200px]">
-                    {logoFile.name}
-                  </p>
-                )}
-              </div>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/gif,image/webp"
-              className="hidden"
-              onChange={handleFileInputChange}
-            />
-          </div>
-
-          <Separator />
-
-          {/* ── Yönetici Bilgileri ── */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Yönetici Bilgileri
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="rz-adminFirstName">Yönetici Adı</Label>
-                <Input
-                  id="rz-adminFirstName"
-                  placeholder="Ad"
-                  {...register('adminFirstName')}
-                  className="h-11"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="rz-adminLastName">Yönetici Soyadı</Label>
-                <Input
-                  id="rz-adminLastName"
-                  placeholder="Soyad"
-                  {...register('adminLastName')}
-                  className="h-11"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="rz-adminLoginName">Kullanıcı Adı</Label>
-                <Input
-                  id="rz-adminLoginName"
-                  placeholder="Giriş kullanıcı adı"
-                  {...register('adminLoginName')}
-                  className="h-11"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="rz-adminPassword">Şifre</Label>
-                <Input
-                  id="rz-adminPassword"
-                  type="password"
-                  placeholder="Giriş şifresi"
-                  {...register('adminPassword')}
-                  className="h-11"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="rz-adminEmail">Yönetici E-posta</Label>
-                <Input
-                  id="rz-adminEmail"
-                  type="email"
-                  placeholder="yonetici@sirket.com"
-                  {...register('adminEmail')}
-                  className="h-11"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="rz-adminPhone">Yönetici Telefonu</Label>
-                <Input
-                  id="rz-adminPhone"
-                  type="tel"
-                  placeholder="+90 5xx xxx xx xx"
-                  {...register('adminPhone')}
-                  className="h-11"
-                />
-              </div>
-            </div>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Logo, bitiş tarihi ve yönetici bilgilerini müşteri detayında "RezervAl Güncelle" ile ekleyebilirsiniz.
+          </p>
 
           <DialogFooter className="gap-2 pt-2">
             <Button
@@ -509,7 +288,7 @@ export function RezervalCustomerFormDialog({
               className="h-11 min-w-[160px] bg-teal-600 hover:bg-teal-700"
             >
               {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              RezervAl'a Ekle
+              Müşteriyi Kaydet
             </Button>
           </DialogFooter>
         </form>
@@ -531,12 +310,6 @@ function getDefaultValues(): FormData {
     tcNo: '',
     address: '',
     isPersonCompany: 'false',
-    experationDate: '',
-    adminFirstName: '',
-    adminLastName: '',
-    adminLoginName: '',
-    adminPassword: '',
-    adminEmail: '',
-    adminPhone: '',
+    contactName: '',
   };
 }

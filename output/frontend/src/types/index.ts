@@ -198,6 +198,8 @@ export interface Customer {
   assignedUserId: string | null;
   assignedUserName: string | null;
   expirationDate: string | null;
+  /** Company logo URL synced from Rezerval. */
+  logoUrl: string | null;
   legacyId: string | null;
   parasutContactId: string | null;
   /** Monthly license fee for RezervAl customers. Null for EMS customers. */

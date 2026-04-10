@@ -27,6 +27,7 @@ public static class CustomerMappings
             ? $"{c.AssignedUser.FirstName} {c.AssignedUser.LastName}".Trim()
             : null,
         ExpirationDate = c.ExpirationDate,
+        LogoUrl = c.LogoUrl,
         LegacyId = c.LegacyId,
         ParasutContactId = c.ParasutContactId,
         IsEInvoicePayer = c.IsEInvoicePayer,
