@@ -38,9 +38,20 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            // Use PostgreSQL ILIKE for proper Turkish case-insensitive matching.
-            // ToLower() doesn't handle I/İ and ı/i correctly with default collation.
-            var pattern = $"%{search.Trim()}%";
+            // Turkish case-insensitive search: PostgreSQL ILIKE and LOWER() both fail
+            // on Turkish ı/I and i/İ pairs because the default DB collation is not
+            // Turkish. Solution: replace each Turkish-problematic character pair with
+            // the ILIKE wildcard '_' (matches any single character). This way "arısan"
+            // becomes "ar_san" which matches "ARISAN", "Arısan", etc.
+            var normalized = search.Trim()
+                .Replace("ı", "_").Replace("I", "_")
+                .Replace("i", "_").Replace("İ", "_")
+                .Replace("ö", "_").Replace("Ö", "_")
+                .Replace("ü", "_").Replace("Ü", "_")
+                .Replace("ç", "_").Replace("Ç", "_")
+                .Replace("ş", "_").Replace("Ş", "_")
+                .Replace("ğ", "_").Replace("Ğ", "_");
+            var pattern = $"%{normalized}%";
             query = query.Where(c =>
                 EF.Functions.ILike(c.CompanyName, pattern) ||
                 (c.ContactName != null && EF.Functions.ILike(c.ContactName, pattern)) ||
