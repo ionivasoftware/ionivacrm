@@ -200,6 +200,8 @@ public sealed class SaasSyncJob
                 if (existing.Segment        != src.Segment) { existing.Segment        = src.Segment; changed = true; }
                 if (existing.ExpirationDate != expDate)     { existing.ExpirationDate = expDate;     changed = true; }
                 if (existing.Status         != newStatus)   { existing.Status         = newStatus;   changed = true; }
+                // Backfill CreatedAt from EMS if it was set to the sync date instead of the original
+                if (existing.CreatedAt != createdAt)        { existing.CreatedAt      = createdAt;   changed = true; }
                 if (changed) existing.UpdatedAt = DateTime.UtcNow;
             }
             else
@@ -217,9 +219,8 @@ public sealed class SaasSyncJob
                     Segment        = src.Segment,
                     ExpirationDate = expDate,
                     Status         = newStatus,
+                    CreatedAt      = createdAt,
                     UpdatedAt      = DateTime.UtcNow
-                    // CreatedAt intentionally omitted — ApplicationDbContext.SaveChangesAsync
-                    // auto-sets it to DateTime.UtcNow for Added entities (BaseEntity intercept)
                 });
             }
         }
