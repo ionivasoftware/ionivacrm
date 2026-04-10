@@ -179,12 +179,15 @@ public sealed class SaasSyncJob
 
             var existing = await context.Customers
                 .IgnoreQueryFilters()
-                .Where(c => !c.IsDeleted
-                         && (c.LegacyId == legacyId || c.LegacyId == legacyIdPrefixed))
+                .Where(c => c.LegacyId == legacyId || c.LegacyId == legacyIdPrefixed)
                 .FirstOrDefaultAsync(ct);
 
             if (existing is not null)
             {
+                // If the user soft-deleted this customer, respect that decision — don't
+                // resurrect it on the next sync cycle. Skip silently.
+                if (existing.IsDeleted) continue;
+
                 // Normalize to canonical format if it was stored with old prefix
                 bool changed = false;
                 if (existing.LegacyId == legacyIdPrefixed) { existing.LegacyId = legacyId; changed = true; }
@@ -343,11 +346,13 @@ public sealed class SaasSyncJob
 
             var existing = await context.Customers
                 .IgnoreQueryFilters()
-                .Where(c => !c.IsDeleted && c.LegacyId == legacyId)
+                .Where(c => c.LegacyId == legacyId)
                 .FirstOrDefaultAsync(ct);
 
             if (existing is not null)
             {
+                if (existing.IsDeleted) continue;
+
                 bool changed = false;
                 if (existing.CompanyName    != src.Name)    { existing.CompanyName    = src.Name;    changed = true; }
                 if (existing.Email          != src.Email)   { existing.Email          = src.Email;   changed = true; }
@@ -654,11 +659,13 @@ public sealed class SaasSyncJob
 
             var existing = await context.Customers
                 .IgnoreQueryFilters()
-                .Where(c => !c.IsDeleted && c.LegacyId == legacyId)
+                .Where(c => c.LegacyId == legacyId)
                 .FirstOrDefaultAsync(ct);
 
             if (existing is not null)
             {
+                if (existing.IsDeleted) continue;
+
                 // Only update fields that have actually changed (delta detection)
                 bool changed = false;
                 if (existing.CompanyName != saasCustomer.Name)           { existing.CompanyName = saasCustomer.Name;           changed = true; }
@@ -709,11 +716,13 @@ public sealed class SaasSyncJob
 
             var existing = await context.Customers
                 .IgnoreQueryFilters()
-                .Where(c => !c.IsDeleted && c.LegacyId == legacyId)
+                .Where(c => c.LegacyId == legacyId)
                 .FirstOrDefaultAsync(ct);
 
             if (existing is not null)
             {
+                if (existing.IsDeleted) continue;
+
                 // Only update fields that have actually changed (delta detection)
                 bool changed = false;
                 if (existing.CompanyName != saasCustomer.FullName)         { existing.CompanyName = saasCustomer.FullName;         changed = true; }
@@ -769,10 +778,10 @@ public sealed class SaasSyncJob
         {
             var customer = await context.Customers
                 .IgnoreQueryFilters()
-                .Where(c => !c.IsDeleted && c.LegacyId == legacyId)
+                .Where(c => c.LegacyId == legacyId)
                 .FirstOrDefaultAsync(ct);
 
-            if (customer is not null && customer.ExpirationDate != expiresAt)
+            if (customer is not null && !customer.IsDeleted && customer.ExpirationDate != expiresAt)
             {
                 customer.ExpirationDate = expiresAt;
                 customer.UpdatedAt = DateTime.UtcNow;
@@ -803,10 +812,10 @@ public sealed class SaasSyncJob
         {
             var customer = await context.Customers
                 .IgnoreQueryFilters()
-                .Where(c => !c.IsDeleted && c.LegacyId == legacyId)
+                .Where(c => c.LegacyId == legacyId)
                 .FirstOrDefaultAsync(ct);
 
-            if (customer is not null && customer.ExpirationDate != expiresAt)
+            if (customer is not null && !customer.IsDeleted && customer.ExpirationDate != expiresAt)
             {
                 customer.ExpirationDate = expiresAt;
                 customer.UpdatedAt = DateTime.UtcNow;
