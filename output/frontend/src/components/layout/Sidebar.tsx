@@ -75,7 +75,11 @@ export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: Si
         isCollapsed ? 'justify-center' : 'justify-between'
       )}>
         {!isCollapsed && (
-          <img src="/logo.png" alt="IONIVA" className="h-8 object-contain" />
+          <div className="flex items-center gap-2.5">
+            <img src="/logo.png" alt="IONIVA" className="h-8 object-contain" />
+            <div className="h-5 w-px bg-border" />
+            <span className="text-sm font-semibold text-muted-foreground tracking-wide">CRM</span>
+          </div>
         )}
         {isCollapsed && (
           <img src="/logo.png" alt="IONIVA" className="h-7 w-8 object-contain object-left" />
