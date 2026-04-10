@@ -519,10 +519,10 @@ export function useExtendEmsExpiration(customerId: string) {
 
 // ── Customer Contracts (Rezerval recurring subscription) ─────────────────────
 
-/** Numeric values match the C# enum: 0 = CreditCard, 1 = EftWire. */
-export type ContractPaymentType = 0 | 1;
-/** Numeric values match the C# enum: 0 = Active, 1 = Completed, 2 = Cancelled. */
-export type ContractStatus = 0 | 1 | 2;
+/** String values match the C# enum serialised via JsonStringEnumConverter. */
+export type ContractPaymentType = 'CreditCard' | 'EftWire';
+/** String values match the C# enum serialised via JsonStringEnumConverter. */
+export type ContractStatus = 'Active' | 'Completed' | 'Cancelled';
 
 export interface CustomerContract {
   id: string;

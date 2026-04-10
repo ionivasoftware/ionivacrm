@@ -118,7 +118,7 @@ export function CancelContractDialog({
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Ödeme türü</span>
-              <span>{contract.paymentType === 0 ? 'Kredi Kartı' : 'EFT / Havale'}</span>
+              <span>{contract.paymentType === 'CreditCard' ? 'Kredi Kartı' : 'EFT / Havale'}</span>
             </div>
           </div>
         </div>

@@ -1445,19 +1445,19 @@ export function CustomerDetailPage() {
                     disabled={updatePaymentType.isPending}
                     className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors cursor-pointer border-purple-500/40 text-purple-300 bg-purple-500/10 hover:bg-purple-500/20"
                     onClick={async () => {
-                      const newType = activeContract.paymentType === 0 ? 1 : 0;
+                      const newType = activeContract.paymentType === 'CreditCard' ? 'EftWire' : 'CreditCard';
                       try {
                         await updatePaymentType.mutateAsync(newType);
                         toast({
                           title: 'Ödeme tipi güncellendi',
-                          description: newType === 0 ? 'Kredi Kartı olarak değiştirildi.' : 'EFT/Havale olarak değiştirildi.',
+                          description: newType === 'CreditCard' ? 'Kredi Kartı olarak değiştirildi.' : 'EFT/Havale olarak değiştirildi.',
                         });
                       } catch {
                         toast({ title: 'Hata', description: 'Ödeme tipi güncellenemedi.', variant: 'destructive' });
                       }
                     }}
                   >
-                    {activeContract.paymentType === 0 ? (
+                    {activeContract.paymentType === 'CreditCard' ? (
                       <><CreditCard className="h-3 w-3" /> Kredi Kartı</>
                     ) : (
                       <><Banknote className="h-3 w-3" /> EFT/Havale</>

@@ -95,7 +95,7 @@ export function CreateContractDialog({
     try {
       const payload: CreateContractRequest = {
         monthlyAmount: Number(data.monthlyAmount),
-        paymentType: data.paymentType === 'CreditCard' ? 0 : 1,
+        paymentType: data.paymentType as 'CreditCard' | 'EftWire',
         startDate: data.startDate,
         durationMonths: data.durationMonths ? Number(data.durationMonths) : null,
       };
@@ -103,7 +103,7 @@ export function CreateContractDialog({
       toast({
         title: isRenewal ? 'Sözleşme yenilendi' : 'Sözleşme oluşturuldu',
         description: `${customer.companyName} için ${
-          payload.paymentType === 0 ? 'Kredi Kartı' : 'EFT/Havale'
+          payload.paymentType === 'CreditCard' ? 'Kredi Kartı' : 'EFT/Havale'
         } sözleşmesi ${isRenewal ? 'yenilendi' : 'oluşturuldu'}.`,
       });
       onClose();
@@ -278,11 +278,11 @@ function getDefaults(
     activeContract?.monthlyAmount ?? customer.monthlyLicenseFee ?? 0;
 
   const paymentType: ContractPaymentType =
-    activeContract?.paymentType ?? 1; // default EftWire (most common)
+    activeContract?.paymentType ?? 'EftWire'; // default EftWire (most common)
 
   return {
     monthlyAmount: monthlyAmount > 0 ? monthlyAmount.toString() : '',
-    paymentType: paymentType === 0 ? 'CreditCard' : 'EftWire',
+    paymentType: paymentType === 'CreditCard' ? 'CreditCard' : 'EftWire',
     startDate: localDateStr(new Date()),
     durationMonths: activeContract?.durationMonths
       ? activeContract.durationMonths.toString()
