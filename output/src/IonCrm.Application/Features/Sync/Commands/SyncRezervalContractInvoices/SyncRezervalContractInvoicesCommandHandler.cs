@@ -147,78 +147,74 @@ public sealed class SyncRezervalContractInvoicesCommandHandler
                 decimal netTotal   = Math.Round(grossTotal / (1 + vatRate / 100m), 2);
                 decimal unitPrice  = netTotal;
 
-                // 5. Process ALL due months in a single cycle. A backdated contract (e.g.
-                //    start = Jan, today = May) would otherwise need 4 × 15-min sync cycles
-                //    to catch up one month at a time. The inner while handles all of them
-                //    in one pass, creating one draft invoice per month.
-                while (contract.NextInvoiceDate.HasValue && contract.NextInvoiceDate.Value <= today)
+                var nextDate = contract.NextInvoiceDate!.Value;
+
+                // 5. Only create an invoice for the CURRENT month. Past months are not
+                //    backfilled — the contract create handler already advances
+                //    NextInvoiceDate to the first future date, so this should only fire
+                //    for the current or upcoming billing period.
+                var dedupKey = $"CONTRACT-{contract.Id}-{nextDate:yyyyMM}";
+                if (await _invoiceRepository.ExistsByEmsPaymentIdAsync(dedupKey, cancellationToken))
                 {
-                    var nextDate = contract.NextInvoiceDate.Value;
-
-                    // Dedup key — reuses the EmsPaymentId column as a generic external ref
-                    var dedupKey = $"CONTRACT-{contract.Id}-{nextDate:yyyyMM}";
-                    if (await _invoiceRepository.ExistsByEmsPaymentIdAsync(dedupKey, cancellationToken))
-                    {
-                        skipped++;
-                        AdvanceContractDate(contract);
-                        if (ContractFullyConsumed(contract))
-                        {
-                            contract.Status = ContractStatus.Completed;
-                            contract.NextInvoiceDate = null;
-                            contractsCompleted++;
-                        }
-                        continue; // next month in the while loop
-                    }
-
-                    var lines = new[]
-                    {
-                        new
-                        {
-                            description = !string.IsNullOrEmpty(product.ParasutProductName)
-                                              ? product.ParasutProductName
-                                              : RezervalMonthlyProductName,
-                            quantity           = 1,
-                            unitPrice,
-                            vatRate,
-                            discountValue      = 0m,
-                            discountType       = "percentage",
-                            unit               = "Adet",
-                            parasutProductId   = product.ParasutProductId,
-                            parasutProductName = product.ParasutProductName
-                        }
-                    };
-
-                    var invoice = new Invoice
-                    {
-                        ProjectId    = contract.ProjectId,
-                        CustomerId   = contract.CustomerId,
-                        Title        = $"{customer.CompanyName} - {nextDate:MMMM yyyy} Abonelik",
-                        Description  = null,
-                        IssueDate    = nextDate,
-                        DueDate      = nextDate.AddDays(30),
-                        Currency     = "TRL",
-                        GrossTotal   = grossTotal,
-                        NetTotal     = netTotal,
-                        LinesJson    = JsonSerializer.Serialize(lines),
-                        Status       = InvoiceStatus.Draft,
-                        EmsPaymentId = dedupKey
-                    };
-
-                    await _invoiceRepository.AddAsync(invoice, cancellationToken);
-                    invoicesCreated++;
-
-                    contract.LastInvoiceGeneratedDate = nextDate;
+                    skipped++;
                     AdvanceContractDate(contract);
-
                     if (ContractFullyConsumed(contract))
                     {
                         contract.Status = ContractStatus.Completed;
                         contract.NextInvoiceDate = null;
                         contractsCompleted++;
                     }
+                    await _contractRepository.UpdateAsync(contract, cancellationToken);
+                    continue;
                 }
 
-                // Persist contract state after processing all due months.
+                var lines = new[]
+                {
+                    new
+                    {
+                        description = !string.IsNullOrEmpty(product.ParasutProductName)
+                                          ? product.ParasutProductName
+                                          : RezervalMonthlyProductName,
+                        quantity           = 1,
+                        unitPrice,
+                        vatRate,
+                        discountValue      = 0m,
+                        discountType       = "percentage",
+                        unit               = "Adet",
+                        parasutProductId   = product.ParasutProductId,
+                        parasutProductName = product.ParasutProductName
+                    }
+                };
+
+                var invoice = new Invoice
+                {
+                    ProjectId    = contract.ProjectId,
+                    CustomerId   = contract.CustomerId,
+                    Title        = $"{customer.CompanyName} - {nextDate:MMMM yyyy} Abonelik",
+                    Description  = null,
+                    IssueDate    = nextDate,
+                    DueDate      = nextDate.AddDays(30),
+                    Currency     = "TRL",
+                    GrossTotal   = grossTotal,
+                    NetTotal     = netTotal,
+                    LinesJson    = JsonSerializer.Serialize(lines),
+                    Status       = InvoiceStatus.Draft,
+                    EmsPaymentId = dedupKey
+                };
+
+                await _invoiceRepository.AddAsync(invoice, cancellationToken);
+                invoicesCreated++;
+
+                contract.LastInvoiceGeneratedDate = nextDate;
+                AdvanceContractDate(contract);
+
+                if (ContractFullyConsumed(contract))
+                {
+                    contract.Status = ContractStatus.Completed;
+                    contract.NextInvoiceDate = null;
+                    contractsCompleted++;
+                }
+
                 await _contractRepository.UpdateAsync(contract, cancellationToken);
 
                 _logger.LogInformation(
