@@ -137,7 +137,26 @@ public sealed class CreateCustomerContractCommandHandler
                     existingActive.Id, customer.Id);
             }
 
-            // 7. Insert new contract
+            // 7. Compute NextInvoiceDate for EFT contracts. If the start date is in the
+            //    past, advance month-by-month (anchored on the start day) until we land on
+            //    a date that is today or in the future. This avoids the sync job needing
+            //    multiple 15-min cycles to "catch up" through old months one by one.
+            DateTime? nextInvoiceDate = null;
+            if (request.PaymentType == ContractPaymentType.EftWire)
+            {
+                var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+                nextInvoiceDate = startDate;
+                while (nextInvoiceDate < today && (endDate is null || nextInvoiceDate < endDate))
+                {
+                    var next = nextInvoiceDate.Value.AddMonths(1);
+                    int daysInMonth = DateTime.DaysInMonth(next.Year, next.Month);
+                    int targetDay = Math.Min(startDate.Day, daysInMonth);
+                    nextInvoiceDate = DateTime.SpecifyKind(
+                        new DateTime(next.Year, next.Month, targetDay), DateTimeKind.Utc);
+                }
+            }
+
+            // 8. Insert new contract
             var contract = new CustomerContract
             {
                 ProjectId               = customer.ProjectId,
@@ -151,18 +170,30 @@ public sealed class CreateCustomerContractCommandHandler
                 Status                  = ContractStatus.Active,
                 RezervalSubscriptionId  = rezervalResponse.Data?.RezervalSubscriptionId,
                 RezervalPaymentPlanId   = rezervalResponse.Data?.RezervalPaymentPlanId,
-                // EFT: schedule first invoice on the start date. CreditCard: never auto-invoice (iyzico handles it).
-                NextInvoiceDate         = request.PaymentType == ContractPaymentType.EftWire ? startDate : (DateTime?)null,
+                NextInvoiceDate         = nextInvoiceDate,
                 LastInvoiceGeneratedDate = null
             };
 
             saved = await _contractRepository.AddAsync(contract, cancellationToken);
 
-            // 8. Sync MonthlyLicenseFee on the Customer record so the existing
-            //    CreateRezervAlDraftInvoice flow (manual) stays in agreement with the contract price.
+            // 9. Update Customer fields: MonthlyLicenseFee + ExpirationDate.
+            //    ExpirationDate reflects when the subscription ends — the Rezerval side
+            //    checks this to control access. For indefinite contracts (no EndDate),
+            //    push the expiration far into the future.
+            bool customerChanged = false;
             if (customer.MonthlyLicenseFee != request.MonthlyAmount)
             {
                 customer.MonthlyLicenseFee = request.MonthlyAmount;
+                customerChanged = true;
+            }
+            var newExpiration = endDate ?? startDate.AddYears(10); // indefinite → 10 years
+            if (customer.ExpirationDate != newExpiration)
+            {
+                customer.ExpirationDate = newExpiration;
+                customerChanged = true;
+            }
+            if (customerChanged)
+            {
                 await _customerRepository.UpdateAsync(customer, cancellationToken);
             }
         }

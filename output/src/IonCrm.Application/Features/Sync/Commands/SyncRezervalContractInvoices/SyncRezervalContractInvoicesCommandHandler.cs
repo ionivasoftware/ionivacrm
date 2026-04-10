@@ -133,38 +133,7 @@ public sealed class SyncRezervalContractInvoicesCommandHandler
                     }
                 }
 
-                var nextDate = contract.NextInvoiceDate!.Value;
-
-                // 4. Dedup key — reuses the EmsPaymentId column as a generic external ref
-                var dedupKey = $"CONTRACT-{contract.Id}-{nextDate:yyyyMM}";
-                if (await _invoiceRepository.ExistsByEmsPaymentIdAsync(dedupKey, cancellationToken))
-                {
-                    skipped++;
-                    // Still advance NextInvoiceDate so we don't loop forever on already-created invoices.
-                    AdvanceContractDate(contract);
-                    if (ContractFullyConsumed(contract))
-                    {
-                        contract.Status = ContractStatus.Completed;
-                        contract.NextInvoiceDate = null;
-                        contractsCompleted++;
-                    }
-                    await _contractRepository.UpdateAsync(contract, cancellationToken);
-                    continue;
-                }
-
-                // 5. Build invoice line.
-                //
-                //  • contract.MonthlyAmount is VAT-INCLUSIVE (gross) — that's how the user
-                //    enters it in the CreateContractDialog. The invoice line stores the
-                //    KDV-hariç unitPrice + vatRate separately, so we back out the net amount
-                //    here. This way the total at the bottom of the invoice equals exactly
-                //    the contract MonthlyAmount.
-                //
-                //  • product.TaxRate may be 0 if the mapping has no rate set and the Paraşüt
-                //    auto-enrich call (above) couldn't fill it (e.g. Paraşüt down, product
-                //    has no rate). Falling back to 20% means the invoice still ships with a
-                //    correct VAT line instead of an empty one — observed in prod where the
-                //    user reported "kdv oranı faturaya gelmemiş".
+                // 4. Pre-compute invoice line fields (same for every month of this contract).
                 int vatRate = (int)Math.Round(product.TaxRate * 100);
                 if (vatRate <= 0)
                 {
@@ -178,81 +147,83 @@ public sealed class SyncRezervalContractInvoicesCommandHandler
                 decimal netTotal   = Math.Round(grossTotal / (1 + vatRate / 100m), 2);
                 decimal unitPrice  = netTotal;
 
-                var lines = new[]
+                // 5. Process ALL due months in a single cycle. A backdated contract (e.g.
+                //    start = Jan, today = May) would otherwise need 4 × 15-min sync cycles
+                //    to catch up one month at a time. The inner while handles all of them
+                //    in one pass, creating one draft invoice per month.
+                while (contract.NextInvoiceDate.HasValue && contract.NextInvoiceDate.Value <= today)
                 {
-                    new
+                    var nextDate = contract.NextInvoiceDate.Value;
+
+                    // Dedup key — reuses the EmsPaymentId column as a generic external ref
+                    var dedupKey = $"CONTRACT-{contract.Id}-{nextDate:yyyyMM}";
+                    if (await _invoiceRepository.ExistsByEmsPaymentIdAsync(dedupKey, cancellationToken))
                     {
-                        description = !string.IsNullOrEmpty(product.ParasutProductName)
-                                          ? product.ParasutProductName
-                                          : RezervalMonthlyProductName,
-                        quantity           = 1,
-                        unitPrice,
-                        vatRate,
-                        discountValue      = 0m,
-                        discountType       = "percentage",
-                        unit               = "Adet",
-                        parasutProductId   = product.ParasutProductId,
-                        parasutProductName = product.ParasutProductName
+                        skipped++;
+                        AdvanceContractDate(contract);
+                        if (ContractFullyConsumed(contract))
+                        {
+                            contract.Status = ContractStatus.Completed;
+                            contract.NextInvoiceDate = null;
+                            contractsCompleted++;
+                        }
+                        continue; // next month in the while loop
                     }
-                };
 
-                // 6. Persist draft invoice
-                var invoice = new Invoice
-                {
-                    ProjectId    = contract.ProjectId,
-                    CustomerId   = contract.CustomerId,
-                    Title        = $"{customer.CompanyName} - {nextDate:MMMM yyyy} Abonelik",
-                    Description  = null,
-                    IssueDate    = nextDate,
-                    DueDate      = nextDate.AddDays(30),
-                    Currency     = "TRL",
-                    GrossTotal   = grossTotal,
-                    NetTotal     = netTotal,
-                    LinesJson    = JsonSerializer.Serialize(lines),
-                    Status       = InvoiceStatus.Draft,
-                    EmsPaymentId = dedupKey
-                };
+                    var lines = new[]
+                    {
+                        new
+                        {
+                            description = !string.IsNullOrEmpty(product.ParasutProductName)
+                                              ? product.ParasutProductName
+                                              : RezervalMonthlyProductName,
+                            quantity           = 1,
+                            unitPrice,
+                            vatRate,
+                            discountValue      = 0m,
+                            discountType       = "percentage",
+                            unit               = "Adet",
+                            parasutProductId   = product.ParasutProductId,
+                            parasutProductName = product.ParasutProductName
+                        }
+                    };
 
-                await _invoiceRepository.AddAsync(invoice, cancellationToken);
-                invoicesCreated++;
+                    var invoice = new Invoice
+                    {
+                        ProjectId    = contract.ProjectId,
+                        CustomerId   = contract.CustomerId,
+                        Title        = $"{customer.CompanyName} - {nextDate:MMMM yyyy} Abonelik",
+                        Description  = null,
+                        IssueDate    = nextDate,
+                        DueDate      = nextDate.AddDays(30),
+                        Currency     = "TRL",
+                        GrossTotal   = grossTotal,
+                        NetTotal     = netTotal,
+                        LinesJson    = JsonSerializer.Serialize(lines),
+                        Status       = InvoiceStatus.Draft,
+                        EmsPaymentId = dedupKey
+                    };
 
-                // 7. Advance contract dates and mark Completed if past EndDate
-                contract.LastInvoiceGeneratedDate = nextDate;
-                AdvanceContractDate(contract);
+                    await _invoiceRepository.AddAsync(invoice, cancellationToken);
+                    invoicesCreated++;
 
-                if (ContractFullyConsumed(contract))
-                {
-                    contract.Status = ContractStatus.Completed;
-                    contract.NextInvoiceDate = null;
-                    contractsCompleted++;
+                    contract.LastInvoiceGeneratedDate = nextDate;
+                    AdvanceContractDate(contract);
+
+                    if (ContractFullyConsumed(contract))
+                    {
+                        contract.Status = ContractStatus.Completed;
+                        contract.NextInvoiceDate = null;
+                        contractsCompleted++;
+                    }
                 }
 
+                // Persist contract state after processing all due months.
                 await _contractRepository.UpdateAsync(contract, cancellationToken);
 
-                // 8. Sync log entry
-                await _syncLogRepository.AddAsync(new SyncLog
-                {
-                    Id          = Guid.NewGuid(),
-                    ProjectId   = contract.ProjectId,
-                    Source      = SyncSource.SaasB,
-                    Direction   = SyncDirection.Inbound,
-                    EntityType  = "ContractInvoice",
-                    EntityId    = dedupKey,
-                    Status      = SyncStatus.Success,
-                    SyncedAt    = DateTime.UtcNow,
-                    Payload     = JsonSerializer.Serialize(new
-                    {
-                        contractId = contract.Id,
-                        customerId = contract.CustomerId,
-                        billingMonth = nextDate.ToString("yyyy-MM"),
-                        invoiceId = invoice.Id,
-                        amount = unitPrice
-                    })
-                }, cancellationToken);
-
                 _logger.LogInformation(
-                    "Contract invoice sync: created draft {InvoiceId} for contract {ContractId} ({Month}).",
-                    invoice.Id, contract.Id, nextDate.ToString("yyyy-MM"));
+                    "Contract invoice sync: processed contract {ContractId} — created {Created} invoice(s), skipped {Skipped}.",
+                    contract.Id, invoicesCreated, skipped);
             }
             catch (Exception ex)
             {
