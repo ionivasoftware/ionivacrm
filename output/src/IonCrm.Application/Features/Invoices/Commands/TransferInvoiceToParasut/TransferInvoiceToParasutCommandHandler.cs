@@ -70,6 +70,21 @@ public sealed class TransferInvoiceToParasutCommandHandler
             // 3. Parse LinesJson to build Paraşüt line items
             var lines = InvoiceLineCalculator.ParseLines(invoice.LinesJson);
 
+            // Validate every line has a Paraşüt product mapping. Paraşüt's invoice
+            // API requires the Product relationship — sending only a description
+            // returns 422 "Ürün/hizmet doldurulmalı".
+            var unmappedLines = lines
+                .Where(l => string.IsNullOrEmpty(l.ParasutProductId))
+                .Select(l => l.Description ?? "(boş)")
+                .ToList();
+            if (unmappedLines.Count > 0)
+            {
+                return Result<InvoiceDto>.Failure(
+                    "Şu satırların Paraşüt ürün eşleştirmesi yok: "
+                    + string.Join(", ", unmappedLines)
+                    + ". Ayarlar → Paraşüt Ürün Eşleştirmesi'nden tamamlayıp tekrar deneyin.");
+            }
+
             var details = lines.Select(l => new SalesInvoiceDetailData
             {
                 Attributes = new ParasutSalesInvoiceDetailAttributes(
@@ -80,15 +95,13 @@ public sealed class TransferInvoiceToParasutCommandHandler
                     DiscountValue: l.DiscountValue,
                     Description:   l.Description,
                     Unit:          l.Unit ?? "Adet"),
-                Relationships = !string.IsNullOrEmpty(l.ParasutProductId)
-                    ? new SalesInvoiceDetailRelationships
+                Relationships = new SalesInvoiceDetailRelationships
+                {
+                    Product = new ProductRelationship
                     {
-                        Product = new ProductRelationship
-                        {
-                            Data = new ProductRelationshipData { Id = l.ParasutProductId }
-                        }
+                        Data = new ProductRelationshipData { Id = l.ParasutProductId! }
                     }
-                    : null
+                }
             }).ToList();
 
             // 4. Build relationships
