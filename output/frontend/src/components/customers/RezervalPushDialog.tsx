@@ -38,7 +38,6 @@ const schema = z.object({
   tcNo: z.string(),
   isPersonCompany: z.enum(['true', 'false']),
   address: z.string(),
-  experationDate: z.string(),
   // Admin fields — only used for new Rezerval registrations (isUpdate=false)
   adminFirstName: z.string(),
   adminLastName: z.string(),
@@ -135,6 +134,15 @@ export function RezervalPushDialog({ isOpen, onClose, customer }: RezervalPushDi
       const adminFullName = [data.adminFirstName, data.adminLastName]
         .filter(Boolean)
         .join(' ');
+      // For new Rezerval registrations, the trial / initial expiration is today + 7 days.
+      // On update the field is omitted so Rezerval keeps whatever it already has.
+      const sevenDayExpiration = !isUpdate
+        ? (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + 7);
+            return d.toISOString();
+          })()
+        : undefined;
       await pushMutation.mutateAsync({
         name: data.name,
         title: data.title,
@@ -147,7 +155,7 @@ export function RezervalPushDialog({ isOpen, onClose, customer }: RezervalPushDi
         address: data.address,
         language: 1,
         countryPhoneCode: 90,
-        experationDate: data.experationDate || undefined,
+        experationDate: sevenDayExpiration,
         adminNameSurname: adminFullName || undefined,
         adminLoginName: data.adminLoginName || undefined,
         adminPassword: data.adminPassword || undefined,
@@ -254,29 +262,23 @@ export function RezervalPushDialog({ isOpen, onClose, customer }: RezervalPushDi
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Firma Tipi</Label>
-                <Controller
-                  control={control}
-                  name="isPersonCompany"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Seçin" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="false">Tüzel Kişi</SelectItem>
-                        <SelectItem value="true">Şahıs Firması</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="rp-experationDate">Bitiş Tarihi</Label>
-                <Input id="rp-experationDate" type="date" {...register('experationDate')} className="h-11" />
-              </div>
+            <div className="space-y-1.5">
+              <Label>Firma Tipi</Label>
+              <Controller
+                control={control}
+                name="isPersonCompany"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="false">Tüzel Kişi</SelectItem>
+                      <SelectItem value="true">Şahıs Firması</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
           </div>
 
@@ -423,9 +425,6 @@ function getDefaults(customer: Customer): FormData {
     tcNo: '',
     isPersonCompany: 'false',
     address: customer.address ?? '',
-    experationDate: customer.expirationDate
-      ? new Date(customer.expirationDate).toISOString().split('T')[0]
-      : '',
     adminFirstName: firstName,
     adminLastName: lastName,
     adminLoginName: '',
