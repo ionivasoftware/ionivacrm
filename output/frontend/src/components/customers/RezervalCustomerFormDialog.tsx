@@ -34,7 +34,7 @@ const schema = z.object({
   name: z.string().min(1, 'Firma adı gereklidir'),
   title: z.string(),
   phone: z.string().min(1, 'Telefon numarası gereklidir'),
-  email: z.string().min(1, 'E-posta gereklidir'),
+  email: z.string(),
   taxNumber: z.string(),
   taxUnit: z.string(),
   tcNo: z.string(),
@@ -93,7 +93,7 @@ export function RezervalCustomerFormDialog({
         address: data.address || undefined,
         taxNumber: data.taxNumber || undefined,
         taxUnit: data.taxUnit || undefined,
-        status: 'Active',
+        status: 'Lead',
       });
 
       queryClient.invalidateQueries({ queryKey: ['customers'] });
@@ -181,9 +181,7 @@ export function RezervalCustomerFormDialog({
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="rz-email">
-                  E-posta <span className="text-destructive">*</span>
-                </Label>
+                <Label htmlFor="rz-email">E-posta</Label>
                 <Input
                   id="rz-email"
                   type="email"
