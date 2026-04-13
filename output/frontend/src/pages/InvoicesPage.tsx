@@ -46,7 +46,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCanAccessFinance } from '@/lib/roles';
 import { useCustomers } from '@/api/customers';
 import { useInvoices, useCreateInvoice, useUpdateInvoice, useTransferToParasut, useDeleteInvoice, useMergeInvoices } from '@/api/invoices';
-import { useParasutStatus } from '@/api/parasut';
+import { useParasutStatus, useParasutProducts } from '@/api/parasut';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import type { Invoice, InvoiceStatus, InvoiceLineItem, Customer } from '@/types';
@@ -573,6 +573,7 @@ interface EditInvoiceDialogProps {
 function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
   const { toast } = useToast();
   const updateInvoice = useUpdateInvoice();
+  const { data: savedProducts = [] } = useParasutProducts();
 
   const parsedLines: InvoiceLineForm[] = useMemo(() => {
     try {
@@ -755,53 +756,97 @@ function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
                 <span />
               </div>
 
-              {fields.map((field, idx) => (
-                <div key={field.id} className="grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 px-3 py-2 border-t border-border/50 items-center">
-                  <Input {...form.register(`lines.${idx}.description`)} className="h-8 text-sm" placeholder="Ürün / hizmet" />
-                  <Input type="number" step="0.01" min="0" {...form.register(`lines.${idx}.quantity`, { valueAsNumber: true })} className="h-8 text-sm" />
-                  <Input type="number" step="0.01" min="0" {...form.register(`lines.${idx}.unitPrice`, { valueAsNumber: true })} className="h-8 text-sm" />
-                  <Select
-                    defaultValue={String(parsedLines[idx]?.vatRate ?? 20)}
-                    onValueChange={v => form.setValue(`lines.${idx}.vatRate`, Number(v))}
-                  >
-                    <SelectTrigger className="h-8 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[0, 1, 8, 10, 20].map(r => (
-                        <SelectItem key={r} value={String(r)}>%{r}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <div className="flex h-8 rounded-md border border-input overflow-hidden text-sm focus-within:ring-1 focus-within:ring-ring">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      {...form.register(`lines.${idx}.discountValue`, { valueAsNumber: true })}
-                      className="w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
-                      placeholder="0"
-                    />
-                    <select
-                      {...form.register(`lines.${idx}.discountType`)}
-                      className="border-l border-input bg-muted text-xs px-1.5 cursor-pointer outline-none text-muted-foreground"
+              {fields.map((field, idx) => {
+                const currentParasutId = form.watch(`lines.${idx}.parasutProductId`) ?? '';
+                return (
+                <div key={field.id} className="border-t border-border/50 px-3 py-2 space-y-1.5">
+                  {/* Paraşüt ürün eşleştirmesi (zorunlu — Paraşüt'e aktarım için) */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-20">Paraşüt Ürün:</span>
+                    <Select
+                      value={currentParasutId || 'none'}
+                      onValueChange={(v) => {
+                        if (v === 'none') {
+                          form.setValue(`lines.${idx}.parasutProductId`, undefined);
+                          form.setValue(`lines.${idx}.parasutProductName`, undefined);
+                          return;
+                        }
+                        const p = savedProducts.find(sp => sp.parasutProductId === v);
+                        form.setValue(`lines.${idx}.parasutProductId`, v);
+                        form.setValue(`lines.${idx}.parasutProductName`, p?.parasutProductName ?? p?.productName);
+                        // Auto-fill price/vat if not already entered
+                        const cur = form.getValues(`lines.${idx}`);
+                        if (p) {
+                          if (!cur.unitPrice && p.unitPrice) form.setValue(`lines.${idx}.unitPrice`, p.unitPrice);
+                          if (p.taxRate) form.setValue(`lines.${idx}.vatRate`, Math.round(p.taxRate * 100));
+                          if (!cur.description) form.setValue(`lines.${idx}.description`, p.parasutProductName ?? p.productName);
+                        }
+                      }}
                     >
-                      <option value="percentage">%</option>
-                      <option value="amount">₺</option>
-                    </select>
+                      <SelectTrigger className="h-8 text-sm flex-1">
+                        <SelectValue placeholder="Eşleştirme yok — seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— Eşleştirme yok —</SelectItem>
+                        {savedProducts.map(sp => (
+                          <SelectItem key={sp.id} value={sp.parasutProductId}>
+                            {sp.productName}
+                            {sp.parasutProductName && sp.parasutProductName !== sp.productName
+                              ? ` · ${sp.parasutProductName}` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => remove(idx)}
-                    disabled={fields.length === 1}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+
+                  <div className="grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 items-center">
+                    <Input {...form.register(`lines.${idx}.description`)} className="h-8 text-sm" placeholder="Ürün / hizmet" />
+                    <Input type="number" step="0.01" min="0" {...form.register(`lines.${idx}.quantity`, { valueAsNumber: true })} className="h-8 text-sm" />
+                    <Input type="number" step="0.01" min="0" {...form.register(`lines.${idx}.unitPrice`, { valueAsNumber: true })} className="h-8 text-sm" />
+                    <Select
+                      defaultValue={String(parsedLines[idx]?.vatRate ?? 20)}
+                      onValueChange={v => form.setValue(`lines.${idx}.vatRate`, Number(v))}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[0, 1, 8, 10, 20].map(r => (
+                          <SelectItem key={r} value={String(r)}>%{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex h-8 rounded-md border border-input overflow-hidden text-sm focus-within:ring-1 focus-within:ring-ring">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        {...form.register(`lines.${idx}.discountValue`, { valueAsNumber: true })}
+                        className="w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
+                        placeholder="0"
+                      />
+                      <select
+                        {...form.register(`lines.${idx}.discountType`)}
+                        className="border-l border-input bg-muted text-xs px-1.5 cursor-pointer outline-none text-muted-foreground"
+                      >
+                        <option value="percentage">%</option>
+                        <option value="amount">₺</option>
+                      </select>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => remove(idx)}
+                      disabled={fields.length === 1}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Totals */}
