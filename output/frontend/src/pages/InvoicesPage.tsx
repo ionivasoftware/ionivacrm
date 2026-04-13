@@ -225,6 +225,8 @@ interface InvoiceLineForm {
   discountValue: number;
   discountType: DiscountType;
   unit: string;
+  parasutProductId?: string;
+  parasutProductName?: string;
 }
 
 /** Returns the absolute discount amount for a single line */
@@ -583,6 +585,8 @@ function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
         discountValue: l.discountValue,
         discountType: (l.discountType === 'percent' ? 'percentage' : l.discountType) as DiscountType,
         unit: l.unit ?? 'Adet',
+        parasutProductId: l.parasutProductId,
+        parasutProductName: l.parasutProductName,
       }));
     } catch {
       return [{ description: '', quantity: 1, unitPrice: 0, vatRate: 20, discountValue: 0, discountType: 'percentage', unit: 'Adet' }];
@@ -628,6 +632,8 @@ function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
       discountValue: l.discountValue,
       discountType: l.discountType,
       unit: l.unit || 'Adet',
+      parasutProductId: l.parasutProductId || undefined,
+      parasutProductName: l.parasutProductName || undefined,
     }));
 
     const netTotal = lines.reduce((acc, l) => {

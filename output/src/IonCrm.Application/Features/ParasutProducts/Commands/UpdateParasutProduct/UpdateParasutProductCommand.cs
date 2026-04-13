@@ -13,5 +13,7 @@ public record UpdateParasutProductCommand(
     string ProductName,
     string ParasutProductId,
     decimal UnitPrice,
-    decimal TaxRate
+    decimal TaxRate,
+    string? ParasutProductName = null,
+    string? EmsProductId = null
 ) : IRequest<Result<ParasutProductDto>>;

@@ -158,6 +158,14 @@ public sealed class ExtendEmsExpirationCommandHandler
             // Look up the configured product to get unit price and VAT rate
             var configProduct = await _productRepository.GetByNameAsync(productName, ct);
 
+            if (configProduct is null || string.IsNullOrEmpty(configProduct.ParasutProductId))
+            {
+                _logger.LogWarning(
+                    "Extend EMS draft invoice skipped for customer {CustomerId}: '{Product}' Paraşüt eşleştirmesi yok.",
+                    customerId, productName);
+                return (null, $"'{productName}' için Paraşüt ürün eşleştirmesi yok. Ayarlar → Paraşüt Ürün Eşleştirmesi'nden tanımlayın.");
+            }
+
             // Auto-enrich from Paraşüt if product data is incomplete
             if (configProduct is not null && !string.IsNullOrEmpty(configProduct.ParasutProductId) &&
                 (string.IsNullOrEmpty(configProduct.ParasutProductName) || configProduct.TaxRate == 0 || configProduct.UnitPrice == 0))

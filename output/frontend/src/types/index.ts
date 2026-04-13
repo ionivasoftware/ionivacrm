@@ -65,6 +65,8 @@ export interface InvoiceLineItem {
   discountValue: number;
   discountType: string;
   unit: string;
+  parasutProductId?: string;
+  parasutProductName?: string;
 }
 
 export interface CreateCrmInvoiceRequest {

@@ -63,22 +63,26 @@ public class UpdateParasutProductCommandHandler : IRequestHandler<UpdateParasutP
             }
         }
 
-        product.ProductName = request.ProductName;
-        product.ParasutProductId = request.ParasutProductId;
-        product.UnitPrice = request.UnitPrice;
-        product.TaxRate = request.TaxRate;
+        product.ProductName        = request.ProductName;
+        product.ParasutProductId   = request.ParasutProductId;
+        product.ParasutProductName = request.ParasutProductName;
+        product.UnitPrice          = request.UnitPrice;
+        product.TaxRate            = request.TaxRate;
+        product.EmsProductId       = request.EmsProductId;
 
         await _productRepository.UpdateAsync(product, cancellationToken);
 
         var dto = new ParasutProductDto
         {
-            Id = product.Id,
-            ProductName = product.ProductName,
-            ParasutProductId = product.ParasutProductId,
-            UnitPrice = product.UnitPrice,
-            TaxRate = product.TaxRate,
-            CreatedAt = product.CreatedAt,
-            UpdatedAt = product.UpdatedAt
+            Id                 = product.Id,
+            ProductName        = product.ProductName,
+            ParasutProductId   = product.ParasutProductId,
+            ParasutProductName = product.ParasutProductName,
+            UnitPrice          = product.UnitPrice,
+            TaxRate            = product.TaxRate,
+            EmsProductId       = product.EmsProductId,
+            CreatedAt          = product.CreatedAt,
+            UpdatedAt          = product.UpdatedAt
         };
 
         return Result<ParasutProductDto>.Success(dto);

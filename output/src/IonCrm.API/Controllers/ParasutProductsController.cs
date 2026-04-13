@@ -51,14 +51,25 @@ public class ParasutProductsController : ApiControllerBase
 
     /// <summary>
     /// PUT /api/v1/crm/parasut-products/{id}
-    /// Updates an existing product mapping by ID.
-    /// Frontend passes existingId → routes here; the UpsertCommand handles insert-or-update by name.
+    /// Updates an existing product mapping by ID. The UpsertCommand
+    /// handles insert-or-update by name as a fallback.
     /// </summary>
     [HttpPut("{id:guid}")]
     [Authorize(Policy = "SuperAdmin")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpsertParasutProductCommand command)
     {
-        var result = await Mediator.Send(command);
+        // The route id is the source of truth for which row to update — bypass the
+        // "find by name" branch (which can miss after rename or duplicate-cleanup) by
+        // forwarding through UpdateParasutProductCommand instead.
+        var updateCommand = new IonCrm.Application.Features.ParasutProducts.Commands.UpdateParasutProduct.UpdateParasutProductCommand(
+            Id:                 id,
+            ProductName:        command.ProductName,
+            ParasutProductId:   command.ParasutProductId,
+            UnitPrice:          command.UnitPrice,
+            TaxRate:            command.TaxRate,
+            ParasutProductName: command.ParasutProductName,
+            EmsProductId:       command.EmsProductId);
+        var result = await Mediator.Send(updateCommand);
         return ResultToResponse(result);
     }
 
