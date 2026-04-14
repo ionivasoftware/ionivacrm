@@ -21,6 +21,8 @@ import type {
   EmsUser,
   EmsSummary,
   RezervalSummary,
+  RezervalReservationSetting,
+  UpdateRezervalReservationSettingRequest,
 } from '@/types';
 
 // ── Customer CRUD ─────────────────────────────────────────────────────────────
@@ -443,6 +445,38 @@ export function useCustomerRezervalSummary(customerId: string, enabled: boolean)
     },
     enabled: !!customerId && enabled,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ── Rezerval Reservation Settings ────────────────────────────────────────────
+
+export function useCustomerRezervalSettings(customerId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['customerRezervalSettings', customerId],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<RezervalReservationSetting>>(
+        `/customers/${customerId}/rezerval-settings`
+      );
+      return response.data.data;
+    },
+    enabled: !!customerId && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useUpdateCustomerRezervalSettings(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: UpdateRezervalReservationSettingRequest) => {
+      const response = await apiClient.put<ApiResponse<string>>(
+        `/customers/${customerId}/rezerval-settings`,
+        data
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customerRezervalSettings', customerId] });
+    },
   });
 }
 

@@ -92,6 +92,7 @@ import {
 } from '@/components/customers/AddContactHistoryDialog';
 import { TransferLeadModal } from '@/components/customers/TransferLeadModal';
 import { RezervalPushDialog } from '@/components/customers/RezervalPushDialog';
+import { RezervalSettingsTab } from '@/components/customers/RezervalSettingsTab';
 import { CreateContractDialog } from '@/components/customers/CreateContractDialog';
 import { CancelContractDialog } from '@/components/customers/CancelContractDialog';
 import { useToast } from '@/hooks/use-toast';
@@ -436,7 +437,7 @@ function QuickInvoiceForm({ projectId, contactId, customerName, onSuccess, onErr
 
 // ── Tab type ──────────────────────────────────────────────────────────────────
 
-type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari' | 'ems-users' | 'ems-summary' | 'rezerval-summary';
+type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari' | 'ems-users' | 'ems-summary' | 'rezerval-summary' | 'rezerval-settings';
 
 // ── Inline Schemas ────────────────────────────────────────────────────────────
 
@@ -1214,6 +1215,7 @@ export function CustomerDetailPage() {
     ...(isEmsCustomer(customer?.legacyId) ? [{ id: 'ems-users' as ActiveTab, label: 'Kullanıcılar' }] : []),
     ...(isEmsCustomer(customer?.legacyId) ? [{ id: 'ems-summary' as ActiveTab, label: 'Kullanım Özeti' }] : []),
     ...(isRezervalCustomer(customer?.legacyId) ? [{ id: 'rezerval-summary' as ActiveTab, label: 'RezervAl Özeti' }] : []),
+    ...(isRezervalCustomer(customer?.legacyId) ? [{ id: 'rezerval-settings' as ActiveTab, label: 'Ayarlar' }] : []),
   ];
 
   return (
@@ -2044,6 +2046,11 @@ export function CustomerDetailPage() {
               data={rezervalSummaryData}
               error={rezervalSummaryError}
             />
+          )}
+
+          {/* ── Rezerval Settings Tab ── */}
+          {activeTab === 'rezerval-settings' && (
+            <RezervalSettingsTab customerId={customerId} />
           )}
 
           {/* ── Cari Tab ── */}

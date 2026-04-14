@@ -218,3 +218,80 @@ public record RezervalSummaryPeriod(
     [property: JsonPropertyName("walkInCount")] int WalkInCount,
     [property: JsonPropertyName("walkInPersonCount")] int WalkInPersonCount,
     [property: JsonPropertyName("smsSentCount")] int SmsSentCount);
+
+// ── RezervAl Reservation Setting ─────────────────────────────────────────────
+
+/// <summary>
+/// Envelope for GET https://rezback.rezerval.com/v1/Crm/ReservationSetting?companyId={id}
+/// </summary>
+public record RezervalReservationSettingResponse(
+    [property: JsonPropertyName("data")] RezervalReservationSetting? Data,
+    [property: JsonPropertyName("isSuccess")] bool IsSuccess,
+    [property: JsonPropertyName("message")] string? Message);
+
+/// <summary>
+/// Reservation-side configuration for a Rezerval company. All fields are optional on PUT;
+/// unset fields retain their existing values on Rezerval's side.
+/// </summary>
+public record RezervalReservationSetting(
+    [property: JsonPropertyName("id")] int? Id,
+    [property: JsonPropertyName("companyId")] int CompanyId,
+    [property: JsonPropertyName("isAcceptWithoutPhone")] bool? IsAcceptWithoutPhone,
+    [property: JsonPropertyName("isRequireConfirm")] bool? IsRequireConfirm,
+    [property: JsonPropertyName("isSendConfirmSameDayReservations")] bool? IsSendConfirmSameDayReservations,
+    [property: JsonPropertyName("confirmSmsSetting")] bool? ConfirmSmsSetting,
+    [property: JsonPropertyName("confirmSmsHour")] int? ConfirmSmsHour,
+    [property: JsonPropertyName("reviewSmsSetting")] bool? ReviewSmsSetting,
+    [property: JsonPropertyName("reviewSmsHour")] int? ReviewSmsHour,
+    [property: JsonPropertyName("preparationTime")] int? PreparationTime,
+    [property: JsonPropertyName("notSendSmsMinHourId")] int? NotSendSmsMinHourId,
+    [property: JsonPropertyName("notSendSmsMaxHourId")] int? NotSendSmsMaxHourId,
+    [property: JsonPropertyName("isEnterAccountClosingInfo")] bool? IsEnterAccountClosingInfo,
+    [property: JsonPropertyName("isOtoTableAppoint")] bool? IsOtoTableAppoint,
+    [property: JsonPropertyName("isSendReservationSms")] bool? IsSendReservationSms,
+    [property: JsonPropertyName("isSendNotification")] bool? IsSendNotification,
+    [property: JsonPropertyName("isSendReservationNotification")] bool? IsSendReservationNotification,
+    [property: JsonPropertyName("isSendCancelNotification")] bool? IsSendCancelNotification,
+    [property: JsonPropertyName("isSendConfirmNotification")] bool? IsSendConfirmNotification,
+    [property: JsonPropertyName("isSendRegisterSms")] bool? IsSendRegisterSms,
+    [property: JsonPropertyName("isSendRegisterMinute")] int? IsSendRegisterMinute,
+    [property: JsonPropertyName("smsTextRegister")] string? SmsTextRegister,
+    [property: JsonPropertyName("smsTextConfirm")] string? SmsTextConfirm,
+    [property: JsonPropertyName("smsTextReview")] string? SmsTextReview,
+    [property: JsonPropertyName("reviewGoogleLink")] string? ReviewGoogleLink);
+
+/// <summary>
+/// Request body for PUT https://rezback.rezerval.com/v1/Crm/ReservationSetting.
+/// companyId and updatedBy are required; all other fields are optional.
+/// </summary>
+public record RezervalReservationSettingUpdateRequest(
+    [property: JsonPropertyName("companyId")] int CompanyId,
+    [property: JsonPropertyName("updatedBy")] int UpdatedBy,
+    [property: JsonPropertyName("isAcceptWithoutPhone")] bool? IsAcceptWithoutPhone,
+    [property: JsonPropertyName("isRequireConfirm")] bool? IsRequireConfirm,
+    [property: JsonPropertyName("isSendConfirmSameDayReservations")] bool? IsSendConfirmSameDayReservations,
+    [property: JsonPropertyName("confirmSmsSetting")] bool? ConfirmSmsSetting,
+    [property: JsonPropertyName("confirmSmsHour")] int? ConfirmSmsHour,
+    [property: JsonPropertyName("reviewSmsSetting")] bool? ReviewSmsSetting,
+    [property: JsonPropertyName("reviewSmsHour")] int? ReviewSmsHour,
+    [property: JsonPropertyName("preparationTime")] int? PreparationTime,
+    [property: JsonPropertyName("notSendSmsMinHourId")] int? NotSendSmsMinHourId,
+    [property: JsonPropertyName("notSendSmsMaxHourId")] int? NotSendSmsMaxHourId,
+    [property: JsonPropertyName("isEnterAccountClosingInfo")] bool? IsEnterAccountClosingInfo,
+    [property: JsonPropertyName("isOtoTableAppoint")] bool? IsOtoTableAppoint,
+    [property: JsonPropertyName("isSendReservationSms")] bool? IsSendReservationSms,
+    [property: JsonPropertyName("isSendNotification")] bool? IsSendNotification,
+    [property: JsonPropertyName("isSendReservationNotification")] bool? IsSendReservationNotification,
+    [property: JsonPropertyName("isSendCancelNotification")] bool? IsSendCancelNotification,
+    [property: JsonPropertyName("isSendConfirmNotification")] bool? IsSendConfirmNotification,
+    [property: JsonPropertyName("isSendRegisterSms")] bool? IsSendRegisterSms,
+    [property: JsonPropertyName("isSendRegisterMinute")] int? IsSendRegisterMinute,
+    [property: JsonPropertyName("smsTextRegister")] string? SmsTextRegister,
+    [property: JsonPropertyName("smsTextConfirm")] string? SmsTextConfirm,
+    [property: JsonPropertyName("smsTextReview")] string? SmsTextReview,
+    [property: JsonPropertyName("reviewGoogleLink")] string? ReviewGoogleLink);
+
+/// <summary>Generic envelope for endpoints that return a text result only (no data payload).</summary>
+public record RezervalSimpleResponse(
+    [property: JsonPropertyName("isSuccess")] bool IsSuccess,
+    [property: JsonPropertyName("message")] string? Message);

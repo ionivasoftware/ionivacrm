@@ -92,4 +92,23 @@ public interface ISaasBClient
         int companyId,
         string? apiKey = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches the reservation-side configuration (SMS texts, confirm/review cadence, flags) for a Rezerval company.
+    /// Endpoint: GET https://rezback.rezerval.com/v1/Crm/ReservationSetting?companyId={id}
+    /// </summary>
+    Task<RezervalReservationSettingResponse> GetReservationSettingAsync(
+        int companyId,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the reservation-side configuration for a Rezerval company. Only the fields present
+    /// in <paramref name="request"/> are updated; omitted/null fields keep their existing values.
+    /// Endpoint: PUT https://rezback.rezerval.com/v1/Crm/ReservationSetting
+    /// </summary>
+    Task<RezervalSimpleResponse> UpdateReservationSettingAsync(
+        RezervalReservationSettingUpdateRequest request,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default);
 }

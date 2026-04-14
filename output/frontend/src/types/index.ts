@@ -454,6 +454,40 @@ export interface RezervalSummary {
   last3Months: RezervalSummaryPeriod | null;
 }
 
+// ----- Rezerval Reservation Settings -----
+
+export interface RezervalReservationSetting {
+  id: number | null;
+  companyId: number;
+  isAcceptWithoutPhone: boolean | null;
+  isRequireConfirm: boolean | null;
+  isSendConfirmSameDayReservations: boolean | null;
+  confirmSmsSetting: boolean | null;
+  confirmSmsHour: number | null;
+  reviewSmsSetting: boolean | null;
+  reviewSmsHour: number | null;
+  preparationTime: number | null;
+  notSendSmsMinHourId: number | null;
+  notSendSmsMaxHourId: number | null;
+  isEnterAccountClosingInfo: boolean | null;
+  isOtoTableAppoint: boolean | null;
+  isSendReservationSms: boolean | null;
+  isSendNotification: boolean | null;
+  isSendReservationNotification: boolean | null;
+  isSendCancelNotification: boolean | null;
+  isSendConfirmNotification: boolean | null;
+  isSendRegisterSms: boolean | null;
+  isSendRegisterMinute: number | null;
+  smsTextRegister: string | null;
+  smsTextConfirm: string | null;
+  smsTextReview: string | null;
+  reviewGoogleLink: string | null;
+}
+
+export type UpdateRezervalReservationSettingRequest = Partial<
+  Omit<RezervalReservationSetting, 'id' | 'companyId'>
+>;
+
 // ----- Dashboard -----
 
 export interface ExpiringCustomer {

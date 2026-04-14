@@ -9,10 +9,12 @@ using IonCrm.Application.Customers.Commands.PushCustomerToRezerval;
 using IonCrm.Application.Customers.Commands.TransferLead;
 using IonCrm.Application.Customers.Commands.UpdateContractPaymentType;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
+using IonCrm.Application.Customers.Commands.UpdateCustomerRezervalSettings;
 using IonCrm.Application.Customers.Queries.GetActiveContractByCustomerId;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
 using IonCrm.Application.Customers.Queries.GetCustomerEmsUsers;
 using IonCrm.Application.Customers.Queries.GetCustomerEmsSummary;
+using IonCrm.Application.Customers.Queries.GetCustomerRezervalSettings;
 using IonCrm.Application.Customers.Queries.GetCustomerRezervalSummary;
 using IonCrm.Application.Customers.Queries.GetCustomerWithDetails;
 using IonCrm.Application.Customers.Queries.GetCustomers;
@@ -211,6 +213,85 @@ public class CustomersController : ApiControllerBase
         var result = await Mediator.Send(new GetCustomerRezervalSummaryQuery(id), cancellationToken);
         return ResultToResponse(result);
     }
+
+    /// <summary>
+    /// GET /api/v1/customers/{id}/rezerval-settings
+    /// Returns the Rezerval reservation settings (SMS texts, confirm/review cadence, flags)
+    /// for a Rezerval-sourced customer. Proxies to GET /v1/Crm/ReservationSetting.
+    /// </summary>
+    [HttpGet("{id:guid}/rezerval-settings")]
+    public async Task<IActionResult> GetRezervalSettings(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetCustomerRezervalSettingsQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// PUT /api/v1/customers/{id}/rezerval-settings
+    /// Updates the Rezerval reservation settings. Only non-null fields are forwarded;
+    /// unset fields keep their existing values on the Rezerval side.
+    /// </summary>
+    [HttpPut("{id:guid}/rezerval-settings")]
+    public async Task<IActionResult> UpdateRezervalSettings(
+        Guid id,
+        [FromBody] UpdateCustomerRezervalSettingsRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        var command = new UpdateCustomerRezervalSettingsCommand(
+            CustomerId:                       id,
+            IsAcceptWithoutPhone:             body.IsAcceptWithoutPhone,
+            IsRequireConfirm:                 body.IsRequireConfirm,
+            IsSendConfirmSameDayReservations: body.IsSendConfirmSameDayReservations,
+            ConfirmSmsSetting:                body.ConfirmSmsSetting,
+            ConfirmSmsHour:                   body.ConfirmSmsHour,
+            ReviewSmsSetting:                 body.ReviewSmsSetting,
+            ReviewSmsHour:                    body.ReviewSmsHour,
+            PreparationTime:                  body.PreparationTime,
+            NotSendSmsMinHourId:              body.NotSendSmsMinHourId,
+            NotSendSmsMaxHourId:              body.NotSendSmsMaxHourId,
+            IsEnterAccountClosingInfo:        body.IsEnterAccountClosingInfo,
+            IsOtoTableAppoint:                body.IsOtoTableAppoint,
+            IsSendReservationSms:             body.IsSendReservationSms,
+            IsSendNotification:               body.IsSendNotification,
+            IsSendReservationNotification:    body.IsSendReservationNotification,
+            IsSendCancelNotification:         body.IsSendCancelNotification,
+            IsSendConfirmNotification:        body.IsSendConfirmNotification,
+            IsSendRegisterSms:                body.IsSendRegisterSms,
+            IsSendRegisterMinute:             body.IsSendRegisterMinute,
+            SmsTextRegister:                  body.SmsTextRegister,
+            SmsTextConfirm:                   body.SmsTextConfirm,
+            SmsTextReview:                    body.SmsTextReview,
+            ReviewGoogleLink:                 body.ReviewGoogleLink);
+
+        var result = await Mediator.Send(command, cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>Request body for <see cref="UpdateRezervalSettings"/>; all fields optional.</summary>
+    public record UpdateCustomerRezervalSettingsRequest(
+        bool? IsAcceptWithoutPhone,
+        bool? IsRequireConfirm,
+        bool? IsSendConfirmSameDayReservations,
+        bool? ConfirmSmsSetting,
+        int? ConfirmSmsHour,
+        bool? ReviewSmsSetting,
+        int? ReviewSmsHour,
+        int? PreparationTime,
+        int? NotSendSmsMinHourId,
+        int? NotSendSmsMaxHourId,
+        bool? IsEnterAccountClosingInfo,
+        bool? IsOtoTableAppoint,
+        bool? IsSendReservationSms,
+        bool? IsSendNotification,
+        bool? IsSendReservationNotification,
+        bool? IsSendCancelNotification,
+        bool? IsSendConfirmNotification,
+        bool? IsSendRegisterSms,
+        int? IsSendRegisterMinute,
+        string? SmsTextRegister,
+        string? SmsTextConfirm,
+        string? SmsTextReview,
+        string? ReviewGoogleLink);
 
     /// <summary>
     /// POST /api/v1/customers/{id}/push-to-rezerval

@@ -336,6 +336,73 @@ public sealed class SaasBClient : ISaasBClient
         }, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<RezervalReservationSettingResponse> GetReservationSettingAsync(
+        int companyId,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Rezerval CRM: fetching reservation setting for companyId={CompanyId}.", companyId);
+
+        return await _retryPipeline.ExecuteAsync<RezervalReservationSettingResponse>(async ct =>
+        {
+            var http = new HttpRequestMessage(HttpMethod.Get,
+                $"https://rezback.rezerval.com/v1/Crm/ReservationSetting?companyId={companyId}");
+
+            await ApplyBearerAuthAsync(http, apiKey, ct);
+
+            var response = await _httpClient.SendAsync(http, ct);
+            await EnsureSuccessAsync(response, ct);
+
+            var envelope = await response.Content.ReadFromJsonAsync<RezervalReservationSettingResponse>(JsonOpts, ct);
+            if (envelope is null)
+                throw new InvalidOperationException("Rezerval rezervasyon ayarı yanıtı boş döndü.");
+
+            if (!envelope.IsSuccess)
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(envelope.Message)
+                        ? "Rezerval rezervasyon ayarı alınamadı."
+                        : $"Rezerval rezervasyon ayarı alınamadı: {envelope.Message}");
+
+            return envelope;
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<RezervalSimpleResponse> UpdateReservationSettingAsync(
+        RezervalReservationSettingUpdateRequest request,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Rezerval CRM: updating reservation setting for companyId={CompanyId}.",
+            request.CompanyId);
+
+        return await _retryPipeline.ExecuteAsync<RezervalSimpleResponse>(async ct =>
+        {
+            var http = new HttpRequestMessage(HttpMethod.Put,
+                "https://rezback.rezerval.com/v1/Crm/ReservationSetting");
+
+            await ApplyBearerAuthAsync(http, apiKey, ct);
+            http.Content = JsonContent.Create(request, options: JsonOpts);
+
+            var response = await _httpClient.SendAsync(http, ct);
+            await EnsureSuccessAsync(response, ct);
+
+            var envelope = await response.Content.ReadFromJsonAsync<RezervalSimpleResponse>(JsonOpts, ct);
+            if (envelope is null)
+                throw new InvalidOperationException("Rezerval rezervasyon ayarı güncelleme yanıtı boş döndü.");
+
+            if (!envelope.IsSuccess)
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(envelope.Message)
+                        ? "Rezerval rezervasyon ayarı güncellenemedi."
+                        : $"Rezerval rezervasyon ayarı güncellenemedi: {envelope.Message}");
+
+            return envelope;
+        }, cancellationToken);
+    }
+
     /// <summary>
     /// Builds a <see cref="MultipartFormDataContent"/> from <see cref="RezervalCompanyFormData"/>.
     /// All fields are sent as string parts; the optional logo is added as a file part when present.
