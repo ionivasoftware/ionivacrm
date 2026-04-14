@@ -24,15 +24,9 @@ type FormState = {
   reviewSmsSetting: boolean;
   reviewSmsHour: number;
   preparationTime: number;
-  notSendSmsMinHourId: number;
-  notSendSmsMaxHourId: number;
   isEnterAccountClosingInfo: boolean;
   isOtoTableAppoint: boolean;
   isSendReservationSms: boolean;
-  isSendNotification: boolean;
-  isSendReservationNotification: boolean;
-  isSendCancelNotification: boolean;
-  isSendConfirmNotification: boolean;
   isSendRegisterSms: boolean;
   isSendRegisterMinute: number;
   smsTextRegister: string;
@@ -50,15 +44,9 @@ const emptyForm: FormState = {
   reviewSmsSetting: false,
   reviewSmsHour: 0,
   preparationTime: 0,
-  notSendSmsMinHourId: 0,
-  notSendSmsMaxHourId: 0,
   isEnterAccountClosingInfo: false,
   isOtoTableAppoint: false,
   isSendReservationSms: false,
-  isSendNotification: false,
-  isSendReservationNotification: false,
-  isSendCancelNotification: false,
-  isSendConfirmNotification: false,
   isSendRegisterSms: false,
   isSendRegisterMinute: 0,
   smsTextRegister: '',
@@ -86,15 +74,9 @@ export function RezervalSettingsTab({ customerId }: { customerId: string }) {
       reviewSmsSetting:                 data.reviewSmsSetting ?? false,
       reviewSmsHour:                    data.reviewSmsHour ?? 0,
       preparationTime:                  data.preparationTime ?? 0,
-      notSendSmsMinHourId:              data.notSendSmsMinHourId ?? 0,
-      notSendSmsMaxHourId:              data.notSendSmsMaxHourId ?? 0,
       isEnterAccountClosingInfo:        data.isEnterAccountClosingInfo ?? false,
       isOtoTableAppoint:                data.isOtoTableAppoint ?? false,
       isSendReservationSms:             data.isSendReservationSms ?? false,
-      isSendNotification:               data.isSendNotification ?? false,
-      isSendReservationNotification:    data.isSendReservationNotification ?? false,
-      isSendCancelNotification:         data.isSendCancelNotification ?? false,
-      isSendConfirmNotification:        data.isSendConfirmNotification ?? false,
       isSendRegisterSms:                data.isSendRegisterSms ?? false,
       isSendRegisterMinute:             data.isSendRegisterMinute ?? 0,
       smsTextRegister:                  data.smsTextRegister ?? '',
@@ -176,75 +158,47 @@ export function RezervalSettingsTab({ customerId }: { customerId: string }) {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* ── Rezervasyon davranışı ── */}
-        <Section title="Rezervasyon Davranışı">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-            <Toggle
-              label="Telefonsuz rezervasyon kabul et"
-              checked={form.isAcceptWithoutPhone}
-              onChange={(v) => set('isAcceptWithoutPhone', v)}
-            />
-            <Toggle
-              label="Rezervasyon teyidi gerekli"
-              checked={form.isRequireConfirm}
-              onChange={(v) => set('isRequireConfirm', v)}
-            />
-            <Toggle
-              label="Aynı gün teyit SMS'i"
-              checked={form.isSendConfirmSameDayReservations}
-              onChange={(v) => set('isSendConfirmSameDayReservations', v)}
-            />
-            <Toggle
-              label="Hesap kapatma bilgisi"
-              checked={form.isEnterAccountClosingInfo}
-              onChange={(v) => set('isEnterAccountClosingInfo', v)}
-            />
-            <Toggle
-              label="Otomatik masa ataması"
-              checked={form.isOtoTableAppoint}
-              onChange={(v) => set('isOtoTableAppoint', v)}
-            />
-          </div>
-
-          <NumberField
-            label="Hazırlık süresi (dakika)"
-            value={form.preparationTime}
-            onChange={(v) => set('preparationTime', v)}
-            min={0}
+      {/* ── Rezervasyon davranışı ── */}
+      <Section title="Rezervasyon Davranışı">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
+          <Toggle
+            label="Telefonsuz rezervasyon kabul et"
+            checked={form.isAcceptWithoutPhone}
+            onChange={(v) => set('isAcceptWithoutPhone', v)}
           />
-        </Section>
+          <Toggle
+            label="Rezervasyon teyidi gerekli"
+            checked={form.isRequireConfirm}
+            onChange={(v) => set('isRequireConfirm', v)}
+          />
+          <Toggle
+            label="Aynı gün teyit SMS'i"
+            checked={form.isSendConfirmSameDayReservations}
+            onChange={(v) => set('isSendConfirmSameDayReservations', v)}
+          />
+          <Toggle
+            label="Hesap kapatma bilgisi"
+            checked={form.isEnterAccountClosingInfo}
+            onChange={(v) => set('isEnterAccountClosingInfo', v)}
+          />
+          <Toggle
+            label="Otomatik masa ataması"
+            checked={form.isOtoTableAppoint}
+            onChange={(v) => set('isOtoTableAppoint', v)}
+          />
+        </div>
 
-        {/* ── Bildirimler ── */}
-        <Section title="Bildirimler">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-            <Toggle
-              label="Genel bildirim"
-              checked={form.isSendNotification}
-              onChange={(v) => set('isSendNotification', v)}
-            />
-            <Toggle
-              label="Yeni rezervasyon bildirimi"
-              checked={form.isSendReservationNotification}
-              onChange={(v) => set('isSendReservationNotification', v)}
-            />
-            <Toggle
-              label="İptal bildirimi"
-              checked={form.isSendCancelNotification}
-              onChange={(v) => set('isSendCancelNotification', v)}
-            />
-            <Toggle
-              label="Teyit bildirimi"
-              checked={form.isSendConfirmNotification}
-              onChange={(v) => set('isSendConfirmNotification', v)}
-            />
-          </div>
-        </Section>
-      </div>
+        <NumberField
+          label="Hazırlık süresi (dakika)"
+          value={form.preparationTime}
+          onChange={(v) => set('preparationTime', v)}
+          min={0}
+        />
+      </Section>
 
       {/* ── SMS Ayarları ── */}
       <Section title="SMS Ayarları">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-2">
             <Toggle
               label="Rezervasyon SMS'i"
@@ -297,20 +251,6 @@ export function RezervalSettingsTab({ customerId }: { customerId: string }) {
               compact
             />
           </div>
-          <NumberField
-            label="SMS gönderme min. saat ID"
-            value={form.notSendSmsMinHourId}
-            onChange={(v) => set('notSendSmsMinHourId', v)}
-            min={0}
-            compact
-          />
-          <NumberField
-            label="SMS gönderme max. saat ID"
-            value={form.notSendSmsMaxHourId}
-            onChange={(v) => set('notSendSmsMaxHourId', v)}
-            min={0}
-            compact
-          />
         </div>
       </Section>
 
@@ -406,9 +346,9 @@ function Toggle({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 cursor-pointer group min-h-[36px]">
+    <label className="flex items-center justify-between gap-3 cursor-pointer py-1.5">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium leading-tight">{label}</p>
+        <p className="text-sm leading-tight">{label}</p>
         {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
       </div>
       <button
