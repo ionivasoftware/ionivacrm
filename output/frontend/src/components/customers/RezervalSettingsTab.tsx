@@ -176,132 +176,142 @@ export function RezervalSettingsTab({ customerId }: { customerId: string }) {
         </Button>
       </div>
 
-      {/* ── Rezervasyon davranışı ── */}
-      <Section title="Rezervasyon Davranışı">
-        <Toggle
-          label="Telefonsuz rezervasyon kabul et"
-          hint="Müşteri telefon numarası girmese bile rezervasyon oluşturulabilir."
-          checked={form.isAcceptWithoutPhone}
-          onChange={(v) => set('isAcceptWithoutPhone', v)}
-        />
-        <Toggle
-          label="Rezervasyon teyidi gerekli"
-          hint="Misafir formdan katılım durumunu teyit etmezse rezervasyon iptal sayılır."
-          checked={form.isRequireConfirm}
-          onChange={(v) => set('isRequireConfirm', v)}
-        />
-        <Toggle
-          label="Aynı gün rezervasyonlara teyit SMS'i gönder"
-          checked={form.isSendConfirmSameDayReservations}
-          onChange={(v) => set('isSendConfirmSameDayReservations', v)}
-        />
-        <Toggle
-          label="Hesap kapatma bilgisi gir"
-          checked={form.isEnterAccountClosingInfo}
-          onChange={(v) => set('isEnterAccountClosingInfo', v)}
-        />
-        <Toggle
-          label="Otomatik masa ataması"
-          hint="Yeni rezervasyonlar uygun masaya otomatik atanır."
-          checked={form.isOtoTableAppoint}
-          onChange={(v) => set('isOtoTableAppoint', v)}
-        />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* ── Rezervasyon davranışı ── */}
+        <Section title="Rezervasyon Davranışı">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+            <Toggle
+              label="Telefonsuz rezervasyon kabul et"
+              checked={form.isAcceptWithoutPhone}
+              onChange={(v) => set('isAcceptWithoutPhone', v)}
+            />
+            <Toggle
+              label="Rezervasyon teyidi gerekli"
+              checked={form.isRequireConfirm}
+              onChange={(v) => set('isRequireConfirm', v)}
+            />
+            <Toggle
+              label="Aynı gün teyit SMS'i"
+              checked={form.isSendConfirmSameDayReservations}
+              onChange={(v) => set('isSendConfirmSameDayReservations', v)}
+            />
+            <Toggle
+              label="Hesap kapatma bilgisi"
+              checked={form.isEnterAccountClosingInfo}
+              onChange={(v) => set('isEnterAccountClosingInfo', v)}
+            />
+            <Toggle
+              label="Otomatik masa ataması"
+              checked={form.isOtoTableAppoint}
+              onChange={(v) => set('isOtoTableAppoint', v)}
+            />
+          </div>
 
-        <NumberField
-          label="Hazırlık süresi (dakika)"
-          value={form.preparationTime}
-          onChange={(v) => set('preparationTime', v)}
-          min={0}
-        />
-      </Section>
+          <NumberField
+            label="Hazırlık süresi (dakika)"
+            value={form.preparationTime}
+            onChange={(v) => set('preparationTime', v)}
+            min={0}
+          />
+        </Section>
 
-      {/* ── SMS ── */}
+        {/* ── Bildirimler ── */}
+        <Section title="Bildirimler">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+            <Toggle
+              label="Genel bildirim"
+              checked={form.isSendNotification}
+              onChange={(v) => set('isSendNotification', v)}
+            />
+            <Toggle
+              label="Yeni rezervasyon bildirimi"
+              checked={form.isSendReservationNotification}
+              onChange={(v) => set('isSendReservationNotification', v)}
+            />
+            <Toggle
+              label="İptal bildirimi"
+              checked={form.isSendCancelNotification}
+              onChange={(v) => set('isSendCancelNotification', v)}
+            />
+            <Toggle
+              label="Teyit bildirimi"
+              checked={form.isSendConfirmNotification}
+              onChange={(v) => set('isSendConfirmNotification', v)}
+            />
+          </div>
+        </Section>
+      </div>
+
+      {/* ── SMS Ayarları ── */}
       <Section title="SMS Ayarları">
-        <Toggle
-          label="Rezervasyon SMS'i gönder"
-          hint="Yeni rezervasyon oluştuğunda misafire SMS gönderilir."
-          checked={form.isSendReservationSms}
-          onChange={(v) => set('isSendReservationSms', v)}
-        />
-        <Toggle
-          label="Teyit SMS'i gönder"
-          checked={form.confirmSmsSetting}
-          onChange={(v) => set('confirmSmsSetting', v)}
-        />
-        <NumberField
-          label="Teyit SMS'i kaç saat önce"
-          value={form.confirmSmsHour}
-          onChange={(v) => set('confirmSmsHour', v)}
-          min={0}
-          disabled={!form.confirmSmsSetting}
-        />
-
-        <Toggle
-          label="Değerlendirme SMS'i gönder"
-          checked={form.reviewSmsSetting}
-          onChange={(v) => set('reviewSmsSetting', v)}
-        />
-        <NumberField
-          label="Değerlendirme SMS'i kaç saat sonra"
-          value={form.reviewSmsHour}
-          onChange={(v) => set('reviewSmsHour', v)}
-          min={0}
-          disabled={!form.reviewSmsSetting}
-        />
-
-        <Toggle
-          label="Kayıt SMS'i gönder"
-          checked={form.isSendRegisterSms}
-          onChange={(v) => set('isSendRegisterSms', v)}
-        />
-        <NumberField
-          label="Kayıt SMS'i gecikmesi (dakika)"
-          value={form.isSendRegisterMinute}
-          onChange={(v) => set('isSendRegisterMinute', v)}
-          min={0}
-          disabled={!form.isSendRegisterSms}
-        />
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Toggle
+              label="Rezervasyon SMS'i"
+              checked={form.isSendReservationSms}
+              onChange={(v) => set('isSendReservationSms', v)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Toggle
+              label="Teyit SMS'i"
+              checked={form.confirmSmsSetting}
+              onChange={(v) => set('confirmSmsSetting', v)}
+            />
+            <NumberField
+              label="Kaç saat önce"
+              value={form.confirmSmsHour}
+              onChange={(v) => set('confirmSmsHour', v)}
+              min={0}
+              disabled={!form.confirmSmsSetting}
+              compact
+            />
+          </div>
+          <div className="space-y-2">
+            <Toggle
+              label="Değerlendirme SMS'i"
+              checked={form.reviewSmsSetting}
+              onChange={(v) => set('reviewSmsSetting', v)}
+            />
+            <NumberField
+              label="Kaç saat sonra"
+              value={form.reviewSmsHour}
+              onChange={(v) => set('reviewSmsHour', v)}
+              min={0}
+              disabled={!form.reviewSmsSetting}
+              compact
+            />
+          </div>
+          <div className="space-y-2">
+            <Toggle
+              label="Kayıt SMS'i"
+              checked={form.isSendRegisterSms}
+              onChange={(v) => set('isSendRegisterSms', v)}
+            />
+            <NumberField
+              label="Gecikme (dakika)"
+              value={form.isSendRegisterMinute}
+              onChange={(v) => set('isSendRegisterMinute', v)}
+              min={0}
+              disabled={!form.isSendRegisterSms}
+              compact
+            />
+          </div>
           <NumberField
             label="SMS gönderme min. saat ID"
             value={form.notSendSmsMinHourId}
             onChange={(v) => set('notSendSmsMinHourId', v)}
             min={0}
-            hint="RezervAl saat aralığı ID'si (ör. 43)"
+            compact
           />
           <NumberField
             label="SMS gönderme max. saat ID"
             value={form.notSendSmsMaxHourId}
             onChange={(v) => set('notSendSmsMaxHourId', v)}
             min={0}
-            hint="RezervAl saat aralığı ID'si (ör. 51)"
+            compact
           />
         </div>
-      </Section>
-
-      {/* ── Bildirimler ── */}
-      <Section title="Bildirimler">
-        <Toggle
-          label="Genel bildirim gönder"
-          checked={form.isSendNotification}
-          onChange={(v) => set('isSendNotification', v)}
-        />
-        <Toggle
-          label="Yeni rezervasyon bildirimi"
-          checked={form.isSendReservationNotification}
-          onChange={(v) => set('isSendReservationNotification', v)}
-        />
-        <Toggle
-          label="İptal bildirimi"
-          checked={form.isSendCancelNotification}
-          onChange={(v) => set('isSendCancelNotification', v)}
-        />
-        <Toggle
-          label="Teyit bildirimi"
-          checked={form.isSendConfirmNotification}
-          onChange={(v) => set('isSendConfirmNotification', v)}
-        />
       </Section>
 
       {/* ── SMS metinleri ── */}
@@ -309,29 +319,31 @@ export function RezervalSettingsTab({ customerId }: { customerId: string }) {
         title="SMS Metinleri"
         hint="{reservationDate}, {userCount}, {formLink} gibi değişkenler kullanılabilir."
       >
-        <div className="space-y-1.5">
-          <Label>Kayıt SMS metni</Label>
-          <Textarea
-            value={form.smsTextRegister}
-            onChange={(e) => set('smsTextRegister', e.target.value)}
-            rows={4}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Teyit SMS metni</Label>
-          <Textarea
-            value={form.smsTextConfirm}
-            onChange={(e) => set('smsTextConfirm', e.target.value)}
-            rows={4}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Değerlendirme SMS metni</Label>
-          <Textarea
-            value={form.smsTextReview}
-            onChange={(e) => set('smsTextReview', e.target.value)}
-            rows={4}
-          />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <Label>Kayıt SMS metni</Label>
+            <Textarea
+              value={form.smsTextRegister}
+              onChange={(e) => set('smsTextRegister', e.target.value)}
+              rows={5}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Teyit SMS metni</Label>
+            <Textarea
+              value={form.smsTextConfirm}
+              onChange={(e) => set('smsTextConfirm', e.target.value)}
+              rows={5}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Değerlendirme SMS metni</Label>
+            <Textarea
+              value={form.smsTextReview}
+              onChange={(e) => set('smsTextReview', e.target.value)}
+              rows={5}
+            />
+          </div>
         </div>
         <div className="space-y-1.5">
           <Label>Google değerlendirme bağlantısı</Label>
@@ -394,9 +406,9 @@ function Toggle({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex items-start justify-between gap-3 cursor-pointer group">
+    <label className="flex items-center justify-between gap-3 cursor-pointer group min-h-[36px]">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium">{label}</p>
+        <p className="text-sm font-medium leading-tight">{label}</p>
         {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
       </div>
       <button
@@ -405,15 +417,15 @@ function Toggle({
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className={cn(
-          'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
+          'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-border/50',
           'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          checked ? 'bg-teal-600' : 'bg-muted'
+          checked ? 'bg-teal-600 border-teal-600' : 'bg-slate-300 dark:bg-slate-600'
         )}
       >
         <span
           className={cn(
-            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow ring-0 transition-transform',
-            checked ? 'translate-x-5' : 'translate-x-0'
+            'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition-transform mt-[1px]',
+            checked ? 'translate-x-[18px]' : 'translate-x-0.5'
           )}
         />
       </button>
@@ -428,6 +440,7 @@ function NumberField({
   min,
   disabled,
   hint,
+  compact,
 }: {
   label: string;
   value: number;
@@ -435,10 +448,11 @@ function NumberField({
   min?: number;
   disabled?: boolean;
   hint?: string;
+  compact?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label className="text-xs">{label}</Label>
       <Input
         type="number"
         min={min}
@@ -448,7 +462,7 @@ function NumberField({
           onChange(Number.isFinite(n) ? n : 0);
         }}
         disabled={disabled}
-        className="h-10 max-w-[220px]"
+        className={cn(compact ? 'h-9' : 'h-10', !compact && 'max-w-[220px]')}
       />
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
