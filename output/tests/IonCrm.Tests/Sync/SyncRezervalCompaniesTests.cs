@@ -109,7 +109,7 @@ public class SyncRezervalCompaniesTests
                 Title: "Tekil Restoran",
                 Phone: "05001112233",
                 Email: "test@restoran.com",
-                Logo: null,
+                Logo: null, TaxUnit: null, TaxNumber: null, TcNo: null, Address: null,
                 ExperationDate: DateTime.UtcNow.AddDays(60),  // not expired, long trial → Active
                 CreatedOn: DateTime.UtcNow.AddDays(-90),       // created 90d ago → createdAt+40 < expDate
                 IsDeleted: false,
@@ -133,7 +133,7 @@ public class SyncRezervalCompaniesTests
         customer.CompanyName.Should().Be("Test Restoran");
         customer.Email.Should().Be("test@restoran.com");
         customer.Phone.Should().Be("05001112233");
-        customer.Segment.Should().Be("Tekil Restoran");
+        customer.Segment.Should().BeNull("Title is ünvan, not segment — Rezerval sync no longer maps Title→Segment");
         customer.ProjectId.Should().Be(projectId);
     }
 
@@ -161,7 +161,7 @@ public class SyncRezervalCompaniesTests
             .ReturnsAsync(new List<RezervalCompany>
             {
                 new(Id: 777, Name: "Firma 777", Title: null, Phone: null, Email: null,
-                    Logo: null, ExperationDate: DateTime.UtcNow.AddDays(30),
+                    Logo: null, TaxUnit: null, TaxNumber: null, TcNo: null, Address: null, ExperationDate: DateTime.UtcNow.AddDays(30),
                     CreatedOn: DateTime.UtcNow.AddDays(-100), IsDeleted: false, IsActiveOnline: true)
             });
 
@@ -222,7 +222,7 @@ public class SyncRezervalCompaniesTests
             {
                 new(Id: 200, Name: "Yeni Ad", Title: "Yeni Segment",
                     Phone: "05559998877", Email: "yeni@email.com",
-                    Logo: null, ExperationDate: newExpDate,
+                    Logo: null, TaxUnit: null, TaxNumber: null, TcNo: null, Address: null, ExperationDate: newExpDate,
                     CreatedOn: DateTime.UtcNow.AddDays(-200),
                     IsDeleted: false, IsActiveOnline: true)
             });
@@ -242,7 +242,8 @@ public class SyncRezervalCompaniesTests
         updated.CompanyName.Should().Be("Yeni Ad");
         updated.Email.Should().Be("yeni@email.com");
         updated.Phone.Should().Be("05559998877");
-        updated.Segment.Should().Be("Yeni Segment");
+        updated.Segment.Should().Be("Eski Segment",
+            "Segment is a CRM-only field — Rezerval sync no longer touches it (Title is ünvan, not segment)");
     }
 
     // ── Update: no changes → UpdatedAt not bumped ─────────────────────────────
@@ -285,7 +286,7 @@ public class SyncRezervalCompaniesTests
             {
                 new(Id: 300, Name: "Same Name", Title: "Same Segment",
                     Phone: "05550001122", Email: "same@email.com",
-                    Logo: null, ExperationDate: expDate,
+                    Logo: null, TaxUnit: null, TaxNumber: null, TcNo: null, Address: null, ExperationDate: expDate,
                     CreatedOn: DateTime.UtcNow.AddDays(-100), IsDeleted: false, IsActiveOnline: true)
             });
 
@@ -324,7 +325,7 @@ public class SyncRezervalCompaniesTests
             .ReturnsAsync(new List<RezervalCompany>
             {
                 new(Id: 400, Name: "Deleted Firma", Title: null, Phone: null, Email: null,
-                    Logo: null, ExperationDate: DateTime.UtcNow.AddDays(10),
+                    Logo: null, TaxUnit: null, TaxNumber: null, TcNo: null, Address: null, ExperationDate: DateTime.UtcNow.AddDays(10),
                     CreatedOn: DateTime.UtcNow.AddDays(-50), IsDeleted: true, IsActiveOnline: false)
             });
 
@@ -367,7 +368,7 @@ public class SyncRezervalCompaniesTests
             .ReturnsAsync(new List<RezervalCompany>
             {
                 new(Id: 500, Name: "Active Firma", Title: null, Phone: null, Email: null,
-                    Logo: null, ExperationDate: expDate, CreatedOn: createdOn,
+                    Logo: null, TaxUnit: null, TaxNumber: null, TcNo: null, Address: null, ExperationDate: expDate, CreatedOn: createdOn,
                     IsDeleted: false, IsActiveOnline: true)
             });
 
@@ -411,7 +412,7 @@ public class SyncRezervalCompaniesTests
             .ReturnsAsync(new List<RezervalCompany>
             {
                 new(Id: 501, Name: "Churned Firma", Title: null, Phone: null, Email: null,
-                    Logo: null, ExperationDate: expDate, CreatedOn: createdOn,
+                    Logo: null, TaxUnit: null, TaxNumber: null, TcNo: null, Address: null, ExperationDate: expDate, CreatedOn: createdOn,
                     IsDeleted: false, IsActiveOnline: false)
             });
 
@@ -455,7 +456,7 @@ public class SyncRezervalCompaniesTests
             .ReturnsAsync(new List<RezervalCompany>
             {
                 new(Id: 502, Name: "Demo Firma", Title: null, Phone: null, Email: null,
-                    Logo: null, ExperationDate: expDate, CreatedOn: createdOn,
+                    Logo: null, TaxUnit: null, TaxNumber: null, TcNo: null, Address: null, ExperationDate: expDate, CreatedOn: createdOn,
                     IsDeleted: false, IsActiveOnline: true)
             });
 
@@ -506,15 +507,15 @@ public class SyncRezervalCompaniesTests
             {
                 // New company
                 new(Id: 601, Name: "Brand New Co", Title: "New Segment", Phone: null,
-                    Email: "new@co.com", Logo: null, ExperationDate: DateTime.UtcNow.AddDays(60),
+                    Email: "new@co.com", Logo: null, TaxUnit: null, TaxNumber: null, TcNo: null, Address: null, ExperationDate: DateTime.UtcNow.AddDays(60),
                     CreatedOn: DateTime.UtcNow.AddDays(-100), IsDeleted: false, IsActiveOnline: true),
                 // Existing — update
                 new(Id: 600, Name: "Updated Name", Title: null, Phone: null,
-                    Email: "updated@email.com", Logo: null, ExperationDate: DateTime.UtcNow.AddDays(60),
+                    Email: "updated@email.com", Logo: null, TaxUnit: null, TaxNumber: null, TcNo: null, Address: null, ExperationDate: DateTime.UtcNow.AddDays(60),
                     CreatedOn: DateTime.UtcNow.AddDays(-100), IsDeleted: false, IsActiveOnline: true),
                 // Deleted — should be skipped
                 new(Id: 602, Name: "Deleted Co", Title: null, Phone: null,
-                    Email: null, Logo: null, ExperationDate: DateTime.UtcNow.AddDays(10),
+                    Email: null, Logo: null, TaxUnit: null, TaxNumber: null, TcNo: null, Address: null, ExperationDate: DateTime.UtcNow.AddDays(10),
                     CreatedOn: DateTime.UtcNow.AddDays(-50), IsDeleted: true, IsActiveOnline: false)
             });
 
