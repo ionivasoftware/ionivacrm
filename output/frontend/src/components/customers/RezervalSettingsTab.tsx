@@ -23,10 +23,8 @@ type FormState = {
   confirmSmsHour: number;
   reviewSmsSetting: boolean;
   reviewSmsHour: number;
-  preparationTime: number;
   isEnterAccountClosingInfo: boolean;
   isOtoTableAppoint: boolean;
-  isSendReservationSms: boolean;
   isSendRegisterSms: boolean;
   isSendRegisterMinute: number;
   smsTextRegister: string;
@@ -43,10 +41,8 @@ const emptyForm: FormState = {
   confirmSmsHour: 0,
   reviewSmsSetting: false,
   reviewSmsHour: 0,
-  preparationTime: 0,
   isEnterAccountClosingInfo: false,
   isOtoTableAppoint: false,
-  isSendReservationSms: false,
   isSendRegisterSms: false,
   isSendRegisterMinute: 0,
   smsTextRegister: '',
@@ -73,10 +69,8 @@ export function RezervalSettingsTab({ customerId }: { customerId: string }) {
       confirmSmsHour:                   data.confirmSmsHour ?? 0,
       reviewSmsSetting:                 data.reviewSmsSetting ?? false,
       reviewSmsHour:                    data.reviewSmsHour ?? 0,
-      preparationTime:                  data.preparationTime ?? 0,
       isEnterAccountClosingInfo:        data.isEnterAccountClosingInfo ?? false,
       isOtoTableAppoint:                data.isOtoTableAppoint ?? false,
-      isSendReservationSms:             data.isSendReservationSms ?? false,
       isSendRegisterSms:                data.isSendRegisterSms ?? false,
       isSendRegisterMinute:             data.isSendRegisterMinute ?? 0,
       smsTextRegister:                  data.smsTextRegister ?? '',
@@ -187,25 +181,11 @@ export function RezervalSettingsTab({ customerId }: { customerId: string }) {
             onChange={(v) => set('isOtoTableAppoint', v)}
           />
         </div>
-
-        <NumberField
-          label="Hazırlık süresi (dakika)"
-          value={form.preparationTime}
-          onChange={(v) => set('preparationTime', v)}
-          min={0}
-        />
       </Section>
 
       {/* ── SMS Ayarları ── */}
       <Section title="SMS Ayarları">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="space-y-2">
-            <Toggle
-              label="Rezervasyon SMS'i"
-              checked={form.isSendReservationSms}
-              onChange={(v) => set('isSendReservationSms', v)}
-            />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Toggle
               label="Teyit SMS'i"
@@ -357,7 +337,7 @@ function Toggle({
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className={cn(
-          'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-border/50',
+          'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-border/50 !min-h-[22px]',
           'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           checked ? 'bg-teal-600 border-teal-600' : 'bg-slate-300 dark:bg-slate-600'
         )}
