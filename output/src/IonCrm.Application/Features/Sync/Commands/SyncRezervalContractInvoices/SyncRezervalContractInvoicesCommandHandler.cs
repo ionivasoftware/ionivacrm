@@ -193,7 +193,7 @@ public sealed class SyncRezervalContractInvoicesCommandHandler
                     Title        = $"{customer.CompanyName} - {nextDate:MMMM yyyy} Abonelik",
                     Description  = null,
                     IssueDate    = nextDate,
-                    DueDate      = nextDate.AddDays(30),
+                    DueDate      = nextDate.AddDays(7),
                     Currency     = "TRL",
                     GrossTotal   = grossTotal,
                     NetTotal     = netTotal,
