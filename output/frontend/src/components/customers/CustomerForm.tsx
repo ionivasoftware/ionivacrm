@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -22,9 +22,24 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCreateCustomer, useUpdateCustomer } from '@/api/customers';
+import { useAdminProjects } from '@/api/admin';
+import { useAuthStore } from '@/stores/authStore';
+import { getSegmentsForProject } from '@/config/projectSegments';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { Customer, CustomerStatus, UpdateCustomerRequest } from '@/types';
+import type { Customer, CustomerLabel, CustomerStatus, UpdateCustomerRequest } from '@/types';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Returns true for EMS-sourced customers (LegacyId starts with a digit or "SAASA-").
+ * Mirrors the `isEmsCustomer` helper in CustomerDetailPage.
+ */
+function isEmsCustomer(legacyId: string | null | undefined): boolean {
+  if (!legacyId) return false;
+  if (legacyId.startsWith('PC-')) return false;
+  return /^\d/.test(legacyId) || legacyId.startsWith('SAASA-');
+}
 
 // ── Schema ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +54,9 @@ const schema = z.object({
   tcNo: z.string(),
   isPersonCompany: z.enum(['true', 'false']),
   contactName: z.string(),
+  // EMS-only fields — empty string when hidden, "none" sentinel when "Belirtilmedi"
+  segment: z.string(),
+  label: z.string(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -66,6 +84,26 @@ export function CustomerFormDialog({
   const isEdit = !!customer;
   const isPending = createMutation.isPending || updateMutation.isPending;
 
+  // Determine whether to show segment + label dropdowns.
+  //   Edit mode → only when the customer is EMS-sourced.
+  //   Add mode  → only when the active project has an EMS API key configured.
+  const { currentProjectId, projectNames } = useAuthStore();
+  const { data: adminProjects } = useAdminProjects();
+
+  const showEmsFields = useMemo(() => {
+    if (isEdit) return isEmsCustomer(customer?.legacyId);
+    if (!currentProjectId) return false;
+    const project = adminProjects?.find((p) => p.id === currentProjectId);
+    return !!project?.emsApiKey;
+  }, [isEdit, customer?.legacyId, currentProjectId, adminProjects]);
+
+  // Project-name-driven segment options.  Falls back to an empty list — the
+  // dropdown still renders but only shows "Belirtilmedi".
+  const segments = useMemo(() => {
+    const projectName = currentProjectId ? projectNames[currentProjectId] : undefined;
+    return getSegmentsForProject(projectName);
+  }, [currentProjectId, projectNames]);
+
   const {
     register,
     handleSubmit,
@@ -82,6 +120,14 @@ export function CustomerFormDialog({
   }, [isOpen, customer, reset]);
 
   const onSubmit = async (data: FormData) => {
+    // Convert the "none" sentinel back to undefined so the API stores NULL
+    const segmentValue =
+      showEmsFields && data.segment && data.segment !== 'none' ? data.segment : undefined;
+    const labelValue =
+      showEmsFields && data.label && data.label !== 'none'
+        ? (data.label as CustomerLabel)
+        : undefined;
+
     const payload = {
       companyName: data.companyName,
       contactName: data.contactName || undefined,
@@ -90,6 +136,8 @@ export function CustomerFormDialog({
       address: data.address || undefined,
       taxNumber: data.taxNumber || undefined,
       taxUnit: data.taxUnit || undefined,
+      segment: segmentValue,
+      label: labelValue,
     };
 
     try {
@@ -269,6 +317,71 @@ export function CustomerFormDialog({
             </div>
           </div>
 
+          {/* ── EMS-only: Segment + Potansiyel Label ── */}
+          {showEmsFields && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  EMS Sınıflandırma
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Segment</Label>
+                    <Controller
+                      control={control}
+                      name="segment"
+                      render={({ field }) => (
+                        <Select
+                          value={field.value || 'none'}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger className="h-11">
+                            <SelectValue placeholder="Segment seçin" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Belirtilmedi</SelectItem>
+                            {segments.map((seg) => (
+                              <SelectItem key={seg} value={seg}>
+                                {seg}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Potansiyel Label</Label>
+                    <Controller
+                      control={control}
+                      name="label"
+                      render={({ field }) => (
+                        <Select
+                          value={field.value || 'none'}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger className="h-11">
+                            <SelectValue placeholder="Label seçin" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Belirtilmedi</SelectItem>
+                            <SelectItem value="YuksekPotansiyel">⭐ Yüksek Potansiyel</SelectItem>
+                            <SelectItem value="Potansiyel">🔵 Potansiyel</SelectItem>
+                            <SelectItem value="Notr">⚪ Nötr</SelectItem>
+                            <SelectItem value="Vasat">🟡 Vasat</SelectItem>
+                            <SelectItem value="Kotu">🔴 Kötü</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
           <DialogFooter className="gap-2 pt-2">
             <Button
               type="button"
@@ -305,6 +418,8 @@ function getDefaultValues(customer?: Customer): FormData {
       tcNo: '',
       isPersonCompany: 'false',
       contactName: customer.contactName ?? '',
+      segment: customer.segment ?? 'none',
+      label: customer.label ?? 'none',
     };
   }
   return {
@@ -318,5 +433,7 @@ function getDefaultValues(customer?: Customer): FormData {
     tcNo: '',
     isPersonCompany: 'false',
     contactName: '',
+    segment: 'none',
+    label: 'none',
   };
 }
