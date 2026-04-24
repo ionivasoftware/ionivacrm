@@ -29,18 +29,6 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { Customer, CustomerLabel, CustomerStatus, UpdateCustomerRequest } from '@/types';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Returns true for EMS-sourced customers (LegacyId starts with a digit or "SAASA-").
- * Mirrors the `isEmsCustomer` helper in CustomerDetailPage.
- */
-function isEmsCustomer(legacyId: string | null | undefined): boolean {
-  if (!legacyId) return false;
-  if (legacyId.startsWith('PC-')) return false;
-  return /^\d/.test(legacyId) || legacyId.startsWith('SAASA-');
-}
-
 // ── Schema ──────────────────────────────────────────────────────────────────
 
 const schema = z.object({
@@ -84,18 +72,18 @@ export function CustomerFormDialog({
   const isEdit = !!customer;
   const isPending = createMutation.isPending || updateMutation.isPending;
 
-  // Determine whether to show segment + label dropdowns.
-  //   Edit mode → only when the customer is EMS-sourced.
-  //   Add mode  → only when the active project has an EMS API key configured.
+  // Show segment + label dropdowns whenever the active project has an EMS API key
+  // configured — same rule for both add and edit. Rezerval-only projects keep them
+  // hidden everywhere; EMS / mixed projects show them for every customer regardless
+  // of whether the row was synced or created manually.
   const { currentProjectId, projectNames } = useAuthStore();
   const { data: adminProjects } = useAdminProjects();
 
   const showEmsFields = useMemo(() => {
-    if (isEdit) return isEmsCustomer(customer?.legacyId);
     if (!currentProjectId) return false;
     const project = adminProjects?.find((p) => p.id === currentProjectId);
     return !!project?.emsApiKey;
-  }, [isEdit, customer?.legacyId, currentProjectId, adminProjects]);
+  }, [currentProjectId, adminProjects]);
 
   // Project-name-driven segment options.  Falls back to an empty list — the
   // dropdown still renders but only shows "Belirtilmedi".
