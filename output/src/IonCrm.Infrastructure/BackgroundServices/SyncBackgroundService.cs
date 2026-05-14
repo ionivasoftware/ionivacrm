@@ -31,10 +31,12 @@ public sealed class SyncBackgroundService : IHostedService
     {
         _logger.LogInformation("Registering SaaS sync recurring job (every 15 minutes).");
 
-        // Register the recurring Hangfire job — Hangfire manages its own execution schedule
+        // Register the recurring Hangfire job — Hangfire manages its own execution schedule.
+        // 20-minute EMS payment lookback matches the legacy default; the timer-based service
+        // (SyncTimerService, used when Hangfire is disabled) computes a longer window after gaps.
         _recurringJobManager.AddOrUpdate<SaasSyncJob>(
             recurringJobId: "saas-full-sync",
-            methodCall: job => job.RunAsync(CancellationToken.None),
+            methodCall: job => job.RunAsync(20, CancellationToken.None),
             cronExpression: "*/15 * * * *",  // every 15 minutes
             options: new RecurringJobOptions
             {

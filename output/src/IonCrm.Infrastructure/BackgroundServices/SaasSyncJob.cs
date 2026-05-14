@@ -34,9 +34,11 @@ public sealed class SaasSyncJob
     private readonly ILogger<SaasSyncJob> _logger;
     private readonly IMediator _mediator;
 
-    // Retry pipeline is built per-call so OnRetry can close over the SyncLog instance
-    // and update RetryCount + status in the database on each failed attempt.
-    private ResiliencePipeline BuildRetryPipeline(SyncLog log, ISyncLogRepository syncLogRepo) =>
+    // Retry pipeline is built per-call so OnRetry can close over the in-memory SyncLog
+    // instance and increment RetryCount.  Intentionally does NOT write to the DB during
+    // retries — the final state is persisted once at the end of SyncWithRetryAsync, and
+    // only when something meaningful happened (changes > 0 or a final failure).
+    private ResiliencePipeline BuildRetryPipeline(SyncLog log) =>
         new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
             {
@@ -44,19 +46,18 @@ public sealed class SaasSyncJob
                 Delay = TimeSpan.FromSeconds(2),
                 BackoffType = DelayBackoffType.Exponential,
                 UseJitter = true,
-                OnRetry = async args =>
+                OnRetry = args =>
                 {
                     log.RetryCount++;
-                    log.Status = SyncStatus.Retrying;
                     log.ErrorMessage = args.Outcome.Exception?.Message;
-                    await syncLogRepo.UpdateAsync(log);
 
                     _logger.LogWarning(
+                        args.Outcome.Exception,
                         "Sync retry #{Attempt} for {Source}/{EntityType}. Error: {Error}",
-                        log.RetryCount,
-                        log.Source,
-                        log.EntityType,
+                        log.RetryCount, log.Source, log.EntityType,
                         args.Outcome.Exception?.Message);
+
+                    return ValueTask.CompletedTask;
                 }
             })
             .Build();
@@ -81,16 +82,23 @@ public sealed class SaasSyncJob
     }
 
     /// <summary>
-    /// Main Hangfire job entry point — called every 15 minutes.
-    /// Creates a DI scope per sync run to properly manage DbContext lifetime.
+    /// Main sync job entry point — called by <see cref="SyncTimerService"/> or by the
+    /// manual trigger endpoint.  Creates a DI scope per sync run to properly manage
+    /// DbContext lifetime.
     /// </summary>
-    public async Task RunAsync(CancellationToken cancellationToken)
+    /// <param name="emsPaymentWindowMinutes">
+    /// EMS payment lookback window in minutes. The timer service passes a longer value
+    /// (16h) on the first cycle after a long pause so overnight payments aren't missed.
+    /// Default 20 keeps backward compatibility with the manual trigger endpoint.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task RunAsync(int emsPaymentWindowMinutes = 20, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("SaaS sync job started at {Time:O}", DateTime.UtcNow);
 
         await SyncEmsCrmCustomersAsync(cancellationToken);
         await SyncRezervalCompaniesAsync(cancellationToken);
-        await SyncEmsPaymentsAsync(cancellationToken);
+        await SyncEmsPaymentsAsync(emsPaymentWindowMinutes, cancellationToken);
         await SyncRezervalContractInvoicesAsync(cancellationToken);
         // await SyncSaasAAsync(cancellationToken);
         // await SyncSaasBAsync(cancellationToken);
@@ -128,7 +136,7 @@ public sealed class SaasSyncJob
             action: async () =>
             {
                 const int pageSize = 500;
-                int page = 1, totalSynced = 0;
+                int page = 1, totalChanges = 0;
 
                 while (true)
                 {
@@ -138,8 +146,7 @@ public sealed class SaasSyncJob
                     if (response.Data.Count == 0)
                         break;
 
-                    await UpsertEmsCrmCustomersAsync(response.Data, projectId, ct);
-                    totalSynced += response.Data.Count;
+                    totalChanges += await UpsertEmsCrmCustomersAsync(response.Data, projectId, ct);
 
                     if (page >= response.TotalPages || response.TotalPages == 0)
                         break;
@@ -147,17 +154,19 @@ public sealed class SaasSyncJob
                     page++;
                 }
 
-                return totalSynced;
+                return totalChanges;
             });
     }
 
-    private async Task UpsertEmsCrmCustomersAsync(
+    private async Task<int> UpsertEmsCrmCustomersAsync(
         List<EmsCrmCustomer> customers,
         Guid projectId,
         CancellationToken ct)
     {
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        int changeCount = 0;
 
         foreach (var src in customers)
         {
@@ -202,7 +211,11 @@ public sealed class SaasSyncJob
                 if (existing.Status         != newStatus)   { existing.Status         = newStatus;   changed = true; }
                 // Backfill CreatedAt from EMS if it was set to the sync date instead of the original
                 if (existing.CreatedAt != createdAt)        { existing.CreatedAt      = createdAt;   changed = true; }
-                if (changed) existing.UpdatedAt = DateTime.UtcNow;
+                if (changed)
+                {
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    changeCount++;
+                }
             }
             else
             {
@@ -222,6 +235,7 @@ public sealed class SaasSyncJob
                     CreatedAt      = createdAt,
                     UpdatedAt      = DateTime.UtcNow
                 });
+                changeCount++;
             }
         }
 
@@ -238,6 +252,8 @@ public sealed class SaasSyncJob
                 customers.Count, ex.InnerException?.Message ?? ex.Message);
             throw; // let SyncWithRetryAsync handle retries / Failed status
         }
+
+        return changeCount;
     }
 
     /// <summary>
@@ -317,18 +333,19 @@ public sealed class SaasSyncJob
             action: async () =>
             {
                 var companies = await _saasBClient.GetRezervalCompaniesAsync(rezervAlApiKey, ct);
-                await UpsertRezervalCompaniesAsync(companies, projectId, ct);
-                return companies.Count;
+                return await UpsertRezervalCompaniesAsync(companies, projectId, ct);
             });
     }
 
-    private async Task UpsertRezervalCompaniesAsync(
+    private async Task<int> UpsertRezervalCompaniesAsync(
         List<RezervalCompany> companies,
         Guid projectId,
         CancellationToken ct)
     {
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        int changeCount = 0;
 
         foreach (var src in companies)
         {
@@ -366,7 +383,11 @@ public sealed class SaasSyncJob
                 if (existing.LogoUrl        != src.Logo)      { existing.LogoUrl        = src.Logo;      changed = true; }
                 if (existing.CreatedAt      != createdOn)     { existing.CreatedAt      = createdOn;     changed = true; }
                 // ContactName and Segment are CRM-only fields — not in CompanyList API.
-                if (changed) existing.UpdatedAt = DateTime.UtcNow;
+                if (changed)
+                {
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    changeCount++;
+                }
             }
             else
             {
@@ -387,6 +408,7 @@ public sealed class SaasSyncJob
                     CreatedAt      = createdOn,
                     UpdatedAt      = DateTime.UtcNow
                 });
+                changeCount++;
             }
         }
 
@@ -401,36 +423,41 @@ public sealed class SaasSyncJob
                 ex.InnerException?.Message ?? ex.Message);
             throw;
         }
+
+        return changeCount;
     }
 
     // ── EMS payment → invoice draft sync ─────────────────────────────────────
 
     /// <summary>
-    /// Fetches EMS payments from the last 20 minutes and creates invoice drafts
-    /// for any payment not yet recorded. Uses MediatR to reuse the same logic as
-    /// the manual <c>POST /api/v1/sync/ems-payments</c> endpoint.
+    /// Fetches EMS payments from the configured lookback window and creates invoice
+    /// drafts for any payment not yet recorded. Uses MediatR to reuse the same logic
+    /// as the manual <c>POST /api/v1/sync/ems-payments</c> endpoint.
     /// </summary>
-    private async Task SyncEmsPaymentsAsync(CancellationToken ct)
+    /// <param name="windowMinutes">How far back to look for payments (minutes).</param>
+    /// <param name="ct">Cancellation token.</param>
+    private async Task SyncEmsPaymentsAsync(int windowMinutes, CancellationToken ct)
     {
         try
         {
             using var scope = _scopeFactory.CreateScope();
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-            var result = await mediator.Send(new SyncEmsPaymentsCommand(WindowMinutes: 20), ct);
+            var result = await mediator.Send(new SyncEmsPaymentsCommand(WindowMinutes: windowMinutes), ct);
 
-            if (result.IsSuccess)
+            if (!result.IsSuccess)
+            {
+                _logger.LogWarning("EMS payment sync returned failure: {Errors}", result.Errors);
+                return;
+            }
+
+            // Only log to console when something meaningful happened, to keep idle cycles quiet.
+            var summary = result.Value!;
+            if (summary.InvoicesCreated > 0 || summary.Errors.Count > 0)
             {
                 _logger.LogInformation(
                     "EMS payment sync: projects={Projects} payments={Payments} created={Created} skipped={Skipped} errors={Errors}.",
-                    result.Value!.ProjectsScanned,
-                    result.Value.PaymentsFetched,
-                    result.Value.InvoicesCreated,
-                    result.Value.Skipped,
-                    result.Value.Errors.Count);
-            }
-            else
-            {
-                _logger.LogWarning("EMS payment sync returned failure: {Errors}", result.Errors);
+                    summary.ProjectsScanned, summary.PaymentsFetched,
+                    summary.InvoicesCreated, summary.Skipped, summary.Errors.Count);
             }
         }
         catch (Exception ex)
@@ -454,19 +481,22 @@ public sealed class SaasSyncJob
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
             var result = await mediator.Send(new SyncRezervalContractInvoicesCommand(), ct);
 
-            if (result.IsSuccess)
+            if (!result.IsSuccess)
+            {
+                _logger.LogWarning("Rezerval contract invoice sync returned failure: {Errors}", result.Errors);
+                return;
+            }
+
+            // Only log when something meaningful happened.
+            var summary = result.Value!;
+            if (summary.InvoicesCreated > 0
+                || summary.ContractsCompleted > 0
+                || summary.Errors.Count > 0)
             {
                 _logger.LogInformation(
                     "Rezerval contract invoice sync: scanned={Scanned} created={Created} skipped={Skipped} completed={Completed} errors={Errors}.",
-                    result.Value!.ContractsScanned,
-                    result.Value.InvoicesCreated,
-                    result.Value.Skipped,
-                    result.Value.ContractsCompleted,
-                    result.Value.Errors.Count);
-            }
-            else
-            {
-                _logger.LogWarning("Rezerval contract invoice sync returned failure: {Errors}", result.Errors);
+                    summary.ContractsScanned, summary.InvoicesCreated,
+                    summary.Skipped, summary.ContractsCompleted, summary.Errors.Count);
             }
         }
         catch (Exception ex)
@@ -593,9 +623,11 @@ public sealed class SaasSyncJob
 
     /// <summary>
     /// Wraps a sync action in a Polly retry pipeline (3 attempts, exponential backoff).
-    /// Uses a per-call pipeline so <see cref="SyncLog.RetryCount"/> is updated after
-    /// each failed attempt via the <c>OnRetry</c> delegate before the next attempt.
-    /// Logs final success/failure to the SyncLogs table.
+    /// The <paramref name="action"/> must return the number of records that were actually
+    /// inserted or updated (NOT the total fetched). A SyncLog row is persisted to the DB
+    /// only when at least one record changed OR when the final attempt threw — quiet
+    /// "nothing-to-do" cycles leave no audit row, which keeps the SyncLogs view focused
+    /// on meaningful events and avoids needless Neon compute charges.
     /// </summary>
     private async Task SyncWithRetryAsync(
         SyncSource source,
@@ -603,9 +635,6 @@ public sealed class SaasSyncJob
         Guid projectId,
         Func<Task<int>> action)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var syncLogRepo = scope.ServiceProvider.GetRequiredService<ISyncLogRepository>();
-
         var log = new SyncLog
         {
             Id = Guid.NewGuid(),
@@ -616,32 +645,48 @@ public sealed class SaasSyncJob
             Status = SyncStatus.Pending
         };
 
-        await syncLogRepo.AddAsync(log);
-
-        // Per-call pipeline closes over log+syncLogRepo to track each retry in DB
-        var pipeline = BuildRetryPipeline(log, syncLogRepo);
+        // Retry pipeline mutates `log` in memory only — no DB writes during retries.
+        var pipeline = BuildRetryPipeline(log);
 
         try
         {
-            var count = await pipeline.ExecuteAsync<int>(
+            var changeCount = await pipeline.ExecuteAsync<int>(
                 async _ => await action(),
                 CancellationToken.None);
 
-            log.Status = SyncStatus.Success;
+            // Quiet success: nothing changed, no error — do not write a SyncLog row.
+            if (changeCount <= 0)
+                return;
+
+            log.Status   = SyncStatus.Success;
             log.SyncedAt = DateTime.UtcNow;
-            await syncLogRepo.UpdateAsync(log);
+
+            using var scope = _scopeFactory.CreateScope();
+            var syncLogRepo = scope.ServiceProvider.GetRequiredService<ISyncLogRepository>();
+            await syncLogRepo.AddAsync(log);
 
             _logger.LogInformation(
-                "{Source} {EntityType} sync succeeded. Records processed: {Count}",
-                source, entityType, count);
+                "{Source} {EntityType} sync succeeded. New/changed records: {Count}",
+                source, entityType, changeCount);
         }
         catch (Exception ex)
         {
-            log.Status = SyncStatus.Failed;
-            log.ErrorMessage = ex.Message.Length > 2000
-                ? ex.Message[..2000]
-                : ex.Message;
-            await syncLogRepo.UpdateAsync(log);
+            log.Status       = SyncStatus.Failed;
+            log.ErrorMessage = ex.Message.Length > 2000 ? ex.Message[..2000] : ex.Message;
+            log.SyncedAt     = DateTime.UtcNow;
+
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var syncLogRepo = scope.ServiceProvider.GetRequiredService<ISyncLogRepository>();
+                await syncLogRepo.AddAsync(log);
+            }
+            catch (Exception persistEx)
+            {
+                _logger.LogError(persistEx,
+                    "Failed to persist Failed SyncLog for {Source}/{EntityType}.",
+                    source, entityType);
+            }
 
             _logger.LogError(ex,
                 "{Source} {EntityType} sync failed after {Retries} retries.",

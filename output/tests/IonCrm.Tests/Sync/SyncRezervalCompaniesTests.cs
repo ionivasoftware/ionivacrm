@@ -121,7 +121,7 @@ public class SyncRezervalCompaniesTests
             .ReturnsAsync(companies);
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert
         var customer = await dbContext.Customers
@@ -166,7 +166,7 @@ public class SyncRezervalCompaniesTests
             });
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert — LegacyId strictly matches "REZV-{id}"
         var customer = await dbContext.Customers
@@ -228,7 +228,7 @@ public class SyncRezervalCompaniesTests
             });
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert — existing record is updated, not duplicated
         var allCustomers = await dbContext.Customers
@@ -291,7 +291,7 @@ public class SyncRezervalCompaniesTests
             });
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert — still only one record
         var count = await dbContext.Customers
@@ -330,7 +330,7 @@ public class SyncRezervalCompaniesTests
             });
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert — deleted companies must be skipped
         var customer = await dbContext.Customers
@@ -373,7 +373,7 @@ public class SyncRezervalCompaniesTests
             });
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert
         var customer = await dbContext.Customers
@@ -417,7 +417,7 @@ public class SyncRezervalCompaniesTests
             });
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert
         var customer = await dbContext.Customers
@@ -461,7 +461,7 @@ public class SyncRezervalCompaniesTests
             });
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert
         var customer = await dbContext.Customers
@@ -520,7 +520,7 @@ public class SyncRezervalCompaniesTests
             });
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert
         var allCustomers = await dbContext.Customers

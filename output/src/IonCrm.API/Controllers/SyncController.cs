@@ -193,7 +193,9 @@ public sealed class SyncController : ApiControllerBase
 
         if (hangfireEnabled)
         {
-            var jobId = BackgroundJob.Enqueue<SaasSyncJob>(job => job.RunAsync(CancellationToken.None));
+            // Hangfire serialises this as an expression tree which forbids named/optional args
+            // — pass both parameters positionally. 20-min EMS window matches the legacy default.
+            var jobId = BackgroundJob.Enqueue<SaasSyncJob>(job => job.RunAsync(20, CancellationToken.None));
             return OkResponse(new { JobId = jobId, Mode = "hangfire" },
                 "Sync job enqueued via Hangfire.");
         }
@@ -207,7 +209,7 @@ public sealed class SyncController : ApiControllerBase
                 var logger = scope.ServiceProvider.GetRequiredService<ILogger<SyncController>>();
                 var job    = scope.ServiceProvider.GetRequiredService<SaasSyncJob>();
                 logger.LogInformation("Manual sync trigger: starting background job.");
-                await job.RunAsync(CancellationToken.None);
+                await job.RunAsync(cancellationToken: CancellationToken.None);
                 logger.LogInformation("Manual sync trigger: background job completed.");
             }
             catch (Exception ex)

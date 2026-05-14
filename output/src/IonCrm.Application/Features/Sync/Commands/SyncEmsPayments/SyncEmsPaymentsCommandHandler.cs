@@ -59,17 +59,12 @@ public sealed class SyncEmsPaymentsCommandHandler
 
         foreach (var project in emsProjects)
         {
-            // Summary log written at the start of each project scan — visible even when 0 payments
-            var summaryLog = new SyncLog
-            {
-                Id          = Guid.NewGuid(),
-                ProjectId   = project.Id,
-                Source      = SyncSource.SaasA,
-                Direction   = SyncDirection.Inbound,
-                EntityType  = "PaymentSync",
-                Status      = SyncStatus.Pending,
-            };
-            await _syncLogRepository.AddAsync(summaryLog, cancellationToken);
+            // Summary log is built in memory and persisted at the END of the project scan,
+            // and only when something meaningful happened (invoices created OR an error
+            // raised) — quiet "0 payments" cycles leave no audit row.
+            int projectInvoicesCreated = 0;
+            var projectErrors = new List<string>();
+            int paymentsFetchedThisProject = 0;
 
             try
             {
@@ -81,6 +76,7 @@ public sealed class SyncEmsPaymentsCommandHandler
 
                 projectsScanned++;
                 paymentsFetched += response.Data.Count;
+                paymentsFetchedThisProject = response.Data.Count;
 
                 _logger.LogDebug(
                     "EMS payment sync: project {ProjectId} returned {Count} payments (window={Window}min).",
@@ -230,6 +226,7 @@ public sealed class SyncEmsPaymentsCommandHandler
 
                     await _invoiceRepository.AddAsync(invoice, cancellationToken);
                     invoicesCreated++;
+                    projectInvoicesCreated++;
 
                     // 6. Write sync log entry for this payment
                     await _syncLogRepository.AddAsync(new SyncLog
@@ -260,22 +257,52 @@ public sealed class SyncEmsPaymentsCommandHandler
                         customer.Id, payment.Id, payment.CompanyId);
                 }
 
-                // Update summary log with final result
-                summaryLog.Status   = SyncStatus.Success;
-                summaryLog.SyncedAt = DateTime.UtcNow;
-                summaryLog.Payload  = $"payments={response.Data.Count} created={invoicesCreated} skipped={skipped}";
-                await _syncLogRepository.UpdateAsync(summaryLog, cancellationToken);
+                // Persist a summary SyncLog only when something meaningful happened.
+                // Quiet "0 invoices, 0 errors" cycles leave no audit row.
+                if (projectInvoicesCreated > 0 || projectErrors.Count > 0)
+                {
+                    await _syncLogRepository.AddAsync(new SyncLog
+                    {
+                        Id          = Guid.NewGuid(),
+                        ProjectId   = project.Id,
+                        Source      = SyncSource.SaasA,
+                        Direction   = SyncDirection.Inbound,
+                        EntityType  = "PaymentSync",
+                        Status      = projectErrors.Count > 0 ? SyncStatus.Failed : SyncStatus.Success,
+                        SyncedAt    = DateTime.UtcNow,
+                        Payload     = $"payments={paymentsFetchedThisProject} created={projectInvoicesCreated} skipped={skipped}",
+                        ErrorMessage = projectErrors.Count > 0 ? string.Join(" | ", projectErrors) : null,
+                    }, cancellationToken);
+                }
             }
             catch (Exception ex)
             {
                 var msg = $"Project {project.Id} ({project.Name}): {ex.Message}";
                 errors.Add(msg);
+                projectErrors.Add(msg);
                 _logger.LogError(ex, "EMS payment sync failed for project {ProjectId}.", project.Id);
 
-                summaryLog.Status       = SyncStatus.Failed;
-                summaryLog.ErrorMessage = ex.Message.Length > 2000 ? ex.Message[..2000] : ex.Message;
-                summaryLog.SyncedAt     = DateTime.UtcNow;
-                await _syncLogRepository.UpdateAsync(summaryLog, cancellationToken);
+                // Persist a Failed summary log so the failure is auditable.
+                try
+                {
+                    await _syncLogRepository.AddAsync(new SyncLog
+                    {
+                        Id           = Guid.NewGuid(),
+                        ProjectId    = project.Id,
+                        Source       = SyncSource.SaasA,
+                        Direction    = SyncDirection.Inbound,
+                        EntityType   = "PaymentSync",
+                        Status       = SyncStatus.Failed,
+                        ErrorMessage = ex.Message.Length > 2000 ? ex.Message[..2000] : ex.Message,
+                        SyncedAt     = DateTime.UtcNow,
+                    }, cancellationToken);
+                }
+                catch (Exception persistEx)
+                {
+                    _logger.LogError(persistEx,
+                        "EMS payment sync: failed to persist Failed summary log for project {ProjectId}.",
+                        project.Id);
+                }
             }
         }
 

@@ -74,7 +74,7 @@ public class SaasSyncJobTests
         SetupScopeFactory(CreateInMemoryDbContext("db_notconfigured_a"));
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert — no API calls made
         _saasAClientMock.Verify(
@@ -98,7 +98,7 @@ public class SaasSyncJobTests
         SetupScopeFactory(CreateInMemoryDbContext("db_emptyguid"));
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert
         _saasAClientMock.Verify(
@@ -152,7 +152,7 @@ public class SaasSyncJobTests
             .ReturnsAsync(new SaasBOrdersResponse(new List<SaasBOrder>(), 0));
 
         // Act
-        await CreateJob().RunAsync(CancellationToken.None);
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
 
         // Assert — SaaS A ran (now uses the paginated CRM endpoint, not legacy GetCustomersAsync)
         _saasAClientMock.Verify(
