@@ -22,7 +22,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCreateCustomer, useUpdateCustomer } from '@/api/customers';
-import { useAdminProjects } from '@/api/admin';
 import { useAuthStore } from '@/stores/authStore';
 import { getSegmentsForProject } from '@/config/projectSegments';
 import { useToast } from '@/hooks/use-toast';
@@ -72,25 +71,29 @@ export function CustomerFormDialog({
   const isEdit = !!customer;
   const isPending = createMutation.isPending || updateMutation.isPending;
 
-  // Show segment + label dropdowns whenever the active project has an EMS API key
-  // configured — same rule for both add and edit. Rezerval-only projects keep them
-  // hidden everywhere; EMS / mixed projects show them for every customer regardless
-  // of whether the row was synced or created manually.
+  // Show segment + label dropdowns when the active project is the EMS project.
+  // We key off the project NAME (case-insensitive "EMS") so this works for every
+  // role — the previous emsApiKey check required the SuperAdmin-only /projects
+  // endpoint, which left non-admin EMS users (e.g. "EMS Satış Müdürü") with the
+  // section permanently hidden.
   const { currentProjectId, projectNames } = useAuthStore();
-  const { data: adminProjects } = useAdminProjects();
 
-  const showEmsFields = useMemo(() => {
-    if (!currentProjectId) return false;
-    const project = adminProjects?.find((p) => p.id === currentProjectId);
-    return !!project?.emsApiKey;
-  }, [currentProjectId, adminProjects]);
+  const projectName = useMemo(
+    () => (currentProjectId ? projectNames[currentProjectId] : undefined),
+    [currentProjectId, projectNames],
+  );
+
+  const showEmsFields = useMemo(
+    () => projectName?.toLowerCase() === 'ems',
+    [projectName],
+  );
 
   // Project-name-driven segment options.  Falls back to an empty list — the
   // dropdown still renders but only shows "Belirtilmedi".
-  const segments = useMemo(() => {
-    const projectName = currentProjectId ? projectNames[currentProjectId] : undefined;
-    return getSegmentsForProject(projectName);
-  }, [currentProjectId, projectNames]);
+  const segments = useMemo(
+    () => getSegmentsForProject(projectName),
+    [projectName],
+  );
 
   const {
     register,
