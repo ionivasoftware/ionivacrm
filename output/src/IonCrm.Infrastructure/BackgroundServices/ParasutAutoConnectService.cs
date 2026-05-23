@@ -51,16 +51,6 @@ public sealed class ParasutAutoConnectService : BackgroundService
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(30);
 
     /// <summary>
-    /// Turkey local-time business window during which token-refresh cycles run.
-    /// Outside this range cycles are no-ops so Neon compute can auto-suspend.
-    /// </summary>
-    private const int BusinessStartHourTrt = 9;   // 09:00 TRT
-    private const int BusinessEndHourTrt   = 19;  // 19:00 TRT (exclusive)
-
-    /// <summary>UTC offset of Turkey local time. Stable: Türkiye has had no DST since 2016.</summary>
-    private static readonly TimeSpan TurkeyOffset = TimeSpan.FromHours(3);
-
-    /// <summary>
     /// Maximum consecutive failures before we stop retrying a specific connection.
     /// After this limit, the user must manually reconnect from the UI.
     /// </summary>
@@ -93,12 +83,6 @@ public sealed class ParasutAutoConnectService : BackgroundService
 
     private async Task RefreshAllConnectionsAsync(CancellationToken cancellationToken)
     {
-        // Outside business hours → no-op so Neon compute can auto-suspend.
-        // Tokens that expire overnight will be refreshed lazily on the first
-        // user-triggered API call in the morning via ParasutTokenHelper.
-        if (!IsInsideBusinessHours())
-            return;
-
         try
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
@@ -287,15 +271,5 @@ public sealed class ParasutAutoConnectService : BackgroundService
                 "ParasutAutoConnect: failed to promote project-specific connection {Id} to global. {Inner}",
                 promote.Id, ex.InnerException?.Message ?? ex.Message);
         }
-    }
-
-    /// <summary>
-    /// Returns <c>true</c> when the current UTC time, shifted to Turkey local (UTC+3),
-    /// falls within [BusinessStartHourTrt, BusinessEndHourTrt).
-    /// </summary>
-    private static bool IsInsideBusinessHours()
-    {
-        int localHour = (DateTime.UtcNow + TurkeyOffset).Hour;
-        return localHour >= BusinessStartHourTrt && localHour < BusinessEndHourTrt;
     }
 }

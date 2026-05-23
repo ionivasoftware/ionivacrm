@@ -8,17 +8,8 @@ using Npgsql;
 namespace IonCrm.Infrastructure.BackgroundServices;
 
 /// <summary>
-/// Timer-based background service that executes <see cref="SaasSyncJob"/> every 30 minutes
-/// during business hours (09:00–19:00 Turkey local, UTC+3).  Used as the primary sync scheduler
-/// when Hangfire is not enabled (<c>Hangfire:Enabled = false</c>).
-///
-/// Outside business hours the cycle is a pure no-op — no advisory-lock connection is opened
-/// and no DB query runs.  This lets Neon's serverless compute auto-suspend, dramatically
-/// reducing the dev compute bill.
-///
-/// EMS payment lookback window:
-///   • Normal cycle (last sync ≤ 2 hours ago)  → 60 minutes  (covers the 30-min cycle + buffer)
-///   • Long gap   (first run of day, restart)  → 16 hours    (catches anything written overnight)
+/// Timer-based background service that executes <see cref="SaasSyncJob"/> every 15 minutes.
+/// Used as the primary sync scheduler when Hangfire is not enabled (<c>Hangfire:Enabled = false</c>).
 ///
 /// Railway single-replica gotcha: even without Hangfire, Railway may briefly run two containers
 /// during a rolling deploy. A PostgreSQL session-level advisory lock guarantees only one instance
@@ -30,26 +21,10 @@ namespace IonCrm.Infrastructure.BackgroundServices;
 public sealed class SyncTimerService : BackgroundService
 {
     /// <summary>How often the sync cycle fires.</summary>
-    private static readonly TimeSpan SyncInterval = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan SyncInterval = TimeSpan.FromMinutes(15);
 
-    /// <summary>
-    /// Turkey local-time business window during which sync cycles run.
-    /// Outside this range cycles are no-ops so Neon compute can auto-suspend.
-    /// </summary>
-    private const int BusinessStartHourTrt = 9;   // 09:00 TRT
-    private const int BusinessEndHourTrt   = 19;  // 19:00 TRT (exclusive)
-
-    /// <summary>UTC offset of Turkey local time. Stable: Türkiye has had no DST since 2016.</summary>
-    private static readonly TimeSpan TurkeyOffset = TimeSpan.FromHours(3);
-
-    /// <summary>EMS payment lookback used during normal cycles.</summary>
-    private const int NormalEmsWindowMinutes = 60;
-
-    /// <summary>EMS payment lookback used after a long gap (first cycle after the overnight pause).</summary>
-    private const int LongGapEmsWindowMinutes = 16 * 60;   // 16 hours
-
-    /// <summary>Threshold beyond which the next cycle is considered "after a long gap".</summary>
-    private static readonly TimeSpan LongGapThreshold = TimeSpan.FromHours(2);
+    /// <summary>EMS payment lookback window in minutes — matches legacy behavior.</summary>
+    private const int EmsPaymentWindowMinutes = 20;
 
     /// <summary>
     /// Arbitrary unique int64 key for <c>pg_try_advisory_lock</c>.
@@ -63,9 +38,6 @@ public sealed class SyncTimerService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration       _configuration;
     private readonly ILogger<SyncTimerService> _logger;
-
-    /// <summary>UTC time of the last successful sync cycle.  Null until the first one completes.</summary>
-    private DateTime? _lastSyncedAtUtc;
 
     /// <summary>Initialises a new instance of <see cref="SyncTimerService"/>.</summary>
     public SyncTimerService(
@@ -82,8 +54,8 @@ public sealed class SyncTimerService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation(
-            "SyncTimerService started — cycle every {Minutes} min during {Start:00}:00–{End:00}:00 TRT.",
-            SyncInterval.TotalMinutes, BusinessStartHourTrt, BusinessEndHourTrt);
+            "SyncTimerService started — running sync every {Minutes} minutes.",
+            SyncInterval.TotalMinutes);
 
         // Brief startup delay so EF migrations finish before the first sync attempt.
         try
@@ -110,16 +82,11 @@ public sealed class SyncTimerService : BackgroundService
 
     /// <summary>
     /// Acquires a PostgreSQL advisory lock, runs the sync, then releases the lock.
-    /// Skips the cycle silently if another replica already holds the lock OR if the
-    /// current Turkey local time is outside the business window.
+    /// Skips the cycle silently if another replica already holds the lock.
     /// </summary>
     private async Task RunSyncWithLockAsync(CancellationToken ct)
     {
         if (ct.IsCancellationRequested)
-            return;
-
-        // Outside business hours → no-op so Neon can suspend.
-        if (!IsInsideBusinessHours())
             return;
 
         var connectionString = _configuration.GetConnectionString("DefaultConnection");
@@ -174,21 +141,11 @@ public sealed class SyncTimerService : BackgroundService
             return;
         }
 
-        // Calculate EMS payment window based on time since last successful sync.
-        // First-of-day / after-restart → look back far enough to catch overnight payments.
-        int emsWindowMinutes = NormalEmsWindowMinutes;
-        if (_lastSyncedAtUtc is null || DateTime.UtcNow - _lastSyncedAtUtc.Value > LongGapThreshold)
-        {
-            emsWindowMinutes = LongGapEmsWindowMinutes;
-        }
-
         try
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
             var syncJob = scope.ServiceProvider.GetRequiredService<SaasSyncJob>();
-            await syncJob.RunAsync(emsWindowMinutes, ct);
-
-            _lastSyncedAtUtc = DateTime.UtcNow;
+            await syncJob.RunAsync(EmsPaymentWindowMinutes, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -217,15 +174,5 @@ public sealed class SyncTimerService : BackgroundService
                     "(lock will be released when the connection closes).");
             }
         }
-    }
-
-    /// <summary>
-    /// Returns <c>true</c> when the current UTC time, shifted to Turkey local (UTC+3),
-    /// falls within [BusinessStartHourTrt, BusinessEndHourTrt).
-    /// </summary>
-    private static bool IsInsideBusinessHours()
-    {
-        int localHour = (DateTime.UtcNow + TurkeyOffset).Hour;
-        return localHour >= BusinessStartHourTrt && localHour < BusinessEndHourTrt;
     }
 }
