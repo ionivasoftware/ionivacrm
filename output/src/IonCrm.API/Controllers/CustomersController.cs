@@ -18,6 +18,7 @@ using IonCrm.Application.Customers.Queries.GetCustomerRezervalSettings;
 using IonCrm.Application.Customers.Queries.GetCustomerRezervalSummary;
 using IonCrm.Application.Customers.Queries.GetCustomerWithDetails;
 using IonCrm.Application.Customers.Queries.GetCustomers;
+using IonCrm.Application.Customers.Queries.GetLinkedParasutContactIds;
 using IonCrm.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 
@@ -211,6 +212,20 @@ public class CustomersController : ApiControllerBase
     public async Task<IActionResult> GetRezervalSummary(Guid id, CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(new GetCustomerRezervalSummaryQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// GET /api/v1/customers/parasut-linked-ids?projectId={guid}
+    /// Returns the list of Paraşüt contact IDs already linked to customers in the given project.
+    /// The link-contact picker uses this to hide already-taken Paraşüt cariler.
+    /// </summary>
+    [HttpGet("parasut-linked-ids")]
+    public async Task<IActionResult> GetLinkedParasutContactIds(
+        [FromQuery] Guid projectId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetLinkedParasutContactIdsQuery(projectId), cancellationToken);
         return ResultToResponse(result);
     }
 

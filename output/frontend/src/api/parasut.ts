@@ -241,6 +241,63 @@ export function useParasutContacts(
   });
 }
 
+/**
+ * Fetches EVERY Paraşüt contact across all pages and returns them as a single
+ * flat array. The link-contact picker uses this so search/filter can happen
+ * entirely client-side — Paraşüt's `?search=` parameter has been observed to
+ * miss matches, and the API page size is capped at ~16 records.
+ *
+ * Hard-cap of 200 pages (~3200 contacts) guards against runaway loops if the
+ * API ever returns a buggy totalPages value.
+ */
+export function useAllParasutContacts(projectId: string | null, enabled = false) {
+  return useQuery({
+    queryKey: ['parasutContactsAll', projectId],
+    queryFn: async () => {
+      const all: ParasutContact[] = [];
+      let page = 1;
+      const MAX_PAGES = 200;
+
+      while (page <= MAX_PAGES) {
+        const url = `/parasut/contacts?projectId=${projectId}&page=${page}&pageSize=25`;
+        const res = await apiClient.get<ApiResponse<ParasutContactsDto>>(url);
+        const dto = res.data.data;
+
+        if (!dto?.items || dto.items.length === 0) break;
+        all.push(...dto.items);
+
+        // Stop when we've reached the reported last page (totalPages may be 0
+        // when the backend doesn't know — fall back to "empty page" detection).
+        if (dto.totalPages > 0 && page >= dto.totalPages) break;
+        page++;
+      }
+
+      return all;
+    },
+    enabled: !!projectId && enabled,
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Returns the set of Paraşüt contact IDs already linked to a customer in the
+ * given project — used by the link-contact picker to hide already-taken
+ * contacts so the same Paraşüt cari isn't double-linked.
+ */
+export function useLinkedParasutContactIds(projectId: string | null, enabled = false) {
+  return useQuery({
+    queryKey: ['parasutLinkedIds', projectId],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<string[]>>(
+        `/customers/parasut-linked-ids?projectId=${projectId}`
+      );
+      return new Set(res.data.data ?? []);
+    },
+    enabled: !!projectId && enabled,
+    staleTime: 30_000,
+  });
+}
+
 export function useParasutInvoices(projectId: string | null, page = 1, enabled = false) {
   return useQuery({
     queryKey: ['parasutInvoices', projectId, page],

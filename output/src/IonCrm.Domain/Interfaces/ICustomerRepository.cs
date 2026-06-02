@@ -44,6 +44,16 @@ public interface ICustomerRepository : IRepository<Customer>
     Task SetParasutContactIdAsync(Guid customerId, string? parasutContactId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns the set of Paraşüt contact IDs already linked to a customer in the given project.
+    /// Used by the link-contact UI to hide contacts that are already taken so the same Paraşüt
+    /// cari isn't accidentally double-linked. Bypasses the global tenant filter so background
+    /// callers also work.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetLinkedParasutContactIdsAsync(
+        Guid projectId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Atomically transfers all ContactHistories, CustomerTasks and Opportunities from the lead customer
     /// to the target customer, then soft-deletes the lead. All operations run in a single DB transaction.
     /// </summary>

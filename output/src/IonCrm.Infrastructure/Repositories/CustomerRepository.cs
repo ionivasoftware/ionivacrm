@@ -166,6 +166,22 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> GetLinkedParasutContactIdsAsync(
+        Guid projectId,
+        CancellationToken cancellationToken = default)
+    {
+        return await DbSet
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(c => !c.IsDeleted
+                     && c.ProjectId == projectId
+                     && c.ParasutContactId != null
+                     && c.ParasutContactId != "")
+            .Select(c => c.ParasutContactId!)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task TransferLeadAsync(
         Guid leadId,
         Guid targetCustomerId,
