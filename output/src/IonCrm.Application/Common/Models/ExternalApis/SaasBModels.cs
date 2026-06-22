@@ -166,6 +166,30 @@ public record RezervalSubscriptionData(
     [property: JsonPropertyName("rezervalPaymentPlanId")] string? RezervalPaymentPlanId,
     [property: JsonPropertyName("message")] string? Message);
 
+// ── RezervAl Subscription Upgrade (iyzico plan swap, card binding preserved) ─
+
+/// <summary>
+/// JSON request body sent to POST https://rezback.rezerval.com/v1/Crm/Subscription/Upgrade.
+/// Used for RENEWAL (changing the amount/duration/payment type) on an existing iyzico
+/// subscription WITHOUT requiring the customer to enter their card again.  Rezerval is
+/// expected to translate this into iyzico's "Upgrade Subscription" call — creating a new
+/// pricing plan with the new amount, then swapping the subscription's plan reference.
+/// </summary>
+public record RezervalUpgradeSubscriptionRequest(
+    [property: JsonPropertyName("rezervalCompanyId")] int RezervalCompanyId,
+    [property: JsonPropertyName("currentSubscriptionId")] string CurrentSubscriptionId,
+    [property: JsonPropertyName("currentPaymentPlanId")] string? CurrentPaymentPlanId,
+    [property: JsonPropertyName("subscriptionName")] string SubscriptionName,
+    [property: JsonPropertyName("monthlyAmount")] decimal MonthlyAmount,
+    [property: JsonPropertyName("paymentType")] string PaymentType,   // "CreditCard" | "EftWire"
+    [property: JsonPropertyName("startDate")] string StartDate,        // "yyyy-MM-dd"
+    [property: JsonPropertyName("durationMonths")] int? DurationMonths,
+    [property: JsonPropertyName("currency")] string Currency = "TRY");
+
+// The upgrade endpoint returns the SAME envelope shape as Create — possibly with a new
+// pricingPlanId (iyzico plans are amount-bound, so the price change produces a new plan)
+// and usually the same subscriptionId. Reuses <see cref="RezervalSubscriptionResponse"/>.
+
 // ── RezervAl Subscription Cancel ─────────────────────────────────────────────
 
 /// <summary>

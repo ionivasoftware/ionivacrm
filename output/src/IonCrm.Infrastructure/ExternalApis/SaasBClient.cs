@@ -293,6 +293,43 @@ public sealed class SaasBClient : ISaasBClient
     }
 
     /// <inheritdoc />
+    public async Task<RezervalSubscriptionResponse> UpgradeRezervalSubscriptionAsync(
+        RezervalUpgradeSubscriptionRequest request,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Rezerval CRM: upgrading subscription (companyId={CompanyId}, currentSubId={SubId}, " +
+            "newAmount={Amount}, newType={Type}).",
+            request.RezervalCompanyId, request.CurrentSubscriptionId,
+            request.MonthlyAmount, request.PaymentType);
+
+        return await _retryPipeline.ExecuteAsync<RezervalSubscriptionResponse>(async ct =>
+        {
+            var http = new HttpRequestMessage(HttpMethod.Post,
+                "https://rezback.rezerval.com/v1/Crm/Subscription/Upgrade");
+
+            await ApplyBearerAuthAsync(http, apiKey, ct);
+            http.Content = JsonContent.Create(request, options: JsonOpts);
+
+            var response = await _httpClient.SendAsync(http, ct);
+            await EnsureSuccessAsync(response, ct);
+
+            var envelope = await response.Content.ReadFromJsonAsync<RezervalSubscriptionResponse>(JsonOpts, ct);
+            if (envelope is null)
+                throw new InvalidOperationException("Rezerval abonelik yükseltme yanıtı boş döndü.");
+
+            if (!envelope.IsSuccess)
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(envelope.Message)
+                        ? "Rezerval aboneliği yükseltilemedi."
+                        : $"Rezerval aboneliği yükseltilemedi: {envelope.Message}");
+
+            return envelope;
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<RezervalCancelSubscriptionResponse> CancelRezervalSubscriptionAsync(
         RezervalCancelSubscriptionRequest request,
         string? apiKey = null,

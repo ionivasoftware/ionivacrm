@@ -70,6 +70,22 @@ public interface ISaasBClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Upgrades (renews) an existing iyzico subscription without re-binding the customer's card.
+    /// Rezerval is expected to translate this into iyzico's "Upgrade Subscription" call, which
+    /// swaps the subscription's pricing plan reference while preserving the saved card so the
+    /// customer is not redirected to a new checkout flow. Use this instead of cancel + create
+    /// whenever an active Rezerval subscription already exists for the customer.
+    /// Endpoint: POST https://rezback.rezerval.com/v1/Crm/Subscription/Upgrade
+    /// Auth: Authorization: Bearer {jwt}
+    /// Content-Type: application/json
+    /// Returns the same <see cref="RezervalSubscriptionResponse"/> shape as Create.
+    /// </summary>
+    Task<RezervalSubscriptionResponse> UpgradeRezervalSubscriptionAsync(
+        RezervalUpgradeSubscriptionRequest request,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Cancels the active iyzico subscription for a RezervAl customer. Tolerant on the Rezerval
     /// side: iyzico-side failures (already deleted, network timeout) are returned as warnings in
     /// <see cref="RezervalCancelSubscriptionData.IyzicoWarnings"/> rather than throwing.

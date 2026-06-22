@@ -86,21 +86,51 @@ public sealed class CreateCustomerContractCommandHandler
             ? (DateTime?)startDate.AddMonths(request.DurationMonths.Value)
             : null;
 
-        // 5. Call Rezerval to create iyzico subscription + payment plan
+        // 5. Renewal vs fresh routing.
+        //    Renewal (existing active contract with live Rezerval subscription) → call the
+        //    iyzico SUBSCRIPTION UPGRADE endpoint. iyzico swaps the pricing plan on the
+        //    existing subscription, preserving the bound card so the customer doesn't have
+        //    to enter card details again. Cancel+create would force a fresh card binding.
+        //    Fresh (no active contract OR no Rezerval subscription ID) → call CREATE which
+        //    triggers Rezerval's checkout flow for first-time card capture.
+        var existingActiveForRenewal = await _contractRepository.GetActiveByCustomerIdAsync(
+            customer.Id, cancellationToken);
+        bool isRenewal = existingActiveForRenewal is not null
+                      && !string.IsNullOrEmpty(existingActiveForRenewal.RezervalSubscriptionId);
+
         RezervalSubscriptionResponse rezervalResponse;
         try
         {
-            rezervalResponse = await _saasBClient.CreateRezervalSubscriptionAsync(
-                new RezervalSubscriptionRequest(
-                    RezervalCompanyId: rezervalCompanyId,
-                    SubscriptionName: $"{customer.CompanyName} Abonelik",
-                    MonthlyAmount: request.MonthlyAmount,
-                    PaymentType: request.PaymentType.ToString(),
-                    StartDate: startDate.ToString("yyyy-MM-dd"),
-                    DurationMonths: request.DurationMonths,
-                    Currency: "TRY"),
-                rezervalApiKey,
-                cancellationToken);
+            if (isRenewal)
+            {
+                rezervalResponse = await _saasBClient.UpgradeRezervalSubscriptionAsync(
+                    new RezervalUpgradeSubscriptionRequest(
+                        RezervalCompanyId:       rezervalCompanyId,
+                        CurrentSubscriptionId:   existingActiveForRenewal!.RezervalSubscriptionId!,
+                        CurrentPaymentPlanId:    existingActiveForRenewal.RezervalPaymentPlanId,
+                        SubscriptionName:        $"{customer.CompanyName} Abonelik",
+                        MonthlyAmount:           request.MonthlyAmount,
+                        PaymentType:             request.PaymentType.ToString(),
+                        StartDate:               startDate.ToString("yyyy-MM-dd"),
+                        DurationMonths:          request.DurationMonths,
+                        Currency:                "TRY"),
+                    rezervalApiKey,
+                    cancellationToken);
+            }
+            else
+            {
+                rezervalResponse = await _saasBClient.CreateRezervalSubscriptionAsync(
+                    new RezervalSubscriptionRequest(
+                        RezervalCompanyId: rezervalCompanyId,
+                        SubscriptionName:  $"{customer.CompanyName} Abonelik",
+                        MonthlyAmount:     request.MonthlyAmount,
+                        PaymentType:       request.PaymentType.ToString(),
+                        StartDate:         startDate.ToString("yyyy-MM-dd"),
+                        DurationMonths:    request.DurationMonths,
+                        Currency:          "TRY"),
+                    rezervalApiKey,
+                    cancellationToken);
+            }
         }
         catch (Exception ex) when (ex.GetType().Name.Contains("BrokenCircuit") ||
                                     ex.Message.Contains("circuit is now open", StringComparison.OrdinalIgnoreCase))
@@ -112,10 +142,12 @@ public sealed class CreateCustomerContractCommandHandler
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Rezerval subscription creation failed for customer {CustomerId} (rezervalCompanyId={RezvId}).",
-                customer.Id, rezervalCompanyId);
+                "Rezerval subscription {Op} failed for customer {CustomerId} (rezervalCompanyId={RezvId}).",
+                isRenewal ? "upgrade" : "create", customer.Id, rezervalCompanyId);
             return Result<CustomerContractDto>.Failure(
-                $"Rezerval'da abonelik oluşturulamadı: {ex.Message}");
+                isRenewal
+                    ? $"Rezerval'da abonelik yenilenemedi: {ex.Message}"
+                    : $"Rezerval'da abonelik oluşturulamadı: {ex.Message}");
         }
 
         // 6-8. DB writes — wrapped so any persistence error surfaces with a meaningful message
