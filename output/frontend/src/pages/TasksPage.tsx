@@ -178,32 +178,34 @@ export function TasksPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Status tabs */}
-        <div className="flex bg-muted rounded-lg p-1 gap-0.5">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => setActiveStatus(tab.value)}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                activeStatus === tab.value
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {tab.label}
-              {!isLoading && (
-                <span className="ml-1.5 text-xs text-muted-foreground">
-                  {counts[tab.value]}
-                </span>
-              )}
-            </button>
-          ))}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
+        {/* Status tabs — horizontally scrollable on mobile, no page-level overflow */}
+        <div className="-mx-1 overflow-x-auto sm:mx-0 sm:overflow-visible">
+          <div className="inline-flex bg-muted rounded-lg p-1 gap-0.5 whitespace-nowrap mx-1">
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setActiveStatus(tab.value)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  activeStatus === tab.value
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab.label}
+                {!isLoading && (
+                  <span className="ml-1.5 text-xs text-muted-foreground">
+                    {counts[tab.value]}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Priority filter */}
+        {/* Priority filter — full width on mobile, fixed 9rem on desktop */}
         <Select value={activePriority} onValueChange={(v) => setActivePriority(v as TaskPriority | 'All')}>
-          <SelectTrigger className="h-9 w-36">
+          <SelectTrigger className="h-9 w-full sm:w-36">
             <SelectValue placeholder="Öncelik" />
           </SelectTrigger>
           <SelectContent>

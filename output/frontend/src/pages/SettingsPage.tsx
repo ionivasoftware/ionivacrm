@@ -230,56 +230,129 @@ function ParasutProductRow({
   }
 
   return (
-    <div className="grid grid-cols-[200px_1fr_120px_100px_120px_100px] gap-3 items-center py-3 border-b last:border-b-0 min-w-[760px]">
-      <span className="text-sm font-medium text-foreground">{productDef.label}</span>
-      <ParasutProductCombobox
-        value={selectedId}
-        onChange={handleProductSelect}
-        products={parasutProducts}
-        isLoading={parasutProductsLoading}
-        savedName={existing?.parasutProductName}
-      />
-      <Input
-        value={unitPrice}
-        onChange={e => setUnitPrice(e.target.value)}
-        placeholder="0.00"
-        type="number"
-        min="0"
-        step="0.01"
-        className="h-9 text-right"
-      />
-      <div className="relative">
+    <>
+      {/* Desktop row — md+ */}
+      <div className="hidden md:grid grid-cols-[200px_1fr_120px_100px_120px_100px] gap-3 items-center py-3 border-b last:border-b-0">
+        <span className="text-sm font-medium text-foreground">{productDef.label}</span>
+        <ParasutProductCombobox
+          value={selectedId}
+          onChange={handleProductSelect}
+          products={parasutProducts}
+          isLoading={parasutProductsLoading}
+          savedName={existing?.parasutProductName}
+        />
         <Input
-          value={taxRate}
-          onChange={e => setTaxRate(e.target.value)}
-          placeholder="20"
+          value={unitPrice}
+          onChange={e => setUnitPrice(e.target.value)}
+          placeholder="0.00"
           type="number"
           min="0"
-          max="100"
-          step="1"
-          className="h-9 text-right pr-6"
+          step="0.01"
+          className="h-9 text-right"
         />
-        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+        <div className="relative">
+          <Input
+            value={taxRate}
+            onChange={e => setTaxRate(e.target.value)}
+            placeholder="20"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            className="h-9 text-right pr-6"
+          />
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+        </div>
+        <Input
+          value={emsProductId}
+          onChange={e => setEmsProductId(e.target.value)}
+          placeholder="ör: 42"
+          className="h-9 text-center font-mono text-sm"
+          title="EMS ürün ID — ödeme eşleştirme için"
+        />
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={save.isPending}
+            className="h-9 px-4"
+          >
+            {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Kaydet'}
+          </Button>
+          {saved && <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />}
+        </div>
       </div>
-      <Input
-        value={emsProductId}
-        onChange={e => setEmsProductId(e.target.value)}
-        placeholder="ör: 42"
-        className="h-9 text-center font-mono text-sm"
-        title="EMS ürün ID — ödeme eşleştirme için"
-      />
-      <div className="flex items-center gap-2">
+
+      {/* Mobile card — below md */}
+      <div className="md:hidden py-4 border-b last:border-b-0 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-foreground">{productDef.label}</p>
+          {saved && <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Paraşüt Ürünü</Label>
+          <ParasutProductCombobox
+            value={selectedId}
+            onChange={handleProductSelect}
+            products={parasutProducts}
+            isLoading={parasutProductsLoading}
+            savedName={existing?.parasutProductName}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Birim Fiyat</Label>
+            <Input
+              value={unitPrice}
+              onChange={e => setUnitPrice(e.target.value)}
+              placeholder="0.00"
+              type="number"
+              min="0"
+              step="0.01"
+              className="h-9 text-right"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">KDV</Label>
+            <div className="relative">
+              <Input
+                value={taxRate}
+                onChange={e => setTaxRate(e.target.value)}
+                placeholder="20"
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                className="h-9 text-right pr-6"
+              />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">EMS Ürün ID</Label>
+          <Input
+            value={emsProductId}
+            onChange={e => setEmsProductId(e.target.value)}
+            placeholder="ör: 42"
+            className="h-9 font-mono text-sm"
+            title="EMS ürün ID — ödeme eşleştirme için"
+          />
+        </div>
+
         <Button
           size="sm"
           onClick={handleSave}
           disabled={save.isPending}
-          className="h-9 px-4"
+          className="h-9 w-full"
         >
           {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Kaydet'}
         </Button>
-        {saved && <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -454,7 +527,7 @@ export function SettingsPage() {
                 <>
                   <Separator />
                   <form onSubmit={parasutForm.handleSubmit(handleParasutConnect)} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <Label>Firma ID *</Label>
                         <Input
@@ -580,7 +653,7 @@ export function SettingsPage() {
               </div>
 
               <form onSubmit={profileForm.handleSubmit(handleProfileSubmit)} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label>Ad *</Label>
                     <Input {...profileForm.register('firstName')} className="h-10" />
@@ -639,7 +712,7 @@ export function SettingsPage() {
             </div>
 
             <form onSubmit={profileForm.handleSubmit(handleProfileSubmit)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Ad *</Label>
                   <Input {...profileForm.register('firstName')} className="h-10" />
@@ -680,8 +753,8 @@ export function SettingsPage() {
       {user?.isSuperAdmin && (
         <Card>
           <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div>
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+              <div className="min-w-0">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Package className="h-4 w-4" /> Paraşüt Ürün Eşleştirmesi
                 </CardTitle>
@@ -693,7 +766,7 @@ export function SettingsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-shrink-0 gap-1.5"
+                  className="flex-shrink-0 gap-1.5 w-full sm:w-auto"
                   onClick={() => setLoadParasutProductList(true)}
                 >
                   <Search className="h-3.5 w-3.5" />
@@ -713,9 +786,9 @@ export function SettingsPage() {
                 <Loader2 className="h-4 w-4 animate-spin" /> Yükleniyor...
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                {/* Column headers */}
-                <div className="grid grid-cols-[200px_1fr_120px_100px_120px_100px] gap-3 pb-2 border-b min-w-[760px]">
+              <div>
+                {/* Column headers — md+ only (mobile cards render their own labels) */}
+                <div className="hidden md:grid grid-cols-[200px_1fr_120px_100px_120px_100px] gap-3 pb-2 border-b">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CRM Ürünü</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Paraşüt Ürünü</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide text-right">Birim Fiyat</span>
@@ -748,7 +821,7 @@ export function SettingsPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="space-y-4 max-w-lg">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Yeni Şifre *</Label>
                 <Input

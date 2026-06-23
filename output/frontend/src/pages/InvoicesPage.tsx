@@ -1080,13 +1080,15 @@ export function InvoicesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-foreground">Faturalar</h1>
-          <p className="text-muted-foreground text-sm mt-1">CRM faturaları — oluşturun, yönetin ve Paraşüt'e aktarın</p>
+          <p className="text-muted-foreground text-sm mt-1 hidden sm:block">CRM faturaları — oluşturun, yönetin ve Paraşüt'e aktarın</p>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Yeni Fatura
+        <Button onClick={() => setShowCreate(true)} className="gap-2 flex-shrink-0">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Yeni Fatura</span>
+          <span className="sm:hidden">Yeni</span>
         </Button>
       </div>
 
@@ -1147,11 +1149,11 @@ export function InvoicesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
+        <div className="relative w-full sm:flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            className="pl-9 h-9"
+            className="pl-9 h-9 w-full"
             placeholder="Fatura ara..."
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
@@ -1159,13 +1161,13 @@ export function InvoicesPage() {
         </div>
 
         {/* Date preset */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
           <Select
             value={datePreset}
             onValueChange={(v) => { setDatePreset(v as DatePreset); setPage(1); }}
           >
-            <SelectTrigger className="h-9 w-40">
+            <SelectTrigger className="h-9 flex-1 sm:w-40 sm:flex-none">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1175,30 +1177,31 @@ export function InvoicesPage() {
               <SelectItem value="custom">Özel Aralık</SelectItem>
             </SelectContent>
           </Select>
-          {datePreset === 'custom' && (
-            <div className="flex items-center gap-1.5">
-              <input
-                type="date"
-                value={customFrom}
-                onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }}
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-              <span className="text-muted-foreground text-sm">–</span>
-              <input
-                type="date"
-                value={customTo}
-                onChange={(e) => { setCustomTo(e.target.value); setPage(1); }}
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </div>
-          )}
         </div>
+
+        {datePreset === 'custom' && (
+          <div className="flex items-center gap-1.5 w-full sm:w-auto">
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }}
+              className="h-9 flex-1 sm:flex-none rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <span className="text-muted-foreground text-sm">–</span>
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => { setCustomTo(e.target.value); setPage(1); }}
+              className="h-9 flex-1 sm:flex-none rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+        )}
 
         <Select
           value={statusFilter}
           onValueChange={(v) => { setStatusFilter(v as InvoiceStatus | 'all'); setPage(1); }}
         >
-          <SelectTrigger className="h-9 w-44">
+          <SelectTrigger className="h-9 w-full sm:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1212,7 +1215,7 @@ export function InvoicesPage() {
 
         {/* Merge action bar — visible when drafts are selected */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2 ml-auto bg-muted/60 border border-border rounded-lg px-3 py-1.5">
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto bg-muted/60 border border-border rounded-lg px-3 py-1.5 w-full sm:w-auto">
             <span className="text-sm text-muted-foreground">{selectedIds.size} seçili</span>
             {canMerge ? (
               <Button
@@ -1232,7 +1235,7 @@ export function InvoicesPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 p-0 text-muted-foreground"
+              className="h-7 w-7 p-0 text-muted-foreground sm:ml-auto"
               onClick={() => setSelectedIds(new Set())}
             >
               <X className="h-3.5 w-3.5" />
@@ -1273,8 +1276,8 @@ export function InvoicesPage() {
             </div>
           ) : (
             <>
-              {/* Table header */}
-              <div className="grid grid-cols-[2rem_1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_7rem] gap-4 px-4 py-3 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
+              {/* Table header — md+ only */}
+              <div className="hidden md:grid grid-cols-[2rem_1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_0.8fr_7rem] gap-4 px-4 py-3 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
                 <span />
                 <span>Fatura</span>
                 <span>Müşteri</span>
@@ -1286,9 +1289,26 @@ export function InvoicesPage() {
                 <span />
               </div>
 
-              <div className="divide-y divide-border">
+              {/* Desktop: grid rows */}
+              <div className="hidden md:block divide-y divide-border">
                 {paginated.map(invoice => (
                   <InvoiceRow
+                    key={invoice.id}
+                    invoice={invoice}
+                    isParasutConnected={isParasutConnected}
+                    selected={selectedIds.has(invoice.id)}
+                    onSelect={handleSelect}
+                    onEdit={() => setEditInvoice(invoice)}
+                    onTransfer={() => setTransferInvoice(invoice)}
+                    onDelete={() => setDeleteInvoice(invoice)}
+                  />
+                ))}
+              </div>
+
+              {/* Mobile: card layout */}
+              <div className="md:hidden divide-y divide-border">
+                {paginated.map(invoice => (
+                  <InvoiceCardMobile
                     key={invoice.id}
                     invoice={invoice}
                     isParasutConnected={isParasutConnected}
@@ -1487,6 +1507,102 @@ function InvoiceRow({ invoice, isParasutConnected, selected, onSelect, onEdit, o
             Aktar
           </Button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Mobile Card ──────────────────────────────────────────────────────────────
+
+function InvoiceCardMobile({ invoice, isParasutConnected, selected, onSelect, onEdit, onTransfer, onDelete }: InvoiceRowProps) {
+  const isOverdue = invoice.status === 'Draft' && new Date(invoice.dueDate) < new Date();
+  const seriesLabel = invoice.invoiceSeries
+    ? `${invoice.invoiceSeries}${invoice.invoiceNumber ? `-${invoice.invoiceNumber}` : ''}`
+    : null;
+
+  return (
+    <div className={`p-4 hover:bg-muted/20 transition-colors ${selected ? 'bg-primary/5' : ''}`}>
+      <div className="flex items-start gap-3">
+        {invoice.status === 'Draft' ? (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(e) => onSelect(invoice.id, e.target.checked)}
+            className="mt-1 h-4 w-4 rounded border-border accent-primary cursor-pointer flex-shrink-0"
+          />
+        ) : <span className="w-4 flex-shrink-0" />}
+
+        <div className="flex-1 min-w-0 space-y-2">
+          {/* Title + amount */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-foreground text-sm leading-snug truncate">{invoice.title}</div>
+              {seriesLabel && (
+                <div className="text-xs text-muted-foreground font-mono mt-0.5">{seriesLabel}</div>
+              )}
+            </div>
+            <div className="font-mono font-medium text-sm text-foreground text-right flex-shrink-0">
+              {formatCurrency(invoice.grossTotal, invoice.currency)}
+            </div>
+          </div>
+
+          {/* Customer */}
+          <div className="text-sm text-muted-foreground truncate">{invoice.customerName}</div>
+
+          {/* Status + Project + Dates */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+            <div className="flex items-center gap-1.5">
+              <InvoiceStatusBadge status={invoice.status} />
+              {invoice.parasutId && (
+                <span title={`Paraşüt #${invoice.parasutId}`}>
+                  <ExternalLink className="h-3 w-3 text-blue-400" />
+                </span>
+              )}
+            </div>
+            {invoice.projectName && (
+              <span className="text-muted-foreground">{invoice.projectName}</span>
+            )}
+            <span className="text-muted-foreground">{formatDate(invoice.issueDate)}</span>
+            <span className={isOverdue ? 'text-red-400 font-medium' : 'text-muted-foreground'}>
+              Vade: {formatDate(invoice.dueDate)}
+            </span>
+          </div>
+
+          {/* Actions row */}
+          {invoice.status === 'Draft' && (
+            <div className="flex items-center gap-1 pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs text-muted-foreground"
+                onClick={onEdit}
+              >
+                <Pencil className="h-3.5 w-3.5 mr-1" />
+                Düzenle
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
+                onClick={onDelete}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                Sil
+              </Button>
+              {isParasutConnected && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1 text-xs ml-auto"
+                  onClick={onTransfer}
+                >
+                  <Send className="h-3 w-3" />
+                  Aktar
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
