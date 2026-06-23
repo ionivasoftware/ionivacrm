@@ -1219,21 +1219,23 @@ export function CustomerDetailPage() {
   return (
     <div className="space-y-6">
       {/* ── Back nav ── */}
-      <div className="flex items-center justify-between">
+      <div className="space-y-3">
         <Button
           variant="ghost"
-          className="gap-2 text-muted-foreground hover:text-foreground -ml-2"
+          className="gap-2 text-muted-foreground hover:text-foreground -ml-2 h-9"
           onClick={goBackToList}
         >
           <ArrowLeft className="h-4 w-4" />
           Müşteriler
         </Button>
-        <div className="flex items-center gap-2">
+        {/* Action buttons wrap on mobile so the row never pushes the page into horizontal scroll. */}
+        <div className="flex flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2 h-10">
+              <Button variant="outline" className="gap-2 h-10 flex-shrink-0">
                 <Plus className="h-4 w-4" />
-                Aktivite Ekle
+                <span className="hidden sm:inline">Aktivite Ekle</span>
+                <span className="sm:hidden">Aktivite</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -1261,55 +1263,62 @@ export function CustomerDetailPage() {
           {customer?.status === 'Lead' && (
             <Button
               variant="outline"
-              className="gap-2 h-10 border-primary/40 text-primary hover:bg-primary/10"
+              className="gap-2 h-10 border-primary/40 text-primary hover:bg-primary/10 flex-shrink-0"
               onClick={() => setShowTransferModal(true)}
             >
               <ArrowRight className="h-4 w-4" />
-              Aktif Müşteriye Aktar
+              <span className="hidden sm:inline">Aktif Müşteriye Aktar</span>
+              <span className="sm:hidden">Aktarım</span>
             </Button>
           )}
           {/* EMS-only buttons (plain numeric ID or SAASA-{id} prefix, not PC-) */}
           {customer?.legacyId && !customer.legacyId.startsWith('PC-') && (/^\d/.test(customer.legacyId) || customer.legacyId.startsWith('SAASA-')) && (<>
             <Button
               variant="outline"
-              className="gap-2 h-10 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+              className="gap-2 h-10 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 flex-shrink-0"
               onClick={() => setShowExtendDialog(true)}
             >
               <CalendarClock className="h-4 w-4" />
-              Süre Uzat
+              <span className="hidden sm:inline">Süre Uzat</span>
+              <span className="sm:hidden">Uzat</span>
             </Button>
             <Button
               variant="outline"
-              className="gap-2 h-10 border-blue-500/40 text-blue-400 hover:bg-blue-500/10"
+              className="gap-2 h-10 border-blue-500/40 text-blue-400 hover:bg-blue-500/10 flex-shrink-0"
               onClick={() => setShowSmsDialog(true)}
             >
               <MessageSquarePlus className="h-4 w-4" />
-              SMS Yükle
+              <span className="hidden sm:inline">SMS Yükle</span>
+              <span className="sm:hidden">SMS</span>
             </Button>
           </>)}
           {/* RezervAl button — only when project has RezervAl configured */}
           {isRezervalProject && (
             <Button
               variant="outline"
-              className="gap-2 h-10 border-teal-500/40 text-teal-400 hover:bg-teal-500/10"
+              className="gap-2 h-10 border-teal-500/40 text-teal-400 hover:bg-teal-500/10 flex-shrink-0"
               onClick={handlePushToRezerval}
             >
               <Send className="h-4 w-4" />
-              {customer?.legacyId?.startsWith('REZV-') ? 'RezervAl Güncelle' : "RezervAl'a Gönder"}
+              <span className="hidden sm:inline">
+                {customer?.legacyId?.startsWith('REZV-') ? 'RezervAl Güncelle' : "RezervAl'a Gönder"}
+              </span>
+              <span className="sm:hidden">RezervAl</span>
             </Button>
           )}
           {/* Sözleşme Oluştur / Yenile — only Rezerval customers in a Rezerval project */}
           {isRezervalProject && isRezervalCustomer(customer?.legacyId) && (
             <Button
               variant="outline"
-              className="gap-2 h-10 border-purple-500/40 text-purple-400 hover:bg-purple-500/10"
+              className="gap-2 h-10 border-purple-500/40 text-purple-400 hover:bg-purple-500/10 flex-shrink-0"
               onClick={() => setShowContractDialog(true)}
             >
               <FileText className="h-4 w-4" />
-              {activeContract ? 'Sözleşme Yenile' : 'Sözleşme Oluştur'}
+              <span className="hidden sm:inline">{activeContract ? 'Sözleşme Yenile' : 'Sözleşme Oluştur'}</span>
+              <span className="sm:hidden">{activeContract ? 'Yenile' : 'Sözleşme'}</span>
             </Button>
           )}
-          <Button onClick={() => setShowEditDialog(true)} className="gap-2 h-10">
+          <Button onClick={() => setShowEditDialog(true)} className="gap-2 h-10 flex-shrink-0 sm:ml-auto">
             <Edit className="h-4 w-4" />
             Düzenle
           </Button>
@@ -1905,8 +1914,8 @@ export function CustomerDetailPage() {
               )}
 
               {!emsUsersLoading && emsUsersData && emsUsersData.length > 0 && (
-                <div className="rounded-lg border border-border overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="rounded-lg border border-border overflow-x-auto">
+                  <table className="w-full text-sm min-w-[640px]">
                     <thead>
                       <tr className="bg-muted/40 border-b border-border">
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">Ad Soyad</th>
@@ -2001,8 +2010,8 @@ export function CustomerDetailPage() {
 
                   {/* Monthly table */}
                   {emsSummaryData.monthly.length > 0 && (
-                    <div className="rounded-lg border border-border overflow-hidden">
-                      <table className="w-full text-sm">
+                    <div className="rounded-lg border border-border overflow-x-auto">
+                      <table className="w-full text-sm min-w-[360px]">
                         <thead>
                           <tr className="bg-muted/40 border-b border-border">
                             <th className="text-left px-4 py-3 font-medium text-muted-foreground">Dönem</th>
@@ -2070,11 +2079,11 @@ export function CustomerDetailPage() {
               ) : (
                 <>
                   {/* Paraşüt sync + status */}
-                  <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/20">
-                    <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg border border-border bg-muted/20">
+                    <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">Paraşüt Cari Eşleşmesi</p>
                       {customer?.parasutContactId ? (
-                        <p className="text-xs text-emerald-400 mt-0.5">
+                        <p className="text-xs text-emerald-400 mt-0.5 truncate">
                           Cari ID: <span className="font-mono">{customer.parasutContactId}</span>
                         </p>
                       ) : (
@@ -2083,11 +2092,11 @@ export function CustomerDetailPage() {
                         </p>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 sm:flex-nowrap sm:flex-shrink-0">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="gap-1.5 text-muted-foreground"
+                        className="gap-1.5 text-muted-foreground flex-1 sm:flex-none"
                         disabled={!currentProjectId}
                         onClick={() => setShowLinkDialog(true)}
                         title="Paraşüt'teki mevcut cariyle eşle"
@@ -2097,7 +2106,7 @@ export function CustomerDetailPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-1.5"
+                        className="gap-1.5 flex-1 sm:flex-none"
                         disabled={syncContact.isPending || !currentProjectId}
                         onClick={async () => {
                           if (!currentProjectId) return;
