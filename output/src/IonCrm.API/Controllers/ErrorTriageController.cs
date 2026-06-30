@@ -1,6 +1,7 @@
 using IonCrm.API.Common;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models.ExternalApis;
+using IonCrm.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,6 +23,7 @@ public sealed class ErrorTriageController : ApiControllerBase
 {
     private readonly ISaasBClient _saasBClient;
     private readonly IConfiguration _configuration;
+    private readonly IProjectRepository _projectRepository;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<ErrorTriageController> _logger;
 
@@ -29,17 +31,33 @@ public sealed class ErrorTriageController : ApiControllerBase
     public ErrorTriageController(
         ISaasBClient saasBClient,
         IConfiguration configuration,
+        IProjectRepository projectRepository,
         ICurrentUserService currentUser,
         ILogger<ErrorTriageController> logger)
     {
-        _saasBClient   = saasBClient;
-        _configuration = configuration;
-        _currentUser   = currentUser;
-        _logger        = logger;
+        _saasBClient       = saasBClient;
+        _configuration     = configuration;
+        _projectRepository = projectRepository;
+        _currentUser       = currentUser;
+        _logger            = logger;
     }
 
-    /// <summary>The shared RezervAl CRM API key (exchanged for a JWT by the client).</summary>
-    private string? CrmApiKey => _configuration["SaasB:ApiKey"];
+    /// <summary>
+    /// Resolves the RezervAl CRM API key (exchanged for a JWT by the client).
+    /// Prefers the global <c>SaasB:ApiKey</c> config; falls back to the first project that has a
+    /// <c>RezervAlApiKey</c> configured — the same credential the rest of the RezervAl integration uses.
+    /// </summary>
+    private async Task<string?> ResolveApiKeyAsync(CancellationToken ct)
+    {
+        var configured = _configuration["SaasB:ApiKey"];
+        if (!string.IsNullOrWhiteSpace(configured))
+            return configured;
+
+        var projects = await _projectRepository.GetAllAsync(ct);
+        return projects
+            .Select(p => p.RezervAlApiKey)
+            .FirstOrDefault(k => !string.IsNullOrWhiteSpace(k));
+    }
 
     /// <summary>
     /// Lists triaged error cards from RezervAl.
@@ -55,7 +73,7 @@ public sealed class ErrorTriageController : ApiControllerBase
         [FromQuery] int pageSize = 50,
         CancellationToken cancellationToken = default)
     {
-        var apiKey = CrmApiKey;
+        var apiKey = await ResolveApiKeyAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(apiKey))
             return BadRequest(ApiResponse<object>.Fail("RezervAl API anahtarı yapılandırılmamış.", 400));
 
@@ -95,7 +113,7 @@ public sealed class ErrorTriageController : ApiControllerBase
         [FromBody] UpdateErrorTriageStatusRequest body,
         CancellationToken cancellationToken = default)
     {
-        var apiKey = CrmApiKey;
+        var apiKey = await ResolveApiKeyAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(apiKey))
             return BadRequest(ApiResponse<object>.Fail("RezervAl API anahtarı yapılandırılmamış.", 400));
 
