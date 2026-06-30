@@ -139,6 +139,45 @@ public record RezervalTokenData(string Token);
 /// <summary>Envelope wrapper for Rezerval GET /v1/Crm/CompanyList response.</summary>
 public record RezervalCompanyListResponse(List<RezervalCompany>? Data, bool IsSuccess, string? Message);
 
+// ── RezervAl Error Triage (SuperAdmin error approval) ────────────────────────
+
+/// <summary>
+/// A single triaged error card returned by RezervAl GET /v1/ErrorTriage.
+/// Surfaced to SuperAdmin so they can approve/reject the suggested fix.
+/// </summary>
+public record RezervalErrorTriageCard(
+    int TriageId,
+    int ErrorLogId,
+    string? Fingerprint,
+    int OccurrenceCount,
+    string? Status,
+    string? Severity,
+    string? RootCause,
+    string? SuggestedFix,
+    string? SourceFile,
+    string? Exception,
+    string? TypeName,
+    DateTime? CreatedOn,
+    DateTime? UpdatedOn,
+    string? ApprovedBy);
+
+/// <summary>Nested error block (statusCode/message) present in RezervAl ApiResponse envelopes.</summary>
+public record RezervalApiError(int StatusCode, string? Message);
+
+/// <summary>Envelope for RezervAl GET /v1/ErrorTriage (list of cards).</summary>
+public record RezervalErrorTriageListResponse(
+    List<RezervalErrorTriageCard>? Data,
+    bool IsSuccess,
+    string? Message,
+    RezervalApiError? ErrorResponse);
+
+/// <summary>Envelope for RezervAl PATCH /v1/ErrorTriage/{id}/status (single updated card).</summary>
+public record RezervalErrorTriageCardResponse(
+    RezervalErrorTriageCard? Data,
+    bool IsSuccess,
+    string? Message,
+    RezervalApiError? ErrorResponse);
+
 // ── RezervAl Subscription Create (iyzico-backed) ─────────────────────────────
 
 /// <summary>

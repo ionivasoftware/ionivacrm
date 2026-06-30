@@ -127,4 +127,31 @@ public interface ISaasBClient
         RezervalReservationSettingUpdateRequest request,
         string? apiKey = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists triaged error cards from the RezervAl error-triage queue.
+    /// Endpoint: GET https://rezback.rezerval.com/v1/ErrorTriage?status={status}&amp;page={page}&amp;pageSize={pageSize}
+    /// Auth: Authorization: Bearer {jwt}
+    /// Returns the full envelope so callers can surface <c>errorResponse.message</c> on failure.
+    /// </summary>
+    Task<RezervalErrorTriageListResponse> GetErrorTriageAsync(
+        string status,
+        int page,
+        int pageSize,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes an approve/reject decision for a triaged error card back to RezervAl.
+    /// Endpoint: PATCH https://rezback.rezerval.com/v1/ErrorTriage/{triageId}/status
+    /// Body: { "status": "Approved" | "Rejected", "approvedBy": "{user}" }
+    /// Auth: Authorization: Bearer {jwt}
+    /// Returns the updated card envelope; <c>IsSuccess=false</c> carries the RezervAl error (invalid transition, not found, …).
+    /// </summary>
+    Task<RezervalErrorTriageCardResponse> UpdateErrorTriageStatusAsync(
+        int triageId,
+        string status,
+        string approvedBy,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default);
 }

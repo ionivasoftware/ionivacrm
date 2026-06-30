@@ -21,6 +21,7 @@ const SettingsPage      = lazy(() => import('@/pages/SettingsPage').then(m => ({
 const ReportsPage       = lazy(() => import('@/pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const InvoicesPage      = lazy(() => import('@/pages/InvoicesPage').then(m => ({ default: m.InvoicesPage })));
 const SyncLogsPage      = lazy(() => import('@/pages/SyncLogsPage').then(m => ({ default: m.SyncLogsPage })));
+const ErrorTriagePage   = lazy(() => import('@/pages/admin/ErrorTriagePage').then(m => ({ default: m.ErrorTriagePage })));
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 function PageLoader() {
@@ -128,6 +129,14 @@ export default function App() {
                 element={
                   <ProtectedRoute superAdminOnly>
                     <SyncLogsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/error-triage"
+                element={
+                  <ProtectedRoute superAdminOnly>
+                    <ErrorTriagePage />
                   </ProtectedRoute>
                 }
               />

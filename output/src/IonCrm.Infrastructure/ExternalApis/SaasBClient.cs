@@ -501,6 +501,85 @@ public sealed class SaasBClient : ISaasBClient
         return form;
     }
 
+    /// <inheritdoc />
+    public async Task<RezervalErrorTriageListResponse> GetErrorTriageAsync(
+        string status,
+        int page,
+        int pageSize,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Rezerval: fetching error triage cards. Status={Status} Page={Page} PageSize={PageSize}",
+            status, page, pageSize);
+
+        return await _retryPipeline.ExecuteAsync<RezervalErrorTriageListResponse>(async ct =>
+        {
+            var url = "https://rezback.rezerval.com/v1/ErrorTriage"
+                + $"?status={Uri.EscapeDataString(status)}&page={page}&pageSize={pageSize}";
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            await ApplyBearerAuthAsync(request, apiKey, ct);
+
+            var response = await _httpClient.SendAsync(request, ct);
+            var rawBody = await response.Content.ReadAsStringAsync(ct);
+
+            if (string.IsNullOrWhiteSpace(rawBody))
+            {
+                // No body — a non-success status is a transient/HTTP failure worth retrying.
+                await EnsureSuccessAsync(response, ct);
+                return new RezervalErrorTriageListResponse(new List<RezervalErrorTriageCard>(), true, null, null);
+            }
+
+            var envelope = JsonSerializer.Deserialize<RezervalErrorTriageListResponse>(rawBody, JsonOpts);
+            if (envelope is null)
+            {
+                await EnsureSuccessAsync(response, ct);
+                return new RezervalErrorTriageListResponse(new List<RezervalErrorTriageCard>(), true, null, null);
+            }
+
+            // A parseable envelope (even with isSuccess:false) is a real business response — return it,
+            // don't retry. Only throw for non-success HTTP with no usable envelope (handled above).
+            return envelope;
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<RezervalErrorTriageCardResponse> UpdateErrorTriageStatusAsync(
+        int triageId,
+        string status,
+        string approvedBy,
+        string? apiKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Rezerval: updating error triage {TriageId} → {Status} by {ApprovedBy}",
+            triageId, status, approvedBy);
+
+        return await _retryPipeline.ExecuteAsync<RezervalErrorTriageCardResponse>(async ct =>
+        {
+            var request = new HttpRequestMessage(HttpMethod.Patch,
+                $"https://rezback.rezerval.com/v1/ErrorTriage/{triageId}/status");
+            await ApplyBearerAuthAsync(request, apiKey, ct);
+            request.Content = JsonContent.Create(new { status, approvedBy }, options: JsonOpts);
+
+            var response = await _httpClient.SendAsync(request, ct);
+            var rawBody = await response.Content.ReadAsStringAsync(ct);
+
+            if (string.IsNullOrWhiteSpace(rawBody))
+            {
+                await EnsureSuccessAsync(response, ct);
+                return new RezervalErrorTriageCardResponse(null, false, "RezervAl boş yanıt döndü.", null);
+            }
+
+            var envelope = JsonSerializer.Deserialize<RezervalErrorTriageCardResponse>(rawBody, JsonOpts);
+            if (envelope is null)
+            {
+                await EnsureSuccessAsync(response, ct);
+                return new RezervalErrorTriageCardResponse(null, false, "RezervAl yanıtı çözümlenemedi.", null);
+            }
+
+            return envelope;
+        }, cancellationToken);
+    }
+
     /// <summary>
     /// Overrides the default X-Api-Key header with a project-specific key when provided.
     /// Falls back to the header pre-configured in DI (appsettings SaasB:ApiKey) when apiKey is null/empty.

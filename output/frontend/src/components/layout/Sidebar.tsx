@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -47,6 +48,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Kullanıcı Yönetimi', href: '/admin/users', icon: UserCog, superAdminOnly: true },
   { label: 'Proje Yönetimi', href: '/admin/projects', icon: FolderKanban, superAdminOnly: true },
   { label: 'Senkronizasyon', href: '/sync/logs', icon: RefreshCw, superAdminOnly: true },
+  { label: 'Hata Onayları', href: '/admin/error-triage', icon: ShieldAlert, superAdminOnly: true },
 ];
 
 export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: SidebarProps) {
