@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { ApiResponse } from '@/types';
 
-/** A triaged error card surfaced from the RezervAl error-triage queue. */
+/** Where a triaged error card originated. Add new integrations here (e.g. 'Liftdesk'). */
+export type ErrorTriageSource = 'Rezerval' | 'Liftdesk';
+
+/** A triaged error card surfaced from an error-triage queue. */
 export interface ErrorTriageCard {
   triageId: number;
   errorLogId: number;
@@ -18,6 +21,8 @@ export interface ErrorTriageCard {
   createdOn: string | null;
   updatedOn: string | null;
   approvedBy: string | null;
+  /** Integration the card came from. Stamped client-side until the API exposes it. */
+  source: ErrorTriageSource;
 }
 
 export interface ErrorTriageParams {
@@ -36,7 +41,8 @@ export function useErrorTriage(params: ErrorTriageParams) {
       p.set('page', String(params.page ?? 1));
       p.set('pageSize', String(params.pageSize ?? 50));
       const res = await apiClient.get<ApiResponse<ErrorTriageCard[]>>(`/error-triage?${p}`);
-      return res.data.data ?? [];
+      // The CRM proxy only talks to RezervAl today — stamp the source until the API returns it.
+      return (res.data.data ?? []).map((c) => ({ ...c, source: c.source ?? 'Rezerval' }));
     },
     refetchInterval: 60_000,
   });
