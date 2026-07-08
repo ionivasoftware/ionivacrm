@@ -15,13 +15,13 @@ import {
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
-type TabValue = 'Triaged' | 'Approved' | 'Rejected' | 'Completed';
+type TabValue = 'Triaged' | 'Approved' | 'Rejected' | 'Fixed';
 
 const TABS: { value: TabValue; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { value: 'Triaged',   label: 'Bekleyen',    icon: Clock },
-  { value: 'Approved',  label: 'Onaylanan',   icon: CheckCircle2 },
-  { value: 'Rejected',  label: 'Reddedilen',  icon: XCircle },
-  { value: 'Completed', label: 'Tamamlanan',  icon: CheckCheck },
+  { value: 'Triaged',  label: 'Bekleyen',    icon: Clock },
+  { value: 'Approved', label: 'Onaylanan',   icon: CheckCircle2 },
+  { value: 'Rejected', label: 'Reddedilen',  icon: XCircle },
+  { value: 'Fixed',    label: 'Tamamlanan',  icon: CheckCheck },
 ];
 
 const SEVERITY_CONFIG: Record<string, { label: string; className: string }> = {
@@ -32,10 +32,10 @@ const SEVERITY_CONFIG: Record<string, { label: string; className: string }> = {
 };
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  Triaged:   { label: 'Bekliyor',    className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' },
-  Approved:  { label: 'Onaylandı',   className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
-  Rejected:  { label: 'Reddedildi',  className: 'bg-red-500/15 text-red-400 border-red-500/30' },
-  Completed: { label: 'Tamamlandı',  className: 'bg-sky-500/15 text-sky-400 border-sky-500/30' },
+  Triaged:  { label: 'Bekliyor',    className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' },
+  Approved: { label: 'Onaylandı',   className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+  Rejected: { label: 'Reddedildi',  className: 'bg-red-500/15 text-red-400 border-red-500/30' },
+  Fixed:    { label: 'Tamamlandı',  className: 'bg-sky-500/15 text-sky-400 border-sky-500/30' },
 };
 
 const SOURCE_CONFIG: Record<ErrorTriageSource, { label: string; className: string }> = {
@@ -224,10 +224,10 @@ export function ErrorTriagePage() {
   const actionable = tab === 'Triaged';
 
   const EMPTY_TEXT: Record<TabValue, string> = {
-    Triaged:   'Triage edilmiş tüm hatalar değerlendirildi.',
-    Approved:  'Henüz onaylanmış kart yok.',
-    Rejected:  'Henüz reddedilmiş kart yok.',
-    Completed: 'Henüz tamamlanmış kart yok.',
+    Triaged:  'Triage edilmiş tüm hatalar değerlendirildi.',
+    Approved: 'Henüz onaylanmış kart yok.',
+    Rejected: 'Henüz reddedilmiş kart yok.',
+    Fixed:    'Henüz tamamlanmış kart yok.',
   };
 
   return (
