@@ -2,9 +2,11 @@ using Hangfire;
 using Hangfire.PostgreSql;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Features.VendorInvoices;
+using IonCrm.Application.Features.VendorInvoices.CostProviders;
 using IonCrm.Domain.Interfaces;
 using IonCrm.Infrastructure.BackgroundServices;
 using IonCrm.Infrastructure.ExternalApis;
+using IonCrm.Infrastructure.ExternalApis.CostProviders;
 using IonCrm.Infrastructure.Persistence;
 using IonCrm.Infrastructure.Repositories;
 using IonCrm.Infrastructure.Services;
@@ -67,6 +69,19 @@ public static class DependencyInjection
         // ── Vendor-invoice reconciliation (global, SuperAdmin) ────────────────
         services.AddScoped<IVendorInvoiceService, VendorInvoiceService>();
         services.AddHostedService<VendorInvoiceReconcileService>();
+
+        // ── Phase 2: cost-API auto-expect ─────────────────────────────────────
+        // Anthropic pulls live spend from the Admin Cost API; the others read a fixed
+        // configured amount (VendorCosts:{Provider}:MonthlyAmount) until their live
+        // integrations (Railway GraphQL, Google Cloud BigQuery) are wired in.
+        services.AddHttpClient<ICostProvider, AnthropicCostProvider>();
+        services.AddSingleton<ICostProvider>(sp =>
+            new FixedConfigCostProvider("Railway", sp.GetRequiredService<IConfiguration>()));
+        services.AddSingleton<ICostProvider>(sp =>
+            new FixedConfigCostProvider("GoogleCloud", sp.GetRequiredService<IConfiguration>()));
+        services.AddSingleton<ICostProvider>(sp =>
+            new FixedConfigCostProvider("GoogleWorkspace", sp.GetRequiredService<IConfiguration>()));
+        services.AddScoped<ICostAutoExpectService, CostAutoExpectService>();
 
         // ── Auth services ─────────────────────────────────────────────────────
         services.AddScoped<ITokenService, TokenService>();

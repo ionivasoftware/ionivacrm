@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  RefreshCw, CalendarPlus, ScanLine, AlertTriangle, Receipt, Coins, Check,
+  RefreshCw, CalendarPlus, ScanLine, AlertTriangle, Receipt, Coins, Check, DownloadCloud,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
-  useVendorInvoices, useSeedMonth, useReconcile, useExpectInvoice, useMarkReceived,
+  useVendorInvoices, useSeedMonth, useReconcile, useExpectInvoice, useMarkReceived, useAutoExpect,
   type VendorInvoice, type VendorInvoiceStatus,
 } from '@/api/vendorInvoices';
 
@@ -211,9 +211,32 @@ export function VendorInvoicesPage() {
   });
   const seed = useSeedMonth();
   const reconcile = useReconcile();
+  const autoExpect = useAutoExpect();
 
   const rows = data ?? [];
   const years = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2];
+
+  async function handleAutoExpect() {
+    if (month === 'all') {
+      toast({ title: 'Ay seçin', description: 'Cost API çekimi için belirli bir ay seçmelisiniz.', variant: 'destructive' });
+      return;
+    }
+    try {
+      const res = await autoExpect.mutateAsync({ year, month });
+      const items = res?.items ?? [];
+      const ok = items.filter((i) => i.status === 'expected');
+      const summary = ok.length
+        ? ok.map((i) => `${i.provider}: ${i.amount ?? '—'}${i.currency ? ' ' + i.currency : ''}`).join(' · ')
+        : 'Hiçbir sağlayıcıdan tutar alınamadı (API anahtarı/tutar yapılandırılmamış olabilir).';
+      toast({
+        title: `Cost API — ${ok.length}/${items.length} sağlayıcı güncellendi`,
+        description: summary,
+        variant: ok.length ? undefined : 'destructive',
+      });
+    } catch (err) {
+      toast({ title: 'Hata', description: errorMessage(err, 'Cost API çekimi başarısız.'), variant: 'destructive' });
+    }
+  }
 
   async function handleSeed() {
     if (month === 'all') {
@@ -259,6 +282,10 @@ export function VendorInvoicesPage() {
           <Button variant="outline" size="sm" onClick={handleSeed} disabled={seed.isPending}>
             <CalendarPlus className="h-4 w-4 mr-1.5" />
             {seed.isPending ? 'Hazırlanıyor...' : 'Ayı Hazırla'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleAutoExpect} disabled={autoExpect.isPending}>
+            <DownloadCloud className="h-4 w-4 mr-1.5" />
+            {autoExpect.isPending ? 'Çekiliyor...' : 'Cost API’den Çek'}
           </Button>
           <Button size="sm" onClick={handleReconcile} disabled={reconcile.isPending}>
             <ScanLine className="h-4 w-4 mr-1.5" />

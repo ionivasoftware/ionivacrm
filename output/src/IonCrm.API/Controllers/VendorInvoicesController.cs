@@ -1,5 +1,6 @@
 using IonCrm.API.Common;
 using IonCrm.Application.Features.VendorInvoices;
+using IonCrm.Application.Features.VendorInvoices.CostProviders;
 using IonCrm.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,11 +23,13 @@ namespace IonCrm.API.Controllers;
 public sealed class VendorInvoicesController : ApiControllerBase
 {
     private readonly IVendorInvoiceService _service;
+    private readonly ICostAutoExpectService _autoExpect;
 
     /// <summary>Initialises a new instance of <see cref="VendorInvoicesController"/>.</summary>
-    public VendorInvoicesController(IVendorInvoiceService service)
+    public VendorInvoicesController(IVendorInvoiceService service, ICostAutoExpectService autoExpect)
     {
         _service = service;
+        _autoExpect = autoExpect;
     }
 
     /// <summary>Lists reconciliation records. All filters optional.</summary>
@@ -88,6 +91,19 @@ public sealed class VendorInvoicesController : ApiControllerBase
     public async Task<IActionResult> Reconcile([FromBody] ReconcileRequest? body = null, CancellationToken cancellationToken = default)
     {
         var result = await _service.ReconcileAsync(body?.AsOf, cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// Pulls each configured provider's cost for a period and upserts Expected rows (Phase 2).
+    /// Anthropic auto-fetches from the Admin Cost API; other providers use their configured fixed amount.
+    /// </summary>
+    [HttpPost("auto-expect")]
+    [ProducesResponseType(typeof(ApiResponse<AutoExpectSummary>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AutoExpect([FromBody] SeedMonthRequest body, CancellationToken cancellationToken = default)
+    {
+        var result = await _autoExpect.RunAsync(body.Year, body.Month, cancellationToken);
         return ResultToResponse(result);
     }
 }

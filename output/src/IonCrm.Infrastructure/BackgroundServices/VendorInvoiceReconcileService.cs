@@ -1,4 +1,5 @@
 using IonCrm.Application.Features.VendorInvoices;
+using IonCrm.Application.Features.VendorInvoices.CostProviders;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -94,6 +95,26 @@ public sealed class VendorInvoiceReconcileService : BackgroundService
         try
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
+
+            // Phase 2: refresh expected amounts from cost APIs before reconciling. Current month keeps
+            // the running total fresh; previous month finalises it before its due date passes. Expect is
+            // idempotent and never downgrades a Received/Reconciled row, so a daily run is safe.
+            try
+            {
+                var autoExpect = scope.ServiceProvider.GetService<ICostAutoExpectService>();
+                if (autoExpect is not null)
+                {
+                    var now = DateTime.UtcNow;
+                    var prev = now.AddMonths(-1);
+                    await autoExpect.RunAsync(now.Year, now.Month, ct);
+                    await autoExpect.RunAsync(prev.Year, prev.Month, ct);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "VendorInvoiceReconcileService: auto-expect step failed (continuing to reconcile).");
+            }
+
             var service = scope.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
             var result  = await service.ReconcileAsync(asOf: null, cancellationToken: ct);
             if (result.IsSuccess && result.Value is { MissingCount: > 0 } r)

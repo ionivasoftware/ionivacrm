@@ -139,3 +139,29 @@ export function useReconcile() {
     onSuccess: invalidate,
   });
 }
+
+export interface AutoExpectItem {
+  provider: string;
+  status: 'expected' | 'skipped' | 'failed';
+  amount: number | null;
+  currency: string | null;
+  message: string | null;
+}
+
+export interface AutoExpectSummary {
+  year: number;
+  month: number;
+  items: AutoExpectItem[];
+}
+
+/** Pulls each configured provider's cost for a period and upserts Expected rows (Phase 2). */
+export function useAutoExpect() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: async ({ year, month }: { year: number; month: number }) => {
+      const res = await apiClient.post<ApiResponse<AutoExpectSummary>>('/vendor-invoices/auto-expect', { year, month });
+      return res.data.data;
+    },
+    onSuccess: invalidate,
+  });
+}
