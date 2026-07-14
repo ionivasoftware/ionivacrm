@@ -218,7 +218,7 @@ export function VendorInvoicesPage() {
 
   async function handleAutoExpect() {
     if (month === 'all') {
-      toast({ title: 'Ay seçin', description: 'Cost API çekimi için belirli bir ay seçmelisiniz.', variant: 'destructive' });
+      toast({ title: 'Ay seçin', description: 'Otomatik doldurma için belirli bir ay seçmelisiniz.', variant: 'destructive' });
       return;
     }
     try {
@@ -227,14 +227,14 @@ export function VendorInvoicesPage() {
       const ok = items.filter((i) => i.status === 'expected');
       const summary = ok.length
         ? ok.map((i) => `${i.provider}: ${i.amount ?? '—'}${i.currency ? ' ' + i.currency : ''}`).join(' · ')
-        : 'Hiçbir sağlayıcıdan tutar alınamadı (API anahtarı/tutar yapılandırılmamış olabilir).';
+        : 'Hiçbir sağlayıcıdan tutar alınamadı (API anahtarı/sabit tutar yapılandırılmamış olabilir).';
       toast({
-        title: `Cost API — ${ok.length}/${items.length} sağlayıcı güncellendi`,
+        title: `Otomatik — ${ok.length}/${items.length} sağlayıcı güncellendi`,
         description: summary,
         variant: ok.length ? undefined : 'destructive',
       });
     } catch (err) {
-      toast({ title: 'Hata', description: errorMessage(err, 'Cost API çekimi başarısız.'), variant: 'destructive' });
+      toast({ title: 'Hata', description: errorMessage(err, 'Otomatik doldurma başarısız.'), variant: 'destructive' });
     }
   }
 
@@ -285,7 +285,7 @@ export function VendorInvoicesPage() {
           </Button>
           <Button variant="outline" size="sm" onClick={handleAutoExpect} disabled={autoExpect.isPending}>
             <DownloadCloud className="h-4 w-4 mr-1.5" />
-            {autoExpect.isPending ? 'Çekiliyor...' : 'Cost API’den Çek'}
+            {autoExpect.isPending ? 'Dolduruluyor...' : 'Otomatik Doldur'}
           </Button>
           <Button size="sm" onClick={handleReconcile} disabled={reconcile.isPending}>
             <ScanLine className="h-4 w-4 mr-1.5" />

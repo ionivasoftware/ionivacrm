@@ -8,12 +8,16 @@ using Microsoft.Extensions.Logging;
 namespace IonCrm.Infrastructure.ExternalApis.CostProviders;
 
 /// <summary>
-/// Fetches Anthropic's monthly spend from the Admin Cost API.
-/// Endpoint: GET https://api.anthropic.com/v1/organizations/cost_report
-/// Auth: x-api-key = admin key (sk-ant-admin01-…), anthropic-version: 2023-06-01.
-/// The API reports amounts as decimal strings in the lowest currency unit (cents), so the
-/// summed total is divided by 100 to get USD. Daily buckets are summed across all pages.
-/// Configured via <c>VendorCosts:Anthropic:AdminApiKey</c>.
+/// Reports Anthropic's monthly cost. Two modes, checked in order:
+///
+/// 1. <b>Fixed subscription</b> — if <c>VendorCosts:Anthropic:MonthlyAmount</c> is set, that flat amount
+///    is used every month. Use this when the Anthropic bill is a subscription (Claude Code / Pro-Max /
+///    Team seats), which the Admin Cost API does NOT report (it only covers Developer Platform API token spend).
+/// 2. <b>Live API usage</b> — otherwise, if <c>VendorCosts:Anthropic:AdminApiKey</c> is set, the monthly
+///    spend is pulled from GET https://api.anthropic.com/v1/organizations/cost_report
+///    (x-api-key = admin key sk-ant-admin01-…, anthropic-version: 2023-06-01). The API reports amounts as
+///    decimal strings in the lowest currency unit (cents), so the summed daily buckets (across all pages)
+///    are divided by 100 to get USD.
 /// </summary>
 public sealed class AnthropicCostProvider : ICostProvider
 {
@@ -35,13 +39,25 @@ public sealed class AnthropicCostProvider : ICostProvider
     public string ProviderKey => "Anthropic";
 
     private string? AdminKey => _configuration["VendorCosts:Anthropic:AdminApiKey"];
+    private string? FixedAmountRaw => _configuration["VendorCosts:Anthropic:MonthlyAmount"];
+
+    private bool HasFixedAmount =>
+        decimal.TryParse(FixedAmountRaw, NumberStyles.Any, CultureInfo.InvariantCulture, out var amt) && amt > 0;
 
     /// <inheritdoc />
-    public bool IsConfigured => !string.IsNullOrWhiteSpace(AdminKey);
+    public bool IsConfigured => HasFixedAmount || !string.IsNullOrWhiteSpace(AdminKey);
 
     /// <inheritdoc />
     public async Task<CostFetchResult?> GetMonthlyCostAsync(int year, int month, CancellationToken cancellationToken = default)
     {
+        // Mode 1: fixed subscription amount (Claude Code / Pro-Max / Team) — the Cost API can't see these.
+        if (decimal.TryParse(FixedAmountRaw, NumberStyles.Any, CultureInfo.InvariantCulture, out var fixedAmount) && fixedAmount > 0)
+        {
+            var fixedCurrency = _configuration["VendorCosts:Anthropic:Currency"];
+            return new CostFetchResult(fixedAmount, string.IsNullOrWhiteSpace(fixedCurrency) ? "USD" : fixedCurrency);
+        }
+
+        // Mode 2: live Developer Platform API spend via the Admin Cost API.
         var key = AdminKey;
         if (string.IsNullOrWhiteSpace(key)) return null;
 
