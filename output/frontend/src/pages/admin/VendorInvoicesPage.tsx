@@ -219,15 +219,18 @@ export function VendorInvoicesPage() {
   async function handleCollectEmails() {
     try {
       const res = await collectEmails.mutateAsync({ dryRun: true });
-      const previews = (res?.items ?? []).filter((i) => i.status === 'preview');
-      const summary = previews.length
-        ? previews
-            .slice(0, 6)
-            .map((i) => `${i.provider} ${i.month}/${i.year}: ${i.amount ?? '—'}${i.currency ? ' ' + i.currency : ''}`)
-            .join(' · ')
+      const items = res?.items ?? [];
+      const previews = items.filter((i) => i.status === 'preview');
+      const noAmount = items.filter((i) => i.status === 'no-amount');
+      const lines = [
+        ...previews.map((i) => `${i.provider} ${i.month}/${i.year}: ${i.amount ?? '—'}${i.currency ? ' ' + i.currency : ''}`),
+        ...noAmount.map((i) => `${i.provider}: tutar bulunamadı (PDF/regex)`),
+      ];
+      const summary = lines.length
+        ? lines.slice(0, 8).join(' · ')
         : 'Kural eşleşmesi yok (IMAP/kurallar yapılandırılmamış olabilir).';
       toast({
-        title: `E-posta taraması (önizleme) — ${res?.scanned ?? 0} mail, ${previews.length} eşleşme`,
+        title: `E-posta taraması (önizleme) — ${res?.scanned ?? 0} mail, ${previews.length} tutarlı / ${noAmount.length} tutarsız`,
         description: summary,
         variant: previews.length ? undefined : 'destructive',
       });

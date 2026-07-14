@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 using IonCrm.Application.Common.Models;
 using IonCrm.Application.Features.VendorInvoices;
@@ -7,8 +8,10 @@ using MailKit;
 using MailKit.Net.Imap;
 using MailKit.Search;
 using MailKit.Security;
+using MimeKit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using UglyToad.PdfPig;
 
 namespace IonCrm.Infrastructure.ExternalApis.EmailCollector;
 
@@ -98,10 +101,17 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
                 var rule = rules.FirstOrDefault(r => Matches(r, from, subject, body));
                 if (rule is null) continue;
 
-                var haystack = subject + "\n" + body;
+                // Google (and others) only put the amount in the attached PDF — include its text.
+                var pdfText = ExtractPdfText(message);
+                var haystack = subject + "\n" + body + "\n" + pdfText;
                 decimal? amount = TryExtractAmount(rule.AmountRegex, haystack, out var parsedAmount) ? parsedAmount : null;
                 var invoiceNo = Truncate(TryExtractGroup(rule.InvoiceNoRegex, haystack), 100);
                 var pdfUrl = Truncate(TryExtractGroup(rule.PdfUrlRegex, body), 1000);
+
+                // Dry-run diagnostic: surface a text snippet so the amount regex can be crafted/verified.
+                string? diag = dryRun
+                    ? "metin: " + Snippet(string.IsNullOrWhiteSpace(pdfText) ? body : pdfText, 900)
+                    : null;
                 var currency = string.IsNullOrWhiteSpace(rule.Currency) ? "USD" : rule.Currency;
 
                 var period = emailDate.AddMonths(-rule.PeriodMonthOffset);
@@ -111,14 +121,14 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
                 if (amount is null)
                 {
                     items.Add(new EmailCollectItem(rule.Provider, year, month, null, currency, invoiceNo, subject, emailDate,
-                        "no-amount", "Tutar regex eşleşmedi"));
+                        "no-amount", diag ?? "Tutar regex eşleşmedi"));
                     continue;
                 }
 
                 if (dryRun)
                 {
                     items.Add(new EmailCollectItem(rule.Provider, year, month, amount, currency, invoiceNo, subject, emailDate,
-                        "preview", null));
+                        "preview", diag));
                     continue;
                 }
 
@@ -217,6 +227,44 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
 
     private static string? Truncate(string? value, int max)
         => string.IsNullOrEmpty(value) ? value : (value.Length <= max ? value : value[..max]);
+
+    /// <summary>Whitespace-collapsed leading snippet, for the dry-run diagnostic.</summary>
+    private static string Snippet(string text, int max)
+    {
+        var collapsed = Regex.Replace(text ?? string.Empty, "\\s+", " ").Trim();
+        return collapsed.Length <= max ? collapsed : collapsed[..max];
+    }
+
+    /// <summary>Extracts concatenated text from all PDF attachments on the message (capped).</summary>
+    private string ExtractPdfText(MimeMessage message)
+    {
+        var sb = new StringBuilder();
+        foreach (var entity in message.Attachments)
+        {
+            if (entity is not MimePart part) continue;
+            var fileName = part.FileName ?? string.Empty;
+            var isPdf = part.ContentType.MimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
+                || fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+            if (!isPdf || part.Content is null) continue;
+
+            try
+            {
+                using var ms = new MemoryStream();
+                part.Content.DecodeTo(ms);
+                using var pdf = PdfDocument.Open(ms.ToArray());
+                foreach (var page in pdf.GetPages())
+                {
+                    sb.Append(page.Text).Append('\n');
+                    if (sb.Length > 20000) break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "InvoiceEmailCollector: PDF attachment '{File}' parse failed.", fileName);
+            }
+        }
+        return sb.ToString();
+    }
 
     private static string? StripHtml(string? html)
     {
