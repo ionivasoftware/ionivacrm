@@ -11,12 +11,16 @@ namespace IonCrm.Infrastructure.ExternalApis.CostProviders;
 /// Reports Railway's monthly cost. Two modes, checked in order:
 ///
 /// 1. <b>Live GraphQL</b> — when <c>ApiToken</c> is set, queries
-///    https://backboard.railway.com/graphql/v2 (Authorization: Bearer token) for the running total of
-///    the current invoice: <c>me.workspaces[].customer.subscriptions[].nextInvoiceCurrentTotal</c>.
-///    Railway/Stripe amounts are in <b>cents</b>, so the summed total is divided by 100.
-///    Because this is the *current cycle's* accruing total (not a per-calendar-month figure), it is
-///    only reported for the current calendar month; other months return null so the daily job leaves
-///    their previously-captured values intact. Optionally scoped to one workspace via <c>WorkspaceId</c>.
+///    https://backboard.railway.com/graphql/v2 (Authorization: Bearer token). Railway/Stripe amounts are
+///    in <b>cents</b>, so totals are divided by 100. Two cases by period:
+///    <list type="bullet">
+///      <item><b>Current calendar month</b> → the accruing running total of the open invoice:
+///        <c>customer.subscriptions[].nextInvoiceCurrentTotal</c>.</item>
+///      <item><b>Past month</b> → the finalised invoice whose <c>periodStart</c> falls in that calendar
+///        month: <c>customer.invoices[].amountDue</c>. Railway bills on a mid-month cycle (e.g. the 9th),
+///        so an invoice is attributed to the calendar month its billing period starts in.</item>
+///    </list>
+///    Optionally scoped to one workspace via <c>WorkspaceId</c>.
 /// 2. <b>Fixed amount</b> — when no token is set, falls back to <c>VendorCosts:Railway:MonthlyAmount</c>.
 ///
 /// Config keys (under <c>VendorCosts:Railway</c>): ApiToken, WorkspaceId (optional), MonthlyAmount, Currency.
@@ -25,7 +29,10 @@ public sealed class RailwayCostProvider : ICostProvider
 {
     private const string GraphQlEndpoint = "https://backboard.railway.com/graphql/v2";
     private const string CostQuery =
-        "query{me{workspaces{id customer{subscriptions{nextInvoiceCurrentTotal status}}}}}";
+        "query{me{workspaces{id customer{" +
+        "subscriptions{nextInvoiceCurrentTotal status}" +
+        "invoices{amountDue periodStart status}" +
+        "}}}}";
 
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
@@ -66,15 +73,9 @@ public sealed class RailwayCostProvider : ICostProvider
     /// <inheritdoc />
     public async Task<CostFetchResult?> GetMonthlyCostAsync(int year, int month, CancellationToken cancellationToken = default)
     {
-        // Live mode: authoritative for Railway. Only the current calendar month gets the accruing total.
+        // Live mode is authoritative for Railway when a token is present.
         if (!string.IsNullOrWhiteSpace(ApiToken))
-        {
-            var now = DateTime.UtcNow;
-            if (year != now.Year || month != now.Month)
-                return null; // not the current cycle — leave the previously-captured value
-
-            return await QueryGraphQlAsync(cancellationToken);
-        }
+            return await QueryGraphQlAsync(year, month, cancellationToken);
 
         // Fixed fallback (no token).
         if (decimal.TryParse(FixedAmountRaw, NumberStyles.Any, CultureInfo.InvariantCulture, out var fixedAmount) && fixedAmount > 0)
@@ -83,7 +84,7 @@ public sealed class RailwayCostProvider : ICostProvider
         return null;
     }
 
-    private async Task<CostFetchResult?> QueryGraphQlAsync(CancellationToken cancellationToken)
+    private async Task<CostFetchResult?> QueryGraphQlAsync(int year, int month, CancellationToken cancellationToken)
     {
         try
         {
@@ -118,8 +119,12 @@ public sealed class RailwayCostProvider : ICostProvider
                 return null;
             }
 
-            decimal totalCents = 0m;
+            var now = DateTime.UtcNow;
+            var isCurrentMonth = year == now.Year && month == now.Month;
             var wanted = WorkspaceId;
+
+            decimal totalCents = 0m;
+            var matched = false;
 
             foreach (var ws in workspaces.EnumerateArray())
             {
@@ -128,27 +133,60 @@ public sealed class RailwayCostProvider : ICostProvider
                     continue;
 
                 if (!ws.TryGetProperty("customer", out var customer) || customer.ValueKind != JsonValueKind.Object) continue;
-                if (!customer.TryGetProperty("subscriptions", out var subs) || subs.ValueKind != JsonValueKind.Array) continue;
 
-                foreach (var sub in subs.EnumerateArray())
+                if (isCurrentMonth)
                 {
-                    // Skip cancelled subscriptions; count active/past_due/trialing.
-                    if (sub.TryGetProperty("status", out var status)
-                        && string.Equals(status.GetString(), "canceled", StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    if (sub.TryGetProperty("nextInvoiceCurrentTotal", out var total) && total.ValueKind == JsonValueKind.Number)
-                        totalCents += total.GetDecimal();
+                    // Current calendar month → running total of the open invoice.
+                    if (customer.TryGetProperty("subscriptions", out var subs) && subs.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var sub in subs.EnumerateArray())
+                        {
+                            if (sub.TryGetProperty("status", out var status)
+                                && string.Equals(status.GetString(), "canceled", StringComparison.OrdinalIgnoreCase))
+                                continue;
+                            if (sub.TryGetProperty("nextInvoiceCurrentTotal", out var total) && total.ValueKind == JsonValueKind.Number)
+                            {
+                                totalCents += total.GetDecimal();
+                                matched = true;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // Past month → finalised invoice(s) whose billing period starts in that calendar month.
+                    if (customer.TryGetProperty("invoices", out var invoices) && invoices.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var inv in invoices.EnumerateArray())
+                        {
+                            if (inv.TryGetProperty("status", out var st)
+                                && string.Equals(st.GetString(), "void", StringComparison.OrdinalIgnoreCase))
+                                continue;
+                            if (!inv.TryGetProperty("periodStart", out var ps)
+                                || !DateTimeOffset.TryParse(ps.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var start))
+                                continue;
+                            var startUtc = start.UtcDateTime;
+                            if (startUtc.Year != year || startUtc.Month != month) continue;
+                            if (inv.TryGetProperty("amountDue", out var due) && due.ValueKind == JsonValueKind.Number)
+                            {
+                                totalCents += due.GetDecimal();
+                                matched = true;
+                            }
+                        }
+                    }
                 }
             }
 
+            if (!matched) return null; // no data for this month — leave it untouched
+
             var amount = Math.Round(totalCents / 100m, 2, MidpointRounding.AwayFromZero);
-            _logger.LogDebug("Railway current-cycle total: {Amount} {Currency}.", amount, Currency);
+            _logger.LogDebug("Railway cost for {Year}-{Month:D2}: {Amount} {Currency} ({Mode}).",
+                year, month, amount, Currency, isCurrentMonth ? "running" : "invoice");
             return new CostFetchResult(amount, Currency);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Railway GraphQL cost query failed.");
+            _logger.LogWarning(ex, "Railway GraphQL cost query failed for {Year}-{Month:D2}.", year, month);
             return null;
         }
     }
