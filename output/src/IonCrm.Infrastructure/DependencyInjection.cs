@@ -77,8 +77,11 @@ public static class DependencyInjection
         services.AddHttpClient<ICostProvider, AnthropicCostProvider>();
         services.AddHttpClient<ICostProvider, RailwayCostProvider>();
         services.AddSingleton<ICostProvider, GoogleCloudCostProvider>();
+        // Two Google Workspace billing accounts, tracked separately.
         services.AddSingleton<ICostProvider>(sp =>
-            new FixedConfigCostProvider("GoogleWorkspace", sp.GetRequiredService<IConfiguration>()));
+            new FixedConfigCostProvider("GoogleWorkspaceRezerval", sp.GetRequiredService<IConfiguration>()));
+        services.AddSingleton<ICostProvider>(sp =>
+            new FixedConfigCostProvider("GoogleWorkspaceIoniva", sp.GetRequiredService<IConfiguration>()));
         services.AddScoped<ICostAutoExpectService, CostAutoExpectService>();
 
         // ── Auth services ─────────────────────────────────────────────────────

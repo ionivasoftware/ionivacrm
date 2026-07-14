@@ -51,6 +51,8 @@ const PROVIDER_LABELS: Record<string, string> = {
   Railway: 'Railway',
   GoogleCloud: 'Google Cloud',
   GoogleWorkspace: 'Google Workspace',
+  GoogleWorkspaceRezerval: 'Workspace (rezerval.com)',
+  GoogleWorkspaceIoniva: 'Workspace (ioniva.com)',
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
