@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  RefreshCw, CalendarPlus, ScanLine, AlertTriangle, Receipt, Coins, Check, DownloadCloud, Mails, FileText,
+  RefreshCw, CalendarPlus, ScanLine, AlertTriangle, Receipt, Coins, Check, DownloadCloud, Mails, MailCheck, FileText,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -243,6 +243,19 @@ export function VendorInvoicesPage() {
     }
   }
 
+  async function handleCollectApply() {
+    try {
+      const res = await collectEmails.mutateAsync({ dryRun: false });
+      toast({
+        title: `E-posta işlendi — ${res?.received ?? 0} fatura kaydedildi`,
+        description: `${res?.scanned ?? 0} mail tarandı, ${res?.matched ?? 0} eşleşme. Eksik kayıtlar oluşturuldu, PDF'ler saklandı.`,
+        variant: res?.received ? undefined : 'destructive',
+      });
+    } catch (err) {
+      toast({ title: 'Hata', description: errorMessage(err, 'E-posta işlenemedi.'), variant: 'destructive' });
+    }
+  }
+
   const rows = data ?? [];
   const years = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2];
 
@@ -320,6 +333,11 @@ export function VendorInvoicesPage() {
           <Button variant="outline" size="sm" onClick={handleCollectEmails} disabled={collectEmails.isPending}>
             <Mails className="h-4 w-4 mr-1.5" />
             {collectEmails.isPending ? 'Taranıyor...' : 'E-posta Tara'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleCollectApply} disabled={collectEmails.isPending}
+            className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300">
+            <MailCheck className="h-4 w-4 mr-1.5" />
+            {collectEmails.isPending ? 'İşleniyor...' : 'E-posta İşle'}
           </Button>
           <Button size="sm" onClick={handleReconcile} disabled={reconcile.isPending}>
             <ScanLine className="h-4 w-4 mr-1.5" />
