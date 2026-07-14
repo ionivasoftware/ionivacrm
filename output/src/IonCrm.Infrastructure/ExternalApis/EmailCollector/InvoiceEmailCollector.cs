@@ -99,7 +99,15 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
                 var emailDate = message.Date.UtcDateTime;
 
                 var rule = rules.FirstOrDefault(r => Matches(r, from, subject, body));
-                if (rule is null) continue;
+                if (rule is null)
+                {
+                    // Dry-run: surface unmatched messages so their real From/Subject can be inspected
+                    // (forwarded mail rewrites From — this reveals what to match on).
+                    if (dryRun)
+                        items.Add(new EmailCollectItem("(eşleşme yok)", 0, 0, null, null, null,
+                            subject, emailDate, "unmatched", "from: " + Snippet(from, 160)));
+                    continue;
+                }
 
                 // Google (and others) only put the amount in the attached PDF — include its text.
                 var pdfText = ExtractPdfText(message);
@@ -175,8 +183,11 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
 
     private static bool Matches(VendorEmailRule rule, string from, string subject, string body)
     {
+        // Forwarded mail rewrites the From header to the forwarder, but the original sender survives
+        // in the quoted body ("From: ...@vendor"), so match FromContains against From + body.
         if (!string.IsNullOrWhiteSpace(rule.FromContains)
-            && from.IndexOf(rule.FromContains, StringComparison.OrdinalIgnoreCase) < 0) return false;
+            && (from + "\n" + body).IndexOf(rule.FromContains, StringComparison.OrdinalIgnoreCase) < 0) return false;
+        // Manual forwards prepend "Fwd:" but keep the original subject as a substring.
         if (!string.IsNullOrWhiteSpace(rule.SubjectContains)
             && subject.IndexOf(rule.SubjectContains, StringComparison.OrdinalIgnoreCase) < 0) return false;
         if (!string.IsNullOrWhiteSpace(rule.BodyContains)

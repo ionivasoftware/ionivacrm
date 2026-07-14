@@ -175,7 +175,7 @@ export interface EmailCollectItem {
   invoiceNumber: string | null;
   subject: string;
   emailDate: string;
-  status: 'received' | 'preview' | 'no-amount' | 'failed';
+  status: 'received' | 'preview' | 'no-amount' | 'failed' | 'unmatched';
   message: string | null;
 }
 

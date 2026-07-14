@@ -222,15 +222,19 @@ export function VendorInvoicesPage() {
       const items = res?.items ?? [];
       const previews = items.filter((i) => i.status === 'preview');
       const noAmount = items.filter((i) => i.status === 'no-amount');
-      const lines = [
+      const unmatched = items.filter((i) => i.status === 'unmatched');
+      const matchedLines = [
         ...previews.map((i) => `${i.provider} ${i.month}/${i.year}: ${i.amount ?? '—'}${i.currency ? ' ' + i.currency : ''}`),
         ...noAmount.map((i) => `${i.provider}: tutar bulunamadı (PDF/regex)`),
       ];
-      const summary = lines.length
-        ? lines.slice(0, 8).join(' · ')
-        : 'Kural eşleşmesi yok (IMAP/kurallar yapılandırılmamış olabilir).';
+      // When nothing matched, show the unmatched subjects so the rules can be tuned to real mail.
+      const summary = matchedLines.length
+        ? matchedLines.slice(0, 8).join(' · ')
+        : unmatched.length
+          ? 'Eşleşme yok. Konu örnekleri: ' + unmatched.slice(0, 5).map((i) => `“${i.subject.slice(0, 60)}”`).join(' · ')
+          : 'Hiç mail taranamadı (IMAP bağlantısını kontrol edin).';
       toast({
-        title: `E-posta taraması (önizleme) — ${res?.scanned ?? 0} mail, ${previews.length} tutarlı / ${noAmount.length} tutarsız`,
+        title: `E-posta taraması — ${res?.scanned ?? 0} mail · ${previews.length} tutarlı / ${noAmount.length} tutarsız / ${unmatched.length} eşleşmedi`,
         description: summary,
         variant: previews.length ? undefined : 'destructive',
       });
