@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   RefreshCw, Play, Plus, Trash2, AlertTriangle, Receipt, Coins, Check, FileText,
 } from 'lucide-react';
@@ -17,7 +17,8 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
   useVendorInvoices, useSeedMonth, useReconcile, useExpectInvoice, useMarkReceived, useAutoExpect,
-  useCollectEmails, useDeleteInvoice, openInvoicePdf, type VendorInvoice, type VendorInvoiceStatus,
+  useCollectEmails, useDeleteInvoice, openInvoicePdf,
+  type VendorInvoice, type VendorInvoiceStatus, type EmailCollectItem,
 } from '@/api/vendorInvoices';
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -329,6 +330,74 @@ function DeleteDialog({ invoice, onClose }: { invoice: VendorInvoice; onClose: (
   );
 }
 
+// ── E-mail scan preview (diagnostic) ──────────────────────────────────────────
+
+function CollectPreviewDialog({ onClose }: { onClose: () => void }) {
+  const { toast } = useToast();
+  const collect = useCollectEmails();
+  const [items, setItems] = useState<EmailCollectItem[] | null>(null);
+  const [summary, setSummary] = useState<{ scanned: number; matched: number } | null>(null);
+
+  useEffect(() => {
+    collect.mutateAsync({ dryRun: true })
+      .then((r) => {
+        setItems(r?.items ?? []);
+        setSummary({ scanned: r?.scanned ?? 0, matched: r?.matched ?? 0 });
+      })
+      .catch((err) => {
+        toast({ title: 'Hata', description: errorMessage(err, 'Önizleme başarısız.'), variant: 'destructive' });
+        onClose();
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            E-posta Taraması (Önizleme){summary ? ` — ${summary.scanned} mail, ${summary.matched} eşleşme` : ''}
+          </DialogTitle>
+        </DialogHeader>
+        {items === null ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">Taranıyor…</div>
+        ) : items.length === 0 ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">Hiç mail bulunamadı. IMAP bağlantısını kontrol edin.</div>
+        ) : (
+          <div className="max-h-[62vh] overflow-y-auto space-y-2 pr-1">
+            {items.map((it, i) => (
+              <div key={i} className="rounded-md border border-border/50 p-2.5 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-foreground">
+                    {it.status === 'unmatched' ? '(eşleşme yok)' : (PROVIDER_LABELS[it.provider] ?? it.provider)}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {it.status !== 'unmatched' && <>{it.month}/{it.year} · {it.amount ?? '—'} {it.currency ?? ''} · </>}
+                    <span className={cn(
+                      it.status === 'preview' && 'text-emerald-400',
+                      it.status === 'no-amount' && 'text-orange-400',
+                      it.status === 'unmatched' && 'text-slate-400',
+                    )}>{it.status}</span>
+                  </span>
+                </div>
+                <div className="mt-1 text-muted-foreground truncate" title={it.subject}>{it.subject}</div>
+                {it.message && (
+                  <pre className="mt-1.5 whitespace-pre-wrap break-words rounded bg-muted/40 p-2 text-[11px] leading-snug text-muted-foreground max-h-28 overflow-y-auto">
+                    {it.message}
+                  </pre>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Kapat</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────
 
 const now = new Date();
@@ -343,6 +412,7 @@ export function VendorInvoicesPage() {
   const [receiveRow, setReceiveRow] = useState<VendorInvoice | null>(null);
   const [deleteRow, setDeleteRow] = useState<VendorInvoice | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const { data, isLoading, isFetching, refetch } = useVendorInvoices({
     year,
@@ -523,14 +593,20 @@ export function VendorInvoicesPage() {
       </Card>
 
       {/* Legend / note */}
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <AlertTriangle className="h-3.5 w-3.5" />
-        “Servis” sırasıyla çalışır: hazırla → otomatik doldur → e-posta işle → mutabakat. Her gün otomatik da çalışır.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          “Servis” sırasıyla çalışır: hazırla → otomatik doldur → e-posta işle → mutabakat. Her gün otomatik da çalışır.
+        </p>
+        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setPreviewOpen(true)}>
+          E-posta önizle (teşhis)
+        </Button>
+      </div>
 
       {expectRow && <ExpectDialog invoice={expectRow} onClose={() => setExpectRow(null)} />}
       {receiveRow && <ReceiveDialog invoice={receiveRow} onClose={() => setReceiveRow(null)} />}
       {deleteRow && <DeleteDialog invoice={deleteRow} onClose={() => setDeleteRow(null)} />}
+      {previewOpen && <CollectPreviewDialog onClose={() => setPreviewOpen(false)} />}
       {addOpen && (
         <AddDialog
           defaultYear={year}
