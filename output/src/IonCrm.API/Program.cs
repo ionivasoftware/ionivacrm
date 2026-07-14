@@ -459,6 +459,37 @@ app.Lifetime.ApplicationStarted.Register(() =>
               AND ""IsDeleted"" = false;
         ");
 
+        // ── VendorInvoices (global vendor-cost reconciliation, SuperAdmin) ──────
+        await RunSafe("VendorInvoices table + indexes", @"
+            CREATE TABLE IF NOT EXISTS ""VendorInvoices"" (
+                ""Id""             uuid          NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""Provider""       varchar(50)   NOT NULL,
+                ""PeriodYear""     integer       NOT NULL,
+                ""PeriodMonth""    integer       NOT NULL,
+                ""BillingType""    integer       NOT NULL DEFAULT 1,
+                ""Status""         integer       NOT NULL DEFAULT 1,
+                ""ExpectedAmount"" numeric(18,2),
+                ""ReceivedAmount"" numeric(18,2),
+                ""Currency""       varchar(10),
+                ""InvoiceNumber""  varchar(100),
+                ""PdfUrl""         varchar(1000),
+                ""DueDay""         integer       NOT NULL DEFAULT 7,
+                ""ExpectedOn""     timestamp with time zone,
+                ""ReceivedOn""     timestamp with time zone,
+                ""AlertedOn""      timestamp with time zone,
+                ""Notes""          text,
+                ""CreatedAt""      timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""      timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""      boolean       NOT NULL DEFAULT false
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_vendorinvoices_provider_period""
+                ON ""VendorInvoices"" (""Provider"", ""PeriodYear"", ""PeriodMonth"")
+                WHERE ""IsDeleted"" = false;
+            CREATE INDEX IF NOT EXISTS ""ix_vendorinvoices_status_period""
+                ON ""VendorInvoices"" (""Status"", ""PeriodYear"", ""PeriodMonth"")
+                WHERE ""IsDeleted"" = false;
+        ");
+
             Log.Information("Startup bootstrap complete");
         }
         catch (Exception ex)

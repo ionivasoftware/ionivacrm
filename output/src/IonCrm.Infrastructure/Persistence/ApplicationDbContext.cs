@@ -62,6 +62,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Gets or sets the CustomerContracts table (per-customer recurring subscription contracts).</summary>
     public DbSet<CustomerContract> CustomerContracts => Set<CustomerContract>();
 
+    /// <summary>Gets or sets the VendorInvoices table (global vendor-cost reconciliation, SuperAdmin-only).</summary>
+    public DbSet<VendorInvoice> VendorInvoices => Set<VendorInvoice>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -135,6 +138,11 @@ public class ApplicationDbContext : DbContext
             .HasQueryFilter(e => !e.IsDeleted &&
                 (_currentUser.IsSuperAdmin ||
                  _currentUser.ProjectIds.Contains(e.ProjectId)));
+
+        // VendorInvoice: global (company's own operational costs, not tenant data). Soft-delete only —
+        // no tenant filter. Access is restricted to SuperAdmin at the controller level.
+        modelBuilder.Entity<VendorInvoice>()
+            .HasQueryFilter(e => !e.IsDeleted);
     }
 
     // ── Audit intercept ───────────────────────────────────────────────────────

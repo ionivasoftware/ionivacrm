@@ -13,10 +13,12 @@ import {
   ChevronRight,
   FileText,
   ShieldAlert,
+  Receipt,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useCanAccessFinance } from '@/lib/roles';
+import { useMissingInvoiceCount } from '@/api/vendorInvoices';
 import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
@@ -32,6 +34,8 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   superAdminOnly?: boolean;
   financeOnly?: boolean;
+  /** When set, this nav item shows a live count badge (e.g. missing invoices). */
+  badgeKey?: 'missingInvoices';
 }
 
 const navItems: NavItem[] = [
@@ -49,12 +53,19 @@ const adminNavItems: NavItem[] = [
   { label: 'Proje Yönetimi', href: '/admin/projects', icon: FolderKanban, superAdminOnly: true },
   { label: 'Senkronizasyon', href: '/sync/logs', icon: RefreshCw, superAdminOnly: true },
   { label: 'Hata Onayları', href: '/admin/error-triage', icon: ShieldAlert, superAdminOnly: true },
+  { label: 'Fatura Mutabakatı', href: '/admin/vendor-invoices', icon: Receipt, superAdminOnly: true, badgeKey: 'missingInvoices' },
 ];
 
 export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: SidebarProps) {
   const { user } = useAuthStore();
   const location = useLocation();
   const canAccessFinance = useCanAccessFinance();
+
+  // Live missing-invoice alarm count — only queried for SuperAdmin (endpoint is SuperAdmin-only).
+  const { data: missingInvoices = 0 } = useMissingInvoiceCount(!!user?.isSuperAdmin);
+
+  const badgeFor = (item: NavItem): number | undefined =>
+    item.badgeKey === 'missingInvoices' && user?.isSuperAdmin ? missingInvoices : undefined;
 
   const filteredNavItems = navItems.filter(
     (item) => !item.financeOnly || canAccessFinance
@@ -148,6 +159,7 @@ export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: Si
                 item={item}
                 isCollapsed={isCollapsed}
                 isActive={location.pathname.startsWith(item.href)}
+                badge={badgeFor(item)}
                 onClick={isMobile ? onClose : undefined}
               />
             ))}
@@ -181,18 +193,20 @@ interface SidebarNavItemProps {
   item: NavItem;
   isCollapsed: boolean;
   isActive: boolean;
+  badge?: number;
   onClick?: () => void;
 }
 
-function SidebarNavItem({ item, isCollapsed, isActive, onClick }: SidebarNavItemProps) {
+function SidebarNavItem({ item, isCollapsed, isActive, badge, onClick }: SidebarNavItemProps) {
   const Icon = item.icon;
+  const showBadge = typeof badge === 'number' && badge > 0;
 
   return (
     <NavLink
       to={item.href}
       onClick={onClick}
       className={cn(
-        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+        'relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
         'min-h-[44px]',
         isActive
           ? 'bg-primary text-primary-foreground'
@@ -201,8 +215,18 @@ function SidebarNavItem({ item, isCollapsed, isActive, onClick }: SidebarNavItem
       )}
       title={isCollapsed ? item.label : undefined}
     >
-      <Icon className="h-5 w-5 flex-shrink-0" />
+      <div className="relative flex-shrink-0">
+        <Icon className="h-5 w-5" />
+        {showBadge && isCollapsed && (
+          <span className="absolute -top-1.5 -right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-card" />
+        )}
+      </div>
       {!isCollapsed && <span className="truncate">{item.label}</span>}
+      {showBadge && !isCollapsed && (
+        <span className="ml-auto inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 min-w-[1.25rem] h-5 text-xs font-semibold text-white">
+          {badge}
+        </span>
+      )}
     </NavLink>
   );
 }

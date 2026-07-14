@@ -1,6 +1,7 @@
 using Hangfire;
 using Hangfire.PostgreSql;
 using IonCrm.Application.Common.Interfaces;
+using IonCrm.Application.Features.VendorInvoices;
 using IonCrm.Domain.Interfaces;
 using IonCrm.Infrastructure.BackgroundServices;
 using IonCrm.Infrastructure.ExternalApis;
@@ -61,6 +62,11 @@ public static class DependencyInjection
         services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<ICustomerContractRepository, CustomerContractRepository>();
+        services.AddScoped<IVendorInvoiceRepository, VendorInvoiceRepository>();
+
+        // ── Vendor-invoice reconciliation (global, SuperAdmin) ────────────────
+        services.AddScoped<IVendorInvoiceService, VendorInvoiceService>();
+        services.AddHostedService<VendorInvoiceReconcileService>();
 
         // ── Auth services ─────────────────────────────────────────────────────
         services.AddScoped<ITokenService, TokenService>();
