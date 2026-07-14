@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
   useVendorInvoices, useSeedMonth, useReconcile, useExpectInvoice, useMarkReceived, useAutoExpect,
-  useCollectEmails, useDeleteInvoice, openInvoicePdf,
+  useCollectEmails, useDeleteInvoice, useUploadPdf, openInvoicePdf,
   type VendorInvoice, type VendorInvoiceStatus, type EmailCollectItem,
 } from '@/api/vendorInvoices';
 
@@ -138,14 +138,16 @@ function ExpectDialog({ invoice, onClose }: { invoice: VendorInvoice; onClose: (
 function ReceiveDialog({ invoice, onClose }: { invoice: VendorInvoice; onClose: () => void }) {
   const { toast } = useToast();
   const markReceived = useMarkReceived();
+  const uploadPdf = useUploadPdf();
   const [amount, setAmount] = useState(invoice.receivedAmount?.toString() ?? '');
   const [currency, setCurrency] = useState(invoice.currency ?? 'USD');
   const [invoiceNumber, setInvoiceNumber] = useState(invoice.invoiceNumber ?? '');
   const [pdfUrl, setPdfUrl] = useState(invoice.pdfUrl ?? '');
+  const [file, setFile] = useState<File | null>(null);
 
   async function save() {
     try {
-      await markReceived.mutateAsync({
+      const res = await markReceived.mutateAsync({
         provider: invoice.provider,
         year: invoice.periodYear,
         month: invoice.periodMonth,
@@ -154,6 +156,7 @@ function ReceiveDialog({ invoice, onClose }: { invoice: VendorInvoice; onClose: 
         invoiceNumber: invoiceNumber || null,
         pdfUrl: pdfUrl || null,
       });
+      if (file && res?.id) await uploadPdf.mutateAsync({ id: res.id, file });
       toast({ title: 'Fatura işlendi' });
       onClose();
     } catch (err) {
@@ -181,13 +184,21 @@ function ReceiveDialog({ invoice, onClose }: { invoice: VendorInvoice; onClose: 
             <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="INV-..." />
           </div>
           <div className="space-y-1.5">
-            <Label>PDF URL</Label>
+            <Label>PDF URL (harici link)</Label>
             <Input value={pdfUrl} onChange={(e) => setPdfUrl(e.target.value)} placeholder="https://..." />
+          </div>
+          <div className="space-y-1.5">
+            <Label>PDF Yükle (dosya)</Label>
+            <Input type="file" accept="application/pdf,.pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="cursor-pointer file:mr-2 file:rounded file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs" />
+            {invoice.hasPdf && !file && <p className="text-xs text-muted-foreground">Kayıtlı PDF var — yeni dosya seçilirse değiştirilir.</p>}
           </div>
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose}>İptal</Button>
-          <Button onClick={save} disabled={markReceived.isPending}>{markReceived.isPending ? 'Kaydediliyor...' : 'Kaydet'}</Button>
+          <Button onClick={save} disabled={markReceived.isPending || uploadPdf.isPending}>
+            {markReceived.isPending || uploadPdf.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -202,15 +213,17 @@ function AddDialog({ defaultYear, defaultMonth, onClose }: { defaultYear: number
   const { toast } = useToast();
   const expect = useExpectInvoice();
   const markReceived = useMarkReceived();
+  const uploadPdf = useUploadPdf();
   const [provider, setProvider] = useState('');
   const [year, setYear] = useState(defaultYear);
   const [month, setMonth] = useState(defaultMonth);
   const [expected, setExpected] = useState('');
   const [received, setReceived] = useState('');
   const [currency, setCurrency] = useState('TRY');
+  const [file, setFile] = useState<File | null>(null);
 
   const years = [defaultYear + 1, defaultYear, defaultYear - 1, defaultYear - 2];
-  const busy = expect.isPending || markReceived.isPending;
+  const busy = expect.isPending || markReceived.isPending || uploadPdf.isPending;
 
   async function save() {
     if (!provider.trim()) {
@@ -219,7 +232,7 @@ function AddDialog({ defaultYear, defaultMonth, onClose }: { defaultYear: number
     }
     try {
       // Always upsert the row (expected side); then record received if given.
-      await expect.mutateAsync({
+      const created = await expect.mutateAsync({
         provider: provider.trim(),
         year,
         month,
@@ -235,6 +248,7 @@ function AddDialog({ defaultYear, defaultMonth, onClose }: { defaultYear: number
           currency: currency || null,
         });
       }
+      if (file && created?.id) await uploadPdf.mutateAsync({ id: created.id, file });
       toast({ title: 'Kayıt eklendi', description: `${provider.trim()} · ${month}/${year}` });
       onClose();
     } catch (err) {
@@ -283,6 +297,11 @@ function AddDialog({ defaultYear, defaultMonth, onClose }: { defaultYear: number
               <Label>Birim</Label>
               <Input value={currency} onChange={(e) => setCurrency(e.target.value)} placeholder="TRY" />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>PDF Yükle (opsiyonel)</Label>
+            <Input type="file" accept="application/pdf,.pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="cursor-pointer file:mr-2 file:rounded file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs" />
           </div>
         </div>
         <DialogFooter className="gap-2">

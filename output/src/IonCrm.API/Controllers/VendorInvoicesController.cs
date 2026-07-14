@@ -150,6 +150,23 @@ public sealed class VendorInvoicesController : ApiControllerBase
         Response.Headers["Content-Disposition"] = $"inline; filename=\"{name}\"";
         return File(pdf.Content, string.IsNullOrWhiteSpace(pdf.ContentType) ? "application/pdf" : pdf.ContentType);
     }
+
+    /// <summary>Uploads (or replaces) the PDF file for an invoice via multipart form-data.</summary>
+    [HttpPost("{id:guid}/pdf")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UploadPdf(Guid id, IFormFile? file, CancellationToken cancellationToken = default)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(ApiResponse<object>.Fail("Dosya boş.", 400));
+
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms, cancellationToken);
+        var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/pdf" : file.ContentType;
+
+        var result = await _service.SavePdfAsync(id, file.FileName, contentType, ms.ToArray(), cancellationToken);
+        return ResultToResponse(result);
+    }
 }
 
 /// <summary>Request body for POST /seed-month.</summary>

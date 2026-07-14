@@ -138,6 +138,20 @@ export function useMarkReceived() {
   });
 }
 
+/** Uploads (or replaces) the PDF file for an invoice. */
+export function useUploadPdf() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const form = new FormData();
+      form.append('file', file);
+      // Let axios set the multipart boundary automatically — don't override Content-Type.
+      await apiClient.post<ApiResponse<object>>(`/vendor-invoices/${id}/pdf`, form);
+    },
+    onSuccess: invalidate,
+  });
+}
+
 export function useDeleteInvoice() {
   const invalidate = useInvalidate();
   return useMutation({
