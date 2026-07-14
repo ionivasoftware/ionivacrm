@@ -175,6 +175,13 @@ public sealed class VendorInvoiceService : IVendorInvoiceService
         => _repository.CountMissingAsync(cancellationToken);
 
     /// <inheritdoc />
+    public async Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var deleted = await _repository.SoftDeleteAsync(id, cancellationToken);
+        return deleted ? Result.Success() : Result.Failure("Kayıt bulunamadı.");
+    }
+
+    /// <inheritdoc />
     public async Task<Result> SavePdfAsync(Guid invoiceId, string? fileName, string contentType, byte[] content, CancellationToken cancellationToken = default)
     {
         if (content is null || content.Length == 0)

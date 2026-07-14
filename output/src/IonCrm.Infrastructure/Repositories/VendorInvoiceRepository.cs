@@ -86,6 +86,20 @@ public sealed class VendorInvoiceRepository : IVendorInvoiceRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<bool> SoftDeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var entity = await _context.VendorInvoices
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(v => v.Id == id && !v.IsDeleted, cancellationToken);
+        if (entity is null) return false;
+
+        entity.IsDeleted = true;
+        _context.VendorInvoices.Update(entity);
+        await _context.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     // ── PDF storage ───────────────────────────────────────────────────────────
 
     /// <inheritdoc />

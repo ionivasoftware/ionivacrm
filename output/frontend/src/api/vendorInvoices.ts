@@ -42,7 +42,9 @@ export async function openInvoicePdf(inv: Pick<VendorInvoice, 'id' | 'pdfUrl' | 
   const win = window.open('', '_blank'); // open synchronously to dodge popup blockers
   try {
     const res = await apiClient.get(`/vendor-invoices/${inv.id}/pdf`, { responseType: 'blob' });
-    const url = URL.createObjectURL(res.data as Blob);
+    // Force the application/pdf MIME type so the browser displays it inline instead of downloading.
+    const blob = new Blob([res.data as BlobPart], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
     if (win) win.location.href = url;
     else window.open(url, '_blank', 'noopener');
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -136,6 +138,16 @@ export function useMarkReceived() {
   });
 }
 
+export function useDeleteInvoice() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.delete<ApiResponse<object>>(`/vendor-invoices/${id}`);
+    },
+    onSuccess: invalidate,
+  });
+}
+
 export function useSeedMonth() {
   const invalidate = useInvalidate();
   return useMutation({
@@ -165,7 +177,7 @@ export function useReconcile() {
 
 export interface AutoExpectItem {
   provider: string;
-  status: 'expected' | 'skipped' | 'failed';
+  status: 'expected' | 'skipped' | 'failed' | 'received';
   amount: number | null;
   currency: string | null;
   message: string | null;

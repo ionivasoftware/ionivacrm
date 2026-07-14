@@ -35,6 +35,9 @@ public interface IVendorInvoiceRepository
     /// <summary>Persists changes to a tracked record.</summary>
     Task UpdateAsync(VendorInvoice invoice, CancellationToken cancellationToken = default);
 
+    /// <summary>Soft-deletes a record by id. Returns false if not found.</summary>
+    Task<bool> SoftDeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
     // ── PDF storage ───────────────────────────────────────────────────────────
 
     /// <summary>Upserts the stored PDF for an invoice (one per invoice).</summary>

@@ -126,6 +126,16 @@ public sealed class VendorInvoicesController : ApiControllerBase
         return ResultToResponse(result);
     }
 
+    /// <summary>Soft-deletes a reconciliation record.</summary>
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await _service.DeleteAsync(id, cancellationToken);
+        return ResultToResponse(result);
+    }
+
     /// <summary>Returns the stored PDF file for an invoice (inline), or 404 when none exists.</summary>
     [HttpGet("{id:guid}/pdf")]
     [ProducesResponseType(StatusCodes.Status200OK)]

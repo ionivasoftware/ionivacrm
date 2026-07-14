@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  RefreshCw, CalendarPlus, ScanLine, AlertTriangle, Receipt, Coins, Check, DownloadCloud, Mails, MailCheck, FileText,
+  RefreshCw, Play, Plus, Trash2, AlertTriangle, Receipt, Coins, Check, FileText,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
   useVendorInvoices, useSeedMonth, useReconcile, useExpectInvoice, useMarkReceived, useAutoExpect,
-  useCollectEmails, openInvoicePdf, type VendorInvoice, type VendorInvoiceStatus,
+  useCollectEmails, useDeleteInvoice, openInvoicePdf, type VendorInvoice, type VendorInvoiceStatus,
 } from '@/api/vendorInvoices';
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -193,6 +193,142 @@ function ReceiveDialog({ invoice, onClose }: { invoice: VendorInvoice; onClose: 
   );
 }
 
+// ── Manual add dialog ─────────────────────────────────────────────────────────
+
+const KNOWN_PROVIDERS = ['Anthropic', 'Railway', 'GoogleCloud', 'GoogleWorkspaceRezerval', 'GoogleWorkspaceIoniva'];
+
+function AddDialog({ defaultYear, defaultMonth, onClose }: { defaultYear: number; defaultMonth: number; onClose: () => void }) {
+  const { toast } = useToast();
+  const expect = useExpectInvoice();
+  const markReceived = useMarkReceived();
+  const [provider, setProvider] = useState('');
+  const [year, setYear] = useState(defaultYear);
+  const [month, setMonth] = useState(defaultMonth);
+  const [expected, setExpected] = useState('');
+  const [received, setReceived] = useState('');
+  const [currency, setCurrency] = useState('TRY');
+
+  const years = [defaultYear + 1, defaultYear, defaultYear - 1, defaultYear - 2];
+  const busy = expect.isPending || markReceived.isPending;
+
+  async function save() {
+    if (!provider.trim()) {
+      toast({ title: 'Sağlayıcı gerekli', variant: 'destructive' });
+      return;
+    }
+    try {
+      // Always upsert the row (expected side); then record received if given.
+      await expect.mutateAsync({
+        provider: provider.trim(),
+        year,
+        month,
+        expectedAmount: expected === '' ? null : Number(expected),
+        currency: currency || null,
+      });
+      if (received !== '') {
+        await markReceived.mutateAsync({
+          provider: provider.trim(),
+          year,
+          month,
+          receivedAmount: Number(received),
+          currency: currency || null,
+        });
+      }
+      toast({ title: 'Kayıt eklendi', description: `${provider.trim()} · ${month}/${year}` });
+      onClose();
+    } catch (err) {
+      toast({ title: 'Hata', description: errorMessage(err, 'Kayıt eklenemedi.'), variant: 'destructive' });
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Manuel Kayıt Ekle</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Sağlayıcı</Label>
+            <Input list="known-providers" value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="Anthropic, Railway…" />
+            <datalist id="known-providers">
+              {KNOWN_PROVIDERS.map((p) => <option key={p} value={p} />)}
+            </datalist>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Yıl</Label>
+              <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Ay</Label>
+              <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{MONTHS.map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label>Beklenen</Label>
+              <Input type="number" step="0.01" value={expected} onChange={(e) => setExpected(e.target.value)} placeholder="—" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Alınan</Label>
+              <Input type="number" step="0.01" value={received} onChange={(e) => setReceived(e.target.value)} placeholder="—" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Birim</Label>
+              <Input value={currency} onChange={(e) => setCurrency(e.target.value)} placeholder="TRY" />
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose}>İptal</Button>
+          <Button onClick={save} disabled={busy}>{busy ? 'Kaydediliyor...' : 'Ekle'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Delete confirm dialog ─────────────────────────────────────────────────────
+
+function DeleteDialog({ invoice, onClose }: { invoice: VendorInvoice; onClose: () => void }) {
+  const { toast } = useToast();
+  const del = useDeleteInvoice();
+
+  async function confirm() {
+    try {
+      await del.mutateAsync(invoice.id);
+      toast({ title: 'Kayıt silindi' });
+      onClose();
+    } catch (err) {
+      toast({ title: 'Hata', description: errorMessage(err, 'Silinemedi.'), variant: 'destructive' });
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle>Kaydı sil</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          <span className="text-foreground font-medium">{PROVIDER_LABELS[invoice.provider] ?? invoice.provider}</span>
+          {' · '}{MONTHS[invoice.periodMonth - 1]} {invoice.periodYear} kaydı silinsin mi? Bu işlem geri alınamaz.
+        </p>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose}>İptal</Button>
+          <Button onClick={confirm} disabled={del.isPending}
+            className="bg-red-600 hover:bg-red-700 text-white">
+            {del.isPending ? 'Siliniyor...' : 'Sil'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────
 
 const now = new Date();
@@ -205,6 +341,8 @@ export function VendorInvoicesPage() {
 
   const [expectRow, setExpectRow] = useState<VendorInvoice | null>(null);
   const [receiveRow, setReceiveRow] = useState<VendorInvoice | null>(null);
+  const [deleteRow, setDeleteRow] = useState<VendorInvoice | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const { data, isLoading, isFetching, refetch } = useVendorInvoices({
     year,
@@ -216,95 +354,39 @@ export function VendorInvoicesPage() {
   const autoExpect = useAutoExpect();
   const collectEmails = useCollectEmails();
 
-  async function handleCollectEmails() {
-    try {
-      const res = await collectEmails.mutateAsync({ dryRun: true });
-      const items = res?.items ?? [];
-      const previews = items.filter((i) => i.status === 'preview');
-      const noAmount = items.filter((i) => i.status === 'no-amount');
-      const unmatched = items.filter((i) => i.status === 'unmatched');
-      const matchedLines = [
-        ...previews.map((i) => `${i.provider} ${i.month}/${i.year}: ${i.amount ?? '—'}${i.currency ? ' ' + i.currency : ''}`),
-        ...noAmount.map((i) => `${i.provider}: tutar bulunamadı (PDF/regex)`),
-      ];
-      // When nothing matched, show the unmatched subjects so the rules can be tuned to real mail.
-      const summary = matchedLines.length
-        ? matchedLines.slice(0, 8).join(' · ')
-        : unmatched.length
-          ? 'Eşleşme yok. Konu örnekleri: ' + unmatched.slice(0, 5).map((i) => `“${i.subject.slice(0, 60)}”`).join(' · ')
-          : 'Hiç mail taranamadı (IMAP bağlantısını kontrol edin).';
-      toast({
-        title: `E-posta taraması — ${res?.scanned ?? 0} mail · ${previews.length} tutarlı / ${noAmount.length} tutarsız / ${unmatched.length} eşleşmedi`,
-        description: summary,
-        variant: previews.length ? undefined : 'destructive',
-      });
-    } catch (err) {
-      toast({ title: 'Hata', description: errorMessage(err, 'E-posta taraması başarısız.'), variant: 'destructive' });
-    }
-  }
-
-  async function handleCollectApply() {
-    try {
-      const res = await collectEmails.mutateAsync({ dryRun: false });
-      toast({
-        title: `E-posta işlendi — ${res?.received ?? 0} fatura kaydedildi`,
-        description: `${res?.scanned ?? 0} mail tarandı, ${res?.matched ?? 0} eşleşme. Eksik kayıtlar oluşturuldu, PDF'ler saklandı.`,
-        variant: res?.received ? undefined : 'destructive',
-      });
-    } catch (err) {
-      toast({ title: 'Hata', description: errorMessage(err, 'E-posta işlenemedi.'), variant: 'destructive' });
-    }
-  }
-
   const rows = data ?? [];
   const years = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2];
+  const servicing = seed.isPending || autoExpect.isPending || collectEmails.isPending || reconcile.isPending;
 
-  async function handleAutoExpect() {
-    if (month === 'all') {
-      toast({ title: 'Ay seçin', description: 'Otomatik doldurma için belirli bir ay seçmelisiniz.', variant: 'destructive' });
-      return;
-    }
-    try {
-      const res = await autoExpect.mutateAsync({ year, month });
-      const items = res?.items ?? [];
-      const ok = items.filter((i) => i.status === 'expected');
-      const summary = ok.length
-        ? ok.map((i) => `${i.provider}: ${i.amount ?? '—'}${i.currency ? ' ' + i.currency : ''}`).join(' · ')
-        : 'Hiçbir sağlayıcıdan tutar alınamadı (API anahtarı/sabit tutar yapılandırılmamış olabilir).';
-      toast({
-        title: `Otomatik — ${ok.length}/${items.length} sağlayıcı güncellendi`,
-        description: summary,
-        variant: ok.length ? undefined : 'destructive',
-      });
-    } catch (err) {
-      toast({ title: 'Hata', description: errorMessage(err, 'Otomatik doldurma başarısız.'), variant: 'destructive' });
-    }
-  }
+  // One "Servis" button runs the whole pipeline in order:
+  // Ayı Hazırla → Otomatik Doldur (beklenen + Railway gelen) → E-posta İşle (gelen + PDF) → Mutabakat.
+  async function handleService() {
+    const y = month === 'all' ? now.getFullYear() : year;
+    const m = month === 'all' ? now.getMonth() + 1 : month;
+    const notes: string[] = [];
 
-  async function handleSeed() {
-    if (month === 'all') {
-      toast({ title: 'Ay seçin', description: 'Ayı hazırlamak için belirli bir ay seçmelisiniz.', variant: 'destructive' });
-      return;
-    }
-    try {
-      const created = await seed.mutateAsync({ year, month });
-      toast({ title: 'Ay hazırlandı', description: `${created.length} sağlayıcı için baseline satır oluşturuldu.` });
-    } catch (err) {
-      toast({ title: 'Hata', description: errorMessage(err, 'Ay hazırlanamadı.'), variant: 'destructive' });
-    }
-  }
+    try { await seed.mutateAsync({ year: y, month: m }); notes.push('hazırlandı'); }
+    catch { notes.push('hazırlama×'); }
 
-  async function handleReconcile() {
     try {
-      const res = await reconcile.mutateAsync();
-      toast({
-        title: 'Mutabakat çalıştı',
-        description: res?.missingCount ? `${res.missingCount} eksik fatura tespit edildi.` : 'Eksik fatura yok.',
-        variant: res?.missingCount ? 'destructive' : undefined,
-      });
-    } catch (err) {
-      toast({ title: 'Hata', description: errorMessage(err, 'Mutabakat çalıştırılamadı.'), variant: 'destructive' });
-    }
+      const r = await autoExpect.mutateAsync({ year: y, month: m });
+      const exp = (r?.items ?? []).filter((i) => i.status === 'expected').length;
+      const rcv = (r?.items ?? []).filter((i) => i.status === 'received').length;
+      notes.push(`${exp} beklenen${rcv ? `, ${rcv} gelen(API)` : ''}`);
+    } catch { notes.push('otomatik×'); }
+
+    try {
+      const r = await collectEmails.mutateAsync({ dryRun: false });
+      notes.push(`${r?.received ?? 0} mail`);
+    } catch { notes.push('e-posta×'); }
+
+    try {
+      const r = await reconcile.mutateAsync();
+      notes.push(`${r?.missingCount ?? 0} eksik`);
+    } catch { notes.push('mutabakat×'); }
+
+    toast({ title: 'Servis tamamlandı', description: notes.join(' · ') });
+    refetch();
   }
 
   return (
@@ -318,30 +400,18 @@ export function VendorInvoicesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching || servicing}>
             <RefreshCw className={`h-4 w-4 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} />
             Yenile
           </Button>
-          <Button variant="outline" size="sm" onClick={handleSeed} disabled={seed.isPending}>
-            <CalendarPlus className="h-4 w-4 mr-1.5" />
-            {seed.isPending ? 'Hazırlanıyor...' : 'Ayı Hazırla'}
+          <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            Kayıt Ekle
           </Button>
-          <Button variant="outline" size="sm" onClick={handleAutoExpect} disabled={autoExpect.isPending}>
-            <DownloadCloud className="h-4 w-4 mr-1.5" />
-            {autoExpect.isPending ? 'Dolduruluyor...' : 'Otomatik Doldur'}
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleCollectEmails} disabled={collectEmails.isPending}>
-            <Mails className="h-4 w-4 mr-1.5" />
-            {collectEmails.isPending ? 'Taranıyor...' : 'E-posta Tara'}
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleCollectApply} disabled={collectEmails.isPending}
-            className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300">
-            <MailCheck className="h-4 w-4 mr-1.5" />
-            {collectEmails.isPending ? 'İşleniyor...' : 'E-posta İşle'}
-          </Button>
-          <Button size="sm" onClick={handleReconcile} disabled={reconcile.isPending}>
-            <ScanLine className="h-4 w-4 mr-1.5" />
-            {reconcile.isPending ? 'Çalışıyor...' : 'Mutabakat Çalıştır'}
+          <Button size="sm" onClick={handleService} disabled={servicing}
+            title="Hazırla → Otomatik doldur → E-posta işle → Mutabakat (sırasıyla)">
+            <Play className={`h-4 w-4 mr-1.5 ${servicing ? 'animate-pulse' : ''}`} />
+            {servicing ? 'Servis çalışıyor...' : 'Servis'}
           </Button>
         </div>
       </div>
@@ -391,8 +461,8 @@ export function VendorInvoicesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/50 bg-muted/30">
-                  {['Sağlayıcı', 'Dönem', 'Tip', 'Beklenen', 'Alınan', 'Durum', 'Fatura No', 'Vade', ''].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                  {['Sağlayıcı', 'Dönem', 'Beklenen', 'Alınan', 'Durum', 'Fatura No', ''].map((h, i) => (
+                    <th key={i} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -400,15 +470,15 @@ export function VendorInvoicesPage() {
                 {isLoading ? (
                   Array.from({ length: 4 }).map((_, i) => (
                     <tr key={i} className="border-b border-border/30">
-                      {Array.from({ length: 9 }).map((_, j) => (
+                      {Array.from({ length: 7 }).map((_, j) => (
                         <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-full" /></td>
                       ))}
                     </tr>
                   ))
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
-                      Bu dönem/durum için kayıt yok. “Ayı Hazırla” ile baseline satırları oluşturabilirsiniz.
+                    <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                      Bu dönem/durum için kayıt yok. “Servis” ile otomatik doldurabilir veya “Kayıt Ekle” ile manuel ekleyebilirsiniz.
                     </td>
                   </tr>
                 ) : (
@@ -419,12 +489,10 @@ export function VendorInvoicesPage() {
                       <tr key={r.id} className={cn('border-b border-border/30 hover:bg-muted/20 transition-colors', missing && 'bg-red-500/5')}>
                         <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">{PROVIDER_LABELS[r.provider] ?? r.provider}</td>
                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{MONTHS[r.periodMonth - 1]} {r.periodYear}</td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">{r.billingType === 'Fixed' ? 'Sabit' : 'Kullanım'}</td>
                         <td className="px-4 py-3 whitespace-nowrap">{money(r.expectedAmount, r.currency)}</td>
                         <td className={cn('px-4 py-3 whitespace-nowrap', mismatch && 'text-orange-400 font-medium')}>{money(r.receivedAmount, r.currency)}</td>
                         <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">{r.invoiceNumber ?? '—'}</td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatDate(r.dueDate)}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1.5">
                             {(r.hasPdf || r.pdfUrl) && (
@@ -438,6 +506,9 @@ export function VendorInvoicesPage() {
                             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setReceiveRow(r)} title="Fatura girişi">
                               {r.receivedOn ? <Check className="h-3.5 w-3.5 mr-1 text-emerald-400" /> : <Receipt className="h-3.5 w-3.5 mr-1" />}
                               Fatura
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 px-0 text-muted-foreground hover:text-red-400" onClick={() => setDeleteRow(r)} title="Kaydı sil">
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </td>
@@ -454,11 +525,19 @@ export function VendorInvoicesPage() {
       {/* Legend / note */}
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <AlertTriangle className="h-3.5 w-3.5" />
-        Mutabakat her gün otomatik çalışır; vadesi geçmiş beklenen faturalar “Eksik” olarak işaretlenir.
+        “Servis” sırasıyla çalışır: hazırla → otomatik doldur → e-posta işle → mutabakat. Her gün otomatik da çalışır.
       </p>
 
       {expectRow && <ExpectDialog invoice={expectRow} onClose={() => setExpectRow(null)} />}
       {receiveRow && <ReceiveDialog invoice={receiveRow} onClose={() => setReceiveRow(null)} />}
+      {deleteRow && <DeleteDialog invoice={deleteRow} onClose={() => setDeleteRow(null)} />}
+      {addOpen && (
+        <AddDialog
+          defaultYear={year}
+          defaultMonth={month === 'all' ? now.getMonth() + 1 : month}
+          onClose={() => setAddOpen(false)}
+        />
+      )}
     </div>
   );
 }

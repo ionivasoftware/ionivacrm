@@ -68,6 +68,9 @@ public interface IVendorInvoiceService
     /// <summary>Number of records currently in Missing status (for the red badge).</summary>
     Task<int> CountMissingAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Soft-deletes a reconciliation record by id.</summary>
+    Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
     /// <summary>Stores (or replaces) the PDF file for an invoice.</summary>
     Task<Result> SavePdfAsync(Guid invoiceId, string? fileName, string contentType, byte[] content, CancellationToken cancellationToken = default);
 
