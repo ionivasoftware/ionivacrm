@@ -71,14 +71,12 @@ public static class DependencyInjection
         services.AddHostedService<VendorInvoiceReconcileService>();
 
         // ── Phase 2: cost-API auto-expect ─────────────────────────────────────
-        // Anthropic pulls live spend from the Admin Cost API; the others read a fixed
-        // configured amount (VendorCosts:{Provider}:MonthlyAmount) until their live
-        // integrations (Railway GraphQL, Google Cloud BigQuery) are wired in.
+        // Each provider is dual-mode: live API when its credentials are configured, otherwise a
+        // fixed VendorCosts:{Provider}:MonthlyAmount. Anthropic → Admin Cost API; Railway → GraphQL;
+        // GoogleCloud → BigQuery billing export; GoogleWorkspace is flat (no cost API).
         services.AddHttpClient<ICostProvider, AnthropicCostProvider>();
-        services.AddSingleton<ICostProvider>(sp =>
-            new FixedConfigCostProvider("Railway", sp.GetRequiredService<IConfiguration>()));
-        services.AddSingleton<ICostProvider>(sp =>
-            new FixedConfigCostProvider("GoogleCloud", sp.GetRequiredService<IConfiguration>()));
+        services.AddHttpClient<ICostProvider, RailwayCostProvider>();
+        services.AddSingleton<ICostProvider, GoogleCloudCostProvider>();
         services.AddSingleton<ICostProvider>(sp =>
             new FixedConfigCostProvider("GoogleWorkspace", sp.GetRequiredService<IConfiguration>()));
         services.AddScoped<ICostAutoExpectService, CostAutoExpectService>();
