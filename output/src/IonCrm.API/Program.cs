@@ -490,6 +490,23 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 WHERE ""IsDeleted"" = false;
         ");
 
+        // ── VendorInvoicePdfs (stored invoice PDF files) ───────────────────────
+        await RunSafe("VendorInvoicePdfs table + index", @"
+            CREATE TABLE IF NOT EXISTS ""VendorInvoicePdfs"" (
+                ""Id""              uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""VendorInvoiceId"" uuid         NOT NULL,
+                ""FileName""        varchar(400),
+                ""ContentType""     varchar(100) NOT NULL DEFAULT 'application/pdf',
+                ""Content""         bytea        NOT NULL,
+                ""CreatedAt""       timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""       timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""       boolean      NOT NULL DEFAULT false
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_vendorinvoicepdfs_invoiceid""
+                ON ""VendorInvoicePdfs"" (""VendorInvoiceId"")
+                WHERE ""IsDeleted"" = false;
+        ");
+
             Log.Information("Startup bootstrap complete");
         }
         catch (Exception ex)

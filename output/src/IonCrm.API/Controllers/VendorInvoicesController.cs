@@ -125,6 +125,21 @@ public sealed class VendorInvoicesController : ApiControllerBase
         var result = await _emailCollector.CollectAsync(dryRun, cancellationToken);
         return ResultToResponse(result);
     }
+
+    /// <summary>Returns the stored PDF file for an invoice (inline), or 404 when none exists.</summary>
+    [HttpGet("{id:guid}/pdf")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPdf(Guid id, CancellationToken cancellationToken = default)
+    {
+        var pdf = await _service.GetPdfAsync(id, cancellationToken);
+        if (pdf is null)
+            return NotFound(ApiResponse<object>.Fail("Bu fatura için kayıtlı PDF yok.", 404));
+
+        var name = string.IsNullOrWhiteSpace(pdf.FileName) ? $"fatura-{id}.pdf" : pdf.FileName;
+        Response.Headers["Content-Disposition"] = $"inline; filename=\"{name}\"";
+        return File(pdf.Content, string.IsNullOrWhiteSpace(pdf.ContentType) ? "application/pdf" : pdf.ContentType);
+    }
 }
 
 /// <summary>Request body for POST /seed-month.</summary>

@@ -85,4 +85,55 @@ public sealed class VendorInvoiceRepository : IVendorInvoiceRepository
         _context.VendorInvoices.Update(invoice);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    // ── PDF storage ───────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task SavePdfAsync(Guid vendorInvoiceId, string? fileName, string contentType, byte[] content, CancellationToken cancellationToken = default)
+    {
+        var existing = await _context.VendorInvoicePdfs
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => p.VendorInvoiceId == vendorInvoiceId && !p.IsDeleted, cancellationToken);
+
+        if (existing is null)
+        {
+            await _context.VendorInvoicePdfs.AddAsync(new VendorInvoicePdf
+            {
+                Id = Guid.NewGuid(),
+                VendorInvoiceId = vendorInvoiceId,
+                FileName = fileName,
+                ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/pdf" : contentType,
+                Content = content,
+            }, cancellationToken);
+        }
+        else
+        {
+            existing.FileName = fileName;
+            existing.ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/pdf" : contentType;
+            existing.Content = content;
+            _context.VendorInvoicePdfs.Update(existing);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<VendorInvoicePdf?> GetPdfAsync(Guid vendorInvoiceId, CancellationToken cancellationToken = default)
+    {
+        return await _context.VendorInvoicePdfs
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.VendorInvoiceId == vendorInvoiceId && !p.IsDeleted, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<HashSet<Guid>> GetInvoiceIdsWithPdfAsync(CancellationToken cancellationToken = default)
+    {
+        var ids = await _context.VendorInvoicePdfs
+            .IgnoreQueryFilters()
+            .Where(p => !p.IsDeleted)
+            .Select(p => p.VendorInvoiceId)
+            .ToListAsync(cancellationToken);
+        return ids.ToHashSet();
+    }
 }

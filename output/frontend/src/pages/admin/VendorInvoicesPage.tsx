@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  RefreshCw, CalendarPlus, ScanLine, AlertTriangle, Receipt, Coins, Check, DownloadCloud, Mails,
+  RefreshCw, CalendarPlus, ScanLine, AlertTriangle, Receipt, Coins, Check, DownloadCloud, Mails, FileText,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
   useVendorInvoices, useSeedMonth, useReconcile, useExpectInvoice, useMarkReceived, useAutoExpect,
-  useCollectEmails, type VendorInvoice, type VendorInvoiceStatus,
+  useCollectEmails, openInvoicePdf, type VendorInvoice, type VendorInvoiceStatus,
 } from '@/api/vendorInvoices';
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -409,6 +409,11 @@ export function VendorInvoicesPage() {
                         <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatDate(r.dueDate)}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1.5">
+                            {(r.hasPdf || r.pdfUrl) && (
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-sky-400" onClick={() => openInvoicePdf(r)} title="Fatura PDF'ini aç">
+                                <FileText className="h-3.5 w-3.5 mr-1" />PDF
+                              </Button>
+                            )}
                             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setExpectRow(r)} title="Beklenen tutarı belirle">
                               <Coins className="h-3.5 w-3.5 mr-1" />Tutar
                             </Button>

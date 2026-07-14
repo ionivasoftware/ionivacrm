@@ -109,8 +109,10 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
                     continue;
                 }
 
-                // Google (and others) only put the amount in the attached PDF — include its text.
-                var pdfText = ExtractPdfText(message);
+                // Google (and others) only put the amount in the attached PDF — include its text, and
+                // keep the raw bytes so the PDF can be stored and viewed in the CRM.
+                var pdfAttachment = GetFirstPdfAttachment(message);
+                var pdfText = pdfAttachment is null ? string.Empty : ExtractPdfText(pdfAttachment.Value.Bytes);
                 var haystack = subject + "\n" + body + "\n" + pdfText;
                 decimal? amount = TryExtractAmount(rule.AmountRegex, haystack, out var parsedAmount) ? parsedAmount : null;
                 var invoiceNo = Truncate(TryExtractGroup(rule.InvoiceNoRegex, haystack), 100);
@@ -155,6 +157,11 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
                 if (res.IsSuccess)
                 {
                     received++;
+                    // Store the PDF attachment so it can be viewed in the CRM.
+                    if (pdfAttachment is not null && res.Value is not null)
+                        await _invoices.SavePdfAsync(res.Value.Id, pdfAttachment.Value.FileName,
+                            "application/pdf", pdfAttachment.Value.Bytes, cancellationToken);
+
                     items.Add(new EmailCollectItem(rule.Provider, year, month, amount, currency, invoiceNo, subject, emailDate,
                         "received", null));
                 }
@@ -268,35 +275,43 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
         return collapsed.Length <= max ? collapsed : collapsed[..max];
     }
 
-    /// <summary>Extracts concatenated text from all PDF attachments on the message (capped).</summary>
-    private string ExtractPdfText(MimeMessage message)
+    /// <summary>Returns the bytes + file name of the first PDF attachment on the message, or null.</summary>
+    private static (byte[] Bytes, string? FileName)? GetFirstPdfAttachment(MimeMessage message)
     {
-        var sb = new StringBuilder();
         foreach (var entity in message.Attachments)
         {
-            if (entity is not MimePart part) continue;
+            if (entity is not MimePart part || part.Content is null) continue;
             var fileName = part.FileName ?? string.Empty;
             var isPdf = part.ContentType.MimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
                 || fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
-            if (!isPdf || part.Content is null) continue;
+            if (!isPdf) continue;
 
-            try
-            {
-                using var ms = new MemoryStream();
-                part.Content.DecodeTo(ms);
-                using var pdf = PdfDocument.Open(ms.ToArray());
-                foreach (var page in pdf.GetPages())
-                {
-                    sb.Append(page.Text).Append('\n');
-                    if (sb.Length > 20000) break;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "InvoiceEmailCollector: PDF attachment '{File}' parse failed.", fileName);
-            }
+            using var ms = new MemoryStream();
+            part.Content.DecodeTo(ms);
+            return (ms.ToArray(), string.IsNullOrWhiteSpace(fileName) ? null : fileName);
         }
-        return sb.ToString();
+        return null;
+    }
+
+    /// <summary>Extracts text from PDF bytes (capped), for amount/date matching.</summary>
+    private string ExtractPdfText(byte[] bytes)
+    {
+        try
+        {
+            var sb = new StringBuilder();
+            using var pdf = PdfDocument.Open(bytes);
+            foreach (var page in pdf.GetPages())
+            {
+                sb.Append(page.Text).Append('\n');
+                if (sb.Length > 20000) break;
+            }
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "InvoiceEmailCollector: PDF parse failed.");
+            return string.Empty;
+        }
     }
 
     private static string? StripHtml(string? html)

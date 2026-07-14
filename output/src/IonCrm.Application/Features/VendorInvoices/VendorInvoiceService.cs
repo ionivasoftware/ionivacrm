@@ -165,12 +165,30 @@ public sealed class VendorInvoiceService : IVendorInvoiceService
         CancellationToken cancellationToken = default)
     {
         var items = await _repository.ListAsync(year, month, status, provider?.Trim(), cancellationToken);
-        return Result<List<VendorInvoiceDto>>.Success(items.Select(i => i.ToDto()).ToList());
+        var withPdf = await _repository.GetInvoiceIdsWithPdfAsync(cancellationToken);
+        var dtos = items.Select(i => i.ToDto() with { HasPdf = withPdf.Contains(i.Id) }).ToList();
+        return Result<List<VendorInvoiceDto>>.Success(dtos);
     }
 
     /// <inheritdoc />
     public Task<int> CountMissingAsync(CancellationToken cancellationToken = default)
         => _repository.CountMissingAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<Result> SavePdfAsync(Guid invoiceId, string? fileName, string contentType, byte[] content, CancellationToken cancellationToken = default)
+    {
+        if (content is null || content.Length == 0)
+            return Result.Failure("Boş PDF içeriği.");
+        await _repository.SavePdfAsync(invoiceId, fileName, contentType, content, cancellationToken);
+        return Result.Success();
+    }
+
+    /// <inheritdoc />
+    public async Task<VendorInvoicePdfResult?> GetPdfAsync(Guid invoiceId, CancellationToken cancellationToken = default)
+    {
+        var pdf = await _repository.GetPdfAsync(invoiceId, cancellationToken);
+        return pdf is null ? null : new VendorInvoicePdfResult(pdf.Content, pdf.ContentType, pdf.FileName);
+    }
 
     // ── Private ───────────────────────────────────────────────────────────────
 

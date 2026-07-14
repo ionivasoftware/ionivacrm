@@ -65,6 +65,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Gets or sets the VendorInvoices table (global vendor-cost reconciliation, SuperAdmin-only).</summary>
     public DbSet<VendorInvoice> VendorInvoices => Set<VendorInvoice>();
 
+    /// <summary>Gets or sets the VendorInvoicePdfs table (stored invoice PDF files).</summary>
+    public DbSet<VendorInvoicePdf> VendorInvoicePdfs => Set<VendorInvoicePdf>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -142,6 +145,9 @@ public class ApplicationDbContext : DbContext
         // VendorInvoice: global (company's own operational costs, not tenant data). Soft-delete only —
         // no tenant filter. Access is restricted to SuperAdmin at the controller level.
         modelBuilder.Entity<VendorInvoice>()
+            .HasQueryFilter(e => !e.IsDeleted);
+
+        modelBuilder.Entity<VendorInvoicePdf>()
             .HasQueryFilter(e => !e.IsDeleted);
     }
 

@@ -34,4 +34,15 @@ public interface IVendorInvoiceRepository
 
     /// <summary>Persists changes to a tracked record.</summary>
     Task UpdateAsync(VendorInvoice invoice, CancellationToken cancellationToken = default);
+
+    // ── PDF storage ───────────────────────────────────────────────────────────
+
+    /// <summary>Upserts the stored PDF for an invoice (one per invoice).</summary>
+    Task SavePdfAsync(Guid vendorInvoiceId, string? fileName, string contentType, byte[] content, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the stored PDF for an invoice, or null.</summary>
+    Task<VendorInvoicePdf?> GetPdfAsync(Guid vendorInvoiceId, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the set of invoice IDs that have a stored PDF (IDs only — no content loaded).</summary>
+    Task<HashSet<Guid>> GetInvoiceIdsWithPdfAsync(CancellationToken cancellationToken = default);
 }

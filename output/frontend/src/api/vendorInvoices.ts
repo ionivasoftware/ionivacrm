@@ -26,6 +26,29 @@ export interface VendorInvoice {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  hasPdf: boolean;
+}
+
+/**
+ * Opens the invoice PDF: an external hosted link directly, or the stored PDF fetched with auth
+ * (a plain new-tab navigation can't send the JWT, so the blob is fetched then opened as an object URL).
+ */
+export async function openInvoicePdf(inv: Pick<VendorInvoice, 'id' | 'pdfUrl' | 'hasPdf'>): Promise<void> {
+  if (inv.pdfUrl) {
+    window.open(inv.pdfUrl, '_blank', 'noopener');
+    return;
+  }
+  if (!inv.hasPdf) return;
+  const win = window.open('', '_blank'); // open synchronously to dodge popup blockers
+  try {
+    const res = await apiClient.get(`/vendor-invoices/${inv.id}/pdf`, { responseType: 'blob' });
+    const url = URL.createObjectURL(res.data as Blob);
+    if (win) win.location.href = url;
+    else window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch {
+    win?.close();
+  }
 }
 
 export interface VendorInvoiceParams {

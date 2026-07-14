@@ -67,4 +67,13 @@ public interface IVendorInvoiceService
 
     /// <summary>Number of records currently in Missing status (for the red badge).</summary>
     Task<int> CountMissingAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Stores (or replaces) the PDF file for an invoice.</summary>
+    Task<Result> SavePdfAsync(Guid invoiceId, string? fileName, string contentType, byte[] content, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the stored PDF for an invoice, or null when none exists.</summary>
+    Task<VendorInvoicePdfResult?> GetPdfAsync(Guid invoiceId, CancellationToken cancellationToken = default);
 }
+
+/// <summary>The bytes + metadata of a stored invoice PDF.</summary>
+public record VendorInvoicePdfResult(byte[] Content, string ContentType, string? FileName);

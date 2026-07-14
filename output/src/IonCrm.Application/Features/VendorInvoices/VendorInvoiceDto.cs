@@ -22,7 +22,8 @@ public record VendorInvoiceDto(
     DateTime? AlertedOn,
     string? Notes,
     DateTime CreatedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    bool HasPdf = false);
 
 /// <summary>Maps <see cref="VendorInvoice"/> entities to <see cref="VendorInvoiceDto"/>.</summary>
 public static class VendorInvoiceMappings
