@@ -165,3 +165,40 @@ export function useAutoExpect() {
     onSuccess: invalidate,
   });
 }
+
+export interface EmailCollectItem {
+  provider: string;
+  year: number;
+  month: number;
+  amount: number | null;
+  currency: string | null;
+  invoiceNumber: string | null;
+  subject: string;
+  emailDate: string;
+  status: 'received' | 'preview' | 'no-amount' | 'failed';
+  message: string | null;
+}
+
+export interface EmailCollectSummary {
+  scanned: number;
+  matched: number;
+  received: number;
+  items: EmailCollectItem[];
+}
+
+/** Scans the accounting mailbox for invoice e-mails (Phase 3). `dryRun` previews without writing. */
+export function useCollectEmails() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: async ({ dryRun }: { dryRun: boolean }) => {
+      const res = await apiClient.post<ApiResponse<EmailCollectSummary>>(
+        `/vendor-invoices/collect-emails?dryRun=${dryRun}`,
+        {}
+      );
+      return res.data.data;
+    },
+    onSuccess: (_data, vars) => {
+      if (!vars.dryRun) invalidate();
+    },
+  });
+}

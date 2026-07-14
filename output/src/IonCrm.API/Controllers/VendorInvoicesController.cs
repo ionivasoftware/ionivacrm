@@ -1,6 +1,7 @@
 using IonCrm.API.Common;
 using IonCrm.Application.Features.VendorInvoices;
 using IonCrm.Application.Features.VendorInvoices.CostProviders;
+using IonCrm.Application.Features.VendorInvoices.EmailCollector;
 using IonCrm.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,12 +25,17 @@ public sealed class VendorInvoicesController : ApiControllerBase
 {
     private readonly IVendorInvoiceService _service;
     private readonly ICostAutoExpectService _autoExpect;
+    private readonly IInvoiceEmailCollector _emailCollector;
 
     /// <summary>Initialises a new instance of <see cref="VendorInvoicesController"/>.</summary>
-    public VendorInvoicesController(IVendorInvoiceService service, ICostAutoExpectService autoExpect)
+    public VendorInvoicesController(
+        IVendorInvoiceService service,
+        ICostAutoExpectService autoExpect,
+        IInvoiceEmailCollector emailCollector)
     {
         _service = service;
         _autoExpect = autoExpect;
+        _emailCollector = emailCollector;
     }
 
     /// <summary>Lists reconciliation records. All filters optional.</summary>
@@ -104,6 +110,19 @@ public sealed class VendorInvoicesController : ApiControllerBase
     public async Task<IActionResult> AutoExpect([FromBody] SeedMonthRequest body, CancellationToken cancellationToken = default)
     {
         var result = await _autoExpect.RunAsync(body.Year, body.Month, cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// Scans the accounting mailbox for vendor invoice e-mails and records the received figures (Phase 3).
+    /// Pass <c>dryRun=true</c> to preview matches without writing.
+    /// </summary>
+    [HttpPost("collect-emails")]
+    [ProducesResponseType(typeof(ApiResponse<EmailCollectSummary>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CollectEmails([FromQuery] bool dryRun = false, CancellationToken cancellationToken = default)
+    {
+        var result = await _emailCollector.CollectAsync(dryRun, cancellationToken);
         return ResultToResponse(result);
     }
 }

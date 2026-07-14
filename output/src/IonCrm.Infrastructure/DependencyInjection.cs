@@ -3,10 +3,12 @@ using Hangfire.PostgreSql;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Features.VendorInvoices;
 using IonCrm.Application.Features.VendorInvoices.CostProviders;
+using IonCrm.Application.Features.VendorInvoices.EmailCollector;
 using IonCrm.Domain.Interfaces;
 using IonCrm.Infrastructure.BackgroundServices;
 using IonCrm.Infrastructure.ExternalApis;
 using IonCrm.Infrastructure.ExternalApis.CostProviders;
+using IonCrm.Infrastructure.ExternalApis.EmailCollector;
 using IonCrm.Infrastructure.Persistence;
 using IonCrm.Infrastructure.Repositories;
 using IonCrm.Infrastructure.Services;
@@ -83,6 +85,9 @@ public static class DependencyInjection
         services.AddSingleton<ICostProvider>(sp =>
             new FixedConfigCostProvider("GoogleWorkspaceIoniva", sp.GetRequiredService<IConfiguration>()));
         services.AddScoped<ICostAutoExpectService, CostAutoExpectService>();
+
+        // ── Phase 3: e-mail PDF collector (IMAP → MarkReceived) ───────────────
+        services.AddScoped<IInvoiceEmailCollector, InvoiceEmailCollector>();
 
         // ── Auth services ─────────────────────────────────────────────────────
         services.AddScoped<ITokenService, TokenService>();

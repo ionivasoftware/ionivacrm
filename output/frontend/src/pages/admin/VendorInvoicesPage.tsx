@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  RefreshCw, CalendarPlus, ScanLine, AlertTriangle, Receipt, Coins, Check, DownloadCloud,
+  RefreshCw, CalendarPlus, ScanLine, AlertTriangle, Receipt, Coins, Check, DownloadCloud, Mails,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
   useVendorInvoices, useSeedMonth, useReconcile, useExpectInvoice, useMarkReceived, useAutoExpect,
-  type VendorInvoice, type VendorInvoiceStatus,
+  useCollectEmails, type VendorInvoice, type VendorInvoiceStatus,
 } from '@/api/vendorInvoices';
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -214,6 +214,27 @@ export function VendorInvoicesPage() {
   const seed = useSeedMonth();
   const reconcile = useReconcile();
   const autoExpect = useAutoExpect();
+  const collectEmails = useCollectEmails();
+
+  async function handleCollectEmails() {
+    try {
+      const res = await collectEmails.mutateAsync({ dryRun: true });
+      const previews = (res?.items ?? []).filter((i) => i.status === 'preview');
+      const summary = previews.length
+        ? previews
+            .slice(0, 6)
+            .map((i) => `${i.provider} ${i.month}/${i.year}: ${i.amount ?? '—'}${i.currency ? ' ' + i.currency : ''}`)
+            .join(' · ')
+        : 'Kural eşleşmesi yok (IMAP/kurallar yapılandırılmamış olabilir).';
+      toast({
+        title: `E-posta taraması (önizleme) — ${res?.scanned ?? 0} mail, ${previews.length} eşleşme`,
+        description: summary,
+        variant: previews.length ? undefined : 'destructive',
+      });
+    } catch (err) {
+      toast({ title: 'Hata', description: errorMessage(err, 'E-posta taraması başarısız.'), variant: 'destructive' });
+    }
+  }
 
   const rows = data ?? [];
   const years = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2];
@@ -288,6 +309,10 @@ export function VendorInvoicesPage() {
           <Button variant="outline" size="sm" onClick={handleAutoExpect} disabled={autoExpect.isPending}>
             <DownloadCloud className="h-4 w-4 mr-1.5" />
             {autoExpect.isPending ? 'Dolduruluyor...' : 'Otomatik Doldur'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleCollectEmails} disabled={collectEmails.isPending}>
+            <Mails className="h-4 w-4 mr-1.5" />
+            {collectEmails.isPending ? 'Taranıyor...' : 'E-posta Tara'}
           </Button>
           <Button size="sm" onClick={handleReconcile} disabled={reconcile.isPending}>
             <ScanLine className="h-4 w-4 mr-1.5" />

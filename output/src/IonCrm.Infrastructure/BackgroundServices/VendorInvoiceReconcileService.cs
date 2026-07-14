@@ -1,5 +1,6 @@
 using IonCrm.Application.Features.VendorInvoices;
 using IonCrm.Application.Features.VendorInvoices.CostProviders;
+using IonCrm.Application.Features.VendorInvoices.EmailCollector;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -113,6 +114,19 @@ public sealed class VendorInvoiceReconcileService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "VendorInvoiceReconcileService: auto-expect step failed (continuing to reconcile).");
+            }
+
+            // Phase 3: pull received invoices from the accounting mailbox before reconciling, so the
+            // received side is current. No-op when the collector isn't configured.
+            try
+            {
+                var collector = scope.ServiceProvider.GetService<IInvoiceEmailCollector>();
+                if (collector is { IsConfigured: true })
+                    await collector.CollectAsync(dryRun: false, cancellationToken: ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "VendorInvoiceReconcileService: e-mail collect step failed (continuing to reconcile).");
             }
 
             var service = scope.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
