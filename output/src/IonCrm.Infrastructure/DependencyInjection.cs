@@ -79,6 +79,8 @@ public static class DependencyInjection
         services.AddHttpClient<ICostProvider, AnthropicCostProvider>();
         services.AddHttpClient<ICostProvider, RailwayCostProvider>();
         services.AddSingleton<ICostProvider, GoogleCloudCostProvider>();
+        // Railway's finalised invoices (received side, incl. PDF link) via the same GraphQL API.
+        services.AddHttpClient<IReceivedInvoiceSource, RailwayReceivedSource>();
         // Two Google Workspace billing accounts, tracked separately.
         services.AddSingleton<ICostProvider>(sp =>
             new FixedConfigCostProvider("GoogleWorkspaceRezerval", sp.GetRequiredService<IConfiguration>()));
