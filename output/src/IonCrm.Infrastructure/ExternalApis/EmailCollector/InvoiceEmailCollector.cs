@@ -122,7 +122,15 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
                     : null;
                 var currency = string.IsNullOrWhiteSpace(rule.Currency) ? "USD" : rule.Currency;
 
-                var period = emailDate.AddMonths(-rule.PeriodMonthOffset);
+                // Derive the period from the invoice's own date when available (forwarded mail loses the
+                // original send date — the e-mail date is the forward date, which collapses everything to
+                // one month). Fall back to the e-mail date only when no in-content date is found.
+                var periodBase = emailDate;
+                var dateStr = TryExtractGroup(rule.DateRegex, haystack);
+                if (dateStr is not null && TryParseDate(dateStr, out var invoiceDate))
+                    periodBase = invoiceDate;
+
+                var period = periodBase.AddMonths(-rule.PeriodMonthOffset);
                 var year = period.Year;
                 var month = period.Month;
 
@@ -215,6 +223,20 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
             return m.Groups.Count > 1 ? m.Groups[1].Value : m.Value;
         }
         catch (RegexParseException) { return null; }
+    }
+
+    /// <summary>Parses an invoice date string tolerating several common formats (English month names, ISO, etc.).</summary>
+    private static bool TryParseDate(string raw, out DateTime date)
+    {
+        var s = raw.Trim();
+        string[] formats =
+        {
+            "MMMM d, yyyy", "MMM d, yyyy", "MMMM d yyyy", "MMM d yyyy",
+            "d MMMM yyyy", "d MMM yyyy", "yyyy-MM-dd", "dd.MM.yyyy", "dd/MM/yyyy", "MM/dd/yyyy",
+        };
+        if (DateTime.TryParseExact(s, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
+            return true;
+        return DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
     }
 
     /// <summary>Parses a money string tolerating both "1,234.56" and "1.234,56" grouping conventions.</summary>

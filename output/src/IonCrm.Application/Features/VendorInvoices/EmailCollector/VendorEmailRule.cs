@@ -33,8 +33,15 @@ public sealed class VendorEmailRule
     public string? PdfUrlRegex { get; set; }
 
     /// <summary>
-    /// Months to subtract from the e-mail's date to derive the billing period, since invoices arrive
-    /// in arrears (e.g. a June invoice delivered in early July with offset 1 → period June). Default 1.
+    /// Optional regex whose first capture group is a date in the invoice content (e.g. "June 8, 2026").
+    /// Forwarded mail loses the original send date, so the period is derived from this in-content date
+    /// when present; otherwise it falls back to the e-mail's date. The captured date is parsed flexibly.
+    /// </summary>
+    public string? DateRegex { get; set; }
+
+    /// <summary>
+    /// Months to subtract from the derived date (invoice date or e-mail date) to get the billing period,
+    /// since invoices arrive in arrears (e.g. a June invoice with offset 1 → period May). Default 1.
     /// </summary>
     public int PeriodMonthOffset { get; set; } = 1;
 }
