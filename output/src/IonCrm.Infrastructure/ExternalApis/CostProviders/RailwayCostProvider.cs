@@ -10,21 +10,22 @@ namespace IonCrm.Infrastructure.ExternalApis.CostProviders;
 /// <summary>
 /// Reports Railway's monthly cost. Two modes, checked in order:
 ///
-/// 1. <b>Live GraphQL</b> — when <c>ApiToken</c>, <c>GraphQlQuery</c> and <c>AmountJsonPath</c> are all
-///    configured, POSTs the query to https://backboard.railway.com/graphql/v2 (Authorization: Bearer token)
-///    and reads the numeric cost at the given JSON path. Railway's cost/usage query is not publicly
-///    documented and varies by plan, so the query + result path are supplied via configuration rather
-///    than hard-coded — set them from your account's GraphiQL playground (railway.com/graphiql).
-///    The query may contain the tokens {year}, {month}, {monthStart}, {monthEnd} which are substituted
-///    (RFC3339 UTC for the *Start/*End tokens).
-/// 2. <b>Fixed amount</b> — otherwise falls back to <c>VendorCosts:Railway:MonthlyAmount</c>.
+/// 1. <b>Live GraphQL</b> — when <c>ApiToken</c> is set, queries
+///    https://backboard.railway.com/graphql/v2 (Authorization: Bearer token) for the running total of
+///    the current invoice: <c>me.workspaces[].customer.subscriptions[].nextInvoiceCurrentTotal</c>.
+///    Railway/Stripe amounts are in <b>cents</b>, so the summed total is divided by 100.
+///    Because this is the *current cycle's* accruing total (not a per-calendar-month figure), it is
+///    only reported for the current calendar month; other months return null so the daily job leaves
+///    their previously-captured values intact. Optionally scoped to one workspace via <c>WorkspaceId</c>.
+/// 2. <b>Fixed amount</b> — when no token is set, falls back to <c>VendorCosts:Railway:MonthlyAmount</c>.
 ///
-/// Config keys (all under <c>VendorCosts:Railway</c>):
-///   ApiToken, GraphQlQuery, AmountJsonPath ("data.estimatedUsage.0.cost"), Currency, MonthlyAmount.
+/// Config keys (under <c>VendorCosts:Railway</c>): ApiToken, WorkspaceId (optional), MonthlyAmount, Currency.
 /// </summary>
 public sealed class RailwayCostProvider : ICostProvider
 {
     private const string GraphQlEndpoint = "https://backboard.railway.com/graphql/v2";
+    private const string CostQuery =
+        "query{me{workspaces{id customer{subscriptions{nextInvoiceCurrentTotal status}}}}}";
 
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
@@ -44,53 +45,51 @@ public sealed class RailwayCostProvider : ICostProvider
     public string ProviderKey => "Railway";
 
     private string? ApiToken => _configuration["VendorCosts:Railway:ApiToken"];
-    private string? GraphQlQuery => _configuration["VendorCosts:Railway:GraphQlQuery"];
-    private string? AmountJsonPath => _configuration["VendorCosts:Railway:AmountJsonPath"];
+    private string? WorkspaceId => _configuration["VendorCosts:Railway:WorkspaceId"];
     private string? FixedAmountRaw => _configuration["VendorCosts:Railway:MonthlyAmount"];
-
-    private bool HasGraphQl =>
-        !string.IsNullOrWhiteSpace(ApiToken) && !string.IsNullOrWhiteSpace(GraphQlQuery) && !string.IsNullOrWhiteSpace(AmountJsonPath);
 
     private bool HasFixedAmount =>
         decimal.TryParse(FixedAmountRaw, NumberStyles.Any, CultureInfo.InvariantCulture, out var amt) && amt > 0;
 
     /// <inheritdoc />
-    public bool IsConfigured => HasGraphQl || HasFixedAmount;
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiToken) || HasFixedAmount;
+
+    private string Currency
+    {
+        get
+        {
+            var c = _configuration["VendorCosts:Railway:Currency"];
+            return string.IsNullOrWhiteSpace(c) ? "USD" : c;
+        }
+    }
 
     /// <inheritdoc />
     public async Task<CostFetchResult?> GetMonthlyCostAsync(int year, int month, CancellationToken cancellationToken = default)
     {
-        if (HasGraphQl)
+        // Live mode: authoritative for Railway. Only the current calendar month gets the accruing total.
+        if (!string.IsNullOrWhiteSpace(ApiToken))
         {
-            var live = await QueryGraphQlAsync(year, month, cancellationToken);
-            if (live is not null) return live;
-            // fall through to fixed on failure
+            var now = DateTime.UtcNow;
+            if (year != now.Year || month != now.Month)
+                return null; // not the current cycle — leave the previously-captured value
+
+            return await QueryGraphQlAsync(cancellationToken);
         }
 
+        // Fixed fallback (no token).
         if (decimal.TryParse(FixedAmountRaw, NumberStyles.Any, CultureInfo.InvariantCulture, out var fixedAmount) && fixedAmount > 0)
-        {
-            var currency = _configuration["VendorCosts:Railway:Currency"];
-            return new CostFetchResult(fixedAmount, string.IsNullOrWhiteSpace(currency) ? "USD" : currency);
-        }
+            return new CostFetchResult(fixedAmount, Currency);
 
         return null;
     }
 
-    private async Task<CostFetchResult?> QueryGraphQlAsync(int year, int month, CancellationToken cancellationToken)
+    private async Task<CostFetchResult?> QueryGraphQlAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var start = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
-            var end = start.AddMonths(1);
-            var query = GraphQlQuery!
-                .Replace("{year}", year.ToString(CultureInfo.InvariantCulture))
-                .Replace("{month}", month.ToString(CultureInfo.InvariantCulture))
-                .Replace("{monthStart}", start.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture))
-                .Replace("{monthEnd}", end.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture));
-
             using var request = new HttpRequestMessage(HttpMethod.Post, GraphQlEndpoint);
             request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {ApiToken}");
-            request.Content = JsonContent.Create(new { query });
+            request.Content = JsonContent.Create(new { query = CostQuery });
 
             var response = await _httpClient.SendAsync(request, cancellationToken);
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -102,68 +101,55 @@ public sealed class RailwayCostProvider : ICostProvider
             }
 
             using var doc = JsonDocument.Parse(body);
-            if (!TryNavigate(doc.RootElement, AmountJsonPath!, out var element))
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Array && errors.GetArrayLength() > 0)
             {
-                _logger.LogWarning("Railway GraphQL: amount path '{Path}' not found. Body: {Body}", AmountJsonPath, body);
+                _logger.LogWarning("Railway GraphQL errors: {Errors}", errors.ToString());
                 return null;
             }
 
-            if (!TryReadDecimal(element, out var amount))
+            if (!root.TryGetProperty("data", out var data)
+                || !data.TryGetProperty("me", out var me)
+                || !me.TryGetProperty("workspaces", out var workspaces)
+                || workspaces.ValueKind != JsonValueKind.Array)
             {
-                _logger.LogWarning("Railway GraphQL: value at '{Path}' is not numeric.", AmountJsonPath);
+                _logger.LogWarning("Railway GraphQL: unexpected response shape. Body: {Body}", body);
                 return null;
             }
 
-            var currency = _configuration["VendorCosts:Railway:Currency"];
-            return new CostFetchResult(amount, string.IsNullOrWhiteSpace(currency) ? "USD" : currency);
+            decimal totalCents = 0m;
+            var wanted = WorkspaceId;
+
+            foreach (var ws in workspaces.EnumerateArray())
+            {
+                if (!string.IsNullOrWhiteSpace(wanted)
+                    && (!ws.TryGetProperty("id", out var wsId) || wsId.GetString() != wanted))
+                    continue;
+
+                if (!ws.TryGetProperty("customer", out var customer) || customer.ValueKind != JsonValueKind.Object) continue;
+                if (!customer.TryGetProperty("subscriptions", out var subs) || subs.ValueKind != JsonValueKind.Array) continue;
+
+                foreach (var sub in subs.EnumerateArray())
+                {
+                    // Skip cancelled subscriptions; count active/past_due/trialing.
+                    if (sub.TryGetProperty("status", out var status)
+                        && string.Equals(status.GetString(), "canceled", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (sub.TryGetProperty("nextInvoiceCurrentTotal", out var total) && total.ValueKind == JsonValueKind.Number)
+                        totalCents += total.GetDecimal();
+                }
+            }
+
+            var amount = Math.Round(totalCents / 100m, 2, MidpointRounding.AwayFromZero);
+            _logger.LogDebug("Railway current-cycle total: {Amount} {Currency}.", amount, Currency);
+            return new CostFetchResult(amount, Currency);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Railway GraphQL cost query failed for {Year}-{Month:D2}.", year, month);
+            _logger.LogWarning(ex, "Railway GraphQL cost query failed.");
             return null;
-        }
-    }
-
-    /// <summary>Navigates a dot-separated path (object keys + numeric array indices) into a JsonElement.</summary>
-    private static bool TryNavigate(JsonElement root, string path, out JsonElement result)
-    {
-        var current = root;
-        foreach (var segment in path.Split('.', StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (int.TryParse(segment, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index))
-            {
-                if (current.ValueKind != JsonValueKind.Array || index < 0 || index >= current.GetArrayLength())
-                {
-                    result = default;
-                    return false;
-                }
-                current = current[index];
-            }
-            else
-            {
-                if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out var next))
-                {
-                    result = default;
-                    return false;
-                }
-                current = next;
-            }
-        }
-        result = current;
-        return true;
-    }
-
-    private static bool TryReadDecimal(JsonElement element, out decimal value)
-    {
-        switch (element.ValueKind)
-        {
-            case JsonValueKind.Number when element.TryGetDecimal(out value):
-                return true;
-            case JsonValueKind.String when decimal.TryParse(element.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out value):
-                return true;
-            default:
-                value = 0m;
-                return false;
         }
     }
 }
