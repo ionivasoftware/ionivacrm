@@ -76,6 +76,14 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("SuperAdmin", policy =>
         policy.RequireClaim("isSuperAdmin", "true"));
 
+    // Vendor-invoice access: SuperAdmin OR anyone holding the Accounting (muhasebe) role in any project.
+    // The "roles" claim is a JSON dict { projectId: "RoleName" }; role values are GUID-free so a
+    // quoted-substring check reliably detects an Accounting value.
+    options.AddPolicy("VendorInvoiceAccess", policy =>
+        policy.RequireAssertion(ctx =>
+            ctx.User.HasClaim("isSuperAdmin", "true")
+            || (ctx.User.FindFirst("roles")?.Value?.Contains("\"Accounting\"", StringComparison.OrdinalIgnoreCase) ?? false)));
+
     // Default policy: must be authenticated
     options.DefaultPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()

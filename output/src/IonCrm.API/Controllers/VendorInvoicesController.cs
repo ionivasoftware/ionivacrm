@@ -20,7 +20,7 @@ namespace IonCrm.API.Controllers;
 /// POST   /api/v1/vendor-invoices/reconcile       — flip overdue Expected → Missing (also runs daily)
 /// </summary>
 [Route("api/v1/vendor-invoices")]
-[Authorize(Policy = "SuperAdmin")]
+[Authorize(Policy = "VendorInvoiceAccess")]
 public sealed class VendorInvoicesController : ApiControllerBase
 {
     private readonly IVendorInvoiceService _service;

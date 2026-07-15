@@ -144,7 +144,7 @@ export default function App() {
               <Route
                 path="/admin/vendor-invoices"
                 element={
-                  <ProtectedRoute superAdminOnly>
+                  <ProtectedRoute financeOnly>
                     <VendorInvoicesPage />
                   </ProtectedRoute>
                 }

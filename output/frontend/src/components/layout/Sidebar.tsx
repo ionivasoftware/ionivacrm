@@ -43,6 +43,7 @@ const navItems: NavItem[] = [
   { label: 'Müşteriler', href: '/customers', icon: Users },
   { label: 'Pipeline', href: '/pipeline', icon: KanbanSquare },
   { label: 'Görevler', href: '/tasks', icon: CheckSquare },
+  { label: 'Gelen Faturalar', href: '/admin/vendor-invoices', icon: Receipt, financeOnly: true, badgeKey: 'missingInvoices' },
   { label: 'Faturalar', href: '/invoices', icon: FileText, financeOnly: true },
   { label: 'Raporlar', href: '/reports', icon: BarChart3 },
   { label: 'Ayarlar', href: '/settings', icon: Settings },
@@ -53,7 +54,6 @@ const adminNavItems: NavItem[] = [
   { label: 'Proje Yönetimi', href: '/admin/projects', icon: FolderKanban, superAdminOnly: true },
   { label: 'Senkronizasyon', href: '/sync/logs', icon: RefreshCw, superAdminOnly: true },
   { label: 'Hata Onayları', href: '/admin/error-triage', icon: ShieldAlert, superAdminOnly: true },
-  { label: 'Fatura Mutabakatı', href: '/admin/vendor-invoices', icon: Receipt, superAdminOnly: true, badgeKey: 'missingInvoices' },
 ];
 
 export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: SidebarProps) {
@@ -61,11 +61,11 @@ export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: Si
   const location = useLocation();
   const canAccessFinance = useCanAccessFinance();
 
-  // Live missing-invoice alarm count — only queried for SuperAdmin (endpoint is SuperAdmin-only).
-  const { data: missingInvoices = 0 } = useMissingInvoiceCount(!!user?.isSuperAdmin);
+  // Live missing-invoice alarm count — for users who can access the invoices screen (SuperAdmin/Accounting).
+  const { data: missingInvoices = 0 } = useMissingInvoiceCount(canAccessFinance);
 
   const badgeFor = (item: NavItem): number | undefined =>
-    item.badgeKey === 'missingInvoices' && user?.isSuperAdmin ? missingInvoices : undefined;
+    item.badgeKey === 'missingInvoices' && canAccessFinance ? missingInvoices : undefined;
 
   const filteredNavItems = navItems.filter(
     (item) => !item.financeOnly || canAccessFinance

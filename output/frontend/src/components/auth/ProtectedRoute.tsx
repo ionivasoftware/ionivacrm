@@ -1,18 +1,23 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import { useCanAccessFinance } from '@/lib/roles';
 import type { UserRole } from '@/types';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: UserRole;
   superAdminOnly?: boolean;
+  /** SuperAdmin OR Accounting (muhasebe) role. */
+  financeOnly?: boolean;
 }
 
 export function ProtectedRoute({
   children,
   superAdminOnly = false,
+  financeOnly = false,
 }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, user } = useAuthStore();
+  const canAccessFinance = useCanAccessFinance();
   const location = useLocation();
 
   if (isLoading) {
@@ -31,6 +36,10 @@ export function ProtectedRoute({
   }
 
   if (superAdminOnly && !user?.isSuperAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (financeOnly && !canAccessFinance) {
     return <Navigate to="/dashboard" replace />;
   }
 

@@ -145,8 +145,11 @@ export function useUploadPdf() {
     mutationFn: async ({ id, file }: { id: string; file: File }) => {
       const form = new FormData();
       form.append('file', file);
-      // Let axios set the multipart boundary automatically — don't override Content-Type.
-      await apiClient.post<ApiResponse<object>>(`/vendor-invoices/${id}/pdf`, form);
+      // The apiClient defaults to Content-Type: application/json — remove it so the browser sets
+      // multipart/form-data WITH the boundary (otherwise the server returns 415).
+      await apiClient.post<ApiResponse<object>>(`/vendor-invoices/${id}/pdf`, form, {
+        headers: { 'Content-Type': undefined },
+      });
     },
     onSuccess: invalidate,
   });
