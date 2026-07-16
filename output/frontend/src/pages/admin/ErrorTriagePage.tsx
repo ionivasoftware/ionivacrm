@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -211,8 +212,11 @@ function TriageCard({ card, actionable }: { card: ErrorTriageCard; actionable: b
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
+const FROM_DATE_KEY = 'errorTriage.fromDate';
+
 export function ErrorTriagePage() {
   const [tab, setTab] = useState<TabValue>('Triaged');
+  const [fromDate, setFromDate] = useState<string>(() => localStorage.getItem(FROM_DATE_KEY) ?? '');
 
   const { data, isLoading, isFetching, refetch, isError, error } = useErrorTriage({
     status: tab,
@@ -220,7 +224,18 @@ export function ErrorTriagePage() {
     pageSize: 50,
   });
 
-  const cards = data ?? [];
+  function changeFromDate(v: string) {
+    setFromDate(v);
+    if (v) localStorage.setItem(FROM_DATE_KEY, v);
+    else localStorage.removeItem(FROM_DATE_KEY);
+  }
+
+  // Hide older/recurring cards: keep only those created on/after the chosen date (compares ISO date part).
+  const allCards = data ?? [];
+  const cards = fromDate
+    ? allCards.filter((c) => !c.createdOn || c.createdOn.slice(0, 10) >= fromDate)
+    : allCards;
+  const hiddenCount = allCards.length - cards.length;
   const actionable = tab === 'Triaged';
 
   const EMPTY_TEXT: Record<TabValue, string> = {
@@ -233,18 +248,40 @@ export function ErrorTriagePage() {
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Hata Onay Ekranı</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Triage edilmiş hatalar · Onayla / Reddet · geçmişi görüntüle
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={`h-4 w-4 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} />
-          Yenile
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Şu tarihten sonra:</span>
+            <Input
+              type="date"
+              value={fromDate}
+              onChange={(e) => changeFromDate(e.target.value)}
+              className="h-8 w-40 text-sm"
+            />
+            {fromDate && (
+              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => changeFromDate('')}>
+                Temizle
+              </Button>
+            )}
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} />
+            Yenile
+          </Button>
+        </div>
       </div>
+
+      {fromDate && hiddenCount > 0 && (
+        <p className="text-xs text-muted-foreground -mt-2">
+          {new Date(fromDate).toLocaleDateString('tr-TR')} öncesi {hiddenCount} kart gizlendi.
+        </p>
+      )}
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-1 rounded-lg border border-border/50 bg-muted/30 p-1">
