@@ -111,6 +111,7 @@ public static class DependencyInjection
         // ── External API Clients (Typed HttpClients) ──────────────────────────
         RegisterSaasAClient(services, configuration);
         RegisterSaasBClient(services, configuration);
+        RegisterLiftdeskClient(services);
 
         // SaasSyncJob is always registered so the trigger endpoint can run it directly
         // regardless of whether the automatic sync scheduler is enabled.
@@ -220,6 +221,18 @@ public static class DependencyInjection
                 // Total timeout across ALL retry attempts.
                 // Individual attempt backoff (2 s / 4 s / 8 s) sits inside this ceiling.
                 client.Timeout = TimeSpan.FromSeconds(120);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
+    }
+
+    private static void RegisterLiftdeskClient(IServiceCollection services)
+    {
+        // Liftdesk (EMS) error-triage API — static Bearer key, base URL resolved per request
+        // from Liftdesk:BaseUrl (falls back to the dev URL inside the client).
+        services
+            .AddHttpClient<ILiftdeskClient, LiftdeskClient>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(60);
             })
             .AddPolicyHandler(BuildCircuitBreakerPolicy());
     }
