@@ -86,16 +86,17 @@ public sealed class SaasAClient : ISaasAClient
         string? apiKey,
         int page,
         int pageSize,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null)
     {
         _logger.LogDebug("SaaS A: fetching CRM customers page={Page} pageSize={PageSize} (full sync)",
             page, pageSize);
 
         return await _retryPipeline.ExecuteAsync<EmsCrmCustomersResponse>(async ct =>
         {
-            var url = $"api/v1/crm/customers?page={page}&pageSize={pageSize}";
+            var uri = BuildRequestUri($"api/v1/crm/customers?page={page}&pageSize={pageSize}", baseUrl);
 
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            var request = new HttpRequestMessage(HttpMethod.Get, uri);
             ApplyAuth(request, apiKey);
             var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();

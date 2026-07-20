@@ -48,8 +48,20 @@ public sealed class SyncEmsPaymentsCommandHandler
         SyncEmsPaymentsCommand request,
         CancellationToken cancellationToken)
     {
-        var projects       = await _projectRepository.GetAllAsync(cancellationToken);
-        var emsProjects    = projects.Where(p => !string.IsNullOrWhiteSpace(p.EmsApiKey)).ToList();
+        var projects = await _projectRepository.GetAllAsync(cancellationToken);
+
+        // A project may be wired to EMS, Liftdesk, or both. Both expose the identical payments API,
+        // so each configured credential becomes a separate scan target. Liftdesk customers are keyed
+        // "LIFT-{companyId}"; EMS by "SAASA-{companyId}" or the plain numeric id.
+        var targets = new List<(Project Project, string? ApiKey, string? BaseUrl, SyncSource Source, bool Liftdesk)>();
+        foreach (var p in projects)
+        {
+            if (!string.IsNullOrWhiteSpace(p.EmsApiKey))
+                targets.Add((p, p.EmsApiKey, p.EmsBaseUrl, SyncSource.SaasA, false));
+            // Liftdesk needs its own base URL (no global fallback host like EMS).
+            if (!string.IsNullOrWhiteSpace(p.LiftdeskApiKey) && !string.IsNullOrWhiteSpace(p.LiftdeskBaseUrl))
+                targets.Add((p, p.LiftdeskApiKey, p.LiftdeskBaseUrl, SyncSource.Liftdesk, true));
+        }
 
         int projectsScanned  = 0;
         int paymentsFetched  = 0;
@@ -57,8 +69,10 @@ public sealed class SyncEmsPaymentsCommandHandler
         int skipped          = 0;
         var errors           = new List<string>();
 
-        foreach (var project in emsProjects)
+        foreach (var (project, apiKey, baseUrl, source, liftdesk) in targets)
         {
+            var srcLabel = liftdesk ? "Liftdesk" : "EMS";
+
             // Summary log is built in memory and persisted at the END of the project scan,
             // and only when something meaningful happened (invoices created OR an error
             // raised) — quiet "0 payments" cycles leave no audit row.
@@ -69,22 +83,24 @@ public sealed class SyncEmsPaymentsCommandHandler
             try
             {
                 var response = await _saasAClient.GetRecentPaymentsAsync(
-                    project.EmsApiKey,
+                    apiKey,
                     request.WindowMinutes,
                     cancellationToken,
-                    project.EmsBaseUrl);
+                    baseUrl);
 
                 projectsScanned++;
                 paymentsFetched += response.Data.Count;
                 paymentsFetchedThisProject = response.Data.Count;
 
                 _logger.LogDebug(
-                    "EMS payment sync: project {ProjectId} returned {Count} payments (window={Window}min).",
-                    project.Id, response.Data.Count, request.WindowMinutes);
+                    "{Source} payment sync: project {ProjectId} returned {Count} payments (window={Window}min).",
+                    srcLabel, project.Id, response.Data.Count, request.WindowMinutes);
 
                 foreach (var payment in response.Data)
                 {
-                    var emsPaymentId = payment.Id.ToString();
+                    // Namespace the Liftdesk dedup key so its payment ids (also small ints) can't
+                    // collide with an EMS payment id in the global ExistsByEmsPaymentId check.
+                    var emsPaymentId = liftdesk ? $"LIFT-{payment.Id}" : payment.Id.ToString();
 
                     // 1. Dedup — skip if already recorded
                     if (await _invoiceRepository.ExistsByEmsPaymentIdAsync(emsPaymentId, cancellationToken))
@@ -93,28 +109,29 @@ public sealed class SyncEmsPaymentsCommandHandler
                         continue;
                     }
 
-                    // 2. Resolve customer by EMS companyId
-                    //    LegacyId formats: "SAASA-{id}" or plain "{id}"
-                    var customer =
-                        await _customerRepository.GetByLegacyIdAsync($"SAASA-{payment.CompanyId}", cancellationToken)
-                        ?? await _customerRepository.GetByLegacyIdAsync(payment.CompanyId.ToString(), cancellationToken);
+                    // 2. Resolve customer by companyId.
+                    //    Liftdesk → "LIFT-{id}"; EMS → "SAASA-{id}" or plain "{id}".
+                    var customer = liftdesk
+                        ? await _customerRepository.GetByLegacyIdAsync($"LIFT-{payment.CompanyId}", cancellationToken)
+                        : await _customerRepository.GetByLegacyIdAsync($"SAASA-{payment.CompanyId}", cancellationToken)
+                            ?? await _customerRepository.GetByLegacyIdAsync(payment.CompanyId.ToString(), cancellationToken);
 
                     if (customer is null)
                     {
                         _logger.LogWarning(
-                            "EMS payment sync: no customer found for EMS companyId={CompanyId} (paymentId={PaymentId}). Skipping.",
-                            payment.CompanyId, payment.Id);
+                            "{Source} payment sync: no customer found for companyId={CompanyId} (paymentId={PaymentId}). Skipping.",
+                            srcLabel, payment.CompanyId, payment.Id);
 
                         await _syncLogRepository.AddAsync(new SyncLog
                         {
                             Id           = Guid.NewGuid(),
                             ProjectId    = project.Id,
-                            Source       = SyncSource.SaasA,
+                            Source       = source,
                             Direction    = SyncDirection.Inbound,
                             EntityType   = "Payment",
                             EntityId     = emsPaymentId,
                             Status       = SyncStatus.Failed,
-                            ErrorMessage = $"Müşteri bulunamadı — EMS companyId={payment.CompanyId}",
+                            ErrorMessage = $"Müşteri bulunamadı — {srcLabel} companyId={payment.CompanyId}",
                             SyncedAt     = DateTime.UtcNow,
                         }, cancellationToken);
 
@@ -174,7 +191,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                         }
                         else
                         {
-                            lineDescription = payment.ProductName ?? $"EMS Ürün #{payment.ProductId}";
+                            lineDescription = payment.ProductName ?? $"{srcLabel} Ürün #{payment.ProductId}";
                             unitPrice       = payment.SubTotal;
                             vatRate         = payment.SubTotal > 0
                                 ? (int)Math.Round(payment.VatPrice / payment.SubTotal * 100)
@@ -183,7 +200,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                     }
                     else
                     {
-                        lineDescription = $"EMS Ödeme #{payment.Id}";
+                        lineDescription = $"{srcLabel} Ödeme #{payment.Id}";
                         unitPrice       = payment.SubTotal;
                         vatRate         = payment.SubTotal > 0
                             ? (int)Math.Round(payment.VatPrice / payment.SubTotal * 100)
@@ -212,7 +229,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                     {
                         ProjectId    = project.Id,
                         CustomerId   = customer.Id,
-                        Title        = $"EMS Ödeme - {payment.PaymentType} ({payment.CreatedOn:dd.MM.yyyy})",
+                        Title        = $"{srcLabel} Ödeme - {payment.PaymentType} ({payment.CreatedOn:dd.MM.yyyy})",
                         Description  = null,
                         IssueDate    = payment.CreatedOn,
                         DueDate      = payment.CreatedOn.Date,
@@ -233,7 +250,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                     {
                         Id          = Guid.NewGuid(),
                         ProjectId   = project.Id,
-                        Source      = SyncSource.SaasA,
+                        Source      = source,
                         Direction   = SyncDirection.Inbound,
                         EntityType  = "Payment",
                         EntityId    = emsPaymentId,
@@ -253,8 +270,8 @@ public sealed class SyncEmsPaymentsCommandHandler
                     }, cancellationToken);
 
                     _logger.LogInformation(
-                        "EMS payment sync: created invoice draft for customer {CustomerId} from EMS payment {PaymentId} (company {CompanyId}).",
-                        customer.Id, payment.Id, payment.CompanyId);
+                        "{Source} payment sync: created invoice draft for customer {CustomerId} from payment {PaymentId} (company {CompanyId}).",
+                        srcLabel, customer.Id, payment.Id, payment.CompanyId);
                 }
 
                 // Persist a summary SyncLog only when something meaningful happened.
@@ -265,7 +282,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                     {
                         Id          = Guid.NewGuid(),
                         ProjectId   = project.Id,
-                        Source      = SyncSource.SaasA,
+                        Source      = source,
                         Direction   = SyncDirection.Inbound,
                         EntityType  = "PaymentSync",
                         Status      = projectErrors.Count > 0 ? SyncStatus.Failed : SyncStatus.Success,
@@ -277,10 +294,10 @@ public sealed class SyncEmsPaymentsCommandHandler
             }
             catch (Exception ex)
             {
-                var msg = $"Project {project.Id} ({project.Name}): {ex.Message}";
+                var msg = $"{srcLabel} project {project.Id} ({project.Name}): {ex.Message}";
                 errors.Add(msg);
                 projectErrors.Add(msg);
-                _logger.LogError(ex, "EMS payment sync failed for project {ProjectId}.", project.Id);
+                _logger.LogError(ex, "{Source} payment sync failed for project {ProjectId}.", srcLabel, project.Id);
 
                 // Persist a Failed summary log so the failure is auditable.
                 try
@@ -289,7 +306,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                     {
                         Id           = Guid.NewGuid(),
                         ProjectId    = project.Id,
-                        Source       = SyncSource.SaasA,
+                        Source       = source,
                         Direction    = SyncDirection.Inbound,
                         EntityType   = "PaymentSync",
                         Status       = SyncStatus.Failed,

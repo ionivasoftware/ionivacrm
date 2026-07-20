@@ -162,9 +162,12 @@ function ApiKeysDialog({ project, onClose }: { project: AdminProject; onClose: (
   const [emsApiKey, setEmsApiKey]         = useState(project.emsApiKey ?? '');
   const [rezervAlBaseUrl, setRezervAlBaseUrl] = useState(project.rezervAlBaseUrl ?? '');
   const [rezervAlApiKey, setRezervAlApiKey]   = useState(project.rezervAlApiKey ?? '');
+  const [liftdeskBaseUrl, setLiftdeskBaseUrl] = useState(project.liftdeskBaseUrl ?? '');
+  const [liftdeskApiKey, setLiftdeskApiKey]   = useState(project.liftdeskApiKey ?? '');
 
   const isEms      = project.name.toLowerCase() === 'ems';
   const isRezervAl = project.name.toLowerCase() === 'rezerval';
+  const isLiftdesk = project.name.toLowerCase() === 'liftdesk';
 
   const handleSave = async () => {
     try {
@@ -174,6 +177,8 @@ function ApiKeysDialog({ project, onClose }: { project: AdminProject; onClose: (
         emsApiKey:       isEms      ? emsApiKey.trim() || null        : project.emsApiKey,
         rezervAlBaseUrl: isRezervAl ? rezervAlBaseUrl.trim() || null  : project.rezervAlBaseUrl,
         rezervAlApiKey:  isRezervAl ? rezervAlApiKey.trim() || null   : project.rezervAlApiKey,
+        liftdeskBaseUrl: isLiftdesk ? liftdeskBaseUrl.trim() || null  : project.liftdeskBaseUrl,
+        liftdeskApiKey:  isLiftdesk ? liftdeskApiKey.trim() || null   : project.liftdeskApiKey,
       });
       toast({ title: 'API ayarları kaydedildi' });
       onClose();
@@ -225,7 +230,23 @@ function ApiKeysDialog({ project, onClose }: { project: AdminProject; onClose: (
             </div>
           )}
 
-          {!isEms && !isRezervAl && (
+          {isLiftdesk && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Liftdesk</p>
+              <div className="space-y-1.5">
+                <Label>Liftdesk Base URL</Label>
+                <Input
+                  value={liftdeskBaseUrl}
+                  onChange={(e) => setLiftdeskBaseUrl(e.target.value)}
+                  placeholder="https://api.liftdesk.example.com"
+                  className="h-10 font-mono text-xs"
+                />
+              </div>
+              <ApiKeyField label="Liftdesk API Key" value={liftdeskApiKey} onChange={setLiftdeskApiKey} />
+            </div>
+          )}
+
+          {!isEms && !isRezervAl && !isLiftdesk && (
             <p className="text-sm text-muted-foreground">
               Bu proje için entegrasyon yapılandırması tanımlı değil.
             </p>
@@ -234,7 +255,7 @@ function ApiKeysDialog({ project, onClose }: { project: AdminProject; onClose: (
         </div>
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" onClick={onClose}>İptal</Button>
-          <Button onClick={handleSave} disabled={mutation.isPending || (!isEms && !isRezervAl)}>
+          <Button onClick={handleSave} disabled={mutation.isPending || (!isEms && !isRezervAl && !isLiftdesk)}>
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             Kaydet
           </Button>

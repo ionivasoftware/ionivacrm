@@ -33,6 +33,8 @@ public class ProjectsController : ApiControllerBase
             emsApiKey = p.EmsApiKey,
             rezervAlBaseUrl = p.RezervAlBaseUrl,
             rezervAlApiKey = p.RezervAlApiKey,
+            liftdeskBaseUrl = p.LiftdeskBaseUrl,
+            liftdeskApiKey = p.LiftdeskApiKey,
             smsCount = p.SmsCount
         });
         return OkResponse(dtos);

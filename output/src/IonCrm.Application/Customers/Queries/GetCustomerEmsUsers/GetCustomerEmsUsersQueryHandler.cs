@@ -1,3 +1,4 @@
+using IonCrm.Application.Common.Helpers;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models;
 using IonCrm.Domain.Interfaces;
@@ -45,34 +46,16 @@ public sealed class GetCustomerEmsUsersQueryHandler
         if (!_currentUser.IsSuperAdmin && !_currentUser.ProjectIds.Contains(customer.ProjectId))
             return Result<List<EmsCompanyUserDto>>.Failure("Bu müşteriye erişim yetkiniz yok.");
 
-        // 3. Verify the customer is EMS-sourced and extract numeric company ID.
-        //    LegacyId formats:
-        //      "3"        → plain numeric (EMS CRM canonical)
-        //      "SAASA-3"  → prefixed (older sync format)
-        //      "PC-123"   → PotentialCustomer — NOT an EMS company user source
-        if (string.IsNullOrEmpty(customer.LegacyId)
-            || customer.LegacyId.StartsWith("PC-", StringComparison.OrdinalIgnoreCase))
+        // 3. Resolve EMS/Liftdesk company ID + credentials from the LegacyId + project.
+        var project = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
+        if (!SaasCustomerResolver.TryResolve(customer, project,
+                out var emsCompanyId, out var emsApiKey, out var emsBaseUrl, out _))
         {
             return Result<List<EmsCompanyUserDto>>.Failure(
-                "Bu müşteri EMS kaynakli değil. EMS kullanıcıları yalnızca EMS kaynaklı müşteriler için sorgulanabilir.");
+                "Bu müşteri EMS/Liftdesk kaynaklı değil. Kullanıcılar yalnızca EMS/Liftdesk kaynaklı müşteriler için sorgulanabilir.");
         }
 
-        string rawId = customer.LegacyId.StartsWith("SAASA-", StringComparison.OrdinalIgnoreCase)
-            ? customer.LegacyId["SAASA-".Length..]
-            : customer.LegacyId;
-
-        if (!int.TryParse(rawId, out var emsCompanyId))
-        {
-            return Result<List<EmsCompanyUserDto>>.Failure(
-                "Bu müşteri EMS kaynakli değil. EMS kullanıcıları yalnızca EMS kaynaklı müşteriler için sorgulanabilir.");
-        }
-
-        // 4. Resolve project EMS credentials (null → SaasAClient falls back to DI-configured defaults)
-        var project    = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
-        var emsApiKey  = project?.EmsApiKey;
-        var emsBaseUrl = project?.EmsBaseUrl;
-
-        // 5. Call EMS API
+        // 5. Call EMS/Liftdesk API
         List<Common.Models.ExternalApis.EmsCompanyUser> emsUsers;
         try
         {

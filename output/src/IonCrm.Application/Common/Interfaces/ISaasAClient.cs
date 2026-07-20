@@ -17,11 +17,13 @@ public interface ISaasAClient
     /// Fetches a page of customers from the EMS CRM endpoint (full sync — no delta filter).
     /// GET /api/v1/crm/customers?page={page}&amp;pageSize={pageSize}
     /// </summary>
+    /// <param name="baseUrl">Per-project base URL override (e.g. Liftdesk). Falls back to the DI-configured EMS base URL when null.</param>
     Task<EmsCrmCustomersResponse> GetCrmCustomersPageAsync(
         string? apiKey,
         int page,
         int pageSize,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null);
 
     /// <summary>Fetches all subscriptions from SaaS A (EMS).</summary>
     Task<SaasASubscriptionsResponse> GetSubscriptionsAsync(string? apiKey = null, CancellationToken cancellationToken = default);

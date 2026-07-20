@@ -97,6 +97,7 @@ public sealed class SaasSyncJob
         _logger.LogInformation("SaaS sync job started at {Time:O}", DateTime.UtcNow);
 
         await SyncEmsCrmCustomersAsync(cancellationToken);
+        await SyncLiftdeskCustomersAsync(cancellationToken);
         await SyncRezervalCompaniesAsync(cancellationToken);
         await SyncEmsPaymentsAsync(emsPaymentWindowMinutes, cancellationToken);
         await SyncRezervalContractInvoicesAsync(cancellationToken);
@@ -299,6 +300,150 @@ public sealed class SaasSyncJob
                 ? CustomerStatus.Active
                 : CustomerStatus.Churned;
         }
+    }
+
+    // ── Liftdesk customers sync (same EMS-style /api/v1/crm/customers endpoint) ──
+
+    /// <summary>
+    /// Syncs customers from a Liftdesk project. Liftdesk exposes the identical SaaS surface as EMS,
+    /// so it reuses <see cref="ISaasAClient"/> with the project's Liftdesk base URL + key. Customers
+    /// are stored under the "LIFT-{id}" LegacyId prefix so they never collide with EMS customers that
+    /// share the same numeric id (the upsert matches on LegacyId across all tenants).
+    /// </summary>
+    private async Task SyncLiftdeskCustomersAsync(CancellationToken ct)
+    {
+        // Require BOTH key and base URL: unlike EMS (which has a global SaasA:BaseUrl fallback),
+        // Liftdesk has no default host, so a key without a base URL would misfire against the EMS host.
+        var (projectId, project) = await ResolveProjectAsync(
+            "Liftdesk:ProjectId",
+            p => !string.IsNullOrEmpty(p.LiftdeskApiKey) && !string.IsNullOrEmpty(p.LiftdeskBaseUrl),
+            ct);
+
+        if (projectId == Guid.Empty
+            || string.IsNullOrWhiteSpace(project?.LiftdeskApiKey)
+            || string.IsNullOrWhiteSpace(project.LiftdeskBaseUrl))
+        {
+            _logger.LogInformation("No project with a complete Liftdesk configuration (API key + base URL). Skipping Liftdesk sync.");
+            return;
+        }
+
+        var apiKey  = project.LiftdeskApiKey;
+        var baseUrl = project.LiftdeskBaseUrl;
+
+        _logger.LogInformation("Liftdesk full sync: fetching all pages for project {ProjectId}.", projectId);
+
+        await SyncWithRetryAsync(
+            source: SyncSource.Liftdesk,
+            entityType: "LiftdeskCustomer",
+            projectId: projectId,
+            action: async () =>
+            {
+                const int pageSize = 500;
+                int page = 1, totalChanges = 0;
+
+                while (true)
+                {
+                    var response = await _saasAClient.GetCrmCustomersPageAsync(
+                        apiKey, page, pageSize, ct, baseUrl);
+
+                    if (response.Data.Count == 0)
+                        break;
+
+                    totalChanges += await UpsertLiftdeskCustomersAsync(response.Data, projectId, ct);
+
+                    if (page >= response.TotalPages || response.TotalPages == 0)
+                        break;
+
+                    page++;
+                }
+
+                return totalChanges;
+            });
+    }
+
+    private async Task<int> UpsertLiftdeskCustomersAsync(
+        List<EmsCrmCustomer> customers,
+        Guid projectId,
+        CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        int changeCount = 0;
+
+        foreach (var src in customers)
+        {
+            // "LIFT-{id}" keeps Liftdesk customers distinct from EMS ("3"/"SAASA-3") in the
+            // cross-tenant LegacyId upsert lookup.
+            var legacyId = $"LIFT-{src.Id}";
+
+            var expDate = src.ExpirationDate.HasValue
+                ? DateTime.SpecifyKind(src.ExpirationDate.Value, DateTimeKind.Utc)
+                : (DateTime?)null;
+            var createdAt = DateTime.SpecifyKind(src.CreatedAt, DateTimeKind.Utc);
+
+            var newStatus = ComputeStatusFromExpiration(expDate, createdAt);
+
+            var existing = await context.Customers
+                .IgnoreQueryFilters()
+                .Where(c => c.LegacyId == legacyId)
+                .FirstOrDefaultAsync(ct);
+
+            if (existing is not null)
+            {
+                if (existing.IsDeleted) continue;
+
+                bool changed = false;
+                if (existing.CompanyName    != src.Name)      { existing.CompanyName    = src.Name;      changed = true; }
+                if (existing.Email          != src.Email)     { existing.Email          = src.Email;     changed = true; }
+                if (existing.Phone          != src.Phone)     { existing.Phone          = src.Phone;     changed = true; }
+                if (existing.Address        != src.Address)   { existing.Address        = src.Address;   changed = true; }
+                if (existing.TaxNumber      != src.TaxNumber) { existing.TaxNumber      = src.TaxNumber; changed = true; }
+                if (existing.Segment        != src.Segment)   { existing.Segment        = src.Segment;   changed = true; }
+                if (existing.ExpirationDate != expDate)       { existing.ExpirationDate = expDate;       changed = true; }
+                if (existing.Status         != newStatus)     { existing.Status         = newStatus;     changed = true; }
+                if (existing.CreatedAt      != createdAt)     { existing.CreatedAt      = createdAt;     changed = true; }
+                if (changed)
+                {
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    changeCount++;
+                }
+            }
+            else
+            {
+                context.Customers.Add(new Customer
+                {
+                    Id             = Guid.NewGuid(),
+                    ProjectId      = projectId,
+                    LegacyId       = legacyId,
+                    CompanyName    = src.Name,
+                    Email          = src.Email,
+                    Phone          = src.Phone,
+                    Address        = src.Address,
+                    TaxNumber      = src.TaxNumber,
+                    Segment        = src.Segment,
+                    ExpirationDate = expDate,
+                    Status         = newStatus,
+                    CreatedAt      = createdAt,
+                    UpdatedAt      = DateTime.UtcNow
+                });
+                changeCount++;
+            }
+        }
+
+        try
+        {
+            await context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Liftdesk upsert SaveChanges failed for a batch of {Count} records. Inner: {Inner}",
+                customers.Count, ex.InnerException?.Message ?? ex.Message);
+            throw;
+        }
+
+        return changeCount;
     }
 
     // ── Rezerval CRM company sync ─────────────────────────────────────────────

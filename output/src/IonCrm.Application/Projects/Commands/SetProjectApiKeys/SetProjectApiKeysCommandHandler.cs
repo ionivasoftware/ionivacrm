@@ -30,12 +30,15 @@ public class SetProjectApiKeysCommandHandler : IRequestHandler<SetProjectApiKeys
         project.EmsApiKey       = string.IsNullOrWhiteSpace(request.EmsApiKey)       ? null : request.EmsApiKey.Trim();
         project.RezervAlBaseUrl = string.IsNullOrWhiteSpace(request.RezervAlBaseUrl) ? null : request.RezervAlBaseUrl.Trim();
         project.RezervAlApiKey  = string.IsNullOrWhiteSpace(request.RezervAlApiKey)  ? null : request.RezervAlApiKey.Trim();
+        project.LiftdeskBaseUrl = string.IsNullOrWhiteSpace(request.LiftdeskBaseUrl) ? null : request.LiftdeskBaseUrl.Trim();
+        project.LiftdeskApiKey  = string.IsNullOrWhiteSpace(request.LiftdeskApiKey)  ? null : request.LiftdeskApiKey.Trim();
         project.UpdatedAt       = DateTime.UtcNow;
 
         await _projectRepository.UpdateAsync(project, cancellationToken);
 
         return Result<ProjectDto>.Success(new ProjectDto(
             project.Id, project.Name, project.Description, project.IsActive, project.CreatedAt,
-            project.EmsBaseUrl, project.EmsApiKey, project.RezervAlBaseUrl, project.RezervAlApiKey));
+            project.EmsBaseUrl, project.EmsApiKey, project.RezervAlBaseUrl, project.RezervAlApiKey,
+            project.LiftdeskBaseUrl, project.LiftdeskApiKey));
     }
 }

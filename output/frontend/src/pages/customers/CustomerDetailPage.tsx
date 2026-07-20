@@ -210,10 +210,12 @@ const CONTACT_TYPE_TEXT: Record<ContactType, string> = {
 
 // ── EMS customer helper ────────────────────────────────────────────────────────
 
+// EMS and Liftdesk share the same SaaS surface (users/summary/extend/SMS all work for both).
+// EMS → plain numeric or "SAASA-"; Liftdesk → "LIFT-". PC-/REZV- are excluded.
 function isEmsCustomer(legacyId: string | null | undefined): boolean {
   if (!legacyId) return false;
   if (legacyId.startsWith('PC-')) return false;
-  return /^\d/.test(legacyId) || legacyId.startsWith('SAASA-');
+  return /^\d/.test(legacyId) || legacyId.startsWith('SAASA-') || legacyId.startsWith('LIFT-');
 }
 
 // ── RezervAl customer helper ──────────────────────────────────────────────────
@@ -846,12 +848,12 @@ function ExtendExpirationDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarClock className="h-5 w-5 text-amber-400" />
-            EMS Süre Uzat
+            Süre Uzat
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{companyName}</span> firmasının EMS
+            <span className="font-medium text-foreground">{companyName}</span> firmasının
             abonelik süresini uzatın.
           </p>
           {currentExpiry && (
@@ -1271,8 +1273,8 @@ export function CustomerDetailPage() {
               <span className="sm:hidden">Aktarım</span>
             </Button>
           )}
-          {/* EMS-only buttons (plain numeric ID or SAASA-{id} prefix, not PC-) */}
-          {customer?.legacyId && !customer.legacyId.startsWith('PC-') && (/^\d/.test(customer.legacyId) || customer.legacyId.startsWith('SAASA-')) && (<>
+          {/* EMS/Liftdesk buttons (plain numeric, SAASA-, or LIFT- prefix; not PC-) */}
+          {isEmsCustomer(customer?.legacyId) && (<>
             <Button
               variant="outline"
               className="gap-2 h-10 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 flex-shrink-0"
@@ -1908,7 +1910,7 @@ export function CustomerDetailPage() {
                       ? ((emsUsersError as { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0]
                           ?? (emsUsersError as Error)?.message
                           ?? 'Bilinmeyen hata')
-                      : 'Bu EMS firmasına ait kullanıcı kaydı bulunamadı.'}
+                      : 'Bu firmaya ait kullanıcı kaydı bulunamadı.'}
                   </p>
                 </div>
               )}

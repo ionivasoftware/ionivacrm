@@ -1,3 +1,4 @@
+using IonCrm.Application.Common.Helpers;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models;
 using IonCrm.Application.Common.Models.ExternalApis;
@@ -57,34 +58,17 @@ public sealed class ExtendEmsExpirationCommandHandler
         if (!_currentUser.IsSuperAdmin && !_currentUser.ProjectIds.Contains(customer.ProjectId))
             return Result<ExtendEmsExpirationDto>.Failure("Bu müşteriye erişim yetkiniz yok.");
 
-        // 2. Verify this is an EMS customer and extract the numeric EMS company ID.
-        //    LegacyId formats:
-        //      "3"        → plain numeric (original DB migration + new EMS CRM sync canonical format)
-        //      "SAASA-3"  → prefixed (created by earlier sync runs before normalization)
-        //      "PC-123"   → PotentialCustomer (not EMS — skip)
-        if (string.IsNullOrEmpty(customer.LegacyId)
-            || customer.LegacyId.StartsWith("PC-", StringComparison.OrdinalIgnoreCase))
+        // 2. Verify this is an EMS/Liftdesk customer and resolve its company ID + credentials.
+        //    EMS → "3" / "SAASA-3"; Liftdesk → "LIFT-3"; PC-/REZV- are rejected.
+        var project = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
+        if (!SaasCustomerResolver.TryResolve(customer, project,
+                out var emsCompanyId, out var emsApiKey, out var emsBaseUrl, out _))
         {
             return Result<ExtendEmsExpirationDto>.Failure(
-                "Bu müşteri EMS'ten gelmemiş. Süre uzatma yalnızca EMS kaynaklı müşteriler için geçerlidir.");
+                "Bu müşteri EMS/Liftdesk'ten gelmemiş. Süre uzatma yalnızca EMS/Liftdesk kaynaklı müşteriler için geçerlidir.");
         }
 
-        string rawId = customer.LegacyId.StartsWith("SAASA-", StringComparison.OrdinalIgnoreCase)
-            ? customer.LegacyId["SAASA-".Length..]
-            : customer.LegacyId;
-
-        if (!int.TryParse(rawId, out var emsCompanyId))
-        {
-            return Result<ExtendEmsExpirationDto>.Failure(
-                "Bu müşteri EMS'ten gelmemiş. Süre uzatma yalnızca EMS kaynaklı müşteriler için geçerlidir.");
-        }
-
-        // 3. Get project + EMS credentials (null → SaasAClient falls back to DI-configured defaults)
-        var project    = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
-        var emsApiKey  = project?.EmsApiKey;
-        var emsBaseUrl = project?.EmsBaseUrl;
-
-        // 4. Call EMS API to extend expiration
+        // 4. Call EMS/Liftdesk API to extend expiration
         EmsExtendExpirationResponse emsResponse;
         try
         {

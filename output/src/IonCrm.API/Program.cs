@@ -269,6 +269,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
             ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsApiKey""         text;
             ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlBaseUrl""   text;
             ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlApiKey""    text;
+            ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""LiftdeskBaseUrl""   text;
+            ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""LiftdeskApiKey""    text;
             ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""SmsCount""          integer NOT NULL DEFAULT 0;
         ");
 

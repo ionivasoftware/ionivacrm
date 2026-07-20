@@ -1,3 +1,4 @@
+using IonCrm.Application.Common.Helpers;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models;
 using IonCrm.Application.Common.Models.ExternalApis;
@@ -58,30 +59,16 @@ public sealed class AddCustomerSmsCommandHandler
         if (!_currentUser.IsSuperAdmin && !_currentUser.ProjectIds.Contains(customer.ProjectId))
             return Result<AddCustomerSmsDto>.Failure("Bu müşteriye erişim yetkiniz yok.");
 
-        // 2. Extract EMS company ID from LegacyId
-        if (string.IsNullOrEmpty(customer.LegacyId)
-            || customer.LegacyId.StartsWith("PC-", StringComparison.OrdinalIgnoreCase))
+        // 2. Resolve EMS/Liftdesk company ID + credentials from the LegacyId + project.
+        var project = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
+        if (!SaasCustomerResolver.TryResolve(customer, project,
+                out var emsCompanyId, out var emsApiKey, out var emsBaseUrl, out _))
         {
             return Result<AddCustomerSmsDto>.Failure(
-                "Bu müşteri EMS'ten gelmemiş. SMS yükleme yalnızca EMS kaynaklı müşteriler için geçerlidir.");
+                "Bu müşteri EMS/Liftdesk'ten gelmemiş. SMS yükleme yalnızca EMS/Liftdesk kaynaklı müşteriler için geçerlidir.");
         }
 
-        string rawId = customer.LegacyId.StartsWith("SAASA-", StringComparison.OrdinalIgnoreCase)
-            ? customer.LegacyId["SAASA-".Length..]
-            : customer.LegacyId;
-
-        if (!int.TryParse(rawId, out var emsCompanyId))
-        {
-            return Result<AddCustomerSmsDto>.Failure(
-                "Bu müşteri EMS'ten gelmemiş. SMS yükleme yalnızca EMS kaynaklı müşteriler için geçerlidir.");
-        }
-
-        // 3. Get project EMS credentials (null → SaasAClient falls back to DI-configured defaults)
-        var project    = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
-        var emsApiKey  = project?.EmsApiKey;
-        var emsBaseUrl = project?.EmsBaseUrl;
-
-        // 4. Call EMS API
+        // 4. Call EMS/Liftdesk API
         EmsAddSmsResponse emsResponse;
         try
         {

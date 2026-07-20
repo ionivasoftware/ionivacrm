@@ -9,4 +9,6 @@ public record SetProjectApiKeysCommand(
     string? EmsBaseUrl,
     string? EmsApiKey,
     string? RezervAlBaseUrl,
-    string? RezervAlApiKey) : IRequest<Result<ProjectDto>>;
+    string? RezervAlApiKey,
+    string? LiftdeskBaseUrl = null,
+    string? LiftdeskApiKey = null) : IRequest<Result<ProjectDto>>;

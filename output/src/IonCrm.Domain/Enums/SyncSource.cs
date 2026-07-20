@@ -4,5 +4,6 @@ namespace IonCrm.Domain.Enums;
 public enum SyncSource
 {
     SaasA = 1,
-    SaasB = 2
+    SaasB = 2,
+    Liftdesk = 3
 }

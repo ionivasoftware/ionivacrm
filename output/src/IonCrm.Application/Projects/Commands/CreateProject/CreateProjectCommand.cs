@@ -16,4 +16,6 @@ public record ProjectDto(
     string? EmsBaseUrl = null,
     string? EmsApiKey = null,
     string? RezervAlBaseUrl = null,
-    string? RezervAlApiKey = null);
+    string? RezervAlApiKey = null,
+    string? LiftdeskBaseUrl = null,
+    string? LiftdeskApiKey = null);

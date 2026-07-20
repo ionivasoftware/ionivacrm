@@ -42,6 +42,7 @@ public class UpdateProjectCommandHandler : IRequestHandler<UpdateProjectCommand,
         await _projectRepository.UpdateAsync(project, cancellationToken);
         return Result<ProjectDto>.Success(new ProjectDto(
             project.Id, project.Name, project.Description, project.IsActive, project.CreatedAt,
-            project.EmsBaseUrl, project.EmsApiKey, project.RezervAlBaseUrl, project.RezervAlApiKey));
+            project.EmsBaseUrl, project.EmsApiKey, project.RezervAlBaseUrl, project.RezervAlApiKey,
+            project.LiftdeskBaseUrl, project.LiftdeskApiKey));
     }
 }

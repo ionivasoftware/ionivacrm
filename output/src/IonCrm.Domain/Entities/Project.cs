@@ -29,6 +29,13 @@ public class Project : BaseEntity
     /// <summary>Gets or sets the API key used to authenticate with Rezerval (SaaS B).</summary>
     public string? RezervAlApiKey { get; set; }
 
+    /// <summary>Gets or sets the base URL of the Liftdesk API for this project.
+    /// Liftdesk exposes the same SaaS surface as EMS, so it is consumed through the same client.</summary>
+    public string? LiftdeskBaseUrl { get; set; }
+
+    /// <summary>Gets or sets the API key used to authenticate with Liftdesk.</summary>
+    public string? LiftdeskApiKey { get; set; }
+
     /// <summary>Gets or sets the SMS credit balance for this project/company.</summary>
     public int SmsCount { get; set; } = 0;
 

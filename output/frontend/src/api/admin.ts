@@ -47,6 +47,8 @@ export interface AdminProject {
   emsApiKey: string | null;
   rezervAlBaseUrl: string | null;
   rezervAlApiKey: string | null;
+  liftdeskBaseUrl: string | null;
+  liftdeskApiKey: string | null;
   smsCount: number;
 }
 
@@ -71,6 +73,8 @@ export interface SetProjectApiKeysRequest {
   emsApiKey: string | null;
   rezervAlBaseUrl: string | null;
   rezervAlApiKey: string | null;
+  liftdeskBaseUrl: string | null;
+  liftdeskApiKey: string | null;
 }
 
 // ── Users ──────────────────────────────────────────────────────────────────────

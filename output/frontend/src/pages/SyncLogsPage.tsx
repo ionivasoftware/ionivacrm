@@ -39,6 +39,7 @@ const STATUS_CONFIG: Record<string, { label: string; className: string; icon: Re
 const SOURCE_LABELS: Record<string, string> = {
   SaasA: 'EMS',
   SaasB: 'Rezerval',
+  Liftdesk: 'Liftdesk',
 };
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -168,6 +169,7 @@ export function SyncLogsPage() {
               <SelectItem value="all">Tüm Kaynaklar</SelectItem>
               <SelectItem value="SaasA">EMS (SaaS A)</SelectItem>
               <SelectItem value="SaasB">Rezerval (SaaS B)</SelectItem>
+              <SelectItem value="Liftdesk">Liftdesk</SelectItem>
             </SelectContent>
           </Select>
 

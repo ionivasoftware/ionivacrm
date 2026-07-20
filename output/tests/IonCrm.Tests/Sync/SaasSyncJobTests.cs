@@ -130,7 +130,7 @@ public class SaasSyncJobTests
         _saasAClientMock
             .Setup(c => c.GetCrmCustomersPageAsync(
                 It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(new EmsCrmCustomersResponse(new List<EmsCrmCustomer>(), 0, 1, 20, 0));
         _saasAClientMock
             .Setup(c => c.GetCustomersAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
@@ -156,7 +156,7 @@ public class SaasSyncJobTests
 
         // Assert — SaaS A ran (now uses the paginated CRM endpoint, not legacy GetCustomersAsync)
         _saasAClientMock.Verify(
-            c => c.GetCrmCustomersPageAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            c => c.GetCrmCustomersPageAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()),
             Times.AtLeastOnce,
             "SaaS A sync should run GetCrmCustomersPageAsync when ProjectId is configured");
     }
