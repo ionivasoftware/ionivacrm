@@ -109,7 +109,7 @@ public class GetCustomerEmsSummaryQueryHandlerTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        result.FirstError.Should().Contain("EMS kaynaklı değil");
+        result.FirstError.Should().Contain("EMS/Liftdesk kaynaklı değil");
     }
 
     [Theory]
@@ -130,7 +130,7 @@ public class GetCustomerEmsSummaryQueryHandlerTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        result.FirstError.Should().Contain("EMS kaynaklı değil");
+        result.FirstError.Should().Contain("EMS/Liftdesk kaynaklı değil");
     }
 
     [Theory]
@@ -173,7 +173,7 @@ public class GetCustomerEmsSummaryQueryHandlerTests
         var result = await CreateHandler().Handle(new GetCustomerEmsSummaryQuery(_customerId), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        result.FirstError.Should().Contain("EMS kaynaklı değil");
+        result.FirstError.Should().Contain("EMS/Liftdesk kaynaklı değil");
     }
 
     // ── EMS API call ──────────────────────────────────────────────────────────
