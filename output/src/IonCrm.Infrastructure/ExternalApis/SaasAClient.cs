@@ -99,7 +99,9 @@ public sealed class SaasAClient : ISaasAClient
             var request = new HttpRequestMessage(HttpMethod.Get, uri);
             ApplyAuth(request, apiKey);
             var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
+            // EnsureSuccessAsync surfaces the server's response body (e.g. "Invalid CRM API key.")
+            // in the exception message, so auth/config failures are legible in the sync log.
+            await EnsureSuccessAsync(response, ct);
             var result = await response.Content.ReadFromJsonAsync<EmsCrmCustomersResponse>(JsonOpts, ct);
             return result ?? new EmsCrmCustomersResponse(new List<EmsCrmCustomer>(), 0, page, pageSize, 0);
         }, cancellationToken);
