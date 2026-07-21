@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, UserCheck, Shield, Mail, Loader2, Users, Pencil, Trash2 } from 'lucide-react';
+import { Plus, UserCheck, Shield, Mail, Loader2, Users, Pencil, Trash2, KeyRound, Copy, Check, AlertTriangle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  useAdminUsers, useCreateUser, useUpdateUser, useDeleteUser, useAssignRole,
+  useAdminUsers, useCreateUser, useUpdateUser, useDeleteUser, useAssignRole, useResetUserPassword,
   type AdminUser,
 } from '@/api/admin';
 import { useAdminProjects } from '@/api/admin';
@@ -236,6 +236,108 @@ function DeleteUserDialog({ user, onClose }: { user: AdminUser; onClose: () => v
   );
 }
 
+// ── Reset Password Dialog ──────────────────────────────────────────────────────
+
+function ResetPasswordDialog({ user, onClose }: { user: AdminUser; onClose: () => void }) {
+  const { toast } = useToast();
+  const mutation = useResetUserPassword();
+  const [newPassword, setNewPassword] = useState('');
+  const [result, setResult] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleReset = async () => {
+    const pw = newPassword.trim();
+    // If the admin typed a password, validate it locally (matches server rules); blank = auto-generate.
+    if (pw && (pw.length < 8 || !/[A-Z]/.test(pw) || !/[a-z]/.test(pw) || !/[0-9]/.test(pw))) {
+      toast({
+        title: 'Şifre kuralları',
+        description: 'En az 8 karakter, büyük/küçük harf ve rakam içermelidir.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      const res = await mutation.mutateAsync({ id: user.id, newPassword: pw || undefined });
+      setResult(res?.password ?? pw);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0]
+        ?? 'Şifre sıfırlanamadı.';
+      toast({ title: 'Hata', description: msg, variant: 'destructive' });
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast({ title: 'Kopyalanamadı', description: 'Şifreyi elle seçip kopyalayın.', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && !mutation.isPending && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4" /> Şifre Sıfırla — {user.fullName}
+          </DialogTitle>
+        </DialogHeader>
+
+        {result === null ? (
+          <>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label>Yeni Şifre (opsiyonel)</Label>
+                <Input
+                  type="text"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Boş bırakırsanız güçlü bir şifre otomatik üretilir"
+                  className="h-10 font-mono"
+                  autoComplete="new-password"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Elle girerseniz: en az 8 karakter, büyük/küçük harf ve rakam içermelidir.
+                  <span className="text-foreground"> {user.email}</span> kullanıcısının mevcut şifresi geçersiz olur.
+                </p>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={onClose} disabled={mutation.isPending}>İptal</Button>
+              <Button type="button" onClick={handleReset} disabled={mutation.isPending}>
+                {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Şifreyi Sıfırla
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <div className="space-y-3 py-2">
+              <p className="flex items-start gap-1.5 text-xs text-amber-500">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-px" />
+                Bu şifreyi şimdi kopyalayıp kullanıcıya iletin — bu ekran kapandıktan sonra tekrar gösterilemez.
+              </p>
+              <div className="flex items-center gap-2 rounded-lg border bg-muted/40 p-3">
+                <code className="flex-1 font-mono text-sm break-all text-foreground select-all">{result}</code>
+                <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="flex-shrink-0">
+                  {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                  <span className="ml-1.5">{copied ? 'Kopyalandı' : 'Kopyala'}</span>
+                </Button>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" onClick={onClose}>Kapat</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Assign Role Dialog ────────────────────────────────────────────────────────
 
 function AssignRoleDialog({ user, onClose }: { user: AdminUser; onClose: () => void }) {
@@ -316,6 +418,7 @@ export function UsersAdminPage() {
   const [editTarget, setEditTarget] = useState<AdminUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
   const [assignTarget, setAssignTarget] = useState<AdminUser | null>(null);
+  const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
 
   return (
     <div className="space-y-6">
@@ -395,6 +498,15 @@ export function UsersAdminPage() {
                       variant="outline"
                       size="sm"
                       className="gap-1.5"
+                      onClick={() => setResetTarget(user)}
+                      title="Şifre sıfırla"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" /> Şifre
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
                       onClick={() => setEditTarget(user)}
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -419,6 +531,7 @@ export function UsersAdminPage() {
       {editTarget && <EditUserDialog user={editTarget} onClose={() => setEditTarget(null)} />}
       {deleteTarget && <DeleteUserDialog user={deleteTarget} onClose={() => setDeleteTarget(null)} />}
       {assignTarget && <AssignRoleDialog user={assignTarget} onClose={() => setAssignTarget(null)} />}
+      {resetTarget && <ResetPasswordDialog user={resetTarget} onClose={() => setResetTarget(null)} />}
     </div>
   );
 }

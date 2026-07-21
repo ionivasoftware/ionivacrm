@@ -131,6 +131,20 @@ export function useAssignRole() {
   });
 }
 
+/** SuperAdmin resets a user's password. Omit `newPassword` to have the server generate a strong one.
+ *  Returns the effective password once so it can be handed to the user. No list invalidation needed. */
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: async ({ id, newPassword }: { id: string; newPassword?: string }) => {
+      const res = await apiClient.post<ApiResponse<{ password: string }>>(
+        `/users/${id}/reset-password`,
+        { newPassword: newPassword?.trim() ? newPassword : null }
+      );
+      return res.data.data;
+    },
+  });
+}
+
 // ── Projects ───────────────────────────────────────────────────────────────────
 
 export function useAdminProjects() {

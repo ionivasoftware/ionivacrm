@@ -2,6 +2,7 @@ using IonCrm.API.Common;
 using IonCrm.Application.Auth.Commands.AssignRole;
 using IonCrm.Application.Auth.Commands.DeleteUser;
 using IonCrm.Application.Auth.Commands.RegisterUser;
+using IonCrm.Application.Auth.Commands.ResetUserPassword;
 using IonCrm.Application.Auth.Commands.UpdateUser;
 using IonCrm.Application.Auth.Queries.GetUsers;
 using IonCrm.Application.Common.DTOs;
@@ -99,6 +100,28 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
+    // ── POST /api/v1/users/{id}/reset-password ───────────────────────────────
+
+    /// <summary>
+    /// Resets a user's password. Restricted to SuperAdmin. If <c>newPassword</c> is omitted a strong
+    /// random password is generated. Returns the effective password once so the admin can hand it over.
+    /// </summary>
+    [HttpPost("{id:guid}/reset-password")]
+    [Authorize(Policy = "SuperAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<ResetUserPasswordResult>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    [ProducesResponseType(401)]
+    [ProducesResponseType(403)]
+    public async Task<IActionResult> ResetPassword(
+        [FromRoute] Guid id,
+        [FromBody] ResetPasswordRequest? request = null)
+    {
+        var result = await _mediator.Send(new ResetUserPasswordCommand(id, request?.NewPassword));
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<ResetUserPasswordResult>.Fail(result.Errors));
+        return Ok(ApiResponse<ResetUserPasswordResult>.Ok(result.Value!));
+    }
+
     // ── POST /api/v1/users/{userId}/roles ────────────────────────────────────
 
     /// <summary>
@@ -132,3 +155,7 @@ public class UsersController : ControllerBase
 /// <param name="ProjectId">The project (tenant) to assign the role in.</param>
 /// <param name="Role">The role to assign.</param>
 public record AssignRoleRequest(Guid ProjectId, UserRole Role);
+
+/// <summary>Request body for the ResetPassword endpoint. <c>NewPassword</c> null/empty → random.</summary>
+/// <param name="NewPassword">Optional explicit new password; a strong random one is generated when omitted.</param>
+public record ResetPasswordRequest(string? NewPassword);
