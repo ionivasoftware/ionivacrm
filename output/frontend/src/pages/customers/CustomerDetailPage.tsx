@@ -93,6 +93,7 @@ import {
 import { TransferLeadModal } from '@/components/customers/TransferLeadModal';
 import { RezervalPushDialog } from '@/components/customers/RezervalPushDialog';
 import { RezervalSettingsTab } from '@/components/customers/RezervalSettingsTab';
+import { ChecklistsTab } from '@/components/customers/ChecklistsTab';
 import { CreateContractDialog } from '@/components/customers/CreateContractDialog';
 import { CancelContractDialog } from '@/components/customers/CancelContractDialog';
 import { useToast } from '@/hooks/use-toast';
@@ -224,6 +225,13 @@ function isEmsCustomer(legacyId: string | null | undefined): boolean {
 function isRezervalCustomer(legacyId: string | null | undefined): boolean {
   if (!legacyId) return false;
   return legacyId.startsWith('SAASB-') || legacyId.startsWith('REZV-');
+}
+
+// ── Liftdesk customer helper ──────────────────────────────────────────────────
+
+/** Liftdesk-only surface (checklists) — strictly "LIFT-{n}", unlike the shared EMS surface. */
+function isLiftdeskCustomer(legacyId: string | null | undefined): boolean {
+  return !!legacyId && legacyId.startsWith('LIFT-');
 }
 
 // ── RezervAl Monthly License Fee Section ─────────────────────────────────────
@@ -440,7 +448,7 @@ function QuickInvoiceForm({ projectId, contactId, customerName, onSuccess, onErr
 
 // ── Tab type ──────────────────────────────────────────────────────────────────
 
-type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari' | 'ems-users' | 'ems-summary' | 'rezerval-summary' | 'rezerval-settings';
+type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari' | 'ems-users' | 'ems-summary' | 'rezerval-summary' | 'rezerval-settings' | 'checklists';
 
 // ── Inline Schemas ────────────────────────────────────────────────────────────
 
@@ -1216,6 +1224,7 @@ export function CustomerDetailPage() {
     ...(isEmsCustomer(customer?.legacyId) ? [{ id: 'ems-summary' as ActiveTab, label: 'Kullanım Özeti' }] : []),
     ...(isRezervalCustomer(customer?.legacyId) ? [{ id: 'rezerval-summary' as ActiveTab, label: 'RezervAl Özeti' }] : []),
     ...(isRezervalCustomer(customer?.legacyId) ? [{ id: 'rezerval-settings' as ActiveTab, label: 'Ayarlar' }] : []),
+    ...(isLiftdeskCustomer(customer?.legacyId) ? [{ id: 'checklists' as ActiveTab, label: 'Checklists' }] : []),
   ];
 
   return (
@@ -2060,6 +2069,11 @@ export function CustomerDetailPage() {
           {/* ── Rezerval Settings Tab ── */}
           {activeTab === 'rezerval-settings' && (
             <RezervalSettingsTab customerId={customerId} />
+          )}
+
+          {/* ── Liftdesk Checklists Tab ── */}
+          {activeTab === 'checklists' && (
+            <ChecklistsTab customerId={customerId} />
           )}
 
           {/* ── Cari Tab ── */}

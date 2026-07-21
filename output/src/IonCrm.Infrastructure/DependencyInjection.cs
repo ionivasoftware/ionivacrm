@@ -244,6 +244,15 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(60);
             })
             .AddPolicyHandler(BuildCircuitBreakerPolicy());
+
+        // Liftdesk company checklist API — base URL + Bearer key supplied per call from the
+        // Liftdesk Project row (customer detail "Checklists" tab).
+        services
+            .AddHttpClient<ILiftdeskChecklistClient, LiftdeskChecklistClient>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(60);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
     }
 
     private static void RegisterSaasBClient(

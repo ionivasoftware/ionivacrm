@@ -6,12 +6,16 @@ using IonCrm.Application.Customers.Commands.CreateCustomerContract;
 using IonCrm.Application.Customers.Commands.DeleteCustomer;
 using IonCrm.Application.Customers.Commands.ExtendEmsExpiration;
 using IonCrm.Application.Customers.Commands.PushCustomerToRezerval;
+using IonCrm.Application.Customers.Commands.ResetCustomerChecklists;
 using IonCrm.Application.Customers.Commands.TransferLead;
 using IonCrm.Application.Customers.Commands.UpdateContractPaymentType;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
+using IonCrm.Application.Customers.Commands.UpdateCustomerChecklist;
 using IonCrm.Application.Customers.Commands.UpdateCustomerRezervalSettings;
+using IonCrm.Application.Common.Models.ExternalApis;
 using IonCrm.Application.Customers.Queries.GetActiveContractByCustomerId;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
+using IonCrm.Application.Customers.Queries.GetCustomerChecklist;
 using IonCrm.Application.Customers.Queries.GetCustomerEmsUsers;
 using IonCrm.Application.Customers.Queries.GetCustomerEmsSummary;
 using IonCrm.Application.Customers.Queries.GetCustomerRezervalSettings;
@@ -197,6 +201,56 @@ public class CustomersController : ApiControllerBase
     public async Task<IActionResult> GetEmsSummary(Guid id, CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(new GetCustomerEmsSummaryQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// GET /api/v1/customers/{id}/checklists/{kind}
+    /// Returns the maintenance or fault checklist of a Liftdesk-sourced customer ("LIFT-{n}").
+    /// Proxies to Liftdesk GET /api/v1/crm/companies/{companyId}/{kind}-checklist.
+    /// Returns 400 when the customer is not Liftdesk-sourced or kind is invalid.
+    /// </summary>
+    [HttpGet("{id:guid}/checklists/{kind}")]
+    public async Task<IActionResult> GetChecklist(
+        Guid id,
+        string kind,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetCustomerChecklistQuery(id, kind), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// PUT /api/v1/customers/{id}/checklists/{kind}
+    /// Replaces the maintenance or fault checklist of a Liftdesk-sourced customer with the given
+    /// set (full-document replace; array order becomes the sort order). Empty headers clears it.
+    /// </summary>
+    [HttpPut("{id:guid}/checklists/{kind}")]
+    public async Task<IActionResult> UpdateChecklist(
+        Guid id,
+        string kind,
+        [FromBody] UpdateChecklistRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        var command = new UpdateCustomerChecklistCommand(id, kind, body.Headers);
+        var result = await Mediator.Send(command, cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// POST /api/v1/customers/{id}/checklists/reset
+    /// Resets the checklist(s) of a Liftdesk-sourced customer to the Liftdesk default template.
+    /// DESTRUCTIVE: the company's customisation is deleted. Kind: "maintenance" | "fault" | "both"
+    /// (defaults to "both" when the body is omitted).
+    /// </summary>
+    [HttpPost("{id:guid}/checklists/reset")]
+    public async Task<IActionResult> ResetChecklists(
+        Guid id,
+        [FromBody] ResetChecklistsRequest? body = null,
+        CancellationToken cancellationToken = default)
+    {
+        var kind = string.IsNullOrWhiteSpace(body?.Kind) ? "both" : body!.Kind!;
+        var result = await Mediator.Send(new ResetCustomerChecklistsCommand(id, kind), cancellationToken);
         return ResultToResponse(result);
     }
 
@@ -420,6 +474,12 @@ public record ExtendEmsExpirationRequest(string DurationType, int Amount);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/add-sms.</summary>
 public record AddCustomerSmsRequest(int Count);
+
+/// <summary>Request body for PUT /api/v1/customers/{id}/checklists/{kind} — the FULL new checklist.</summary>
+public record UpdateChecklistRequest(List<LiftdeskChecklistHeaderInput> Headers);
+
+/// <summary>Request body for POST /api/v1/customers/{id}/checklists/reset. Kind defaults to "both".</summary>
+public record ResetChecklistsRequest(string? Kind);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/contracts.</summary>
 public record CreateContractRequest(

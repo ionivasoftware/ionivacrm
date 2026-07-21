@@ -670,3 +670,97 @@ export function useCancelCustomerContract(customerId: string) {
     },
   });
 }
+
+// ── Liftdesk Checklists ───────────────────────────────────────────────────────
+
+export type ChecklistKind = 'maintenance' | 'fault';
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface ChecklistHeader {
+  id: string;
+  title: string;
+  sortOrder: number;
+  isActive: boolean;
+  items: ChecklistItem[];
+}
+
+/** A company's full checklist document for one kind. Includes inactive (not deleted) rows. */
+export interface ChecklistDoc {
+  companyId: number;
+  kind: string;
+  formId: number;
+  headers: ChecklistHeader[];
+}
+
+export interface ChecklistResetResult {
+  companyId: number;
+  maintenance: ChecklistDoc | null;
+  fault: ChecklistDoc | null;
+}
+
+export interface ChecklistItemInput {
+  text: string;
+  isActive: boolean;
+}
+
+export interface ChecklistHeaderInput {
+  title: string;
+  isActive: boolean;
+  items: ChecklistItemInput[];
+}
+
+export function useCustomerChecklist(customerId: string, kind: ChecklistKind, enabled: boolean) {
+  return useQuery({
+    queryKey: ['customerChecklist', customerId, kind],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<ChecklistDoc>>(
+        `/customers/${customerId}/checklists/${kind}`
+      );
+      return response.data.data;
+    },
+    enabled: !!customerId && enabled,
+  });
+}
+
+/** Full-document replace: the sent headers become the NEW checklist (order = sort order). */
+export function useUpdateCustomerChecklist(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ kind, headers }: { kind: ChecklistKind; headers: ChecklistHeaderInput[] }) => {
+      const response = await apiClient.put<ApiResponse<ChecklistDoc>>(
+        `/customers/${customerId}/checklists/${kind}`,
+        { headers }
+      );
+      return response.data.data;
+    },
+    onSuccess: (data, { kind }) => {
+      if (data) queryClient.setQueryData(['customerChecklist', customerId, kind], data);
+    },
+  });
+}
+
+/** DESTRUCTIVE: re-seeds the Liftdesk default template, deleting the company's customisation. */
+export function useResetCustomerChecklists(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ kind }: { kind: ChecklistKind | 'both' }) => {
+      const response = await apiClient.post<ApiResponse<ChecklistResetResult>>(
+        `/customers/${customerId}/checklists/reset`,
+        { kind }
+      );
+      return response.data.data;
+    },
+    onSuccess: (data) => {
+      if (data?.maintenance)
+        queryClient.setQueryData(['customerChecklist', customerId, 'maintenance'], data.maintenance);
+      if (data?.fault)
+        queryClient.setQueryData(['customerChecklist', customerId, 'fault'], data.fault);
+    },
+  });
+}
