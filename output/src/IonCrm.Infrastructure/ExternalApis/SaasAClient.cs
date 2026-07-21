@@ -154,14 +154,31 @@ public sealed class SaasAClient : ISaasAClient
 
     /// <summary>
     /// Builds a request URI. When <paramref name="baseUrl"/> is provided the relative path is resolved
-    /// against it, allowing per-project EMS base URL overrides. Falls back to the DI-configured base
-    /// address (<see cref="_httpClient"/>) when <paramref name="baseUrl"/> is null/empty.
+    /// against it, allowing per-project EMS/Liftdesk base URL overrides. Falls back to the DI-configured
+    /// base address (<see cref="_httpClient"/>) when <paramref name="baseUrl"/> is null/empty.
     /// </summary>
     private static Uri BuildRequestUri(string relativePath, string? baseUrl)
     {
         if (!string.IsNullOrWhiteSpace(baseUrl))
-            return new Uri(new Uri(baseUrl.TrimEnd('/') + "/"), relativePath);
+            return new Uri(new Uri(NormalizeBaseUrl(baseUrl)), relativePath);
         return new Uri(relativePath, UriKind.Relative);
+    }
+
+    /// <summary>
+    /// Normalises a configured base URL into an absolute, trailing-slash form. A value entered without
+    /// a scheme (e.g. "api.liftdesk.com" or "foo.up.railway.app") is a common admin mistake that would
+    /// otherwise make <c>new Uri(...)</c> throw "Invalid URI: The format of the URI could not be
+    /// determined."; we default it to <c>https://</c>.
+    /// </summary>
+    private static string NormalizeBaseUrl(string baseUrl)
+    {
+        var trimmed = baseUrl.Trim();
+        if (!trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            && !trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = "https://" + trimmed;
+        }
+        return trimmed.TrimEnd('/') + "/";
     }
 
     /// <inheritdoc />
