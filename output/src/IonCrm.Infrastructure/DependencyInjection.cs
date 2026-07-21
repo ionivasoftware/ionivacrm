@@ -235,6 +235,15 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(60);
             })
             .AddPolicyHandler(BuildCircuitBreakerPolicy());
+
+        // Liftdesk (EMS) pricing management API — base URL + Bearer key supplied per call from the
+        // Liftdesk Project row (SuperAdmin pricing screen).
+        services
+            .AddHttpClient<ILiftdeskPricingClient, LiftdeskPricingClient>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(60);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
     }
 
     private static void RegisterSaasBClient(
