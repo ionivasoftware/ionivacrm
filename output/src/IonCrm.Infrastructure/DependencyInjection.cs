@@ -262,6 +262,14 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(60);
             })
             .AddPolicyHandler(BuildCircuitBreakerPolicy());
+
+        // Liftdesk (EMS) CRM support-chat-logs API — read-only, same static Bearer key + base URL.
+        services
+            .AddHttpClient<ILiftdeskSupportChatClient, LiftdeskSupportChatClient>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(60);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
     }
 
     private static void RegisterSaasBClient(

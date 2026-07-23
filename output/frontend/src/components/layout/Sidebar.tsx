@@ -16,6 +16,7 @@ import {
   Receipt,
   Tags,
   MessageSquareText,
+  MessageCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -57,6 +58,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Senkronizasyon', href: '/sync/logs', icon: RefreshCw, superAdminOnly: true },
   { label: 'Hata Onayları', href: '/admin/error-triage', icon: ShieldAlert, superAdminOnly: true },
   { label: 'Talep & Öneriler', href: '/admin/tickets', icon: MessageSquareText, superAdminOnly: true },
+  { label: 'Destek Sohbetleri', href: '/admin/support-chat-logs', icon: MessageCircle, superAdminOnly: true },
   { label: 'Fiyat Yönetimi', href: '/admin/pricing', icon: Tags, superAdminOnly: true },
 ];
 

@@ -25,6 +25,7 @@ const ErrorTriagePage   = lazy(() => import('@/pages/admin/ErrorTriagePage').the
 const VendorInvoicesPage = lazy(() => import('@/pages/admin/VendorInvoicesPage').then(m => ({ default: m.VendorInvoicesPage })));
 const PricingAdminPage  = lazy(() => import('@/pages/admin/PricingAdminPage').then(m => ({ default: m.PricingAdminPage })));
 const TicketsPage       = lazy(() => import('@/pages/admin/TicketsPage').then(m => ({ default: m.TicketsPage })));
+const SupportChatLogsPage = lazy(() => import('@/pages/admin/SupportChatLogsPage').then(m => ({ default: m.SupportChatLogsPage })));
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 function PageLoader() {
@@ -164,6 +165,14 @@ export default function App() {
                 element={
                   <ProtectedRoute superAdminOnly>
                     <TicketsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/support-chat-logs"
+                element={
+                  <ProtectedRoute superAdminOnly>
+                    <SupportChatLogsPage />
                   </ProtectedRoute>
                 }
               />
