@@ -253,6 +253,15 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(60);
             })
             .AddPolicyHandler(BuildCircuitBreakerPolicy());
+
+        // Liftdesk (EMS) CRM ticket API — static Bearer key (shared with error-triage), base URL
+        // resolved per request from Liftdesk:BaseUrl (falls back to the dev URL inside the client).
+        services
+            .AddHttpClient<ILiftdeskTicketClient, LiftdeskTicketClient>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(60);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
     }
 
     private static void RegisterSaasBClient(

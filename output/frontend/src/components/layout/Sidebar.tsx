@@ -15,6 +15,7 @@ import {
   ShieldAlert,
   Receipt,
   Tags,
+  MessageSquareText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -55,6 +56,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Proje Yönetimi', href: '/admin/projects', icon: FolderKanban, superAdminOnly: true },
   { label: 'Senkronizasyon', href: '/sync/logs', icon: RefreshCw, superAdminOnly: true },
   { label: 'Hata Onayları', href: '/admin/error-triage', icon: ShieldAlert, superAdminOnly: true },
+  { label: 'Talep & Öneriler', href: '/admin/tickets', icon: MessageSquareText, superAdminOnly: true },
   { label: 'Fiyat Yönetimi', href: '/admin/pricing', icon: Tags, superAdminOnly: true },
 ];
 
