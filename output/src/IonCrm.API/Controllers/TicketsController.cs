@@ -16,11 +16,14 @@ namespace IonCrm.API.Controllers;
 ///
 /// Credentials never reach the browser: auth is the static M2M Bearer key inside
 /// <see cref="ILiftdeskTicketClient"/>. AI triage and the fix pipeline run on the EMS side; the CRM
-/// only lists, opens and decides. <c>decidedBy</c> is derived from the authenticated SuperAdmin
+/// only lists, opens and decides. <c>decidedBy</c> is derived from the authenticated user
 /// (not client-supplied) to prevent spoofing — matching the error-triage screen.
+///
+/// Access: any authenticated user can VIEW the queue (list + detail); opening a ticket and the
+/// approve/reject decision (which triggers the automated fix pipeline) stay SuperAdmin-only.
 /// </summary>
 [Route("api/v1/tickets")]
-[Authorize(Policy = "SuperAdmin")]
+[Authorize]
 public sealed class TicketsController : ApiControllerBase
 {
     private readonly ILiftdeskTicketClient _ticketClient;
@@ -120,12 +123,14 @@ public sealed class TicketsController : ApiControllerBase
 
     /// <summary>
     /// Opens a support ticket on the Liftdesk side (Source=Crm, Status=New). ProjectId null → global.
-    /// <c>createdByName</c> defaults to the SuperAdmin's identity when omitted.
+    /// <c>createdByName</c> defaults to the user's identity when omitted. Restricted to SuperAdmin.
     /// POST /api/v1/tickets
     /// </summary>
     [HttpPost]
+    [Authorize(Policy = "SuperAdmin")]
     [ProducesResponseType(typeof(ApiResponse<LiftdeskTicket>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> CreateTicket(
         [FromBody] CreateTicketRequest body,
         CancellationToken cancellationToken = default)
@@ -175,11 +180,14 @@ public sealed class TicketsController : ApiControllerBase
     /// Approves or rejects a ticket (or re-approves a Failed one to retry the fix agent).
     /// PATCH /api/v1/tickets/{id}/status — body { status: "Approved" | "Rejected", decisionNote }.
     /// <c>decidedBy</c> is derived from the authenticated SuperAdmin. Liftdesk enforces the state
-    /// machine and returns 409 for invalid transitions, surfaced here.
+    /// machine and returns 409 for invalid transitions, surfaced here. Restricted to SuperAdmin —
+    /// approval triggers the automated fix pipeline.
     /// </summary>
     [HttpPatch("{id:guid}/status")]
+    [Authorize(Policy = "SuperAdmin")]
     [ProducesResponseType(typeof(ApiResponse<LiftdeskTicket>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> UpdateStatus(
         Guid id,

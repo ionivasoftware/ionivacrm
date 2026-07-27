@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/stores/authStore';
 import {
   useTickets, useTicket, useCreateTicket, useUpdateTicketStatus,
   type Ticket, type TicketType, type TicketPlatform,
@@ -118,6 +119,8 @@ function canReject(status: string) { return status === 'New' || status === 'Tria
 
 function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: () => void }) {
   const { toast } = useToast();
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.isSuperAdmin ?? false;
   const { data: ticket, isLoading, isError, error } = useTicket(ticketId);
   const update = useUpdateTicketStatus();
   const [note, setNote] = useState('');
@@ -141,7 +144,9 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
     }
   }
 
-  const actionable = ticket ? (canApprove(ticket.status) || canReject(ticket.status)) : false;
+  // Only SuperAdmins may act (approve/reject drives the automated fix pipeline); other roles get a
+  // read-only view.
+  const actionable = isSuperAdmin && ticket ? (canApprove(ticket.status) || canReject(ticket.status)) : false;
 
   return (
     <Dialog open onOpenChange={(o) => !o && !busy && onClose()}>
@@ -278,7 +283,7 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
 
             <DialogFooter className="gap-2">
               <Button variant="outline" size="sm" onClick={onClose} disabled={busy}>Kapat</Button>
-              {ticket && canReject(ticket.status) && (
+              {isSuperAdmin && ticket && canReject(ticket.status) && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -289,7 +294,7 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
                   <X className="h-4 w-4 mr-1.5" /> Reddet
                 </Button>
               )}
-              {ticket && canApprove(ticket.status) && (
+              {isSuperAdmin && ticket && canApprove(ticket.status) && (
                 <Button
                   size="sm"
                   onClick={() => decide('Approved')}
@@ -463,6 +468,8 @@ function TicketCard({ ticket, onOpen }: { ticket: Ticket; onOpen: (id: string) =
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export function TicketsPage() {
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.isSuperAdmin ?? false;
   const [status, setStatus] = useState('');
   const [type, setType] = useState('all');
   const [platform, setPlatform] = useState('all');
@@ -509,9 +516,11 @@ export function TicketsPage() {
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`h-4 w-4 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} /> Yenile
           </Button>
-          <Button size="sm" onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4 mr-1.5" /> Yeni Talep
-          </Button>
+          {isSuperAdmin && (
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4 mr-1.5" /> Yeni Talep
+            </Button>
+          )}
         </div>
       </div>
 

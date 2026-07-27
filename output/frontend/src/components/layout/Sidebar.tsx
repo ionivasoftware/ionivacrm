@@ -43,6 +43,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Gösterge Paneli', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Talep & Öneriler', href: '/admin/tickets', icon: MessageSquareText },
   { label: 'Müşteriler', href: '/customers', icon: Users },
   { label: 'Pipeline', href: '/pipeline', icon: KanbanSquare },
   { label: 'Görevler', href: '/tasks', icon: CheckSquare },
@@ -57,7 +58,6 @@ const adminNavItems: NavItem[] = [
   { label: 'Proje Yönetimi', href: '/admin/projects', icon: FolderKanban, superAdminOnly: true },
   { label: 'Senkronizasyon', href: '/sync/logs', icon: RefreshCw, superAdminOnly: true },
   { label: 'Hata Onayları', href: '/admin/error-triage', icon: ShieldAlert, superAdminOnly: true },
-  { label: 'Talep & Öneriler', href: '/admin/tickets', icon: MessageSquareText, superAdminOnly: true },
   { label: 'Destek Sohbetleri', href: '/admin/support-chat-logs', icon: MessageCircle, superAdminOnly: true },
   { label: 'Fiyat Yönetimi', href: '/admin/pricing', icon: Tags, superAdminOnly: true },
 ];

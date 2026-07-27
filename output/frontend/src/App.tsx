@@ -163,7 +163,7 @@ export default function App() {
               <Route
                 path="/admin/tickets"
                 element={
-                  <ProtectedRoute superAdminOnly>
+                  <ProtectedRoute>
                     <TicketsPage />
                   </ProtectedRoute>
                 }
