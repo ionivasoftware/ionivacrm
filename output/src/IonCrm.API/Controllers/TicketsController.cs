@@ -19,8 +19,8 @@ namespace IonCrm.API.Controllers;
 /// only lists, opens and decides. <c>decidedBy</c> is derived from the authenticated user
 /// (not client-supplied) to prevent spoofing — matching the error-triage screen.
 ///
-/// Access: any authenticated user can VIEW the queue (list + detail); opening a ticket and the
-/// approve/reject decision (which triggers the automated fix pipeline) stay SuperAdmin-only.
+/// Access: any authenticated user can VIEW the queue (list + detail) and open a ticket; only the
+/// approve/reject decision (which triggers the automated fix pipeline) stays SuperAdmin-only.
 /// </summary>
 [Route("api/v1/tickets")]
 [Authorize]
@@ -123,14 +123,12 @@ public sealed class TicketsController : ApiControllerBase
 
     /// <summary>
     /// Opens a support ticket on the Liftdesk side (Source=Crm, Status=New). ProjectId null → global.
-    /// <c>createdByName</c> defaults to the user's identity when omitted. Restricted to SuperAdmin.
+    /// <c>createdByName</c> defaults to the user's identity when omitted. Open to any authenticated user.
     /// POST /api/v1/tickets
     /// </summary>
     [HttpPost]
-    [Authorize(Policy = "SuperAdmin")]
     [ProducesResponseType(typeof(ApiResponse<LiftdeskTicket>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> CreateTicket(
         [FromBody] CreateTicketRequest body,
         CancellationToken cancellationToken = default)

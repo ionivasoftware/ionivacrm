@@ -468,8 +468,6 @@ function TicketCard({ ticket, onOpen }: { ticket: Ticket; onOpen: (id: string) =
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export function TicketsPage() {
-  const { user } = useAuthStore();
-  const isSuperAdmin = user?.isSuperAdmin ?? false;
   const [status, setStatus] = useState('');
   const [type, setType] = useState('all');
   const [platform, setPlatform] = useState('all');
@@ -516,11 +514,9 @@ export function TicketsPage() {
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`h-4 w-4 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} /> Yenile
           </Button>
-          {isSuperAdmin && (
-            <Button size="sm" onClick={() => setShowCreate(true)}>
-              <Plus className="h-4 w-4 mr-1.5" /> Yeni Talep
-            </Button>
-          )}
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-1.5" /> Yeni Talep
+          </Button>
         </div>
       </div>
 
