@@ -205,10 +205,16 @@ public sealed class TicketsController : ApiControllerBase
         var decisionNote = string.IsNullOrWhiteSpace(body!.DecisionNote) ? null : body.DecisionNote.Trim();
         var successMsg   = status == "Approved" ? "Talep onaylandı." : "Talep reddedildi.";
 
+        // The fix instruction only drives the fix agent, which runs on approval — never send it with
+        // a rejection (a rejected ticket is terminal and the agent never reads it).
+        var fixInstruction = status == "Approved" && !string.IsNullOrWhiteSpace(body.FixInstruction)
+            ? body.FixInstruction.Trim()
+            : null;
+
         try
         {
             var envelope = await _ticketClient.UpdateTicketStatusAsync(
-                id, status, decidedBy, decisionNote, cancellationToken);
+                id, status, decidedBy, decisionNote, fixInstruction, cancellationToken);
 
             if (!envelope.Success || envelope.Data is null)
             {
@@ -243,5 +249,12 @@ public record CreateTicketRequest(
     string? Description,
     string? CreatedByName);
 
-/// <summary>Request body for PATCH /api/v1/tickets/{id}/status. DecidedBy is ignored (derived server-side).</summary>
-public record UpdateTicketStatusRequest(string Status, string? DecisionNote = null);
+/// <summary>
+/// Request body for PATCH /api/v1/tickets/{id}/status. DecidedBy is ignored (derived server-side).
+/// <c>DecisionNote</c> is the official reply SHOWN TO THE TENANT; <c>FixInstruction</c> is the
+/// CRM-only "how to implement it" note for the fix agent (approve only, never shown to the tenant).
+/// </summary>
+public record UpdateTicketStatusRequest(
+    string Status,
+    string? DecisionNote = null,
+    string? FixInstruction = null);

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   RefreshCw, Plus, MessageSquareText, Inbox, AlertTriangle, Check, X, RotateCcw,
   ExternalLink, Sparkles, Lightbulb, Building2, User, Clock, ChevronLeft, ChevronRight, Loader2,
+  Eye, EyeOff, Wrench,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -124,12 +125,28 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
   const { data: ticket, isLoading, isError, error } = useTicket(ticketId);
   const update = useUpdateTicketStatus();
   const [note, setNote] = useState('');
+  const [fixNote, setFixNote] = useState('');
   const busy = update.isPending;
+
+  // Re-approving a Failed ticket: prefill the previous instruction so it can be refined instead of
+  // retyped. Only seeds once (empty box), never overwrites what the operator is typing.
+  const seededFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (ticket?.fixInstruction && seededFor.current !== ticket.id) {
+      seededFor.current = ticket.id;
+      setFixNote(ticket.fixInstruction);
+    }
+  }, [ticket]);
 
   async function decide(status: 'Approved' | 'Rejected') {
     if (!ticket) return;
     try {
-      await update.mutateAsync({ id: ticket.id, status, decisionNote: note.trim() || undefined });
+      await update.mutateAsync({
+        id: ticket.id,
+        status,
+        decisionNote: note.trim() || undefined,
+        fixInstruction: fixNote.trim() || undefined,
+      });
       toast({
         title: status === 'Approved' ? 'Talep onaylandı' : 'Talep reddedildi',
         description: ticket.subject,
@@ -239,6 +256,19 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
                 </div>
               )}
 
+              {/* Fix instruction given to the agent (CRM-only) */}
+              {ticket.fixInstruction && (
+                <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-3 space-y-1">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-violet-300 uppercase tracking-wider">
+                    <Wrench className="h-3.5 w-3.5" /> Fix Ajanına Verilen Talimat
+                    <span className="ml-auto font-normal normal-case text-muted-foreground">kullanıcı görmez</span>
+                  </p>
+                  <p className="text-sm text-foreground whitespace-pre-wrap font-mono text-xs">
+                    {ticket.fixInstruction}
+                  </p>
+                </div>
+              )}
+
               {/* Fix result */}
               {(ticket.fixPrUrl || ticket.resolutionNote || ticket.completedAt) && ticket.status === 'Done' && (
                 <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3 space-y-2">
@@ -267,16 +297,45 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
 
               {/* Decision input + actions */}
               {actionable && (
-                <div className="space-y-2 pt-2 border-t border-border/40">
-                  <p className="text-xs text-muted-foreground">
-                    Karar notu (opsiyonel) — tenant'a resmi yanıt olarak gösterilir, kullanıcıya hitaben yazın.
-                  </p>
-                  <Textarea
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="Örn: Talebiniz alındı, bir sonraki sürümde eklenecek."
-                    rows={2}
-                  />
+                <div className="space-y-4 pt-2 border-t border-border/40">
+                  {/* Tenant-facing reply */}
+                  <div className="space-y-1.5">
+                    <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                      <Eye className="h-3.5 w-3.5 text-amber-400" />
+                      Karar notu — talebi açan kullanıcı GÖRÜR
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Resmi yanıt; kullanıcıya hitaben yazın. Teknik talimat için aşağıdaki alanı kullanın.
+                    </p>
+                    <Textarea
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="Örn: Talebiniz alındı, bir sonraki sürümde eklenecek."
+                      rows={2}
+                    />
+                  </div>
+
+                  {/* Internal instruction for the fix agent — only meaningful on approve */}
+                  {canApprove(ticket!.status) && (
+                    <div className="space-y-1.5">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                        <EyeOff className="h-3.5 w-3.5 text-violet-400" />
+                        Fix ajanına talimat — kullanıcı GÖRMEZ
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Nasıl uygulanacağını yazın; ajan buna göre kodlar.{' '}
+                        <span className="text-foreground">Boş bırakırsanız</span> AI değerlendirmesindeki
+                        önerilen aksiyona göre çalışır.
+                      </p>
+                      <Textarea
+                        value={fixNote}
+                        onChange={(e) => setFixNote(e.target.value)}
+                        placeholder="Örn: WorkOrdersPage tablosunun üstüne 'Excel' butonu ekle; mevcut liste verisini CSV olarak indir, yeni endpoint açma."
+                        rows={3}
+                        className="font-mono text-xs"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -45,13 +45,20 @@ public interface ILiftdeskTicketClient
 
     /// <summary>
     /// Approves or rejects a ticket. Endpoint: PATCH /api/v1/crm/tickets/{id}/status.
-    /// Body: { status, decidedBy, decisionNote }. EMS returns 409 for invalid transitions — surfaced
-    /// via the envelope. <paramref name="decidedBy"/> is derived from the authenticated SuperAdmin.
+    /// Body: { status, decidedBy, decisionNote, fixInstruction }. EMS returns 409 for invalid
+    /// transitions — surfaced via the envelope. <paramref name="decidedBy"/> is derived from the
+    /// authenticated SuperAdmin.
     /// </summary>
+    /// <param name="fixInstruction">
+    /// Optional CRM-only instruction for the fix agent (approve only); never shown to the tenant.
+    /// Ignored by Liftdesk until the field ships there — sending it early is harmless (unknown JSON
+    /// members are skipped).
+    /// </param>
     Task<LiftdeskEnvelope<LiftdeskTicket>> UpdateTicketStatusAsync(
         Guid id,
         string status,
         string? decidedBy,
         string? decisionNote,
+        string? fixInstruction,
         CancellationToken cancellationToken = default);
 }

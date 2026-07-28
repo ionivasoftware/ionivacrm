@@ -28,6 +28,13 @@ public record LiftdeskTicket(
     string? DecisionNote,
     string? DecidedBy,
     DateTime? DecidedAt,
+    /// <summary>
+    /// CRM-only instruction telling the fix agent HOW to implement the request. Written by the
+    /// SuperAdmin at approve time; never shown to the tenant (unlike <c>DecisionNote</c>). When empty
+    /// the fix agent falls back to <c>AgentSuggestedAction</c> (the triage agent's proposal).
+    /// Null until the Liftdesk side ships the field (see docs/liftdesk-ticket-fix-instruction-spec.md).
+    /// </summary>
+    string? FixInstruction,
     string? ResolutionNote,
     string? FixBranch,
     string? FixPrUrl,

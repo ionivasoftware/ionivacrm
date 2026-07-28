@@ -28,10 +28,12 @@ export interface Ticket {
   agentComment: string | null;
   agentSuggestedAction: string | null;
   agentAnalyzedAt: string | null;
-  /** CRM decision. */
+  /** CRM decision. `decisionNote` IS shown to the tenant as the official reply. */
   decisionNote: string | null;
   decidedBy: string | null;
   decidedAt: string | null;
+  /** CRM-only instruction for the fix agent — never shown to the tenant. Null until Liftdesk ships the field. */
+  fixInstruction: string | null;
   /** Fix-agent result. */
   resolutionNote: string | null;
   fixBranch: string | null;
@@ -120,17 +122,21 @@ export function useCreateTicket() {
 export interface UpdateTicketStatusInput {
   id: string;
   status: 'Approved' | 'Rejected';
+  /** Official reply — SHOWN TO THE TENANT. */
   decisionNote?: string;
+  /** CRM-only "how to implement it" note for the fix agent; ignored on reject. */
+  fixInstruction?: string;
 }
 
 /** Approves/rejects a ticket (or re-approves a Failed one). `decidedBy` is derived server-side from the JWT. */
 export function useUpdateTicketStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status, decisionNote }: UpdateTicketStatusInput) => {
+    mutationFn: async ({ id, status, decisionNote, fixInstruction }: UpdateTicketStatusInput) => {
       const res = await apiClient.patch<ApiResponse<Ticket>>(`/tickets/${id}/status`, {
         status,
         decisionNote,
+        fixInstruction,
       });
       return res.data.data;
     },
