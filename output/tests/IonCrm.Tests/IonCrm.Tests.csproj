@@ -25,6 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\IonCrm.API\IonCrm.API.csproj" />
     <ProjectReference Include="..\..\src\IonCrm.Application\IonCrm.Application.csproj" />
     <ProjectReference Include="..\..\src\IonCrm.Domain\IonCrm.Domain.csproj" />
     <ProjectReference Include="..\..\src\IonCrm.Infrastructure\IonCrm.Infrastructure.csproj" />

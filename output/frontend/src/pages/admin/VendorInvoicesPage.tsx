@@ -433,11 +433,21 @@ export function VendorInvoicesPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const { data, isLoading, isFetching, refetch } = useVendorInvoices({
+  const { data, isLoading, isFetching, refetch, isError, error } = useVendorInvoices({
     year,
     month: month === 'all' ? undefined : month,
     status: tab === 'all' ? undefined : tab,
   });
+
+  // A 403 here means the account lacks the SuperAdmin/Accounting role — say so explicitly instead of
+  // rendering the neutral "no records" row.
+  const listStatus = (error as { response?: { status?: number } } | null)?.response?.status;
+  const isForbidden = listStatus === 403;
+  const listErrorMessage =
+    (error as { response?: { data?: { errors?: string[]; message?: string } } } | null)?.response?.data?.errors?.[0]
+    ?? (error as { response?: { data?: { message?: string } } } | null)?.response?.data?.message
+    ?? (error as Error | null)?.message
+    ?? 'Bilinmeyen hata';
   const seed = useSeedMonth();
   const reconcile = useReconcile();
   const autoExpect = useAutoExpect();
@@ -564,6 +574,21 @@ export function VendorInvoicesPage() {
                       ))}
                     </tr>
                   ))
+                ) : isError ? (
+                  // A failed fetch must never look like an empty period — that masked a 403 and made
+                  // the screen read as "no records" for users who simply lacked access.
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center">
+                      <p className="font-medium text-red-400">
+                        {isForbidden ? 'Bu ekran için yetkiniz yok.' : 'Kayıtlar yüklenemedi.'}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {isForbidden
+                          ? 'Gelen faturaları görüntülemek için SuperAdmin veya Muhasebe rolü gerekir.'
+                          : listErrorMessage}
+                      </p>
+                    </td>
+                  </tr>
                 ) : rows.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">

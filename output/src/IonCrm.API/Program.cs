@@ -1,5 +1,6 @@
 using AspNetCoreRateLimit;
 using Hangfire;
+using IonCrm.API.Authorization;
 using IonCrm.API.Middleware;
 using IonCrm.Application;
 using IonCrm.Infrastructure;
@@ -56,6 +57,14 @@ var jwtAudience = builder.Configuration["JwtSettings:Audience"] ?? "IonCrmUsers"
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // Keep the claim names exactly as TokenService mints them. With the default (true), the
+        // handler rewrites well-known short names through ClaimTypeMapping.InboundClaimTypeMap —
+        // "roles" silently becomes ClaimTypes.Role, so User.FindFirst("roles") returns null and any
+        // policy reading it denies everyone (this is what locked Accounting users out of the
+        // vendor-invoice screen). Safe here: CurrentUserService reads the short names first
+        // (ClaimTypes.* only as a fallback) and the app uses no role-based [Authorize(Roles=...)].
+        options.MapInboundClaims = false;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer           = true,
@@ -76,13 +85,11 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("SuperAdmin", policy =>
         policy.RequireClaim("isSuperAdmin", "true"));
 
-    // Vendor-invoice access: SuperAdmin OR anyone holding the Accounting (muhasebe) role in any project.
-    // The "roles" claim is a JSON dict { projectId: "RoleName" }; role values are GUID-free so a
-    // quoted-substring check reliably detects an Accounting value.
-    options.AddPolicy("VendorInvoiceAccess", policy =>
-        policy.RequireAssertion(ctx =>
-            ctx.User.HasClaim("isSuperAdmin", "true")
-            || (ctx.User.FindFirst("roles")?.Value?.Contains("\"Accounting\"", StringComparison.OrdinalIgnoreCase) ?? false)));
+    // Vendor-invoice access: SuperAdmin OR anyone holding the Accounting (muhasebe) role in any
+    // project. Rule lives in VendorInvoiceAccessPolicy so it is unit-testable against a realistically
+    // built principal (see VendorInvoiceAccessPolicyTests).
+    options.AddPolicy(VendorInvoiceAccessPolicy.Name, policy =>
+        policy.RequireAssertion(ctx => VendorInvoiceAccessPolicy.IsSatisfiedBy(ctx.User)));
 
     // Default policy: must be authenticated
     options.DefaultPolicy = new AuthorizationPolicyBuilder()
