@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   ArrowLeft,
   Edit,
+  HardDrive,
   Phone,
   Mail,
   MapPin,
@@ -225,6 +226,25 @@ function isEmsCustomer(legacyId: string | null | undefined): boolean {
 function isRezervalCustomer(legacyId: string | null | undefined): boolean {
   if (!legacyId) return false;
   return legacyId.startsWith('SAASB-') || legacyId.startsWith('REZV-');
+}
+
+// ── Storage helper ────────────────────────────────────────────────────────────
+
+/** Formats a byte count with binary units (1 KB = 1024 B), matching how Liftdesk reports quotas. */
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let exp = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  let value = bytes / Math.pow(1024, exp);
+  // Rounding to one decimal can push the mantissa to 1024 just below a boundary
+  // (1073741823 B would print "1024.0 MB"); promote to the next unit instead.
+  if (value >= 1023.95 && exp < units.length - 1) {
+    exp += 1;
+    value = bytes / Math.pow(1024, exp);
+  }
+  // Whole units read cleaner for the common 200 MB / 700 MB cases; keep one decimal otherwise.
+  const decimals = exp === 0 || Number.isInteger(value) ? 0 : 1;
+  return `${value.toFixed(decimals)} ${units[exp]}`;
 }
 
 // ── Liftdesk customer helper ──────────────────────────────────────────────────
@@ -2018,6 +2038,37 @@ export function CustomerDetailPage() {
                       <p className="text-xs text-muted-foreground mt-1">Kullanıcı</p>
                     </div>
                   </div>
+
+                  {/* Storage footprint (Liftdesk only — older builds omit it) */}
+                  {emsSummaryData.storage && (
+                    <div className="rounded-lg border border-border p-4">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                        <HardDrive className="h-3.5 w-3.5" /> Belge Depolama
+                      </p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <p className="text-xl font-bold text-foreground tabular-nums">
+                            {formatBytes(emsSummaryData.storage.assemblyDocumentBytes)}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Toplam belge alanı</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold text-foreground tabular-nums">
+                            {emsSummaryData.storage.assemblyDocumentCount.toLocaleString('tr-TR')}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Belge sayısı</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold text-muted-foreground tabular-nums">
+                            {formatBytes(emsSummaryData.storage.quotaBytesPerAssembly)}
+                          </p>
+                          {/* Deliberately NOT a percentage of the total: this cap applies to each
+                              assembly separately, while the total spans all of them. */}
+                          <p className="text-xs text-muted-foreground mt-0.5">Montaj başına kota</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Monthly table */}
                   {emsSummaryData.monthly.length > 0 && (

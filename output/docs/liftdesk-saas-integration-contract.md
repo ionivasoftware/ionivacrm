@@ -232,12 +232,33 @@ GET /api/v1/crm/companies/{companyId}/summary
   "monthly": [
     { "year": 2026, "month": 7, "maintenanceCount": 45, "faultCount": 12,
       "partChangeOfferCount": 3, "revisionOfferCount": 1, "assemblyOfferCount": 0 }
-  ]
+  ],
+  "storage": {
+    "assemblyDocumentBytes": 734003200,
+    "assemblyDocumentCount": 96,
+    "quotaBytesPerAssembly": 209715200
+  }
 }
 ```
 
 Alan adları EMS ile birebir aynı kalmalı (asansör alan modeli: bakım/arıza/teklif sayıları).
 `monthly` son aylar listesi (EMS ~son 12 ay döndürüyor; aynısını önerin).
+
+**`storage` (opsiyonel blok)** — tenant'ın belge ayak izi; CRM "Kullanım Özeti" sekmesinde
+"Belge Depolama" kartında gösterilir. Bloğu hiç göndermezseniz kart gizlenir (CRM `null` olarak
+haritalar, hata vermez) — eski Liftdesk sürümleriyle geriye dönük uyumludur.
+
+| alan | tip | anlam |
+|---|---|---|
+| `assemblyDocumentBytes` | long | Tenant'ın TÜM montajlarındaki belgelerin **toplam** boyutu |
+| `assemblyDocumentCount` | int | Belge adedi |
+| `quotaBytesPerAssembly` | long | **Montaj BAŞINA** kota (ör. 209715200 = 200 MB) |
+
+> ⚠️ `quotaBytesPerAssembly` her montaj için **ayrı ayrı** geçerli bir tavandır;
+> `assemblyDocumentBytes` ise tüm montajların toplamıdır. İkisi **oranlanmaz** — CRM bunları
+> bilinçli olarak ayrı değerler hâlinde gösterir (bölünürse örnekte "700 MB / 200 MB = %350 dolu"
+> gibi yanlış ve alarm verici bir sonuç çıkardı). Tenant geneli bir kota eklemek isterseniz bunu
+> ayrı bir alan adıyla (`quotaBytesTotal` vb.) gönderin.
 
 ---
 

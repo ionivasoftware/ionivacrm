@@ -243,6 +243,52 @@ public class GetCustomerEmsSummaryQueryHandlerTests
         dto.Monthly[0].MaintenanceCount.Should().Be(15);
         dto.Monthly[0].BreakdownCount.Should().Be(3);
         dto.Monthly[0].ProposalCount.Should().Be(2);
+        // Older EMS builds omit the storage block entirely — it must map to null, not throw.
+        dto.Storage.Should().BeNull();
+    }
+
+    // ── Storage footprint (Liftdesk) ──────────────────────────────────────────
+
+    [Fact]
+    public async Task Handle_ResponseWithStorage_MapsStorageToDto()
+    {
+        // Arrange
+        SetupAuthorizedUser();
+        _customerRepoMock
+            .Setup(r => r.GetByIdAsync(_customerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateEmsCustomer("LIFT-7"));
+        _projectRepoMock
+            .Setup(r => r.GetByIdAsync(_projectId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Project
+            {
+                Id = _projectId, Name = "P",
+                LiftdeskApiKey = "lift-key", LiftdeskBaseUrl = "https://lift.example.com"
+            });
+
+        var emsResponse = new EmsCompanySummaryResponse(
+            7,
+            new EmsCompanySummaryTotals(CustomerCount: 3, ElevatorCount: 12, UserCount: 4),
+            new List<EmsCompanyMonthlyStat>(),
+            new EmsCompanySummaryStorage(
+                AssemblyDocumentBytes: 734003200,   // 700 MB
+                AssemblyDocumentCount: 96,
+                QuotaBytesPerAssembly: 209715200)); // 200 MB per assembly
+
+        _saasAClientMock
+            .Setup(c => c.GetCompanySummaryAsync("lift-key", 7, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
+            .ReturnsAsync(emsResponse);
+
+        // Act
+        var result = await CreateHandler().Handle(new GetCustomerEmsSummaryQuery(_customerId), CancellationToken.None);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        var storage = result.Value!.Storage;
+        storage.Should().NotBeNull();
+        storage!.AssemblyDocumentBytes.Should().Be(734003200);
+        storage.AssemblyDocumentCount.Should().Be(96);
+        // Per-assembly cap is carried through verbatim for context; it is NOT a total-quota denominator.
+        storage.QuotaBytesPerAssembly.Should().Be(209715200);
     }
 
     [Fact]

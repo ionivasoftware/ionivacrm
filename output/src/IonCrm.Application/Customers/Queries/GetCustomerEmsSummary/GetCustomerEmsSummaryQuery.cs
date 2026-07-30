@@ -14,7 +14,18 @@ public record GetCustomerEmsSummaryQuery(Guid CustomerId) : IRequest<Result<EmsS
 public record EmsSummaryDto(
     int EmsCompanyId,
     EmsSummaryTotalsDto Totals,
-    List<EmsSummaryMonthlyStatDto> Monthly);
+    List<EmsSummaryMonthlyStatDto> Monthly,
+    EmsSummaryStorageDto? Storage = null);
+
+/// <summary>
+/// Document-storage footprint on the Liftdesk volume. Null when the source system does not report it.
+/// <see cref="QuotaBytesPerAssembly"/> is a per-assembly cap shown for context — it is NOT the
+/// denominator of <see cref="AssemblyDocumentBytes"/> (which spans every assembly of the tenant).
+/// </summary>
+public record EmsSummaryStorageDto(
+    long AssemblyDocumentBytes,
+    int AssemblyDocumentCount,
+    long QuotaBytesPerAssembly);
 
 /// <summary>Overall totals for the EMS company (snapshot counts).</summary>
 public record EmsSummaryTotalsDto(

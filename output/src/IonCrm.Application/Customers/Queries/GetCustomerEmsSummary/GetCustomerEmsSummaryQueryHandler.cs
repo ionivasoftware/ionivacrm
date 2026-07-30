@@ -93,7 +93,15 @@ public sealed class GetCustomerEmsSummaryQueryHandler
                 m.PartChangeOfferCount + m.RevisionOfferCount + m.AssemblyOfferCount))
             .ToList();
 
-        var dto = new EmsSummaryDto(emsCompanyId, totals, monthly);
+        // Storage is optional: older EMS/Liftdesk builds omit the block entirely.
+        var storage = emsSummary.Storage is null
+            ? null
+            : new EmsSummaryStorageDto(
+                emsSummary.Storage.AssemblyDocumentBytes,
+                emsSummary.Storage.AssemblyDocumentCount,
+                emsSummary.Storage.QuotaBytesPerAssembly);
+
+        var dto = new EmsSummaryDto(emsCompanyId, totals, monthly, storage);
 
         _logger.LogInformation(
             "Fetched EMS summary for customer {CustomerId} (EMS company {EmsId}). Elevators={ElevatorCount} Users={UserCount}",

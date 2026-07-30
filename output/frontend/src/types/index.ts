@@ -425,10 +425,23 @@ export interface EmsSummaryMonthlyStat {
   proposalCount: number;
 }
 
+/**
+ * Document-storage footprint on the Liftdesk volume.
+ * `quotaBytesPerAssembly` is a PER-ASSEMBLY cap shown for context — never divide
+ * `assemblyDocumentBytes` (the tenant's total across all assemblies) by it.
+ */
+export interface EmsSummaryStorage {
+  assemblyDocumentBytes: number;
+  assemblyDocumentCount: number;
+  quotaBytesPerAssembly: number;
+}
+
 export interface EmsSummary {
   emsCompanyId: number;
   totals: EmsSummaryTotals;
   monthly: EmsSummaryMonthlyStat[];
+  /** Null when the source system does not report storage (older EMS builds). */
+  storage: EmsSummaryStorage | null;
 }
 
 // ----- Rezerval Summary -----

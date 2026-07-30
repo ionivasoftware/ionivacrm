@@ -134,13 +134,27 @@ public record EmsCompanyUsersResponse(
 public record EmsCompanySummaryResponse(
     int CompanyId,
     EmsCompanySummaryTotals Totals,
-    List<EmsCompanyMonthlyStat> Monthly);
+    List<EmsCompanyMonthlyStat> Monthly,
+    EmsCompanySummaryStorage? Storage = null);
 
 /// <summary>Overall totals for the company (snapshot).</summary>
 public record EmsCompanySummaryTotals(
     int CustomerCount,
     int ElevatorCount,
     int UserCount);
+
+/// <summary>
+/// Document-storage footprint of the tenant on the Liftdesk volume. Optional: only newer Liftdesk
+/// deployments send it, so it stays null for EMS instances that predate the field.
+///
+/// NOTE: <see cref="QuotaBytesPerAssembly"/> is a PER-ASSEMBLY cap (200 MB each), whereas
+/// <see cref="AssemblyDocumentBytes"/> is the tenant's total across all assemblies — the two must
+/// never be divided into a single "percentage used".
+/// </summary>
+public record EmsCompanySummaryStorage(
+    long AssemblyDocumentBytes,
+    int AssemblyDocumentCount,
+    long QuotaBytesPerAssembly);
 
 /// <summary>Monthly activity breakdown for a single month (EMS field names preserved).</summary>
 public record EmsCompanyMonthlyStat(
