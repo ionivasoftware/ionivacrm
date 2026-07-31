@@ -239,6 +239,13 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
                 <span className="inline-flex items-center gap-1">
                   <Clock className="h-3.5 w-3.5" /> {formatDate(ticket.createdAt)}
                 </span>
+                {/* Survives a re-approve (unlike completedAt), so it stays visible once the ticket
+                    goes back to Approved — "when was this last attempted?" */}
+                {ticket.fixAttemptedAt && (
+                  <span className="inline-flex items-center gap-1" title="Fix ajanının son deneme zamanı">
+                    <Wrench className="h-3.5 w-3.5" /> Son deneme: {formatDate(ticket.fixAttemptedAt)}
+                  </span>
+                )}
               </div>
 
               {/* Description */}
@@ -317,7 +324,11 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
               {ticket.status === 'Failed' && ticket.failReason && (
                 <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3">
                   <p className="text-xs font-semibold text-rose-300 uppercase tracking-wider mb-1">Uygulama Başarısız</p>
-                  <p className="text-sm text-rose-200 whitespace-pre-wrap">{ticket.failReason}</p>
+                  {/* Can carry the tail of a compiler/tsc log — monospace + pre-wrap keeps it readable
+                      and the box scrolls instead of stretching the dialog. */}
+                  <pre className="text-xs text-rose-200 font-mono whitespace-pre-wrap break-words max-h-56 overflow-y-auto">
+                    {ticket.failReason}
+                  </pre>
                 </div>
               )}
 

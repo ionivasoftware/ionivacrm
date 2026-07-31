@@ -41,6 +41,8 @@ export interface Ticket {
   failReason: string | null;
   completedAt: string | null;
   createdAt: string;
+  /** When the fix agent last tried (UTC). Survives a re-approve, unlike `completedAt`. */
+  fixAttemptedAt: string | null;
 }
 
 export interface TicketPage {

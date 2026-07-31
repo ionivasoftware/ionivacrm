@@ -34,7 +34,11 @@ New ──(analysis)──▶ Triaged ──▶ Approved ──▶ InProgress �
         (Approved'dan doğrudan Done/Failed de OLUR)
 ```
 - `analysis` yalnız Status `New | Triaged` iken yazılabilir (upsert/tazeleme); diğer durumlar → 409.
-- `Approved` ← `Triaged | New | Failed` (Approved olurken FailReason temizlenir)
+- `Approved` ← `Triaged | New | Failed | Done` (Approved olurken FailReason temizlenir).
+  `Done`'dan re-approve = **"Yeniden yaptır"**: kapanmış ama yanlış yapılmış işi superadmin yeni bir
+  `fixInstruction` ile ajana geri verir. Bu geçişte `ResolutionNote` ve `CompletedAt` temizlenir
+  (kapanış özeti artık geçersiz); `FixPrUrl`/`FixBranch` bilerek KORUNUR (önceki denemenin PR'ı hâlâ
+  açık olabilir). `Rejected` terminaldir, oradan Approved'a dönülmez.
 - `Rejected` ← `Triaged | New`
 - `InProgress` ← `Approved | Failed`
 - `Failed` ← `InProgress | Approved` (→ CompletedAt=utcnow)
@@ -111,6 +115,7 @@ geçersiz geçiş → 409.
 | Aktör | Body | Geçiş |
 |---|---|---|
 | CRM onay | `{"status":"Approved","decidedBy":"ofc","decisionNote":"...","fixInstruction":"..."}` | Triaged\|New\|Failed → Approved |
+| **CRM "Yeniden yaptır"** | `{"status":"Approved","decidedBy":"ofc","fixInstruction":"PR #3 yeni endpoint açmış, oysa mevcut mutation yeterliydi. Endpoint'i geri al, sadece sayfayı düzelt."}` | Done → Approved (ResolutionNote+CompletedAt temizlenir, PR linki kalır) |
 | CRM ret | `{"status":"Rejected","decidedBy":"ofc","decisionNote":"..."}` | Triaged\|New → Rejected |
 | Ajan başlar | `{"status":"InProgress","fixBranch":"ticket/ab12-slug"}` | Approved\|Failed → InProgress |
 | Ajan başarı | `{"status":"Done","fixPrUrl":"...","resolutionNote":"..."}` | InProgress\|Approved → Done |
@@ -221,6 +226,10 @@ CRM ayrı projedir; yalnız bu sözleşmeyi tüketir. Ekran ekran:
 
 ### e) Sonuç gösterimi + retry
 - Done: `fixPrUrl`'i link olarak göster (PR review + merge insanda) + `resolutionNote`.
+- Done ama **yanlış yapılmış**: **"Yeniden yaptır"** butonu — `{"status":"Approved","fixInstruction":"<neyin
+  yanlış olduğu + nasıl düzeltileceği>"}`. Formu önceki `fixInstruction` ile ön-doldurun (boş
+  gönderilirse eski talimat korunur, yani aynı hata tekrarlanabilir). Bu geçişte `resolutionNote`
+  silinir, `fixPrUrl` kalır — kullanıcıya "önceki PR'ı kapatmayı unutmayın" hatırlatması yerinde olur.
 - Failed: `failReason`'ı göster; **yeniden Onay (re-approve)** butonu — aynı Approved PATCH'i
   (Failed → Approved geçişi serbesttir, FailReason temizlenir) → fixer bir sonraki turda tekrar dener.
 - **Son deneme zamanı:** `fixAttemptedAt`'i kartta göster (ör. "Son deneme: 29.07.2026 09:31").

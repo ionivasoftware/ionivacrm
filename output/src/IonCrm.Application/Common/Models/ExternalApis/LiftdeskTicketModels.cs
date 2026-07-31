@@ -40,4 +40,12 @@ public record LiftdeskTicket(
     string? FixPrUrl,
     string? FailReason,
     DateTime? CompletedAt,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    /// <summary>
+    /// When the fix agent last attempted this ticket (UTC), stamped on its InProgress/Done/Failed
+    /// transitions. Unlike <c>CompletedAt</c> a re-approve does NOT clear it, so the card can still
+    /// show "last tried at" after the ticket goes back to Approved. Superadmin decisions (approve /
+    /// reject / manual close) never stamp it — they are not agent attempts.
+    /// Null until the Liftdesk side ships the field.
+    /// </summary>
+    DateTime? FixAttemptedAt = null);
