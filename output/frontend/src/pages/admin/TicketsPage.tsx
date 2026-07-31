@@ -113,7 +113,15 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 /** New/Triaged tickets can be approved or rejected; a Failed ticket can be re-approved to retry. */
-function canApprove(status: string) { return status === 'New' || status === 'Triaged' || status === 'Failed'; }
+/**
+ * Can transition to Approved — i.e. hand the ticket to the fix agent.
+ * `Failed` re-approves a failed attempt; `Done` sends back a ticket that was closed but turned out
+ * wrong ("Yeniden yaptır"), where a fresh fixInstruction tells the agent what to correct.
+ * Rejected is terminal and never comes back.
+ */
+function canApprove(status: string) {
+  return status === 'New' || status === 'Triaged' || status === 'Failed' || status === 'Done';
+}
 function canReject(status: string) { return status === 'New' || status === 'Triaged'; }
 
 /**
@@ -161,9 +169,10 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
         fixInstruction: fixNote.trim() || undefined,
       });
       toast({
-        title: status === 'Approved' ? 'Talep onaylandı'
-             : status === 'Rejected' ? 'Talep reddedildi'
-             : 'Talep tamamlandı',
+        title: status === 'Rejected' ? 'Talep reddedildi'
+             : status === 'Done'     ? 'Talep tamamlandı'
+             : ticket.status === 'Done' ? 'Talep yeniden ajana verildi'
+             : 'Talep onaylandı',
         description: ticket.subject,
       });
       onClose();
@@ -322,8 +331,11 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
                       Karar / çözüm notu — talebi açan kullanıcı GÖRÜR
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Resmi yanıt; kullanıcıya hitaben yazın. “Tamamlandı” ile kapatırsanız bu metin
-                      çözüm notu olarak kaydedilir. Teknik talimat için aşağıdaki alanı kullanın.
+                      Resmi yanıt; kullanıcıya hitaben yazın.{' '}
+                      {ticket!.status === 'Done'
+                        ? 'Boş bırakırsanız mevcut yanıt korunur. Önceki çözüm notu, iş yeniden yapılacağı için silinir.'
+                        : '“Tamamlandı” ile kapatırsanız bu metin çözüm notu olarak kaydedilir.'}{' '}
+                      Teknik talimat için aşağıdaki alanı kullanın.
                     </p>
                     <Textarea
                       value={note}
@@ -341,9 +353,19 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
                         Fix ajanına talimat — kullanıcı GÖRMEZ
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Nasıl uygulanacağını yazın; ajan buna göre kodlar.{' '}
-                        <span className="text-foreground">Boş bırakırsanız</span> AI değerlendirmesindeki
-                        önerilen aksiyona göre çalışır.
+                        {ticket!.status === 'Done' ? (
+                          <>
+                            <span className="text-foreground">Neyin yanlış yapıldığını</span> ve nasıl
+                            düzeltilmesi gerektiğini yazın; ajan bu talimatla işi baştan ele alır.
+                            Boş bırakırsanız önceki talimat aynen tekrar kullanılır.
+                          </>
+                        ) : (
+                          <>
+                            Nasıl uygulanacağını yazın; ajan buna göre kodlar.{' '}
+                            <span className="text-foreground">Boş bırakırsanız</span> AI değerlendirmesindeki
+                            önerilen aksiyona göre çalışır.
+                          </>
+                        )}
                       </p>
                       <Textarea
                         value={fixNote}
@@ -391,9 +413,12 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   {busy ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                    : ticket.status === 'Failed' ? <RotateCcw className="h-4 w-4 mr-1.5" />
-                    : <Check className="h-4 w-4 mr-1.5" />}
-                  {ticket.status === 'Failed' ? 'Yeniden Onayla' : 'Onayla'}
+                    : ticket.status === 'Failed' || ticket.status === 'Done'
+                      ? <RotateCcw className="h-4 w-4 mr-1.5" />
+                      : <Check className="h-4 w-4 mr-1.5" />}
+                  {ticket.status === 'Done' ? 'Yeniden yaptır'
+                    : ticket.status === 'Failed' ? 'Yeniden Onayla'
+                    : 'Onayla'}
                 </Button>
               )}
             </DialogFooter>
