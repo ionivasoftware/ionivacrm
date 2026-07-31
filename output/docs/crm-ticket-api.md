@@ -16,8 +16,8 @@ Liftdesk "Geri Bildirim" ekranı / CRM destek formu
 - **Tenant uçları** — `api/v1/tickets` : JWT `[Authorize]`; RequirePermission YOK (tüm tenant
   personeli kullanır). Müşteri-portal token'ları kullanamaz (403).
 - **CRM + ajanlar (makine)** — `api/v1/crm/tickets` : `[CrmApiKey]`, header
-  `Authorization: Bearer <CRM_API_KEY>` (config `LiftdeskSaas:ApiKey` / Railway
-  `LIFTDESKSAAS__APIKEY` — hata telemetrisiyle **AYNI** key; yeni secret YOK).
+  `Authorization: Bearer <CRM_API_KEY>` (config `Crm:ApiKey` / Railway
+  `CRM__APIKEY` — hata telemetrisiyle **AYNI** key; yeni secret YOK).
   Key yapılandırılmamışsa 503, yanlışsa 401. CRM uçları cross-tenant çalışır (IgnoreQueryFilters).
 
 Tüm yanıtlar standart `ApiResponse<T>` zarfı: `{ success, data, message, errors, statusCode }`.
@@ -37,7 +37,10 @@ New ──(analysis)──▶ Triaged ──▶ Approved ──▶ InProgress �
 - `Approved` ← `Triaged | New | Failed` (Approved olurken FailReason temizlenir)
 - `Rejected` ← `Triaged | New`
 - `InProgress` ← `Approved | Failed`
-- `Done`/`Failed` ← `InProgress | Approved` (Done/Failed → CompletedAt=utcnow)
+- `Failed` ← `InProgress | Approved` (→ CompletedAt=utcnow)
+- `Done` ← `InProgress | Approved` (ajan) **veya** `New | Triaged | Failed` (superadmin "Tamamlandı"
+  butonu — elle kapatma: kod değişikliği gerekmeyen / dışarıda çözülen / ajan başarısız olup elle
+  düzeltilen işler). `Rejected` terminaldir, oradan Done olmaz. Her iki yolda CompletedAt=utcnow.
 - Geçersiz status → 400; geçersiz geçiş → 409.
 
 ---
@@ -107,11 +110,16 @@ geçersiz geçiş → 409.
 
 | Aktör | Body | Geçiş |
 |---|---|---|
-| CRM onay | `{"status":"Approved","decidedBy":"ofc","decisionNote":"..."}` | Triaged\|New\|Failed → Approved |
+| CRM onay | `{"status":"Approved","decidedBy":"ofc","decisionNote":"...","fixInstruction":"..."}` | Triaged\|New\|Failed → Approved |
 | CRM ret | `{"status":"Rejected","decidedBy":"ofc","decisionNote":"..."}` | Triaged\|New → Rejected |
 | Ajan başlar | `{"status":"InProgress","fixBranch":"ticket/ab12-slug"}` | Approved\|Failed → InProgress |
 | Ajan başarı | `{"status":"Done","fixPrUrl":"...","resolutionNote":"..."}` | InProgress\|Approved → Done |
+| **CRM "Tamamlandı"** | `{"status":"Done","decidedBy":"ofc","resolutionNote":"Telefonda çözüldü"}` | New\|Triaged\|Failed\|Approved\|InProgress → Done |
 | Ajan hata | `{"status":"Failed","failReason":"..."}` | InProgress\|Approved → Failed |
+
+Ajan geçişleri ayrıca `fixAttemptedAt`'i damgalar (aşağıya bkz.). `failReason` artık yalnız özet
+değil, doğrulama başarısızlıklarında **gerçek derleyici çıktısını da** taşır (tsc/dotnet build
+log kuyruğu, ~1800 karakterle sınırlı) — kartta doğrudan gösterilebilir.
 
 ```bash
 curl -X PATCH -H "Authorization: Bearer $CRM_API_KEY" -H "Content-Type: application/json" \
@@ -122,6 +130,15 @@ curl -X PATCH -H "Authorization: Bearer $CRM_API_KEY" -H "Content-Type: applicat
 > Opsiyonel body alanları `string?`; gönderilmezlerse 400 olmaz
 > ([error-telemetry-api.md](error-telemetry-api.md) required-tuzağı notu).
 
+**`fixInstruction` (CRM-only, fix ajanı talimatı)** — superadmin'in ajana "nasıl yapılacağını"
+söylediği alan. `decisionNote` tenant'a resmi yanıt olarak gösterildiği için oraya teknik talimat
+yazılamıyordu; bu alan **tenant'a ASLA gösterilmez**.
+- YALNIZ `Approved` geçişinde yazılır (`Rejected` ve ajan geçişleri alanı değiştirmez).
+- Boş/eksik gönderilirse **önceki değer korunur** — Failed → re-approve'da veya ajan retry'ında
+  talimat kaybolmaz.
+- Fix ajanı önceliği: `fixInstruction` doluysa kapsamı O belirler; boşsa eski davranış
+  (`agentSuggestedAction` + `decisionNote`).
+
 ---
 
 ## DTO'lar
@@ -129,13 +146,21 @@ curl -X PATCH -H "Authorization: Bearer $CRM_API_KEY" -H "Content-Type: applicat
 **CrmTicketDto** (CRM görünümü — tüm alanlar): `id, projectId, projectName, createdByUserId,
 createdByName, source, type, platform, subject, description, status, agentComment,
 agentSuggestedAction, agentAnalyzedAt, decisionNote, decidedBy, decidedAt, resolutionNote,
-fixBranch, fixPrUrl, failReason, completedAt, createdAt`.
+fixBranch, fixPrUrl, failReason, completedAt, createdAt, fixInstruction, fixAttemptedAt`.
 (`projectName`: Project adı; ProjectId null ise null.)
+
+**`fixAttemptedAt` (CRM kartı — "fix ajanı en son ne zaman denedi")** — ajan geçişlerinde
+(`InProgress` / `Done` / `Failed`) UTC olarak damgalanır. `completedAt`'ten farkı: **re-approve
+bunu TEMİZLEMEZ**, yani ticket Approved'a döndüğünde bile son deneme zamanı kartta görünür
+(`completedAt` "kapanış anı"dır ve re-approve'da null'lanır). Superadmin kararları
+(`Approved`/`Rejected`) bu alanı damgalamaz — ajan denemesi değildir. Aynı sebeple superadmin'in
+**elle "Tamamlandı"** kapatması da damgalamaz; `fixBranch`/`fixPrUrl` göndermeyen ve `InProgress`
+olmayan bir Done geçişi "ajan denemesi" sayılmaz.
 
 **TicketDto** (tenant görünümü — SIZDIRMA YOK): `id, type, platform, subject, description, status,
 decisionNote, resolutionNote, createdByName, createdAt`.
-Tenant'a GÖSTERİLMEYENLER: `agentComment`, `agentSuggestedAction`, `fixBranch`, `fixPrUrl`,
-`failReason`, `decidedBy` (AI analizi ve iç ajan alanları CRM-only; `decisionNote` +
+Tenant'a GÖSTERİLMEYENLER: `agentComment`, `agentSuggestedAction`, `fixInstruction`, `fixBranch`,
+`fixPrUrl`, `failReason`, `decidedBy` (AI analizi ve iç ajan alanları CRM-only; `decisionNote` +
 `resolutionNote` resmi yanıt olarak gösterilir).
 
 ---
@@ -148,7 +173,7 @@ Tenant'a GÖSTERİLMEYENLER: `agentComment`, `agentSuggestedAction`, `fixBranch`
 | 401 | CRM key yanlış/eksik |
 | 404 | Ticket bulunamadı |
 | 409 | Geçersiz durum geçişi (ör. Done ticket'a analysis yazmak, Rejected → InProgress) |
-| 503 | `LIFTDESKSAAS__APIKEY` yapılandırılmamış |
+| 503 | `CRM__APIKEY` yapılandırılmamış |
 
 ---
 
@@ -187,6 +212,8 @@ CRM ayrı projedir; yalnız bu sözleşmeyi tüketir. Ekran ekran:
 - Onay: `PATCH .../status` body `{"status":"Approved","decidedBy":"<CRM kullanıcı adı>","decisionNote":"..."}`.
 - Ret: `{"status":"Rejected","decidedBy":"<CRM kullanıcı adı>","decisionNote":"..."}`.
 - `decisionNote` tenant'a resmi yanıt olarak gösterilir — kullanıcıya hitaben yaz.
+- `fixInstruction` (yalnız onayda) fix ajanına teknik talimattır, kullanıcı GÖRMEZ. Boş bırakılırsa
+  ajan AI önerisine düşer. Failed retry'da önceki talimat forma ön-doldurulup düzenlenebilir.
 
 ### d) Destek ekibi ticket açma formu
 - `POST /api/v1/crm/tickets` — alanlar: tür, platform, konu, açıklama, `createdByName`
@@ -196,6 +223,11 @@ CRM ayrı projedir; yalnız bu sözleşmeyi tüketir. Ekran ekran:
 - Done: `fixPrUrl`'i link olarak göster (PR review + merge insanda) + `resolutionNote`.
 - Failed: `failReason`'ı göster; **yeniden Onay (re-approve)** butonu — aynı Approved PATCH'i
   (Failed → Approved geçişi serbesttir, FailReason temizlenir) → fixer bir sonraki turda tekrar dener.
+- **Son deneme zamanı:** `fixAttemptedAt`'i kartta göster (ör. "Son deneme: 29.07.2026 09:31").
+  Alan re-approve'da SİLİNMEZ, yani ticket tekrar Approved'a alındığında da "ne zaman denenmişti"
+  görünür; `completedAt` bu iş için uygun değildir (re-approve'da null'lanır).
+- `failReason` çok satırlı olabilir (doğrulama hatalarında derleyici çıktısının kuyruğu eklenir) —
+  monospace + `white-space: pre-wrap` ile göstermek okunurluğu artırır.
 
 ### f) Periyodik yenileme
 - Liste/detay ekranında periyodik yenileme (ör. 60 sn polling) önerilir — ajanlar cron'la çalıştığı

@@ -87,14 +87,14 @@ public sealed class LiftdeskTicketClient : ILiftdeskTicketClient
 
     /// <inheritdoc />
     public async Task<LiftdeskEnvelope<LiftdeskTicket>> UpdateTicketStatusAsync(
-        Guid id, string status, string? decidedBy, string? decisionNote, string? fixInstruction,
-        CancellationToken cancellationToken = default)
+        Guid id, string status, string? decidedBy, string? decisionNote, string? resolutionNote,
+        string? fixInstruction, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Liftdesk: updating ticket {Id} → {Status}", id, status);
 
         using var request = BuildRequest(HttpMethod.Patch, $"{TicketsRoot}/{id}/status");
         request.Content = JsonContent.Create(
-            new { status, decidedBy, decisionNote, fixInstruction }, options: JsonOpts);
+            new { status, decidedBy, decisionNote, resolutionNote, fixInstruction }, options: JsonOpts);
         return await SendAsync<LiftdeskTicket>(request, cancellationToken);
     }
 

@@ -175,8 +175,11 @@ public sealed class TicketsController : ApiControllerBase
     }
 
     /// <summary>
-    /// Approves or rejects a ticket (or re-approves a Failed one to retry the fix agent).
-    /// PATCH /api/v1/tickets/{id}/status — body { status: "Approved" | "Rejected", decisionNote }.
+    /// Approves, rejects, or manually closes a ticket (and re-approves a Failed one to retry the fix
+    /// agent). PATCH /api/v1/tickets/{id}/status — body
+    /// { status: "Approved" | "Rejected" | "Done", decisionNote, resolutionNote, fixInstruction }.
+    /// "Done" is the manual close for work that needed no code change or was resolved outside the
+    /// pipeline; it is allowed from every status except Rejected (terminal) and Done itself.
     /// <c>decidedBy</c> is derived from the authenticated SuperAdmin. Liftdesk enforces the state
     /// machine and returns 409 for invalid transitions, surfaced here. Restricted to SuperAdmin —
     /// approval triggers the automated fix pipeline.
@@ -196,25 +199,35 @@ public sealed class TicketsController : ApiControllerBase
             return BadRequest(ApiResponse<object>.Fail("Liftdesk API anahtarı yapılandırılmamış.", 400));
 
         var status = body?.Status?.Trim();
-        // The CRM only performs the two human decisions; agent transitions (InProgress/Done/Failed)
-        // are written directly against Liftdesk by the fix agents, not through this proxy.
-        if (status is not ("Approved" or "Rejected"))
-            return BadRequest(ApiResponse<object>.Fail("Geçersiz durum. 'Approved' veya 'Rejected' olmalı.", 400));
+        // Human decisions only. "Done" here is the manual close ("Tamamlandı") for work that needed no
+        // code change or was handled outside the pipeline; the agent's own InProgress/Done/Failed
+        // transitions are written directly against Liftdesk, not through this proxy.
+        if (status is not ("Approved" or "Rejected" or "Done"))
+            return BadRequest(ApiResponse<object>.Fail(
+                "Geçersiz durum. 'Approved', 'Rejected' veya 'Done' olmalı.", 400));
 
-        var decidedBy    = !string.IsNullOrWhiteSpace(_currentUser.Email) ? _currentUser.Email : "crm";
-        var decisionNote = string.IsNullOrWhiteSpace(body!.DecisionNote) ? null : body.DecisionNote.Trim();
-        var successMsg   = status == "Approved" ? "Talep onaylandı." : "Talep reddedildi.";
+        var decidedBy = !string.IsNullOrWhiteSpace(_currentUser.Email) ? _currentUser.Email : "crm";
+
+        // Contract: Approved/Rejected carry decisionNote, the manual close carries resolutionNote.
+        // Both end up visible to the tenant, so only the field matching the transition is sent.
+        var decisionNote   = status == "Done" ? null : Trim(body!.DecisionNote);
+        var resolutionNote = status == "Done" ? Trim(body!.ResolutionNote) : null;
+
+        var successMsg = status switch
+        {
+            "Approved" => "Talep onaylandı.",
+            "Rejected" => "Talep reddedildi.",
+            _          => "Talep tamamlandı olarak kapatıldı.",
+        };
 
         // The fix instruction only drives the fix agent, which runs on approval — never send it with
-        // a rejection (a rejected ticket is terminal and the agent never reads it).
-        var fixInstruction = status == "Approved" && !string.IsNullOrWhiteSpace(body.FixInstruction)
-            ? body.FixInstruction.Trim()
-            : null;
+        // a rejection or a manual close (neither leads to an agent run).
+        var fixInstruction = status == "Approved" ? Trim(body!.FixInstruction) : null;
 
         try
         {
             var envelope = await _ticketClient.UpdateTicketStatusAsync(
-                id, status, decidedBy, decisionNote, fixInstruction, cancellationToken);
+                id, status, decidedBy, decisionNote, resolutionNote, fixInstruction, cancellationToken);
 
             if (!envelope.Success || envelope.Data is null)
             {
@@ -257,4 +270,5 @@ public record CreateTicketRequest(
 public record UpdateTicketStatusRequest(
     string Status,
     string? DecisionNote = null,
+    string? ResolutionNote = null,
     string? FixInstruction = null);

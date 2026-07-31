@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   RefreshCw, Plus, MessageSquareText, Inbox, AlertTriangle, Check, X, RotateCcw,
   ExternalLink, Sparkles, Lightbulb, Building2, User, Clock, ChevronLeft, ChevronRight, Loader2,
-  Eye, EyeOff, Wrench,
+  Eye, EyeOff, Wrench, CheckCheck,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -116,6 +116,15 @@ function errorMessage(err: unknown, fallback: string): string {
 function canApprove(status: string) { return status === 'New' || status === 'Triaged' || status === 'Failed'; }
 function canReject(status: string) { return status === 'New' || status === 'Triaged'; }
 
+/**
+ * Manual "Tamamlandı" close — for work that needed no code change, was solved outside the pipeline,
+ * or that the agent failed at and a human fixed by hand. Per the contract this is allowed from every
+ * status except Rejected (terminal) and Done (already closed).
+ */
+function canComplete(status: string) {
+  return ['New', 'Triaged', 'Approved', 'InProgress', 'Failed'].includes(status);
+}
+
 // ── Detail dialog ─────────────────────────────────────────────────────────────
 
 function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: () => void }) {
@@ -138,17 +147,23 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
     }
   }, [ticket]);
 
-  async function decide(status: 'Approved' | 'Rejected') {
+  async function decide(status: 'Approved' | 'Rejected' | 'Done') {
     if (!ticket) return;
+    const trimmedNote = note.trim() || undefined;
     try {
       await update.mutateAsync({
         id: ticket.id,
         status,
-        decisionNote: note.trim() || undefined,
+        // The note box serves both flows; the contract carries it as resolutionNote on a manual
+        // close and as decisionNote on approve/reject (both reach the tenant).
+        decisionNote:   status === 'Done' ? undefined : trimmedNote,
+        resolutionNote: status === 'Done' ? trimmedNote : undefined,
         fixInstruction: fixNote.trim() || undefined,
       });
       toast({
-        title: status === 'Approved' ? 'Talep onaylandı' : 'Talep reddedildi',
+        title: status === 'Approved' ? 'Talep onaylandı'
+             : status === 'Rejected' ? 'Talep reddedildi'
+             : 'Talep tamamlandı',
         description: ticket.subject,
       });
       onClose();
@@ -163,7 +178,9 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
 
   // Only SuperAdmins may act (approve/reject drives the automated fix pipeline); other roles get a
   // read-only view.
-  const actionable = isSuperAdmin && ticket ? (canApprove(ticket.status) || canReject(ticket.status)) : false;
+  const actionable = isSuperAdmin && ticket
+    ? (canApprove(ticket.status) || canReject(ticket.status) || canComplete(ticket.status))
+    : false;
 
   return (
     <Dialog open onOpenChange={(o) => !o && !busy && onClose()}>
@@ -302,15 +319,16 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
                   <div className="space-y-1.5">
                     <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                       <Eye className="h-3.5 w-3.5 text-amber-400" />
-                      Karar notu — talebi açan kullanıcı GÖRÜR
+                      Karar / çözüm notu — talebi açan kullanıcı GÖRÜR
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Resmi yanıt; kullanıcıya hitaben yazın. Teknik talimat için aşağıdaki alanı kullanın.
+                      Resmi yanıt; kullanıcıya hitaben yazın. “Tamamlandı” ile kapatırsanız bu metin
+                      çözüm notu olarak kaydedilir. Teknik talimat için aşağıdaki alanı kullanın.
                     </p>
                     <Textarea
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
-                      placeholder="Örn: Talebiniz alındı, bir sonraki sürümde eklenecek."
+                      placeholder="Örn: Talebiniz alındı, bir sonraki sürümde eklenecek. / Telefonda çözüldü."
                       rows={2}
                     />
                   </div>
@@ -342,6 +360,18 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
 
             <DialogFooter className="gap-2">
               <Button variant="outline" size="sm" onClick={onClose} disabled={busy}>Kapat</Button>
+              {isSuperAdmin && ticket && canComplete(ticket.status) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => decide('Done')}
+                  disabled={busy}
+                  className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10 hover:text-sky-300"
+                  title="Kod değişikliği gerekmeyen / dışarıda çözülen işi elle kapatır"
+                >
+                  <CheckCheck className="h-4 w-4 mr-1.5" /> Tamamlandı
+                </Button>
+              )}
               {isSuperAdmin && ticket && canReject(ticket.status) && (
                 <Button
                   variant="outline"

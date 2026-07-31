@@ -121,21 +121,25 @@ export function useCreateTicket() {
 
 export interface UpdateTicketStatusInput {
   id: string;
-  status: 'Approved' | 'Rejected';
-  /** Official reply — SHOWN TO THE TENANT. */
+  /** 'Done' is the manual close ("Tamamlandı") — allowed from every status except Rejected and Done. */
+  status: 'Approved' | 'Rejected' | 'Done';
+  /** Official reply — SHOWN TO THE TENANT. Carried by Approved/Rejected. */
   decisionNote?: string;
-  /** CRM-only "how to implement it" note for the fix agent; ignored on reject. */
+  /** How it was resolved — SHOWN TO THE TENANT. Carried by the manual 'Done' close. */
+  resolutionNote?: string;
+  /** CRM-only "how to implement it" note for the fix agent; ignored on reject and manual close. */
   fixInstruction?: string;
 }
 
-/** Approves/rejects a ticket (or re-approves a Failed one). `decidedBy` is derived server-side from the JWT. */
+/** Approves/rejects/manually closes a ticket. `decidedBy` is derived server-side from the JWT. */
 export function useUpdateTicketStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status, decisionNote, fixInstruction }: UpdateTicketStatusInput) => {
+    mutationFn: async ({ id, status, decisionNote, resolutionNote, fixInstruction }: UpdateTicketStatusInput) => {
       const res = await apiClient.patch<ApiResponse<Ticket>>(`/tickets/${id}/status`, {
         status,
         decisionNote,
+        resolutionNote,
         fixInstruction,
       });
       return res.data.data;

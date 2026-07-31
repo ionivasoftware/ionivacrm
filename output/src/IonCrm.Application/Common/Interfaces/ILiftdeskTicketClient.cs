@@ -44,11 +44,15 @@ public interface ILiftdeskTicketClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Approves or rejects a ticket. Endpoint: PATCH /api/v1/crm/tickets/{id}/status.
-    /// Body: { status, decidedBy, decisionNote, fixInstruction }. EMS returns 409 for invalid
-    /// transitions — surfaced via the envelope. <paramref name="decidedBy"/> is derived from the
-    /// authenticated SuperAdmin.
+    /// Approves, rejects or manually closes a ticket. Endpoint: PATCH /api/v1/crm/tickets/{id}/status.
+    /// Body: { status, decidedBy, decisionNote, resolutionNote, fixInstruction }. EMS returns 409 for
+    /// invalid transitions — surfaced via the envelope. <paramref name="decidedBy"/> is derived from
+    /// the authenticated SuperAdmin.
     /// </summary>
+    /// <param name="resolutionNote">
+    /// How the request was resolved. Carried by the manual "Tamamlandı" close (status Done); shown to
+    /// the tenant alongside <paramref name="decisionNote"/>.
+    /// </param>
     /// <param name="fixInstruction">
     /// Optional CRM-only instruction for the fix agent (approve only); never shown to the tenant.
     /// Ignored by Liftdesk until the field ships there — sending it early is harmless (unknown JSON
@@ -59,6 +63,7 @@ public interface ILiftdeskTicketClient
         string status,
         string? decidedBy,
         string? decisionNote,
+        string? resolutionNote,
         string? fixInstruction,
         CancellationToken cancellationToken = default);
 }
