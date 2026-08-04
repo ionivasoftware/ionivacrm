@@ -11,11 +11,13 @@ using IonCrm.Application.Customers.Commands.TransferLead;
 using IonCrm.Application.Customers.Commands.UpdateContractPaymentType;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
 using IonCrm.Application.Customers.Commands.UpdateCustomerChecklist;
+using IonCrm.Application.Customers.Commands.UpdateCustomerPlan;
 using IonCrm.Application.Customers.Commands.UpdateCustomerRezervalSettings;
 using IonCrm.Application.Common.Models.ExternalApis;
 using IonCrm.Application.Customers.Queries.GetActiveContractByCustomerId;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
 using IonCrm.Application.Customers.Queries.GetCustomerChecklist;
+using IonCrm.Application.Customers.Queries.GetCustomerPlan;
 using IonCrm.Application.Customers.Queries.GetCustomerEmsUsers;
 using IonCrm.Application.Customers.Queries.GetCustomerEmsSummary;
 using IonCrm.Application.Customers.Queries.GetCustomerRezervalSettings;
@@ -24,6 +26,7 @@ using IonCrm.Application.Customers.Queries.GetCustomerWithDetails;
 using IonCrm.Application.Customers.Queries.GetCustomers;
 using IonCrm.Application.Customers.Queries.GetLinkedParasutContactIds;
 using IonCrm.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IonCrm.API.Controllers;
@@ -201,6 +204,37 @@ public class CustomersController : ApiControllerBase
     public async Task<IActionResult> GetEmsSummary(Guid id, CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(new GetCustomerEmsSummaryQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// GET /api/v1/customers/{id}/plan
+    /// Returns the subscription plan screen (current plan + selectable plans + any iyzico warning)
+    /// for a Liftdesk-sourced customer ("LIFT-{n}"). Returns 400 when the customer is not Liftdesk-sourced.
+    /// </summary>
+    [HttpGet("{id:guid}/plan")]
+    public async Task<IActionResult> GetPlan(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetCustomerPlanQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// PUT /api/v1/customers/{id}/plan
+    /// Switches the customer's subscription tier. Restricted to SuperAdmin — the tier drives feature
+    /// gating for the whole tenant and takes effect immediately.
+    /// Body: { tier | planId (planId wins), billingPeriod? }. The licence period and status are NOT
+    /// changed; extending the licence is a separate operation.
+    /// </summary>
+    [HttpPut("{id:guid}/plan")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> UpdatePlan(
+        Guid id,
+        [FromBody] UpdateCustomerPlanRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        var command = new UpdateCustomerPlanCommand(id, body?.Tier, body?.PlanId, body?.BillingPeriod);
+        var result = await Mediator.Send(command, cancellationToken);
         return ResultToResponse(result);
     }
 
@@ -471,6 +505,9 @@ public record UpdatePaymentTypeRequest(ContractPaymentType PaymentType);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/extend-expiration.</summary>
 public record ExtendEmsExpirationRequest(string DurationType, int Amount);
+
+/// <summary>Request body for PUT /api/v1/customers/{id}/plan. PlanId wins when both are sent.</summary>
+public record UpdateCustomerPlanRequest(string? Tier, Guid? PlanId, string? BillingPeriod);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/add-sms.</summary>
 public record AddCustomerSmsRequest(int Count);

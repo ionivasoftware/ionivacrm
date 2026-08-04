@@ -95,6 +95,7 @@ import { TransferLeadModal } from '@/components/customers/TransferLeadModal';
 import { RezervalPushDialog } from '@/components/customers/RezervalPushDialog';
 import { RezervalSettingsTab } from '@/components/customers/RezervalSettingsTab';
 import { ChecklistsTab } from '@/components/customers/ChecklistsTab';
+import { PlanTab } from '@/components/customers/PlanTab';
 import { CreateContractDialog } from '@/components/customers/CreateContractDialog';
 import { CancelContractDialog } from '@/components/customers/CancelContractDialog';
 import { useToast } from '@/hooks/use-toast';
@@ -468,7 +469,7 @@ function QuickInvoiceForm({ projectId, contactId, customerName, onSuccess, onErr
 
 // ── Tab type ──────────────────────────────────────────────────────────────────
 
-type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari' | 'ems-users' | 'ems-summary' | 'rezerval-summary' | 'rezerval-settings' | 'checklists';
+type ActiveTab = 'timeline' | 'tasks' | 'opportunities' | 'cari' | 'ems-users' | 'ems-summary' | 'rezerval-summary' | 'rezerval-settings' | 'checklists' | 'plan';
 
 // ── Inline Schemas ────────────────────────────────────────────────────────────
 
@@ -1245,6 +1246,7 @@ export function CustomerDetailPage() {
     ...(isRezervalCustomer(customer?.legacyId) ? [{ id: 'rezerval-summary' as ActiveTab, label: 'RezervAl Özeti' }] : []),
     ...(isRezervalCustomer(customer?.legacyId) ? [{ id: 'rezerval-settings' as ActiveTab, label: 'Ayarlar' }] : []),
     ...(isLiftdeskCustomer(customer?.legacyId) ? [{ id: 'checklists' as ActiveTab, label: 'Checklists' }] : []),
+    ...(isLiftdeskCustomer(customer?.legacyId) ? [{ id: 'plan' as ActiveTab, label: 'Paket' }] : []),
   ];
 
   return (
@@ -2125,6 +2127,11 @@ export function CustomerDetailPage() {
           {/* ── Liftdesk Checklists Tab ── */}
           {activeTab === 'checklists' && (
             <ChecklistsTab customerId={customerId} />
+          )}
+
+          {/* ── Liftdesk Subscription Plan Tab ── */}
+          {activeTab === 'plan' && (
+            <PlanTab customerId={customerId} />
           )}
 
           {/* ── Cari Tab ── */}

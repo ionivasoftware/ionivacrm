@@ -764,3 +764,72 @@ export function useResetCustomerChecklists(customerId: string) {
     },
   });
 }
+
+// ── Liftdesk Subscription Plan ────────────────────────────────────────────────
+
+export interface CompanyCurrentPlan {
+  planId: string;
+  name: string;
+  tier: string;
+  /** Trialing | Active | PendingPayment | Cancelled | Expired */
+  status: string;
+  billingPeriod: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  autoRenew: boolean;
+}
+
+export interface CompanyAvailablePlan {
+  planId: string;
+  name: string;
+  tier: string;
+  priceMonthly: number;
+  priceYearly: number;
+}
+
+export interface CompanyPlan {
+  companyId: number;
+  /** Null for legacy tenants with no subscription row — a change would 409. */
+  current: CompanyCurrentPlan | null;
+  availablePlans: CompanyAvailablePlan[];
+  /** Operator warning (typically: iyzico keeps charging the old amount). Null when there is none. */
+  warning: string | null;
+}
+
+export function useCustomerPlan(customerId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['customerPlan', customerId],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<CompanyPlan>>(`/customers/${customerId}/plan`);
+      return response.data.data;
+    },
+    enabled: !!customerId && enabled,
+  });
+}
+
+export interface UpdateCustomerPlanInput {
+  /** Send planId (preferred — unambiguous) or tier; planId wins on the Liftdesk side. */
+  planId?: string;
+  tier?: string;
+  /** Omit to keep the current billing period. */
+  billingPeriod?: 'Monthly' | 'Yearly';
+}
+
+/** Changes the tier (SuperAdmin only). Takes effect immediately; does NOT extend the licence period. */
+export function useUpdateCustomerPlan(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: UpdateCustomerPlanInput) => {
+      const response = await apiClient.put<ApiResponse<CompanyPlan>>(
+        `/customers/${customerId}/plan`,
+        body
+      );
+      return response.data.data;
+    },
+    onSuccess: (data) => {
+      // The PUT returns the same payload as the GET — seed it instead of refetching.
+      if (data) queryClient.setQueryData(['customerPlan', customerId], data);
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+    },
+  });
+}

@@ -49,7 +49,7 @@ public sealed class GetCustomerChecklistQueryHandler
             return Result<LiftdeskChecklistDoc>.Failure("Bu müşteriye erişim yetkiniz yok.");
 
         var project = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
-        var resolveError = LiftdeskChecklistHelper.TryResolveLiftdesk(
+        var resolveError = LiftdeskCustomerHelper.TryResolveLiftdesk(
             customer, project, out var companyId, out var apiKey, out var baseUrl);
         if (resolveError is not null)
             return Result<LiftdeskChecklistDoc>.Failure(resolveError);
@@ -69,7 +69,7 @@ public sealed class GetCustomerChecklistQueryHandler
             _logger.LogError(ex,
                 "Liftdesk {Kind} checklist fetch failed for customer {CustomerId} (Liftdesk company {CompanyId}).",
                 request.Kind, customer.Id, companyId);
-            return Result<LiftdeskChecklistDoc>.Failure(LiftdeskChecklistHelper.DescribeFailure(ex));
+            return Result<LiftdeskChecklistDoc>.Failure(LiftdeskCustomerHelper.DescribeFailure(ex));
         }
     }
 }

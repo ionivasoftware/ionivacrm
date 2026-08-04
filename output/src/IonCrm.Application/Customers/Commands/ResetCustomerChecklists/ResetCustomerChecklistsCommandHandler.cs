@@ -50,7 +50,7 @@ public sealed class ResetCustomerChecklistsCommandHandler
             return Result<LiftdeskChecklistResetResponse>.Failure("Bu müşteriye erişim yetkiniz yok.");
 
         var project = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
-        var resolveError = LiftdeskChecklistHelper.TryResolveLiftdesk(
+        var resolveError = LiftdeskCustomerHelper.TryResolveLiftdesk(
             customer, project, out var companyId, out var apiKey, out var baseUrl);
         if (resolveError is not null)
             return Result<LiftdeskChecklistResetResponse>.Failure(resolveError);
@@ -76,7 +76,7 @@ public sealed class ResetCustomerChecklistsCommandHandler
             _logger.LogError(ex,
                 "Liftdesk checklist reset ({Kind}) failed for customer {CustomerId} (Liftdesk company {CompanyId}).",
                 request.Kind, customer.Id, companyId);
-            return Result<LiftdeskChecklistResetResponse>.Failure(LiftdeskChecklistHelper.DescribeFailure(ex));
+            return Result<LiftdeskChecklistResetResponse>.Failure(LiftdeskCustomerHelper.DescribeFailure(ex));
         }
     }
 }
