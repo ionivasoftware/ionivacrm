@@ -49,13 +49,17 @@ const PLATFORM_LABEL: Record<string, string> = {
 
 const SOURCE_LABEL: Record<string, string> = { Tenant: 'Tenant', Crm: 'Destek' };
 
-/** Status chips shown as the primary filter row. Empty value = all statuses. */
+/**
+ * Status chips shown as the primary filter row. Empty value = all statuses.
+ * "InProgress" is intentionally hidden — it is a short-lived state the fix agent transitions through
+ * on its own, not something a human ever waits on. The Approved chip covers it via the sub-toggle
+ * (freshly approved vs. reopened after Done).
+ */
 const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: '', label: 'Tümü' },
   { value: 'New', label: 'Yeni' },
   { value: 'Triaged', label: 'AI İnceledi' },
   { value: 'Approved', label: 'Onaylandı' },
-  { value: 'InProgress', label: 'Uygulanıyor' },
   { value: 'Done', label: 'Tamamlandı' },
   { value: 'Rejected', label: 'Reddedildi' },
   { value: 'Failed', label: 'Başarısız' },
@@ -392,7 +396,16 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
             </div>
 
             <DialogFooter className="gap-2">
-              <Button variant="outline" size="sm" onClick={onClose} disabled={busy}>Kapat</Button>
+              {/* On Done, the plain "Kapat" also functions as "Doğrulandı" (human verified,
+                  ticket stays Done). Rename accordingly so operators see the two clear paths:
+                  ✅ Doğrulandı (close) or ❌ Uygulanmamış, Tekrar Yap (re-approve). */}
+              <Button variant="outline" size="sm" onClick={onClose} disabled={busy}>
+                {isSuperAdmin && ticket?.status === 'Done' ? (
+                  <><CheckCheck className="h-4 w-4 mr-1.5" /> Doğrulandı, Kapat</>
+                ) : (
+                  'Kapat'
+                )}
+              </Button>
               {isSuperAdmin && ticket && canComplete(ticket.status) && (
                 <Button
                   variant="outline"
@@ -421,13 +434,15 @@ function TicketDetailDialog({ ticketId, onClose }: { ticketId: string; onClose: 
                   size="sm"
                   onClick={() => decide('Approved')}
                   disabled={busy}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className={ticket.status === 'Done'
+                    ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'}
                 >
                   {busy ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
                     : ticket.status === 'Failed' || ticket.status === 'Done'
                       ? <RotateCcw className="h-4 w-4 mr-1.5" />
                       : <Check className="h-4 w-4 mr-1.5" />}
-                  {ticket.status === 'Done' ? 'Yeniden yaptır'
+                  {ticket.status === 'Done' ? 'Uygulanmamış, Tekrar Yap'
                     : ticket.status === 'Failed' ? 'Yeniden Onayla'
                     : 'Onayla'}
                 </Button>
@@ -599,16 +614,35 @@ export function TicketsPage() {
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  /**
+   * Sub-toggle for the "Tamamlandı" chip. "done" = finished tickets (status=Done);
+   * "reopened" = tickets that were Done and got re-approved back into the fix pipeline
+   * (status=Approved AND fixAttemptedAt !== null — i.e. an agent has already tried them).
+   * Only meaningful while the Tamamlandı chip is active.
+   */
+  const [doneView, setDoneView] = useState<'done' | 'reopened'>('done');
+
+  // When the Tamamlandı chip is active, we may be showing the reopened list — which comes
+  // from a different backend status (Approved). Compute the effective status sent to the API.
+  const effectiveStatus = status === 'Done' && doneView === 'reopened' ? 'Approved' : status;
 
   const { data, isLoading, isFetching, refetch, isError, error } = useTickets({
-    status: status || undefined,
+    status: effectiveStatus || undefined,
     type: type === 'all' ? undefined : type,
     platform: platform === 'all' ? undefined : platform,
     page,
-    pageSize: 20,
+    // The reopened view needs client-side filtering on fixAttemptedAt, so it can lose rows
+    // from any given page. Bump the fetch size while in that view so users don't see empty
+    // pages when most of the Approved queue is still fresh (never attempted).
+    pageSize: status === 'Done' && doneView === 'reopened' ? 100 : 20,
   });
 
-  const tickets = data?.items ?? [];
+  // Client-side split of the Approved queue for the "Yeniden Yapılacaklara Alınan" tab.
+  const tickets = (() => {
+    const items = data?.items ?? [];
+    if (status !== 'Done' || doneView !== 'reopened') return items;
+    return items.filter((t) => t.fixAttemptedAt);
+  })();
 
   // Clamp the page down when the result set shrinks (e.g. after approving the last item on a
   // trailing page, or a background poll removing rows) so the operator is never stranded on an
@@ -652,7 +686,13 @@ export function TicketsPage() {
           return (
             <button
               key={s.value || 'all'}
-              onClick={() => { setStatus(s.value); setPage(1); }}
+              onClick={() => {
+                setStatus(s.value);
+                setPage(1);
+                // Reset the Tamamlandı sub-toggle whenever the primary chip changes so we don't
+                // silently keep asking for Approved rows after moving to a different filter.
+                setDoneView('done');
+              }}
               className={cn(
                 'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                 active
@@ -665,6 +705,33 @@ export function TicketsPage() {
           );
         })}
       </div>
+
+      {/* Tamamlandı sub-toggle — split between actually finished tickets and ones that were
+          Done but re-approved back into the fix pipeline. */}
+      {status === 'Done' && (
+        <div className="flex flex-wrap gap-1 rounded-lg border border-border/40 bg-muted/20 p-1 w-fit">
+          {([
+            { value: 'done',     label: 'Tamamlanmış' },
+            { value: 'reopened', label: 'Yeniden Yapılacaklara Alınan' },
+          ] as const).map((v) => {
+            const active = doneView === v.value;
+            return (
+              <button
+                key={v.value}
+                onClick={() => { setDoneView(v.value); setPage(1); }}
+                className={cn(
+                  'rounded-md px-3 py-1 text-xs font-medium transition-colors',
+                  active
+                    ? 'bg-background text-foreground shadow-sm border border-border/50'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+                )}
+              >
+                {v.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Secondary filters */}
       <div className="flex flex-wrap gap-2">

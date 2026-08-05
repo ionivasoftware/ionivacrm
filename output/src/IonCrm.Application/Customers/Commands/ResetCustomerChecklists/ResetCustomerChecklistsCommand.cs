@@ -11,4 +11,6 @@ namespace IonCrm.Application.Customers.Commands.ResetCustomerChecklists;
 /// </summary>
 public sealed record ResetCustomerChecklistsCommand(
     Guid CustomerId,
-    string Kind = "both") : IRequest<Result<LiftdeskChecklistResetResponse>>;
+    string Kind = "both",
+    /// <summary>Language to reset. Null = the company's own culture; other languages are untouched.</summary>
+    int? Culture = null) : IRequest<Result<LiftdeskChecklistResetResponse>>;

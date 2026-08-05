@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import {
   CHECKLIST_LISTS,
+  cultureLabel,
   useCustomerChecklist,
   useResetCustomerChecklists,
   useUpdateCustomerChecklist,
@@ -145,12 +146,14 @@ type ResetScope = ChecklistListKey | 'both';
 function ResetDialog({
   customerId,
   currentList,
+  culture,
   hasUnsavedChanges,
   onClose,
   onResetSuccess,
 }: {
   customerId: string;
   currentList: ChecklistListKey;
+  culture?: number;
   hasUnsavedChanges: boolean;
   onClose: () => void;
   onResetSuccess: (scope: ResetScope) => void;
@@ -166,7 +169,7 @@ function ResetDialog({
 
   async function handleReset() {
     try {
-      await resetMutation.mutateAsync({ kind: scope });
+      await resetMutation.mutateAsync({ kind: scope, culture });
       onResetSuccess(scope);
       toast({
         title: 'Varsayılana döndürüldü',
@@ -228,7 +231,7 @@ function ResetDialog({
           <AlertTriangle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-red-300">
             Bu işlem geri alınamaz: firmanın mevcut checklist özelleştirmesi silinir ve yerine
-            varsayılan şablon yazılır.
+            varsayılan şablon yazılır. Yalnız görüntülenen dili etkiler; diğer diller korunur.
             {hasUnsavedChanges && affectsOpenList && (
               <> Ekranda kaydedilmemiş değişiklikleriniz de kaybolur.</>
             )}
@@ -267,9 +270,11 @@ function ResetDialog({
 export function ChecklistsTab({ customerId }: { customerId: string }) {
   const { toast } = useToast();
   const [list, setList] = useState<ChecklistListKey>('maintenance');
+  /** Undefined until the operator picks one — Liftdesk then serves the company's own language. */
+  const [culture, setCulture] = useState<number | undefined>(undefined);
   const [showResetDialog, setShowResetDialog] = useState(false);
 
-  const { data, isLoading, error } = useCustomerChecklist(customerId, list, true);
+  const { data, isLoading, error } = useCustomerChecklist(customerId, list, culture, true);
   const updateMutation = useUpdateCustomerChecklist(customerId);
 
   const [headers, setHeaders] = useState<EditorHeader[]>([]);
@@ -316,7 +321,7 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
       return;
     }
     try {
-      const saved = await updateMutation.mutateAsync({ list, headers: editorToPayload(headers) });
+      const saved = await updateMutation.mutateAsync({ list, culture, headers: editorToPayload(headers) });
       if (saved) {
         hydratedFrom.current = saved;
         setHeaders(docToEditor(saved));
@@ -340,6 +345,17 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
     setDirty(false);
     setSelectedKey(null);
     setList(next);
+  }
+
+  function switchCulture(next: number) {
+    if (next === (data?.culture ?? culture)) return;
+    if (dirty && !window.confirm('Kaydedilmemiş değişiklikler var. Dil değiştirilirse kaybolur. Devam edilsin mi?')) {
+      return;
+    }
+    hydratedFrom.current = null;
+    setDirty(false);
+    setSelectedKey(null);
+    setCulture(next);
   }
 
   // After a reset the server state is authoritative FOR THE RESET LISTS — rehydrate from the
@@ -383,6 +399,23 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Language picker — only when the company actually has rows in more than one language. */}
+        {!isLoading && data && (data.availableCultures?.length ?? 0) > 1 && (
+          <Select
+            value={String(data.culture)}
+            onValueChange={(v) => switchCulture(Number(v))}
+          >
+            <SelectTrigger className="h-9 w-full sm:w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {data.availableCultures!.map((c) => (
+                <SelectItem key={c} value={String(c)}>{cultureLabel(c)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         {!isLoading && data && (
           <span className="text-xs text-muted-foreground whitespace-nowrap">
@@ -700,6 +733,7 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
         <ResetDialog
           customerId={customerId}
           currentList={list}
+          culture={data?.culture}
           hasUnsavedChanges={dirty}
           onClose={() => setShowResetDialog(false)}
           onResetSuccess={handleResetSuccess}

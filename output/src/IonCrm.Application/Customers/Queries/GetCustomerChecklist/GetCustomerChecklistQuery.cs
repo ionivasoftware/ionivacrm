@@ -12,4 +12,6 @@ public sealed record GetCustomerChecklistQuery(
     Guid CustomerId,
     string Kind,
     /// <summary>Maintenance equipment family: 1 = elevator, 2 = escalator. Null = Liftdesk default (elevator).</summary>
-    int? Type = null) : IRequest<Result<LiftdeskChecklistDoc>>;
+    int? Type = null,
+    /// <summary>Language (1 = TR, 2 = EN…). Null = the company's own culture.</summary>
+    int? Culture = null) : IRequest<Result<LiftdeskChecklistDoc>>;

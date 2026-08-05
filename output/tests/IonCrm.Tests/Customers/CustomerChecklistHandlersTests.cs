@@ -81,7 +81,7 @@ public class CustomerChecklistHandlersTests
     {
         var (customerId, _) = SetupLiftdeskCustomer();
         _clientMock
-            .Setup(c => c.GetChecklistAsync("https://lift.example.com", "lift-key", 7, "maintenance", null, It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetChecklistAsync("https://lift.example.com", "lift-key", 7, "maintenance", null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(SampleDoc());
 
         var result = await CreateGetHandler().Handle(
@@ -104,7 +104,7 @@ public class CustomerChecklistHandlersTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("Geçersiz");
         _clientMock.Verify(c => c.GetChecklistAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -119,7 +119,7 @@ public class CustomerChecklistHandlersTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("Liftdesk kaynaklı değil");
         _clientMock.Verify(c => c.GetChecklistAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -147,7 +147,7 @@ public class CustomerChecklistHandlersTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("yetki");
         _clientMock.Verify(c => c.GetChecklistAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -171,7 +171,7 @@ public class CustomerChecklistHandlersTests
     {
         var (customerId, _) = SetupLiftdeskCustomer();
         _clientMock
-            .Setup(c => c.GetChecklistAsync(It.IsAny<string>(), It.IsAny<string>(), 7, "maintenance", It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetChecklistAsync(It.IsAny<string>(), It.IsAny<string>(), 7, "maintenance", It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("HTTP 401 Unauthorized", null, System.Net.HttpStatusCode.Unauthorized));
 
         var result = await CreateGetHandler().Handle(
@@ -191,10 +191,10 @@ public class CustomerChecklistHandlersTests
         LiftdeskChecklistUpdateRequest? sent = null;
         _clientMock
             .Setup(c => c.UpdateChecklistAsync(
-                "https://lift.example.com", "lift-key", 7, "fault", null,
+                "https://lift.example.com", "lift-key", 7, "fault", null, null,
                 It.IsAny<LiftdeskChecklistUpdateRequest>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, int, string, int?, LiftdeskChecklistUpdateRequest, CancellationToken>(
-                (_, _, _, _, _, body, _) => sent = body)
+            .Callback<string, string, int, string, int?, int?, LiftdeskChecklistUpdateRequest, CancellationToken>(
+                (_, _, _, _, _, _, body, _) => sent = body)
             .ReturnsAsync(SampleDoc("fault"));
 
         var headers = new List<LiftdeskChecklistHeaderInput>
@@ -231,7 +231,7 @@ public class CustomerChecklistHandlersTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("Başlık");
         _clientMock.Verify(c => c.UpdateChecklistAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int?>(),
             It.IsAny<LiftdeskChecklistUpdateRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -266,7 +266,7 @@ public class CustomerChecklistHandlersTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("en az bir başlık");
         _clientMock.Verify(c => c.UpdateChecklistAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int?>(),
             It.IsAny<LiftdeskChecklistUpdateRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -291,7 +291,7 @@ public class CustomerChecklistHandlersTests
         var (customerId, _) = SetupLiftdeskCustomer();
         _userMock.Setup(u => u.UserId).Returns(Guid.NewGuid());
         _clientMock
-            .Setup(c => c.ResetChecklistsAsync("https://lift.example.com", "lift-key", 7, "both", It.IsAny<CancellationToken>()))
+            .Setup(c => c.ResetChecklistsAsync("https://lift.example.com", "lift-key", 7, "both", null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new LiftdeskChecklistResetResponse(7, SampleDoc("maintenance"), SampleDoc("fault")));
 
         var result = await CreateResetHandler().Handle(
@@ -308,7 +308,7 @@ public class CustomerChecklistHandlersTests
         var (customerId, _) = SetupLiftdeskCustomer();
         _userMock.Setup(u => u.UserId).Returns(Guid.NewGuid());
         _clientMock
-            .Setup(c => c.ResetChecklistsAsync(It.IsAny<string>(), It.IsAny<string>(), 7, "maintenance", It.IsAny<CancellationToken>()))
+            .Setup(c => c.ResetChecklistsAsync(It.IsAny<string>(), It.IsAny<string>(), 7, "maintenance", It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new LiftdeskChecklistResetResponse(7, SampleDoc("maintenance"), null));
 
         var result = await CreateResetHandler().Handle(
@@ -318,7 +318,7 @@ public class CustomerChecklistHandlersTests
         result.Value!.Maintenance.Should().NotBeNull();
         result.Value.Fault.Should().BeNull();
         _clientMock.Verify(c => c.ResetChecklistsAsync(
-            It.IsAny<string>(), It.IsAny<string>(), 7, "maintenance", It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<string>(), It.IsAny<string>(), 7, "maintenance", It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -332,7 +332,7 @@ public class CustomerChecklistHandlersTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("Geçersiz");
         _clientMock.Verify(c => c.ResetChecklistsAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 

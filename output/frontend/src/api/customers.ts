@@ -685,6 +685,10 @@ export type ChecklistType = (typeof CHECKLIST_TYPE)[keyof typeof CHECKLIST_TYPE]
  */
 export type ChecklistListKey = 'maintenance' | 'escalator' | 'fault';
 
+/** Checklist languages Liftdesk knows by name; anything else is shown as its raw number. */
+export const CHECKLIST_CULTURE_LABEL: Record<number, string> = { 1: 'Türkçe', 2: 'İngilizce' };
+export const cultureLabel = (c: number) => CHECKLIST_CULTURE_LABEL[c] ?? `Dil ${c}`;
+
 export const CHECKLIST_LISTS: Record<
   ChecklistListKey,
   { label: string; kind: ChecklistKind; type?: ChecklistType }
@@ -717,6 +721,10 @@ export interface ChecklistDoc {
   headers: ChecklistHeader[];
   /** 1 = elevator, 2 = escalator. Always 1 on the fault list. */
   type: number;
+  /** Language of the returned rows (1 = TR, 2 = EN…). */
+  culture: number;
+  /** Languages that have rows for this list — fills the language picker. Null/1 item → no picker. */
+  availableCultures: number[] | null;
 }
 
 export interface ChecklistResetResult {
@@ -738,15 +746,28 @@ export interface ChecklistHeaderInput {
   items: ChecklistItemInput[];
 }
 
-export function useCustomerChecklist(customerId: string, list: ChecklistListKey, enabled: boolean) {
-  const { kind, type } = CHECKLIST_LISTS[list];
+/** Builds the ?type=&culture= scope shared by the read and the replace. */
+function checklistScope(list: ChecklistListKey, culture?: number): string {
+  const { type } = CHECKLIST_LISTS[list];
+  const parts: string[] = [];
+  if (type) parts.push(`type=${type}`);
+  if (culture) parts.push(`culture=${culture}`);
+  return parts.length ? `?${parts.join('&')}` : '';
+}
+
+export function useCustomerChecklist(
+  customerId: string,
+  list: ChecklistListKey,
+  culture: number | undefined,
+  enabled: boolean
+) {
+  const { kind } = CHECKLIST_LISTS[list];
   return useQuery({
-    // Keyed by list (not kind): elevator and escalator are two different maintenance documents.
-    queryKey: ['customerChecklist', customerId, list],
+    // Keyed by list AND culture: each (equipment family, language) pair is its own document.
+    queryKey: ['customerChecklist', customerId, list, culture ?? 'default'],
     queryFn: async () => {
-      const query = type ? `?type=${type}` : '';
       const response = await apiClient.get<ApiResponse<ChecklistDoc>>(
-        `/customers/${customerId}/checklists/${kind}${query}`
+        `/customers/${customerId}/checklists/${kind}${checklistScope(list, culture)}`
       );
       return response.data.data;
     },
@@ -763,17 +784,19 @@ export function useCustomerChecklist(customerId: string, list: ChecklistListKey,
 export function useUpdateCustomerChecklist(customerId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ list, headers }: { list: ChecklistListKey; headers: ChecklistHeaderInput[] }) => {
-      const { kind, type } = CHECKLIST_LISTS[list];
-      const query = type ? `?type=${type}` : '';
+    mutationFn: async (
+      { list, culture, headers }:
+      { list: ChecklistListKey; culture?: number; headers: ChecklistHeaderInput[] }
+    ) => {
+      const { kind } = CHECKLIST_LISTS[list];
       const response = await apiClient.put<ApiResponse<ChecklistDoc>>(
-        `/customers/${customerId}/checklists/${kind}${query}`,
+        `/customers/${customerId}/checklists/${kind}${checklistScope(list, culture)}`,
         { headers }
       );
       return response.data.data;
     },
-    onSuccess: (data, { list }) => {
-      if (data) queryClient.setQueryData(['customerChecklist', customerId, list], data);
+    onSuccess: (data, { list, culture }) => {
+      if (data) queryClient.setQueryData(['customerChecklist', customerId, list, culture ?? 'default'], data);
     },
   });
 }
@@ -782,20 +805,17 @@ export function useUpdateCustomerChecklist(customerId: string) {
 export function useResetCustomerChecklists(customerId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ kind }: { kind: ChecklistListKey | 'both' }) => {
+    mutationFn: async ({ kind, culture }: { kind: ChecklistListKey | 'both'; culture?: number }) => {
       const response = await apiClient.post<ApiResponse<ChecklistResetResult>>(
         `/customers/${customerId}/checklists/reset`,
-        { kind }
+        { kind, culture }
       );
       return response.data.data;
     },
-    onSuccess: (data) => {
-      if (data?.maintenance)
-        queryClient.setQueryData(['customerChecklist', customerId, 'maintenance'], data.maintenance);
-      if (data?.escalatorMaintenance)
-        queryClient.setQueryData(['customerChecklist', customerId, 'escalator'], data.escalatorMaintenance);
-      if (data?.fault)
-        queryClient.setQueryData(['customerChecklist', customerId, 'fault'], data.fault);
+    // Invalidate rather than seed: cache entries are keyed by (list, culture) and the reset response
+    // carries no key for the entries it did not touch, so precise seeding would go stale silently.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customerChecklist', customerId] });
     },
   });
 }

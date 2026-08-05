@@ -32,14 +32,14 @@ public sealed class LiftdeskChecklistClient : ILiftdeskChecklistClient
 
     /// <inheritdoc />
     public async Task<LiftdeskChecklistDoc> GetChecklistAsync(
-        string baseUrl, string apiKey, int companyId, string kind, int? type,
+        string baseUrl, string apiKey, int companyId, string kind, int? type, int? culture,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Liftdesk checklist: fetching {Kind} checklist (type={Type}) for company {CompanyId}.",
-            kind, type, companyId);
+        _logger.LogDebug("Liftdesk checklist: fetching {Kind} checklist (type={Type}, culture={Culture}) for company {CompanyId}.",
+            kind, type, culture, companyId);
 
         using var request = BuildRequest(HttpMethod.Get, baseUrl, apiKey,
-            $"/api/v1/crm/companies/{companyId}/{kind}-checklist{TypeQuery(type)}");
+            $"/api/v1/crm/companies/{companyId}/{kind}-checklist{ScopeQuery(type, culture)}");
         var response = await _httpClient.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
 
@@ -49,14 +49,14 @@ public sealed class LiftdeskChecklistClient : ILiftdeskChecklistClient
 
     /// <inheritdoc />
     public async Task<LiftdeskChecklistDoc> UpdateChecklistAsync(
-        string baseUrl, string apiKey, int companyId, string kind, int? type,
+        string baseUrl, string apiKey, int companyId, string kind, int? type, int? culture,
         LiftdeskChecklistUpdateRequest body, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Liftdesk checklist: updating {Kind} checklist (type={Type}) for company {CompanyId} ({HeaderCount} headers).",
-            kind, type, companyId, body.Headers.Count);
+        _logger.LogDebug("Liftdesk checklist: updating {Kind} checklist (type={Type}, culture={Culture}) for company {CompanyId} ({HeaderCount} headers).",
+            kind, type, culture, companyId, body.Headers.Count);
 
         using var request = BuildRequest(HttpMethod.Put, baseUrl, apiKey,
-            $"/api/v1/crm/companies/{companyId}/{kind}-checklist{TypeQuery(type)}");
+            $"/api/v1/crm/companies/{companyId}/{kind}-checklist{ScopeQuery(type, culture)}");
         request.Content = JsonContent.Create(body, options: JsonOpts);
         var response = await _httpClient.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
@@ -67,14 +67,15 @@ public sealed class LiftdeskChecklistClient : ILiftdeskChecklistClient
 
     /// <inheritdoc />
     public async Task<LiftdeskChecklistResetResponse> ResetChecklistsAsync(
-        string baseUrl, string apiKey, int companyId, string kind, CancellationToken cancellationToken = default)
+        string baseUrl, string apiKey, int companyId, string kind, int? culture,
+        CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Liftdesk checklist: resetting {Kind} checklist(s) to default for company {CompanyId}.",
-            kind, companyId);
+        _logger.LogInformation("Liftdesk checklist: resetting {Kind} checklist(s) (culture={Culture}) to default for company {CompanyId}.",
+            kind, culture, companyId);
 
         using var request = BuildRequest(HttpMethod.Post, baseUrl, apiKey,
             $"/api/v1/crm/companies/{companyId}/checklists/reset");
-        request.Content = JsonContent.Create(new { kind }, options: JsonOpts);
+        request.Content = JsonContent.Create(new { kind, culture }, options: JsonOpts);
         var response = await _httpClient.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
 
@@ -82,8 +83,17 @@ public sealed class LiftdeskChecklistClient : ILiftdeskChecklistClient
         return result ?? throw new InvalidOperationException("Empty response from Liftdesk checklist reset.");
     }
 
-    /// <summary>Equipment-family query string; empty when the caller did not pin a type.</summary>
-    private static string TypeQuery(int? type) => type.HasValue ? $"?type={type.Value}" : string.Empty;
+    /// <summary>
+    /// Builds the ?type=&amp;culture= scope. Both are optional; omitting one keeps Liftdesk's default
+    /// for it (elevator / the company's own language).
+    /// </summary>
+    private static string ScopeQuery(int? type, int? culture)
+    {
+        var parts = new List<string>(2);
+        if (type.HasValue) parts.Add($"type={type.Value}");
+        if (culture.HasValue) parts.Add($"culture={culture.Value}");
+        return parts.Count == 0 ? string.Empty : "?" + string.Join('&', parts);
+    }
 
     private static HttpRequestMessage BuildRequest(HttpMethod method, string baseUrl, string apiKey, string path)
     {

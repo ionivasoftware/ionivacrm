@@ -18,4 +18,9 @@ public sealed record UpdateCustomerChecklistCommand(
     /// Maintenance equipment family the replace is scoped to (1 = elevator, 2 = escalator). MUST match
     /// the type the list was read with, otherwise the wrong family would be overwritten.
     /// </summary>
-    int? Type = null) : IRequest<Result<LiftdeskChecklistDoc>>;
+    int? Type = null,
+    /// <summary>
+    /// Language the replace is scoped to. MUST match the culture the list was read with — the other
+    /// languages are left intact, so a mismatch would overwrite the wrong one.
+    /// </summary>
+    int? Culture = null) : IRequest<Result<LiftdeskChecklistDoc>>;

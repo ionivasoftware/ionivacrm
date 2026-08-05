@@ -58,7 +58,7 @@ public sealed class ResetCustomerChecklistsCommandHandler
         try
         {
             var response = await _checklistClient.ResetChecklistsAsync(
-                baseUrl, apiKey, companyId, request.Kind, cancellationToken);
+                baseUrl, apiKey, companyId, request.Kind, request.Culture, cancellationToken);
 
             // Destructive operation — always log who reset what.
             _logger.LogWarning(

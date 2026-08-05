@@ -60,7 +60,7 @@ public sealed class GetCustomerChecklistQueryHandler
         try
         {
             var doc = await _checklistClient.GetChecklistAsync(
-                baseUrl, apiKey, companyId, request.Kind, request.Type, cancellationToken);
+                baseUrl, apiKey, companyId, request.Kind, request.Type, request.Culture, cancellationToken);
             return Result<LiftdeskChecklistDoc>.Success(doc);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

@@ -89,7 +89,7 @@ public sealed class UpdateCustomerChecklistCommandHandler
         try
         {
             var doc = await _checklistClient.UpdateChecklistAsync(
-                baseUrl, apiKey, companyId, request.Kind, request.Type,
+                baseUrl, apiKey, companyId, request.Kind, request.Type, request.Culture,
                 new LiftdeskChecklistUpdateRequest(headers), cancellationToken);
 
             _logger.LogInformation(

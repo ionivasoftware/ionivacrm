@@ -15,6 +15,7 @@ public interface ILiftdeskChecklistClient
     /// GET /api/v1/crm/companies/{companyId}/{kind}-checklist[?type=].
     /// <paramref name="type"/> selects the equipment family of a MAINTENANCE list
     /// (1 = elevator, 2 = escalator); it is ignored for the fault list.
+    /// <paramref name="culture"/> selects the language (null = the company's own).
     /// </summary>
     Task<LiftdeskChecklistDoc> GetChecklistAsync(
         string baseUrl,
@@ -22,12 +23,14 @@ public interface ILiftdeskChecklistClient
         int companyId,
         string kind,
         int? type,
+        int? culture,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// PUT /api/v1/crm/companies/{companyId}/{kind}-checklist[?type=] — full-document replace.
-    /// The replace is SCOPED to <paramref name="type"/>: the other equipment family is left intact,
-    /// so the type used to read a list must be the same one used to save it.
+    /// The replace is SCOPED to <paramref name="type"/> AND <paramref name="culture"/>: the other
+    /// equipment family and the other languages are left intact, so the type+culture used to read a
+    /// list must be the same ones used to save it.
     /// </summary>
     Task<LiftdeskChecklistDoc> UpdateChecklistAsync(
         string baseUrl,
@@ -35,6 +38,7 @@ public interface ILiftdeskChecklistClient
         int companyId,
         string kind,
         int? type,
+        int? culture,
         LiftdeskChecklistUpdateRequest body,
         CancellationToken cancellationToken = default);
 
@@ -47,5 +51,6 @@ public interface ILiftdeskChecklistClient
         string apiKey,
         int companyId,
         string kind,
+        int? culture,
         CancellationToken cancellationToken = default);
 }

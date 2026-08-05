@@ -36,7 +36,24 @@ public sealed record LiftdeskChecklistDoc(
     /// the fault list, which is not split by type.
     /// </summary>
     [property: JsonConverter(typeof(LiftdeskChecklistTypeJsonConverter))]
-    int Type = LiftdeskChecklistType.Elevator);
+    int Type = LiftdeskChecklistType.Elevator,
+    /// <summary>Language of the returned rows (1 = TR, 2 = EN, …).</summary>
+    int Culture = LiftdeskChecklistCulture.Turkish,
+    /// <summary>
+    /// Languages that actually have rows for this form/type — what the CRM fills its language picker
+    /// with. Null or single-element means there is nothing to switch between.
+    /// </summary>
+    List<int>? AvailableCultures = null);
+
+/// <summary>Known checklist languages. Liftdesk stores the raw int, so unknown values pass through.</summary>
+public static class LiftdeskChecklistCulture
+{
+    /// <summary>Turkish — the default for every tenant without an explicit setting.</summary>
+    public const int Turkish = 1;
+
+    /// <summary>English.</summary>
+    public const int English = 2;
+}
 
 /// <summary>
 /// Reads the equipment family whether Liftdesk sends it as an enum NAME ("Elevator"/"Escalator" —

@@ -249,9 +249,10 @@ public class CustomersController : ApiControllerBase
         Guid id,
         string kind,
         [FromQuery] int? type = null,
+        [FromQuery] int? culture = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await Mediator.Send(new GetCustomerChecklistQuery(id, kind, type), cancellationToken);
+        var result = await Mediator.Send(new GetCustomerChecklistQuery(id, kind, type, culture), cancellationToken);
         return ResultToResponse(result);
     }
 
@@ -266,11 +267,12 @@ public class CustomersController : ApiControllerBase
         string kind,
         [FromBody] UpdateChecklistRequest body,
         [FromQuery] int? type = null,
+        [FromQuery] int? culture = null,
         CancellationToken cancellationToken = default)
     {
-        // The replace is scoped to `type` on the Liftdesk side, so this must be the same type the
-        // list was read with — otherwise the other equipment family would be overwritten.
-        var command = new UpdateCustomerChecklistCommand(id, kind, body.Headers, type);
+        // The replace is scoped to `type` + `culture` on the Liftdesk side, so these must be the same
+        // ones the list was read with — otherwise the wrong family/language would be overwritten.
+        var command = new UpdateCustomerChecklistCommand(id, kind, body.Headers, type, culture);
         var result = await Mediator.Send(command, cancellationToken);
         return ResultToResponse(result);
     }
@@ -288,7 +290,7 @@ public class CustomersController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var kind = string.IsNullOrWhiteSpace(body?.Kind) ? "both" : body!.Kind!;
-        var result = await Mediator.Send(new ResetCustomerChecklistsCommand(id, kind), cancellationToken);
+        var result = await Mediator.Send(new ResetCustomerChecklistsCommand(id, kind, body?.Culture), cancellationToken);
         return ResultToResponse(result);
     }
 
@@ -520,7 +522,7 @@ public record AddCustomerSmsRequest(int Count);
 public record UpdateChecklistRequest(List<LiftdeskChecklistHeaderInput> Headers);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/checklists/reset. Kind defaults to "both".</summary>
-public record ResetChecklistsRequest(string? Kind);
+public record ResetChecklistsRequest(string? Kind, int? Culture = null);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/contracts.</summary>
 public record CreateContractRequest(

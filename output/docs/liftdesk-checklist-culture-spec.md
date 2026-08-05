@@ -1,4 +1,14 @@
-# Liftdesk — Checklist dil (culture) desteği · CRM talebi
+# Liftdesk — Checklist dil (culture) desteği · ✅ UYGULANDI
+
+> **Durum:** Liftdesk tarafında `82f69d4c` ile uygulandı, CRM tarafı da bağlandı.
+> Bu doküman geçmiş kaydı olarak duruyor; güncel şema için
+> [liftdesk-saas-checklist-contract.md](liftdesk-saas-checklist-contract.md).
+>
+> Uygulanan hâli: GET/PUT `?culture=`, yanıtta `culture` + `availableCultures`,
+> reset gövdesinde `culture`, ve §2'deki veri kaybı — Replace silme predicate'lerine
+> `Culture` filtresi eklenerek — giderildi (bakım + arıza, her ikisi).
+
+## (özgün talep)
 
 CRM'deki checklist ekranına **dil seçici** koyabilmemiz için Liftdesk tarafında gereken değişiklikler.
 Bu doküman CRM ekibi tarafından, Liftdesk kaynak kodu okunarak yazılmıştır — satır referansları
