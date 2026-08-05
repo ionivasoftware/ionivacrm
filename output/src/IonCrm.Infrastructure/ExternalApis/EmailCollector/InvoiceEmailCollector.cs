@@ -93,12 +93,15 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
                 var message = await folder.GetMessageAsync(uid, cancellationToken);
                 scanned++;
 
-                var from = $"{message.From}";
-                var subject = message.Subject ?? string.Empty;
-                var body = message.TextBody ?? StripHtml(message.HtmlBody) ?? string.Empty;
-                var emailDate = message.Date.UtcDateTime;
+                // Resolves both forward styles: an attachment-forward hides the vendor's headers and the
+                // invoice PDF inside a nested message/rfc822 part.
+                var parsed = InvoiceEmailParser.Parse(message);
+                var from = parsed.From;
+                var subject = parsed.Subject;
+                var body = parsed.Body;
+                var emailDate = parsed.Date;
 
-                var rule = rules.FirstOrDefault(r => Matches(r, from, subject, body));
+                var rule = rules.FirstOrDefault(r => Matches(r, from, parsed.SubjectForMatch, body));
                 if (rule is null)
                 {
                     // Dry-run: surface unmatched messages so their real From/Subject can be inspected
@@ -111,8 +114,7 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
 
                 // Google (and others) only put the amount in the attached PDF — include its text, and
                 // keep the raw bytes so the PDF can be stored and viewed in the CRM.
-                var pdfAttachment = GetFirstPdfAttachment(message);
-                var pdfText = pdfAttachment is null ? string.Empty : ExtractPdfText(pdfAttachment.Value.Bytes);
+                var pdfText = parsed.PdfBytes is null ? string.Empty : ExtractPdfText(parsed.PdfBytes);
                 var haystack = subject + "\n" + body + "\n" + pdfText;
                 decimal? amount = TryExtractAmount(rule.AmountRegex, haystack, out var parsedAmount) ? parsedAmount : null;
                 var invoiceNo = Truncate(TryExtractGroup(rule.InvoiceNoRegex, haystack), 100);
@@ -158,9 +160,9 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
                 {
                     received++;
                     // Store the PDF attachment so it can be viewed in the CRM.
-                    if (pdfAttachment is not null && res.Value is not null)
-                        await _invoices.SavePdfAsync(res.Value.Id, pdfAttachment.Value.FileName,
-                            "application/pdf", pdfAttachment.Value.Bytes, cancellationToken);
+                    if (parsed.PdfBytes is not null && res.Value is not null)
+                        await _invoices.SavePdfAsync(res.Value.Id, parsed.PdfFileName,
+                            "application/pdf", parsed.PdfBytes, cancellationToken);
 
                     items.Add(new EmailCollectItem(rule.Provider, year, month, amount, currency, invoiceNo, subject, emailDate,
                         "received", null));
@@ -276,22 +278,6 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
     }
 
     /// <summary>Returns the bytes + file name of the first PDF attachment on the message, or null.</summary>
-    private static (byte[] Bytes, string? FileName)? GetFirstPdfAttachment(MimeMessage message)
-    {
-        foreach (var entity in message.Attachments)
-        {
-            if (entity is not MimePart part || part.Content is null) continue;
-            var fileName = part.FileName ?? string.Empty;
-            var isPdf = part.ContentType.MimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
-                || fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
-            if (!isPdf) continue;
-
-            using var ms = new MemoryStream();
-            part.Content.DecodeTo(ms);
-            return (ms.ToArray(), string.IsNullOrWhiteSpace(fileName) ? null : fileName);
-        }
-        return null;
-    }
 
     /// <summary>Extracts text from PDF bytes (capped), for amount/date matching.</summary>
     private string ExtractPdfText(byte[] bytes)
@@ -314,12 +300,4 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
         }
     }
 
-    private static string? StripHtml(string? html)
-    {
-        if (string.IsNullOrEmpty(html)) return null;
-        var text = Regex.Replace(html, "<(script|style)[^>]*>.*?</\\1>", " ", RegexOptions.Singleline | RegexOptions.IgnoreCase);
-        text = Regex.Replace(text, "<[^>]+>", " ");
-        text = System.Net.WebUtility.HtmlDecode(text);
-        return Regex.Replace(text, "\\s+", " ").Trim();
-    }
 }
