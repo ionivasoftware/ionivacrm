@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace IonCrm.Application.Common.Models.ExternalApis;
 
 // Models for the Liftdesk company checklist management API (docs/liftdesk-saas-checklist-contract.md).
@@ -32,7 +35,39 @@ public sealed record LiftdeskChecklistDoc(
     /// Equipment family of a maintenance list: 1 = elevator (default), 2 = escalator. Always 1 for
     /// the fault list, which is not split by type.
     /// </summary>
+    [property: JsonConverter(typeof(LiftdeskChecklistTypeJsonConverter))]
     int Type = LiftdeskChecklistType.Elevator);
+
+/// <summary>
+/// Reads the equipment family whether Liftdesk sends it as an enum NAME ("Elevator"/"Escalator" —
+/// what its global JsonStringEnumConverter actually produces) or as a number. Tolerating both means
+/// a serialization change on either side cannot break the checklist screen again. Unknown values
+/// fall back to elevator, which is what every pre-existing row was backfilled to.
+/// </summary>
+public sealed class LiftdeskChecklistTypeJsonConverter : JsonConverter<int>
+{
+    /// <inheritdoc />
+    public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        => reader.TokenType switch
+        {
+            JsonTokenType.Number => reader.TryGetInt32(out var n) ? n : LiftdeskChecklistType.Elevator,
+            JsonTokenType.String => ParseName(reader.GetString()),
+            _                    => LiftdeskChecklistType.Elevator,
+        };
+
+    private static int ParseName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return LiftdeskChecklistType.Elevator;
+        if (int.TryParse(value, out var numeric)) return numeric;              // "2"
+        return value.Equals("Escalator", StringComparison.OrdinalIgnoreCase)   // "Escalator"
+            ? LiftdeskChecklistType.Escalator
+            : LiftdeskChecklistType.Elevator;
+    }
+
+    /// <inheritdoc />
+    public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options)
+        => writer.WriteNumberValue(value);
+}
 
 /// <summary>Equipment families a maintenance checklist can belong to (Liftdesk <c>ChecklistType</c>).</summary>
 public static class LiftdeskChecklistType

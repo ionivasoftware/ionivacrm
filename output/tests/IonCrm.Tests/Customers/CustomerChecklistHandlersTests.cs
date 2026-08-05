@@ -336,6 +336,67 @@ public class CustomerChecklistHandlersTests
             Times.Never);
     }
 
+    // ── Wire format: Liftdesk serialises enums as NAMES ────────────────────────
+
+    private static System.Text.Json.JsonSerializerOptions WireOpts() => new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+    };
+
+    /// <summary>
+    /// Liftdesk's global JsonStringEnumConverter writes ChecklistType as "Elevator"/"Escalator".
+    /// Modelling it as a bare int broke the entire checklist screen with
+    /// "The JSON value could not be converted ... Path: $.type" — both shapes must deserialize.
+    /// </summary>
+    [Theory]
+    [InlineData("\"Elevator\"", 1)]
+    [InlineData("\"Escalator\"", 2)]
+    [InlineData("\"escalator\"", 2)]   // case-insensitive
+    [InlineData("1", 1)]               // numeric, should the wire format ever change back
+    [InlineData("2", 2)]
+    [InlineData("\"2\"", 2)]           // numeric-as-string
+    [InlineData("\"Unknown\"", 1)]     // unknown → elevator, the backfill default
+    public void ChecklistDoc_TypeField_DeserializesFromNameOrNumber(string typeJson, int expected)
+    {
+        var json =
+            "{\"companyId\":7,\"kind\":\"maintenance\",\"formId\":4,\"type\":" + typeJson + "," +
+            "\"headers\":[{\"id\":\"9a1c0000-0000-4000-8000-000000000001\",\"title\":\"Kuyu\"," +
+            "\"sortOrder\":1,\"isActive\":true,\"items\":[]}]}";
+
+        var doc = System.Text.Json.JsonSerializer.Deserialize<LiftdeskChecklistDoc>(json, WireOpts())!;
+
+        doc.Type.Should().Be(expected);
+        doc.Headers.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void ChecklistDoc_TypeFieldAbsent_DefaultsToElevator()
+    {
+        var json = "{\"companyId\":7,\"kind\":\"fault\",\"formId\":4,\"headers\":[]}";
+
+        var doc = System.Text.Json.JsonSerializer.Deserialize<LiftdeskChecklistDoc>(json, WireOpts())!;
+
+        doc.Type.Should().Be(LiftdeskChecklistType.Elevator);
+    }
+
+    /// <summary>The reset response embeds the same docs, including the escalator list.</summary>
+    [Fact]
+    public void ResetResponse_WithNamedTypes_Deserializes()
+    {
+        var json =
+            "{\"companyId\":7," +
+            "\"maintenance\":{\"companyId\":7,\"kind\":\"maintenance\",\"formId\":4,\"type\":\"Elevator\",\"headers\":[]}," +
+            "\"escalatorMaintenance\":{\"companyId\":7,\"kind\":\"maintenance\",\"formId\":4,\"type\":\"Escalator\",\"headers\":[]}," +
+            "\"fault\":{\"companyId\":7,\"kind\":\"fault\",\"formId\":4,\"type\":\"Elevator\",\"headers\":[]}}";
+
+        var result = System.Text.Json.JsonSerializer.Deserialize<LiftdeskChecklistResetResponse>(json, WireOpts())!;
+
+        result.Maintenance!.Type.Should().Be(LiftdeskChecklistType.Elevator);
+        result.EscalatorMaintenance!.Type.Should().Be(LiftdeskChecklistType.Escalator);
+        result.Fault.Should().NotBeNull();
+    }
+
     // ── Wire-format defaults ──────────────────────────────────────────────────
 
     [Fact]
