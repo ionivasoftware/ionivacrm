@@ -5,6 +5,7 @@ import {
   ChevronUp,
   Eye,
   EyeOff,
+  GripVertical,
   ListChecks,
   Loader2,
   Plus,
@@ -273,6 +274,8 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
 
   const [headers, setHeaders] = useState<EditorHeader[]>([]);
   const [dirty, setDirty] = useState(false);
+  /** Which header the detail pane edits. Null → fall back to the first one (see `selected`). */
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   // While there are unsaved edits, background refetches must NOT wipe them; after a
   // save/reset/list-switch the editor is rehydrated explicitly (hydratedFrom = null).
   const hydratedFrom = useRef<ChecklistDoc | null>(null);
@@ -307,10 +310,6 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
     return copy;
   }
 
-  function addHeader() {
-    mutateHeaders((prev) => [...prev, { key: nextKey(), title: '', isActive: true, items: [] }]);
-  }
-
   async function handleSave() {
     if (validationError) {
       toast({ title: 'Kaydedilemedi', description: validationError, variant: 'destructive' });
@@ -339,6 +338,7 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
     }
     hydratedFrom.current = null;
     setDirty(false);
+    setSelectedKey(null);
     setList(next);
   }
 
@@ -349,8 +349,23 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
     hydratedFrom.current = null;
     setDirty(false);
   }
-
   const itemCount = headers.reduce((sum, h) => sum + h.items.length, 0);
+
+  // Selection is derived, not stored: a stale key (list switched, header deleted, reset) simply
+  // falls back to the first header instead of leaving the detail pane blank.
+  const selected = headers.find((h) => h.key === selectedKey) ?? headers[0] ?? null;
+  const selectedIdx = selected ? headers.findIndex((h) => h.key === selected.key) : -1;
+
+  function patchSelected(fn: (h: EditorHeader) => EditorHeader) {
+    if (!selected) return;
+    mutateHeaders((prev) => prev.map((h) => (h.key === selected.key ? fn(h) : h)));
+  }
+
+  function addHeaderAndSelect() {
+    const key = nextKey();
+    mutateHeaders((prev) => [...prev, { key, title: '', isActive: true, items: [] }]);
+    setSelectedKey(key);
+  }
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -417,10 +432,9 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
       )}
 
       {isLoading && (
-        <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-28 rounded-lg" />
-          ))}
+        <div className="grid gap-4 lg:grid-cols-12">
+          <Skeleton className="h-72 rounded-lg lg:col-span-4 xl:col-span-3" />
+          <Skeleton className="h-72 rounded-lg lg:col-span-8 xl:col-span-9" />
         </div>
       )}
 
@@ -442,181 +456,243 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
             Bu firmanın “{CHECKLIST_LISTS[list].label}” listesi boş. “Varsayılana Döndür” ile hazır
             şablonu uygulayabilir veya elle başlık ekleyebilirsiniz.
           </p>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={addHeader}>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={addHeaderAndSelect}>
             <Plus className="h-3.5 w-3.5" />
             Başlık Ekle
           </Button>
         </div>
       )}
 
+      {/* Master–detail: headers on the left, the selected header's items on the right.
+          Stacks on small screens, splits from lg upwards. */}
       {!isLoading && data && headers.length > 0 && (
-        <div className="space-y-3">
-          {headers.map((header, hIdx) => (
-            <div
-              key={header.key}
-              className={cn(
-                'rounded-lg border border-border overflow-hidden',
-                !header.isActive && 'opacity-60'
-              )}
-            >
-              {/* Header row */}
-              <div className="flex items-center gap-2 bg-muted/40 border-b border-border px-2 py-2">
-                <ReorderControls
-                  onUp={() => mutateHeaders((prev) => moveEntry(prev, hIdx, -1))}
-                  onDown={() => mutateHeaders((prev) => moveEntry(prev, hIdx, 1))}
-                  disableUp={hIdx === 0}
-                  disableDown={hIdx === headers.length - 1}
-                />
-                {/* Capped width: a title field spanning the whole card is unreadable on wide screens. */}
-                <Input
-                  value={header.title}
-                  placeholder="Başlık adı"
-                  className="h-8 w-full max-w-md font-medium"
-                  onChange={(e) =>
-                    mutateHeaders((prev) =>
-                      prev.map((h) => (h.key === header.key ? { ...h, title: e.target.value } : h))
-                    )
-                  }
-                />
-                <div className="ml-auto flex items-center gap-1">
-                  <button
-                    type="button"
-                    className={cn(
-                      'inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors',
-                      header.isActive
-                        ? 'border-green-500/40 text-green-400 hover:bg-green-500/10'
-                        : 'border-border text-muted-foreground hover:text-foreground'
-                    )}
-                    onClick={() =>
-                      mutateHeaders((prev) =>
-                        prev.map((h) => (h.key === header.key ? { ...h, isActive: !h.isActive } : h))
-                      )
-                    }
-                    title={header.isActive ? 'Pasife al' : 'Aktifleştir'}
-                  >
-                    {header.isActive ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                    {header.isActive ? 'Aktif' : 'Pasif'}
-                  </button>
-                  <IconButton
-                    title="Başlığı sil"
-                    danger
-                    onClick={() => mutateHeaders((prev) => prev.filter((h) => h.key !== header.key))}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </IconButton>
-                </div>
-              </div>
-
-              {/* Items */}
-              <div className="divide-y divide-border/50">
-                {header.items.map((item, iIdx) => (
-                  <div
-                    key={item.key}
-                    className={cn('flex items-center gap-2 px-2 py-1', !item.isActive && 'opacity-60')}
-                  >
-                    <ReorderControls
-                      onUp={() =>
-                        mutateHeaders((prev) =>
-                          prev.map((h) =>
-                            h.key === header.key ? { ...h, items: moveEntry(h.items, iIdx, -1) } : h
-                          )
-                        )
-                      }
-                      onDown={() =>
-                        mutateHeaders((prev) =>
-                          prev.map((h) =>
-                            h.key === header.key ? { ...h, items: moveEntry(h.items, iIdx, 1) } : h
-                          )
-                        )
-                      }
-                      disableUp={iIdx === 0}
-                      disableDown={iIdx === header.items.length - 1}
-                    />
-                    <Input
-                      value={item.text}
-                      placeholder="Madde metni"
-                      className="h-8 w-full max-w-lg text-sm"
-                      onChange={(e) =>
-                        mutateHeaders((prev) =>
-                          prev.map((h) =>
-                            h.key === header.key
-                              ? {
-                                  ...h,
-                                  items: h.items.map((i) =>
-                                    i.key === item.key ? { ...i, text: e.target.value } : i
-                                  ),
-                                }
-                              : h
-                          )
-                        )
-                      }
-                    />
-                    <div className="ml-auto flex items-center gap-1">
-                      <IconButton
-                        title={item.isActive ? 'Pasife al' : 'Aktifleştir'}
-                        className={item.isActive ? 'text-green-400 hover:text-green-300' : undefined}
-                        onClick={() =>
-                          mutateHeaders((prev) =>
-                            prev.map((h) =>
-                              h.key === header.key
-                                ? {
-                                    ...h,
-                                    items: h.items.map((i) =>
-                                      i.key === item.key ? { ...i, isActive: !i.isActive } : i
-                                    ),
-                                  }
-                                : h
-                            )
-                          )
-                        }
-                      >
-                        {item.isActive ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                      </IconButton>
-                      <IconButton
-                        title="Maddeyi sil"
-                        danger
-                        onClick={() =>
-                          mutateHeaders((prev) =>
-                            prev.map((h) =>
-                              h.key === header.key
-                                ? { ...h, items: h.items.filter((i) => i.key !== item.key) }
-                                : h
-                            )
-                          )
-                        }
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </IconButton>
-                    </div>
-                  </div>
-                ))}
-
-                <div className="px-2 py-1.5">
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                    onClick={() =>
-                      mutateHeaders((prev) =>
-                        prev.map((h) =>
-                          h.key === header.key
-                            ? { ...h, items: [...h.items, { key: nextKey(), text: '', isActive: true }] }
-                            : h
-                        )
-                      )
-                    }
-                  >
-                    <Plus className="h-3 w-3" />
-                    Madde ekle
-                  </button>
-                </div>
-              </div>
+        <div className="grid gap-4 lg:grid-cols-12 lg:items-start">
+          {/* ── Master: header list ── */}
+          <div className="rounded-lg border border-border overflow-hidden lg:col-span-4 xl:col-span-3">
+            <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Başlıklar
+              </span>
+              <span className="text-xs text-muted-foreground">{headers.length}</span>
             </div>
-          ))}
 
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={addHeader}>
-            <Plus className="h-3.5 w-3.5" />
-            Başlık Ekle
-          </Button>
+            <ul className="max-h-[28rem] overflow-y-auto divide-y divide-border/50">
+              {headers.map((header, hIdx) => {
+                const isSelected = selected?.key === header.key;
+                const invalid = !header.title.trim();
+                return (
+                  <li key={header.key}>
+                    <div
+                      className={cn(
+                        'group flex items-center gap-1 px-2 py-2 transition-colors cursor-pointer',
+                        isSelected ? 'bg-primary/10' : 'hover:bg-muted/40',
+                        !header.isActive && 'opacity-60'
+                      )}
+                      onClick={() => setSelectedKey(header.key)}
+                    >
+                      <GripVertical
+                        className={cn(
+                          'h-3.5 w-3.5 flex-shrink-0',
+                          isSelected ? 'text-primary' : 'text-muted-foreground/40'
+                        )}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={cn(
+                            'truncate text-sm',
+                            isSelected ? 'font-semibold text-foreground' : 'text-foreground/90',
+                            invalid && 'italic text-amber-400'
+                          )}
+                        >
+                          {header.title.trim() || 'Adsız başlık'}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {header.items.length} madde
+                          {!header.isActive && ' · pasif'}
+                        </p>
+                      </div>
+
+                      {/* Reorder stays out of the way until the row is hovered or selected. */}
+                      <div
+                        className={cn(
+                          'flex items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
+                          isSelected && 'opacity-100'
+                        )}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <IconButton
+                          title="Yukarı taşı"
+                          className="h-6 w-5"
+                          disabled={hIdx === 0}
+                          onClick={() => mutateHeaders((prev) => moveEntry(prev, hIdx, -1))}
+                        >
+                          <ChevronUp className="h-3 w-3" />
+                        </IconButton>
+                        <IconButton
+                          title="Aşağı taşı"
+                          className="h-6 w-5"
+                          disabled={hIdx === headers.length - 1}
+                          onClick={() => mutateHeaders((prev) => moveEntry(prev, hIdx, 1))}
+                        >
+                          <ChevronDown className="h-3 w-3" />
+                        </IconButton>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="border-t border-border p-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start gap-1.5 text-muted-foreground hover:text-foreground"
+                onClick={addHeaderAndSelect}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Başlık Ekle
+              </Button>
+            </div>
+          </div>
+
+          {/* ── Detail: selected header ── */}
+          <div className="rounded-lg border border-border lg:col-span-8 xl:col-span-9">
+            {selected ? (
+              <>
+                {/* Header editor */}
+                <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-3 py-2.5">
+                  <Input
+                    value={selected.title}
+                    placeholder="Başlık adı"
+                    className="h-9 w-full max-w-sm font-medium"
+                    onChange={(e) => patchSelected((h) => ({ ...h, title: e.target.value }))}
+                  />
+                  <div className="ml-auto flex items-center gap-1">
+                    <button
+                      type="button"
+                      className={cn(
+                        'inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors',
+                        selected.isActive
+                          ? 'border-green-500/40 text-green-400 hover:bg-green-500/10'
+                          : 'border-border text-muted-foreground hover:text-foreground'
+                      )}
+                      onClick={() => patchSelected((h) => ({ ...h, isActive: !h.isActive }))}
+                      title={selected.isActive ? 'Pasife al' : 'Aktifleştir'}
+                    >
+                      {selected.isActive ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                      {selected.isActive ? 'Aktif' : 'Pasif'}
+                    </button>
+                    <IconButton
+                      title="Başlığı sil"
+                      danger
+                      onClick={() => {
+                        mutateHeaders((prev) => prev.filter((h) => h.key !== selected.key));
+                        setSelectedKey(null);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </IconButton>
+                  </div>
+                </div>
+
+                {/* Items */}
+                {selected.items.length === 0 ? (
+                  <div className="px-3 py-10 text-center">
+                    <p className="text-sm text-muted-foreground">Bu başlıkta madde yok.</p>
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-border/50">
+                    {selected.items.map((item, iIdx) => (
+                      <li
+                        key={item.key}
+                        className={cn(
+                          'group flex items-center gap-2 px-3 py-1.5',
+                          !item.isActive && 'opacity-60'
+                        )}
+                      >
+                        <span className="w-5 flex-shrink-0 text-right text-[11px] tabular-nums text-muted-foreground/60">
+                          {iIdx + 1}
+                        </span>
+                        <ReorderControls
+                          onUp={() =>
+                            patchSelected((h) => ({ ...h, items: moveEntry(h.items, iIdx, -1) }))
+                          }
+                          onDown={() =>
+                            patchSelected((h) => ({ ...h, items: moveEntry(h.items, iIdx, 1) }))
+                          }
+                          disableUp={iIdx === 0}
+                          disableDown={iIdx === selected.items.length - 1}
+                        />
+                        <Input
+                          value={item.text}
+                          placeholder="Madde metni"
+                          className="h-8 w-full max-w-xl text-sm"
+                          onChange={(e) =>
+                            patchSelected((h) => ({
+                              ...h,
+                              items: h.items.map((i) =>
+                                i.key === item.key ? { ...i, text: e.target.value } : i
+                              ),
+                            }))
+                          }
+                        />
+                        <div className="ml-auto flex items-center gap-1">
+                          <IconButton
+                            title={item.isActive ? 'Pasife al' : 'Aktifleştir'}
+                            className={item.isActive ? 'text-green-400 hover:text-green-300' : undefined}
+                            onClick={() =>
+                              patchSelected((h) => ({
+                                ...h,
+                                items: h.items.map((i) =>
+                                  i.key === item.key ? { ...i, isActive: !i.isActive } : i
+                                ),
+                              }))
+                            }
+                          >
+                            {item.isActive ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                          </IconButton>
+                          <IconButton
+                            title="Maddeyi sil"
+                            danger
+                            onClick={() =>
+                              patchSelected((h) => ({
+                                ...h,
+                                items: h.items.filter((i) => i.key !== item.key),
+                              }))
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </IconButton>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="border-t border-border/50 p-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-muted-foreground hover:text-foreground"
+                    onClick={() =>
+                      patchSelected((h) => ({
+                        ...h,
+                        items: [...h.items, { key: nextKey(), text: '', isActive: true }],
+                      }))
+                    }
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Madde ekle
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="px-3 py-16 text-center text-sm text-muted-foreground">
+                Düzenlemek için soldan bir başlık seçin.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
