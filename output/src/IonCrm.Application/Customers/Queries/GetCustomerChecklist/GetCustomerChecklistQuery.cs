@@ -10,4 +10,6 @@ namespace IonCrm.Application.Customers.Queries.GetCustomerChecklist;
 /// </summary>
 public sealed record GetCustomerChecklistQuery(
     Guid CustomerId,
-    string Kind) : IRequest<Result<LiftdeskChecklistDoc>>;
+    string Kind,
+    /// <summary>Maintenance equipment family: 1 = elevator, 2 = escalator. Null = Liftdesk default (elevator).</summary>
+    int? Type = null) : IRequest<Result<LiftdeskChecklistDoc>>;

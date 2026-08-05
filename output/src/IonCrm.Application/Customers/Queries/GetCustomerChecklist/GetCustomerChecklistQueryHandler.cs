@@ -41,6 +41,9 @@ public sealed class GetCustomerChecklistQueryHandler
         if (!LiftdeskChecklistHelper.IsValidKind(request.Kind))
             return Result<LiftdeskChecklistDoc>.Failure("Geçersiz checklist türü. 'maintenance' veya 'fault' olmalıdır.");
 
+        if (!LiftdeskChecklistType.IsValid(request.Type))
+            return Result<LiftdeskChecklistDoc>.Failure("Geçersiz ekipman tipi. 1 (Asansör) veya 2 (Yürüyen Merdiven) olmalıdır.");
+
         var customer = await _customerRepository.GetByIdAsync(request.CustomerId, cancellationToken);
         if (customer is null)
             return Result<LiftdeskChecklistDoc>.Failure("Müşteri bulunamadı.");
@@ -57,7 +60,7 @@ public sealed class GetCustomerChecklistQueryHandler
         try
         {
             var doc = await _checklistClient.GetChecklistAsync(
-                baseUrl, apiKey, companyId, request.Kind, cancellationToken);
+                baseUrl, apiKey, companyId, request.Kind, request.Type, cancellationToken);
             return Result<LiftdeskChecklistDoc>.Success(doc);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

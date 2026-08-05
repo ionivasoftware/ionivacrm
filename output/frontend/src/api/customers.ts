@@ -675,6 +675,25 @@ export function useCancelCustomerContract(customerId: string) {
 
 export type ChecklistKind = 'maintenance' | 'fault';
 
+/** Equipment family of a MAINTENANCE checklist (Liftdesk ChecklistType). Fault lists are not split. */
+export const CHECKLIST_TYPE = { Elevator: 1, Escalator: 2 } as const;
+export type ChecklistType = (typeof CHECKLIST_TYPE)[keyof typeof CHECKLIST_TYPE];
+
+/**
+ * The three editable lists, flattened for the UI. Each maps to a (kind, type) pair — and to the
+ * reset scope of the same name.
+ */
+export type ChecklistListKey = 'maintenance' | 'escalator' | 'fault';
+
+export const CHECKLIST_LISTS: Record<
+  ChecklistListKey,
+  { label: string; kind: ChecklistKind; type?: ChecklistType }
+> = {
+  maintenance: { label: 'Bakım — Asansör', kind: 'maintenance', type: CHECKLIST_TYPE.Elevator },
+  escalator:   { label: 'Bakım — Yürüyen Merdiven', kind: 'maintenance', type: CHECKLIST_TYPE.Escalator },
+  fault:       { label: 'Arıza', kind: 'fault' },
+};
+
 export interface ChecklistItem {
   id: string;
   text: string;
@@ -696,12 +715,16 @@ export interface ChecklistDoc {
   kind: string;
   formId: number;
   headers: ChecklistHeader[];
+  /** 1 = elevator, 2 = escalator. Always 1 on the fault list. */
+  type: number;
 }
 
 export interface ChecklistResetResult {
   companyId: number;
   maintenance: ChecklistDoc | null;
   fault: ChecklistDoc | null;
+  /** Escalator maintenance list — filled when the reset scope was 'escalator' or 'both'. */
+  escalatorMaintenance: ChecklistDoc | null;
 }
 
 export interface ChecklistItemInput {
@@ -715,12 +738,15 @@ export interface ChecklistHeaderInput {
   items: ChecklistItemInput[];
 }
 
-export function useCustomerChecklist(customerId: string, kind: ChecklistKind, enabled: boolean) {
+export function useCustomerChecklist(customerId: string, list: ChecklistListKey, enabled: boolean) {
+  const { kind, type } = CHECKLIST_LISTS[list];
   return useQuery({
-    queryKey: ['customerChecklist', customerId, kind],
+    // Keyed by list (not kind): elevator and escalator are two different maintenance documents.
+    queryKey: ['customerChecklist', customerId, list],
     queryFn: async () => {
+      const query = type ? `?type=${type}` : '';
       const response = await apiClient.get<ApiResponse<ChecklistDoc>>(
-        `/customers/${customerId}/checklists/${kind}`
+        `/customers/${customerId}/checklists/${kind}${query}`
       );
       return response.data.data;
     },
@@ -728,19 +754,26 @@ export function useCustomerChecklist(customerId: string, kind: ChecklistKind, en
   });
 }
 
-/** Full-document replace: the sent headers become the NEW checklist (order = sort order). */
+/**
+ * Full-document replace: the sent headers become the NEW checklist (order = sort order).
+ * The replace is scoped to the list's `type`, so it must be saved with the same list it was read
+ * with — otherwise the other equipment family would be overwritten. An empty set is rejected;
+ * emptying is only possible through reset.
+ */
 export function useUpdateCustomerChecklist(customerId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ kind, headers }: { kind: ChecklistKind; headers: ChecklistHeaderInput[] }) => {
+    mutationFn: async ({ list, headers }: { list: ChecklistListKey; headers: ChecklistHeaderInput[] }) => {
+      const { kind, type } = CHECKLIST_LISTS[list];
+      const query = type ? `?type=${type}` : '';
       const response = await apiClient.put<ApiResponse<ChecklistDoc>>(
-        `/customers/${customerId}/checklists/${kind}`,
+        `/customers/${customerId}/checklists/${kind}${query}`,
         { headers }
       );
       return response.data.data;
     },
-    onSuccess: (data, { kind }) => {
-      if (data) queryClient.setQueryData(['customerChecklist', customerId, kind], data);
+    onSuccess: (data, { list }) => {
+      if (data) queryClient.setQueryData(['customerChecklist', customerId, list], data);
     },
   });
 }
@@ -749,7 +782,7 @@ export function useUpdateCustomerChecklist(customerId: string) {
 export function useResetCustomerChecklists(customerId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ kind }: { kind: ChecklistKind | 'both' }) => {
+    mutationFn: async ({ kind }: { kind: ChecklistListKey | 'both' }) => {
       const response = await apiClient.post<ApiResponse<ChecklistResetResult>>(
         `/customers/${customerId}/checklists/reset`,
         { kind }
@@ -759,6 +792,8 @@ export function useResetCustomerChecklists(customerId: string) {
     onSuccess: (data) => {
       if (data?.maintenance)
         queryClient.setQueryData(['customerChecklist', customerId, 'maintenance'], data.maintenance);
+      if (data?.escalatorMaintenance)
+        queryClient.setQueryData(['customerChecklist', customerId, 'escalator'], data.escalatorMaintenance);
       if (data?.fault)
         queryClient.setQueryData(['customerChecklist', customerId, 'fault'], data.fault);
     },

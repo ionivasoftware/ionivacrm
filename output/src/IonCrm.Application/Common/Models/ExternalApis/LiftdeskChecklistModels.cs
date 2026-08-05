@@ -27,7 +27,25 @@ public sealed record LiftdeskChecklistDoc(
     int CompanyId,
     string Kind,
     int FormId,
-    List<LiftdeskChecklistHeader> Headers);
+    List<LiftdeskChecklistHeader> Headers,
+    /// <summary>
+    /// Equipment family of a maintenance list: 1 = elevator (default), 2 = escalator. Always 1 for
+    /// the fault list, which is not split by type.
+    /// </summary>
+    int Type = LiftdeskChecklistType.Elevator);
+
+/// <summary>Equipment families a maintenance checklist can belong to (Liftdesk <c>ChecklistType</c>).</summary>
+public static class LiftdeskChecklistType
+{
+    /// <summary>Classic elevator — the default, and what every pre-existing row was backfilled to.</summary>
+    public const int Elevator = 1;
+
+    /// <summary>Escalator / moving walkway.</summary>
+    public const int Escalator = 2;
+
+    /// <summary>True when <paramref name="type"/> is a known equipment family.</summary>
+    public static bool IsValid(int? type) => type is null or Elevator or Escalator;
+}
 
 /// <summary>Item input for the full-document PUT. <c>IsActive</c> defaults to true on the Liftdesk side.</summary>
 public sealed record LiftdeskChecklistItemInput(
@@ -57,4 +75,6 @@ public sealed record LiftdeskChecklistUpdateRequest(
 public sealed record LiftdeskChecklistResetResponse(
     int CompanyId,
     LiftdeskChecklistDoc? Maintenance,
-    LiftdeskChecklistDoc? Fault);
+    LiftdeskChecklistDoc? Fault,
+    /// <summary>Escalator maintenance list — populated when kind was "escalator" or "both".</summary>
+    LiftdeskChecklistDoc? EscalatorMaintenance = null);

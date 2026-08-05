@@ -13,4 +13,9 @@ namespace IonCrm.Application.Customers.Commands.UpdateCustomerChecklist;
 public sealed record UpdateCustomerChecklistCommand(
     Guid CustomerId,
     string Kind,
-    List<LiftdeskChecklistHeaderInput> Headers) : IRequest<Result<LiftdeskChecklistDoc>>;
+    List<LiftdeskChecklistHeaderInput> Headers,
+    /// <summary>
+    /// Maintenance equipment family the replace is scoped to (1 = elevator, 2 = escalator). MUST match
+    /// the type the list was read with, otherwise the wrong family would be overwritten.
+    /// </summary>
+    int? Type = null) : IRequest<Result<LiftdeskChecklistDoc>>;

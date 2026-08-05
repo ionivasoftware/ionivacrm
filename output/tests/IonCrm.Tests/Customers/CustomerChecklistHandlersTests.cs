@@ -81,7 +81,7 @@ public class CustomerChecklistHandlersTests
     {
         var (customerId, _) = SetupLiftdeskCustomer();
         _clientMock
-            .Setup(c => c.GetChecklistAsync("https://lift.example.com", "lift-key", 7, "maintenance", It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetChecklistAsync("https://lift.example.com", "lift-key", 7, "maintenance", null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(SampleDoc());
 
         var result = await CreateGetHandler().Handle(
@@ -104,7 +104,7 @@ public class CustomerChecklistHandlersTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("Geçersiz");
         _clientMock.Verify(c => c.GetChecklistAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -119,7 +119,7 @@ public class CustomerChecklistHandlersTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("Liftdesk kaynaklı değil");
         _clientMock.Verify(c => c.GetChecklistAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -147,7 +147,7 @@ public class CustomerChecklistHandlersTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("yetki");
         _clientMock.Verify(c => c.GetChecklistAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -171,7 +171,7 @@ public class CustomerChecklistHandlersTests
     {
         var (customerId, _) = SetupLiftdeskCustomer();
         _clientMock
-            .Setup(c => c.GetChecklistAsync(It.IsAny<string>(), It.IsAny<string>(), 7, "maintenance", It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetChecklistAsync(It.IsAny<string>(), It.IsAny<string>(), 7, "maintenance", It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("HTTP 401 Unauthorized", null, System.Net.HttpStatusCode.Unauthorized));
 
         var result = await CreateGetHandler().Handle(
@@ -191,10 +191,10 @@ public class CustomerChecklistHandlersTests
         LiftdeskChecklistUpdateRequest? sent = null;
         _clientMock
             .Setup(c => c.UpdateChecklistAsync(
-                "https://lift.example.com", "lift-key", 7, "fault",
+                "https://lift.example.com", "lift-key", 7, "fault", null,
                 It.IsAny<LiftdeskChecklistUpdateRequest>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, int, string, LiftdeskChecklistUpdateRequest, CancellationToken>(
-                (_, _, _, _, body, _) => sent = body)
+            .Callback<string, string, int, string, int?, LiftdeskChecklistUpdateRequest, CancellationToken>(
+                (_, _, _, _, _, body, _) => sent = body)
             .ReturnsAsync(SampleDoc("fault"));
 
         var headers = new List<LiftdeskChecklistHeaderInput>
@@ -231,7 +231,7 @@ public class CustomerChecklistHandlersTests
         result.IsFailure.Should().BeTrue();
         result.FirstError.Should().Contain("Başlık");
         _clientMock.Verify(c => c.UpdateChecklistAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(),
             It.IsAny<LiftdeskChecklistUpdateRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -254,21 +254,21 @@ public class CustomerChecklistHandlersTests
     }
 
     [Fact]
-    public async Task Update_EmptyHeaders_IsAllowedAndClearsChecklist()
+    public async Task Update_EmptyHeaders_IsRejectedWithoutCallingClient()
     {
+        // Liftdesk 400s on an empty set: zero rows read as "never seeded", so the app would restore
+        // the default on the next read. Emptying is only possible through reset.
         var (customerId, _) = SetupLiftdeskCustomer();
-        _clientMock
-            .Setup(c => c.UpdateChecklistAsync(
-                It.IsAny<string>(), It.IsAny<string>(), 7, "maintenance",
-                It.Is<LiftdeskChecklistUpdateRequest>(r => r.Headers.Count == 0),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new LiftdeskChecklistDoc(7, "maintenance", 4, []));
 
         var result = await CreateUpdateHandler().Handle(
             new UpdateCustomerChecklistCommand(customerId, "maintenance", []), CancellationToken.None);
 
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.Headers.Should().BeEmpty();
+        result.IsFailure.Should().BeTrue();
+        result.FirstError.Should().Contain("en az bir başlık");
+        _clientMock.Verify(c => c.UpdateChecklistAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(),
+            It.IsAny<LiftdeskChecklistUpdateRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

@@ -38,9 +38,9 @@ public sealed class ResetCustomerChecklistsCommandHandler
         ResetCustomerChecklistsCommand request,
         CancellationToken cancellationToken)
     {
-        if (!LiftdeskChecklistHelper.IsValidKind(request.Kind, allowBoth: true))
+        if (!LiftdeskChecklistHelper.IsValidKind(request.Kind, allowResetScopes: true))
             return Result<LiftdeskChecklistResetResponse>.Failure(
-                "Geçersiz checklist türü. 'maintenance', 'fault' veya 'both' olmalıdır.");
+                "Geçersiz checklist türü. 'maintenance', 'escalator', 'fault' veya 'both' olmalıdır.");
 
         var customer = await _customerRepository.GetByIdAsync(request.CustomerId, cancellationToken);
         if (customer is null)

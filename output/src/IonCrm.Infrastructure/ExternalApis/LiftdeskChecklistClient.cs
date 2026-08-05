@@ -32,12 +32,14 @@ public sealed class LiftdeskChecklistClient : ILiftdeskChecklistClient
 
     /// <inheritdoc />
     public async Task<LiftdeskChecklistDoc> GetChecklistAsync(
-        string baseUrl, string apiKey, int companyId, string kind, CancellationToken cancellationToken = default)
+        string baseUrl, string apiKey, int companyId, string kind, int? type,
+        CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Liftdesk checklist: fetching {Kind} checklist for company {CompanyId}.", kind, companyId);
+        _logger.LogDebug("Liftdesk checklist: fetching {Kind} checklist (type={Type}) for company {CompanyId}.",
+            kind, type, companyId);
 
         using var request = BuildRequest(HttpMethod.Get, baseUrl, apiKey,
-            $"/api/v1/crm/companies/{companyId}/{kind}-checklist");
+            $"/api/v1/crm/companies/{companyId}/{kind}-checklist{TypeQuery(type)}");
         var response = await _httpClient.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
 
@@ -47,14 +49,14 @@ public sealed class LiftdeskChecklistClient : ILiftdeskChecklistClient
 
     /// <inheritdoc />
     public async Task<LiftdeskChecklistDoc> UpdateChecklistAsync(
-        string baseUrl, string apiKey, int companyId, string kind,
+        string baseUrl, string apiKey, int companyId, string kind, int? type,
         LiftdeskChecklistUpdateRequest body, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Liftdesk checklist: updating {Kind} checklist for company {CompanyId} ({HeaderCount} headers).",
-            kind, companyId, body.Headers.Count);
+        _logger.LogDebug("Liftdesk checklist: updating {Kind} checklist (type={Type}) for company {CompanyId} ({HeaderCount} headers).",
+            kind, type, companyId, body.Headers.Count);
 
         using var request = BuildRequest(HttpMethod.Put, baseUrl, apiKey,
-            $"/api/v1/crm/companies/{companyId}/{kind}-checklist");
+            $"/api/v1/crm/companies/{companyId}/{kind}-checklist{TypeQuery(type)}");
         request.Content = JsonContent.Create(body, options: JsonOpts);
         var response = await _httpClient.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
@@ -79,6 +81,9 @@ public sealed class LiftdeskChecklistClient : ILiftdeskChecklistClient
         var result = await response.Content.ReadFromJsonAsync<LiftdeskChecklistResetResponse>(JsonOpts, cancellationToken);
         return result ?? throw new InvalidOperationException("Empty response from Liftdesk checklist reset.");
     }
+
+    /// <summary>Equipment-family query string; empty when the caller did not pin a type.</summary>
+    private static string TypeQuery(int? type) => type.HasValue ? $"?type={type.Value}" : string.Empty;
 
     private static HttpRequestMessage BuildRequest(HttpMethod method, string baseUrl, string apiKey, string path)
     {

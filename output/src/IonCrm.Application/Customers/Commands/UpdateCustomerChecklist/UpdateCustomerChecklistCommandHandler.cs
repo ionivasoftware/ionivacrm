@@ -41,8 +41,17 @@ public sealed class UpdateCustomerChecklistCommandHandler
         if (!LiftdeskChecklistHelper.IsValidKind(request.Kind))
             return Result<LiftdeskChecklistDoc>.Failure("Geçersiz checklist türü. 'maintenance' veya 'fault' olmalıdır.");
 
-        if (request.Headers is null)
-            return Result<LiftdeskChecklistDoc>.Failure("Checklist başlıkları (headers) eksik.");
+        if (!LiftdeskChecklistType.IsValid(request.Type))
+            return Result<LiftdeskChecklistDoc>.Failure("Geçersiz ekipman tipi. 1 (Asansör) veya 2 (Yürüyen Merdiven) olmalıdır.");
+
+        // Liftdesk rejects an empty set (400): a zero-row checklist reads as "never seeded", so the
+        // app would silently restore the default on the next read. Emptying is done via reset.
+        if (request.Headers is null || request.Headers.Count == 0)
+        {
+            return Result<LiftdeskChecklistDoc>.Failure(
+                "Checklist en az bir başlık içermelidir. Tamamen boşaltmak desteklenmiyor — " +
+                "varsayılana dönmek için \"Varsayılana Döndür\" kullanın.");
+        }
 
         // Trim and validate before calling Liftdesk — blank titles/texts would 400 there anyway.
         var headers = new List<LiftdeskChecklistHeaderInput>(request.Headers.Count);
@@ -80,7 +89,7 @@ public sealed class UpdateCustomerChecklistCommandHandler
         try
         {
             var doc = await _checklistClient.UpdateChecklistAsync(
-                baseUrl, apiKey, companyId, request.Kind,
+                baseUrl, apiKey, companyId, request.Kind, request.Type,
                 new LiftdeskChecklistUpdateRequest(headers), cancellationToken);
 
             _logger.LogInformation(

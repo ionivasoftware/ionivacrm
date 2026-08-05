@@ -248,9 +248,10 @@ public class CustomersController : ApiControllerBase
     public async Task<IActionResult> GetChecklist(
         Guid id,
         string kind,
+        [FromQuery] int? type = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await Mediator.Send(new GetCustomerChecklistQuery(id, kind), cancellationToken);
+        var result = await Mediator.Send(new GetCustomerChecklistQuery(id, kind, type), cancellationToken);
         return ResultToResponse(result);
     }
 
@@ -264,9 +265,12 @@ public class CustomersController : ApiControllerBase
         Guid id,
         string kind,
         [FromBody] UpdateChecklistRequest body,
+        [FromQuery] int? type = null,
         CancellationToken cancellationToken = default)
     {
-        var command = new UpdateCustomerChecklistCommand(id, kind, body.Headers);
+        // The replace is scoped to `type` on the Liftdesk side, so this must be the same type the
+        // list was read with — otherwise the other equipment family would be overwritten.
+        var command = new UpdateCustomerChecklistCommand(id, kind, body.Headers, type);
         var result = await Mediator.Send(command, cancellationToken);
         return ResultToResponse(result);
     }

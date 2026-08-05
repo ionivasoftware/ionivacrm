@@ -11,8 +11,6 @@ import {
   RotateCcw,
   Save,
   Trash2,
-  Wrench,
-  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,12 +24,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  CHECKLIST_LISTS,
   useCustomerChecklist,
   useResetCustomerChecklists,
   useUpdateCustomerChecklist,
   type ChecklistDoc,
   type ChecklistHeaderInput,
-  type ChecklistKind,
+  type ChecklistListKey,
 } from '@/api/customers';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -45,6 +47,8 @@ type EditorHeader = { key: string; title: string; isActive: boolean; items: Edit
 
 let keyCounter = 0;
 const nextKey = () => `k${++keyCounter}`;
+
+const LIST_ORDER: ChecklistListKey[] = ['maintenance', 'escalator', 'fault'];
 
 function docToEditor(doc: ChecklistDoc): EditorHeader[] {
   return doc.headers.map((h) => ({
@@ -72,34 +76,91 @@ function extractApiError(err: unknown): string {
   );
 }
 
-const KIND_LABEL: Record<ChecklistKind, string> = {
-  maintenance: 'Bakım',
-  fault: 'Arıza',
-};
+// ── Small building blocks ─────────────────────────────────────────────────────
+
+/** Fixed-size icon button so every row control lines up on the same grid. */
+function IconButton({
+  title,
+  onClick,
+  disabled,
+  danger,
+  className,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors',
+        'text-muted-foreground hover:bg-muted disabled:pointer-events-none disabled:opacity-30',
+        danger ? 'hover:text-red-400' : 'hover:text-foreground',
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Up/down pair laid out horizontally so the row keeps a single, predictable height. */
+function ReorderControls({
+  onUp,
+  onDown,
+  disableUp,
+  disableDown,
+}: {
+  onUp: () => void;
+  onDown: () => void;
+  disableUp: boolean;
+  disableDown: boolean;
+}) {
+  return (
+    <div className="flex flex-shrink-0 items-center">
+      <IconButton title="Yukarı taşı" onClick={onUp} disabled={disableUp} className="h-7 w-6">
+        <ChevronUp className="h-3.5 w-3.5" />
+      </IconButton>
+      <IconButton title="Aşağı taşı" onClick={onDown} disabled={disableDown} className="h-7 w-6">
+        <ChevronDown className="h-3.5 w-3.5" />
+      </IconButton>
+    </div>
+  );
+}
 
 // ── Reset dialog ──────────────────────────────────────────────────────────────
 
+type ResetScope = ChecklistListKey | 'both';
+
 function ResetDialog({
   customerId,
-  currentKind,
+  currentList,
   hasUnsavedChanges,
   onClose,
   onResetSuccess,
 }: {
   customerId: string;
-  currentKind: ChecklistKind;
+  currentList: ChecklistListKey;
   hasUnsavedChanges: boolean;
   onClose: () => void;
-  onResetSuccess: (scope: ChecklistKind | 'both') => void;
+  onResetSuccess: (scope: ResetScope) => void;
 }) {
   const { toast } = useToast();
   const resetMutation = useResetCustomerChecklists(customerId);
-  const [scope, setScope] = useState<ChecklistKind | 'both'>('both');
+  const [scope, setScope] = useState<ResetScope>(currentList);
 
-  const options: { value: ChecklistKind | 'both'; label: string }[] = [
-    { value: 'both', label: 'Her ikisi (Bakım + Arıza)' },
-    { value: 'maintenance', label: 'Yalnızca Bakım' },
-    { value: 'fault', label: 'Yalnızca Arıza' },
+  const options: { value: ResetScope; label: string }[] = [
+    { value: 'both', label: 'Tümü (Asansör + Yürüyen Merdiven + Arıza)' },
+    ...LIST_ORDER.map((k) => ({ value: k as ResetScope, label: CHECKLIST_LISTS[k].label })),
   ];
 
   async function handleReset() {
@@ -110,14 +171,16 @@ function ResetDialog({
         title: 'Varsayılana döndürüldü',
         description:
           scope === 'both'
-            ? 'Bakım ve arıza checklistleri varsayılan şablona sıfırlandı.'
-            : `${KIND_LABEL[scope as ChecklistKind]} checklisti varsayılan şablona sıfırlandı.`,
+            ? 'Tüm checklistler varsayılan şablona sıfırlandı.'
+            : `${CHECKLIST_LISTS[scope].label} listesi varsayılan şablona sıfırlandı.`,
       });
       onClose();
     } catch (err) {
       toast({ title: 'Sıfırlanamadı', description: extractApiError(err), variant: 'destructive' });
     }
   }
+
+  const affectsOpenList = scope === 'both' || scope === currentList;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -128,7 +191,7 @@ function ResetDialog({
             Varsayılana Döndür
           </DialogTitle>
           <DialogDescription>
-            Seçilen checklist(ler) Liftdesk varsayılan şablonuna sıfırlanır.
+            Seçilen liste(ler) Liftdesk varsayılan şablonuna sıfırlanır.
           </DialogDescription>
         </DialogHeader>
 
@@ -152,8 +215,8 @@ function ResetDialog({
               />
               <span className="text-sm font-medium text-foreground">
                 {opt.label}
-                {opt.value !== 'both' && opt.value === currentKind && (
-                  <span className="ml-2 text-xs text-muted-foreground">(şu an görüntülenen)</span>
+                {opt.value !== 'both' && opt.value === currentList && (
+                  <span className="ml-2 text-xs text-muted-foreground">(açık olan)</span>
                 )}
               </span>
             </label>
@@ -165,7 +228,7 @@ function ResetDialog({
           <p className="text-xs text-red-300">
             Bu işlem geri alınamaz: firmanın mevcut checklist özelleştirmesi silinir ve yerine
             varsayılan şablon yazılır.
-            {hasUnsavedChanges && (scope === 'both' || scope === currentKind) && (
+            {hasUnsavedChanges && affectsOpenList && (
               <> Ekranda kaydedilmemiş değişiklikleriniz de kaybolur.</>
             )}
           </p>
@@ -202,16 +265,16 @@ function ResetDialog({
 
 export function ChecklistsTab({ customerId }: { customerId: string }) {
   const { toast } = useToast();
-  const [kind, setKind] = useState<ChecklistKind>('maintenance');
+  const [list, setList] = useState<ChecklistListKey>('maintenance');
   const [showResetDialog, setShowResetDialog] = useState(false);
 
-  const { data, isLoading, error } = useCustomerChecklist(customerId, kind, true);
+  const { data, isLoading, error } = useCustomerChecklist(customerId, list, true);
   const updateMutation = useUpdateCustomerChecklist(customerId);
 
   const [headers, setHeaders] = useState<EditorHeader[]>([]);
   const [dirty, setDirty] = useState(false);
   // While there are unsaved edits, background refetches must NOT wipe them; after a
-  // save/reset/kind-switch the editor is rehydrated explicitly (hydratedFrom = null).
+  // save/reset/list-switch the editor is rehydrated explicitly (hydratedFrom = null).
   const hydratedFrom = useRef<ChecklistDoc | null>(null);
 
   useEffect(() => {
@@ -221,6 +284,7 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
   }, [data, dirty]);
 
   const validationError = useMemo(() => {
+    if (headers.length === 0) return 'Checklist en az bir başlık içermelidir.';
     for (const h of headers) {
       if (!h.title.trim()) return 'Boş başlık adı var — kaydetmeden önce doldurun.';
       for (const i of h.items) {
@@ -243,13 +307,17 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
     return copy;
   }
 
+  function addHeader() {
+    mutateHeaders((prev) => [...prev, { key: nextKey(), title: '', isActive: true, items: [] }]);
+  }
+
   async function handleSave() {
     if (validationError) {
       toast({ title: 'Kaydedilemedi', description: validationError, variant: 'destructive' });
       return;
     }
     try {
-      const saved = await updateMutation.mutateAsync({ kind, headers: editorToPayload(headers) });
+      const saved = await updateMutation.mutateAsync({ list, headers: editorToPayload(headers) });
       if (saved) {
         hydratedFrom.current = saved;
         setHeaders(docToEditor(saved));
@@ -257,55 +325,55 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
       setDirty(false);
       toast({
         title: 'Checklist kaydedildi',
-        description: `${KIND_LABEL[kind]} checklisti Liftdesk'e yazıldı.`,
+        description: `${CHECKLIST_LISTS[list].label} listesi Liftdesk'e yazıldı.`,
       });
     } catch (err) {
       toast({ title: 'Kaydedilemedi', description: extractApiError(err), variant: 'destructive' });
     }
   }
 
-  function switchKind(next: ChecklistKind) {
-    if (next === kind) return;
-    if (dirty && !window.confirm('Kaydedilmemiş değişiklikler var. Sekme değiştirilirse kaybolur. Devam edilsin mi?')) {
+  function switchList(next: ChecklistListKey) {
+    if (next === list) return;
+    if (dirty && !window.confirm('Kaydedilmemiş değişiklikler var. Liste değiştirilirse kaybolur. Devam edilsin mi?')) {
       return;
     }
     hydratedFrom.current = null;
     setDirty(false);
-    setKind(next);
+    setList(next);
   }
 
-  // After a reset the server state is authoritative FOR THE RESET KINDS — rehydrate from the
-  // (already-updated) query cache. When only the other kind was reset, the current editor and
-  // its unsaved edits must stay untouched.
-  function handleResetSuccess(scope: ChecklistKind | 'both') {
-    if (scope !== 'both' && scope !== kind) return;
+  // After a reset the server state is authoritative FOR THE RESET LISTS — rehydrate from the
+  // (already-updated) query cache. When only another list was reset, keep the open editor intact.
+  function handleResetSuccess(scope: ResetScope) {
+    if (scope !== 'both' && scope !== list) return;
     hydratedFrom.current = null;
     setDirty(false);
   }
+
+  const itemCount = headers.reduce((sum, h) => sum + h.items.length, 0);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
-      {/* Kind switcher + actions */}
+      {/* Toolbar: which list + actions */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg border border-border p-0.5 bg-muted/30">
-          {(['maintenance', 'fault'] as ChecklistKind[]).map((k) => (
-            <button
-              key={k}
-              onClick={() => switchKind(k)}
-              className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                kind === k
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {k === 'maintenance' ? <Wrench className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5" />}
-              {KIND_LABEL[k]}
-            </button>
-          ))}
-        </div>
+        <Select value={list} onValueChange={(v) => switchList(v as ChecklistListKey)}>
+          <SelectTrigger className="h-9 w-full sm:w-64">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {LIST_ORDER.map((k) => (
+              <SelectItem key={k} value={k}>{CHECKLIST_LISTS[k].label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {!isLoading && data && (
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {headers.length} başlık · {itemCount} madde
+          </span>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           <Button
@@ -342,7 +410,8 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
         <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
           <AlertTriangle className="h-4 w-4 text-amber-400 flex-shrink-0" />
           <p className="text-xs text-amber-300">
-            Kaydedilmemiş değişiklikler var. "Kaydet" checklist'in tamamını Liftdesk'e yazar.
+            Kaydedilmemiş değişiklikler var. “Kaydet” yalnız açık olan listeyi ({CHECKLIST_LISTS[list].label})
+            baştan yazar; diğer listeler etkilenmez.
           </p>
         </div>
       )}
@@ -368,17 +437,12 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
             <ListChecks className="h-8 w-8 text-muted-foreground/40" />
           </div>
-          <p className="font-medium text-foreground">Checklist boş</p>
+          <p className="font-medium text-foreground">Liste boş</p>
           <p className="text-sm text-muted-foreground max-w-sm">
-            Bu firmanın {KIND_LABEL[kind].toLowerCase()} checklisti boş. "Varsayılana Döndür" ile
-            hazır şablonu uygulayabilir veya elle başlık ekleyebilirsiniz.
+            Bu firmanın “{CHECKLIST_LISTS[list].label}” listesi boş. “Varsayılana Döndür” ile hazır
+            şablonu uygulayabilir veya elle başlık ekleyebilirsiniz.
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => mutateHeaders((prev) => [...prev, { key: nextKey(), title: '', isActive: true, items: [] }])}
-          >
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={addHeader}>
             <Plus className="h-3.5 w-3.5" />
             Başlık Ekle
           </Button>
@@ -396,99 +460,82 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
               )}
             >
               {/* Header row */}
-              <div className="flex items-center gap-2 bg-muted/40 border-b border-border px-3 py-2">
-                <div className="flex flex-col">
-                  <button
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                    disabled={hIdx === 0}
-                    onClick={() => mutateHeaders((prev) => moveEntry(prev, hIdx, -1))}
-                    title="Yukarı taşı"
-                  >
-                    <ChevronUp className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                    disabled={hIdx === headers.length - 1}
-                    onClick={() => mutateHeaders((prev) => moveEntry(prev, hIdx, 1))}
-                    title="Aşağı taşı"
-                  >
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+              <div className="flex items-center gap-2 bg-muted/40 border-b border-border px-2 py-2">
+                <ReorderControls
+                  onUp={() => mutateHeaders((prev) => moveEntry(prev, hIdx, -1))}
+                  onDown={() => mutateHeaders((prev) => moveEntry(prev, hIdx, 1))}
+                  disableUp={hIdx === 0}
+                  disableDown={hIdx === headers.length - 1}
+                />
+                {/* Capped width: a title field spanning the whole card is unreadable on wide screens. */}
                 <Input
                   value={header.title}
                   placeholder="Başlık adı"
-                  className="h-8 font-medium"
+                  className="h-8 w-full max-w-md font-medium"
                   onChange={(e) =>
                     mutateHeaders((prev) =>
                       prev.map((h) => (h.key === header.key ? { ...h, title: e.target.value } : h))
                     )
                   }
                 />
-                <button
-                  className={cn(
-                    'flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors flex-shrink-0',
-                    header.isActive
-                      ? 'border-green-500/40 text-green-400 hover:bg-green-500/10'
-                      : 'border-border text-muted-foreground hover:text-foreground'
-                  )}
-                  onClick={() =>
-                    mutateHeaders((prev) =>
-                      prev.map((h) => (h.key === header.key ? { ...h, isActive: !h.isActive } : h))
-                    )
-                  }
-                  title={header.isActive ? 'Pasife al' : 'Aktifleştir'}
-                >
-                  {header.isActive ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                  {header.isActive ? 'Aktif' : 'Pasif'}
-                </button>
-                <button
-                  className="text-muted-foreground hover:text-red-400 flex-shrink-0"
-                  onClick={() => mutateHeaders((prev) => prev.filter((h) => h.key !== header.key))}
-                  title="Başlığı sil"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="ml-auto flex items-center gap-1">
+                  <button
+                    type="button"
+                    className={cn(
+                      'inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors',
+                      header.isActive
+                        ? 'border-green-500/40 text-green-400 hover:bg-green-500/10'
+                        : 'border-border text-muted-foreground hover:text-foreground'
+                    )}
+                    onClick={() =>
+                      mutateHeaders((prev) =>
+                        prev.map((h) => (h.key === header.key ? { ...h, isActive: !h.isActive } : h))
+                      )
+                    }
+                    title={header.isActive ? 'Pasife al' : 'Aktifleştir'}
+                  >
+                    {header.isActive ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                    {header.isActive ? 'Aktif' : 'Pasif'}
+                  </button>
+                  <IconButton
+                    title="Başlığı sil"
+                    danger
+                    onClick={() => mutateHeaders((prev) => prev.filter((h) => h.key !== header.key))}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </IconButton>
+                </div>
               </div>
 
               {/* Items */}
               <div className="divide-y divide-border/50">
                 {header.items.map((item, iIdx) => (
-                  <div key={item.key} className={cn('flex items-center gap-2 px-3 py-1.5', !item.isActive && 'opacity-60')}>
-                    <div className="flex flex-col">
-                      <button
-                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                        disabled={iIdx === 0}
-                        onClick={() =>
-                          mutateHeaders((prev) =>
-                            prev.map((h) =>
-                              h.key === header.key ? { ...h, items: moveEntry(h.items, iIdx, -1) } : h
-                            )
+                  <div
+                    key={item.key}
+                    className={cn('flex items-center gap-2 px-2 py-1', !item.isActive && 'opacity-60')}
+                  >
+                    <ReorderControls
+                      onUp={() =>
+                        mutateHeaders((prev) =>
+                          prev.map((h) =>
+                            h.key === header.key ? { ...h, items: moveEntry(h.items, iIdx, -1) } : h
                           )
-                        }
-                        title="Yukarı taşı"
-                      >
-                        <ChevronUp className="h-3 w-3" />
-                      </button>
-                      <button
-                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                        disabled={iIdx === header.items.length - 1}
-                        onClick={() =>
-                          mutateHeaders((prev) =>
-                            prev.map((h) =>
-                              h.key === header.key ? { ...h, items: moveEntry(h.items, iIdx, 1) } : h
-                            )
+                        )
+                      }
+                      onDown={() =>
+                        mutateHeaders((prev) =>
+                          prev.map((h) =>
+                            h.key === header.key ? { ...h, items: moveEntry(h.items, iIdx, 1) } : h
                           )
-                        }
-                        title="Aşağı taşı"
-                      >
-                        <ChevronDown className="h-3 w-3" />
-                      </button>
-                    </div>
+                        )
+                      }
+                      disableUp={iIdx === 0}
+                      disableDown={iIdx === header.items.length - 1}
+                    />
                     <Input
                       value={item.text}
                       placeholder="Madde metni"
-                      className="h-7 text-sm"
+                      className="h-8 w-full max-w-lg text-sm"
                       onChange={(e) =>
                         mutateHeaders((prev) =>
                           prev.map((h) =>
@@ -504,50 +551,50 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
                         )
                       }
                     />
-                    <button
-                      className={cn(
-                        'flex-shrink-0 transition-colors',
-                        item.isActive ? 'text-green-400 hover:text-green-300' : 'text-muted-foreground hover:text-foreground'
-                      )}
-                      onClick={() =>
-                        mutateHeaders((prev) =>
-                          prev.map((h) =>
-                            h.key === header.key
-                              ? {
-                                  ...h,
-                                  items: h.items.map((i) =>
-                                    i.key === item.key ? { ...i, isActive: !i.isActive } : i
-                                  ),
-                                }
-                              : h
+                    <div className="ml-auto flex items-center gap-1">
+                      <IconButton
+                        title={item.isActive ? 'Pasife al' : 'Aktifleştir'}
+                        className={item.isActive ? 'text-green-400 hover:text-green-300' : undefined}
+                        onClick={() =>
+                          mutateHeaders((prev) =>
+                            prev.map((h) =>
+                              h.key === header.key
+                                ? {
+                                    ...h,
+                                    items: h.items.map((i) =>
+                                      i.key === item.key ? { ...i, isActive: !i.isActive } : i
+                                    ),
+                                  }
+                                : h
+                            )
                           )
-                        )
-                      }
-                      title={item.isActive ? 'Pasife al' : 'Aktifleştir'}
-                    >
-                      {item.isActive ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                    </button>
-                    <button
-                      className="text-muted-foreground hover:text-red-400 flex-shrink-0"
-                      onClick={() =>
-                        mutateHeaders((prev) =>
-                          prev.map((h) =>
-                            h.key === header.key
-                              ? { ...h, items: h.items.filter((i) => i.key !== item.key) }
-                              : h
+                        }
+                      >
+                        {item.isActive ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                      </IconButton>
+                      <IconButton
+                        title="Maddeyi sil"
+                        danger
+                        onClick={() =>
+                          mutateHeaders((prev) =>
+                            prev.map((h) =>
+                              h.key === header.key
+                                ? { ...h, items: h.items.filter((i) => i.key !== item.key) }
+                                : h
+                            )
                           )
-                        )
-                      }
-                      title="Maddeyi sil"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </IconButton>
+                    </div>
                   </div>
                 ))}
 
-                <div className="px-3 py-1.5">
+                <div className="px-2 py-1.5">
                   <button
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                     onClick={() =>
                       mutateHeaders((prev) =>
                         prev.map((h) =>
@@ -566,14 +613,7 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
             </div>
           ))}
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() =>
-              mutateHeaders((prev) => [...prev, { key: nextKey(), title: '', isActive: true, items: [] }])
-            }
-          >
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={addHeader}>
             <Plus className="h-3.5 w-3.5" />
             Başlık Ekle
           </Button>
@@ -583,7 +623,7 @@ export function ChecklistsTab({ customerId }: { customerId: string }) {
       {showResetDialog && (
         <ResetDialog
           customerId={customerId}
-          currentKind={kind}
+          currentList={list}
           hasUnsavedChanges={dirty}
           onClose={() => setShowResetDialog(false)}
           onResetSuccess={handleResetSuccess}
