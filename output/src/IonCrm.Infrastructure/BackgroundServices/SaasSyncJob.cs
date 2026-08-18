@@ -138,6 +138,9 @@ public sealed class SaasSyncJob
             {
                 const int pageSize = 500;
                 int page = 1, totalChanges = 0;
+                // Track every Liftdesk companyId we see across all pages so the reconcile step
+                // below can soft-delete rows that disappeared from Liftdesk.
+                var seenLegacyIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 while (true)
                 {
@@ -147,6 +150,9 @@ public sealed class SaasSyncJob
                     if (response.Data.Count == 0)
                         break;
 
+                    foreach (var c in response.Data)
+                        seenLegacyIds.Add(c.Id);
+
                     totalChanges += await UpsertEmsCrmCustomersAsync(response.Data, projectId, ct);
 
                     if (page >= response.TotalPages || response.TotalPages == 0)
@@ -154,6 +160,11 @@ public sealed class SaasSyncJob
 
                     page++;
                 }
+
+                // Reconcile deletions — a customer removed on the Liftdesk side stays in the
+                // response no more, so we soft-delete the local mirror. Only runs after a
+                // successful full traversal (any page failure throws and skips this block).
+                totalChanges += await ReconcileEmsCustomerDeletionsAsync(projectId, seenLegacyIds, ct);
 
                 return totalChanges;
             });
@@ -258,6 +269,117 @@ public sealed class SaasSyncJob
     }
 
     /// <summary>
+    /// Soft-deletes local Customer rows that used to come from Liftdesk (numeric LegacyId or
+    /// <c>SAASA-*</c> prefix) but were absent from the full sync response — i.e. deleted on the
+    /// Liftdesk side.  Runs only when the response contained at least one record so an empty API
+    /// result never wipes the mirror, and refuses to run when the missing set exceeds half of the
+    /// local rows (probably a truncated response from a Liftdesk glitch, not real deletions).
+    /// Returns the number of rows soft-deleted (0 when the safeguards trip).
+    /// </summary>
+    private async Task<int> ReconcileEmsCustomerDeletionsAsync(
+        Guid projectId,
+        HashSet<string> seenLegacyIds,
+        CancellationToken ct)
+    {
+        if (seenLegacyIds.Count == 0)
+        {
+            // Empty response — refuse to touch the mirror. Either the project has no customers
+            // on Liftdesk yet, or the API glitched and we cannot tell the difference.
+            return 0;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        // Load the *active* Liftdesk-sourced customers in this project. Post-fetch filter in-code
+        // because the "starts with digit OR SAASA-" predicate isn't clean in EF LINQ.
+        // Background jobs run with no HTTP user context, so we must bypass the tenant filter.
+        var candidates = await context.Customers
+            .IgnoreQueryFilters()
+            .Where(c => c.ProjectId == projectId && !c.IsDeleted && c.LegacyId != null)
+            .Select(c => new { c.Id, c.LegacyId, c.CompanyName })
+            .ToListAsync(ct);
+
+        var localEms = candidates
+            .Where(c => IsLiftdeskLegacyId(c.LegacyId!))
+            .ToList();
+
+        if (localEms.Count == 0)
+            return 0;
+
+        // Which locals aren't in the current API result? Normalize both to bare-numeric form so
+        // a legacy "SAASA-3" row matches a fresh "3" response entry.
+        var toDelete = localEms
+            .Where(c => !seenLegacyIds.Contains(NormalizeEmsLegacyId(c.LegacyId!)))
+            .ToList();
+
+        if (toDelete.Count == 0)
+            return 0;
+
+        // Safety net: if we would soft-delete more than half of the local Liftdesk customers in
+        // one cycle, assume the API returned a truncated result set and skip. Legit mass deletions
+        // can either be applied over multiple cycles (once the API returns clean data) or done
+        // manually. Only enforce this above a small floor so a tiny project can still evict its
+        // 1-of-3 deletion cleanly.
+        if (localEms.Count > 10 && toDelete.Count > localEms.Count / 2)
+        {
+            _logger.LogWarning(
+                "EMS reconcile: would soft-delete {ToDelete}/{Local} customers — refusing " +
+                "(suspicious API truncation). Fetched={Fetched}.",
+                toDelete.Count, localEms.Count, seenLegacyIds.Count);
+            return 0;
+        }
+
+        var now = DateTime.UtcNow;
+        int softDeleted = 0;
+        foreach (var c in toDelete)
+        {
+            try
+            {
+                // Raw SQL keeps this a single indexed UPDATE with no change-tracker overhead and
+                // sidesteps the tenant query filter which would otherwise hide the row.
+                await context.Database.ExecuteSqlRawAsync(
+                    @"UPDATE ""Customers"" SET ""IsDeleted"" = true, ""UpdatedAt"" = {0} WHERE ""Id"" = {1}",
+                    now, c.Id);
+                softDeleted++;
+
+                _logger.LogInformation(
+                    "EMS reconcile: soft-deleted customer {CustomerId} legacyId={LegacyId} ({CompanyName}) — no longer in Liftdesk.",
+                    c.Id, c.LegacyId, c.CompanyName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "EMS reconcile: failed to soft-delete customer {CustomerId} legacyId={LegacyId}.",
+                    c.Id, c.LegacyId);
+            }
+        }
+
+        return softDeleted;
+    }
+
+    /// <summary>
+    /// Returns true when <paramref name="legacyId"/> looks like a Liftdesk (EMS) customer key —
+    /// either a bare numeric id ("3") or the <c>SAASA-{id}</c> prefix used by older sync runs.
+    /// Excludes Rezerval (<c>SAASB-*</c>/<c>REZV-*</c>) and PotentialCustomer (<c>PC-*</c>) rows.
+    /// </summary>
+    private static bool IsLiftdeskLegacyId(string legacyId)
+    {
+        if (string.IsNullOrEmpty(legacyId)) return false;
+        if (legacyId.StartsWith("PC-",    StringComparison.OrdinalIgnoreCase)) return false;
+        if (legacyId.StartsWith("REZV-",  StringComparison.OrdinalIgnoreCase)) return false;
+        if (legacyId.StartsWith("SAASB-", StringComparison.OrdinalIgnoreCase)) return false;
+        if (legacyId.StartsWith("SAASA-", StringComparison.OrdinalIgnoreCase)) return true;
+        return char.IsDigit(legacyId[0]);
+    }
+
+    /// <summary>Strips the legacy <c>SAASA-</c> prefix so a stored id matches the Liftdesk response id.</summary>
+    private static string NormalizeEmsLegacyId(string legacyId) =>
+        legacyId.StartsWith("SAASA-", StringComparison.OrdinalIgnoreCase)
+            ? legacyId["SAASA-".Length..]
+            : legacyId;
+
+    /// <summary>
     /// Computes customer status based on ExpirationDate rules:
     /// <list type="bullet">
     ///   <item>Demo:    CreatedAt+40d &gt; ExpirationDate AND today &lt; ExpirationDate (short trial, not yet expired)</item>
@@ -340,6 +462,9 @@ public sealed class SaasSyncJob
             {
                 const int pageSize = 500;
                 int page = 1, totalChanges = 0;
+                // Track every Liftdesk company id we see across all pages so the reconcile
+                // step below can soft-delete rows that disappeared from the source.
+                var seenSourceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 while (true)
                 {
@@ -349,6 +474,9 @@ public sealed class SaasSyncJob
                     if (response.Data.Count == 0)
                         break;
 
+                    foreach (var c in response.Data)
+                        seenSourceIds.Add(c.Id);
+
                     totalChanges += await UpsertLiftdeskCustomersAsync(response.Data, projectId, ct);
 
                     if (page >= response.TotalPages || response.TotalPages == 0)
@@ -357,8 +485,83 @@ public sealed class SaasSyncJob
                     page++;
                 }
 
+                // Reconcile deletions — customers absent from a completed full traversal are
+                // treated as deleted on the Liftdesk side and soft-deleted locally.
+                totalChanges += await ReconcileLiftdeskCustomerDeletionsAsync(projectId, seenSourceIds, ct);
+
                 return totalChanges;
             });
+    }
+
+    /// <summary>
+    /// Soft-deletes local Customer rows whose LegacyId is <c>LIFT-{id}</c> for this project when
+    /// <paramref name="seenSourceIds"/> does not contain <c>{id}</c> — i.e. the Liftdesk source no
+    /// longer returns that customer. Same safeguards as the EMS reconcile: empty response is a
+    /// no-op, and the operation aborts when the missing set exceeds half of the local rows.
+    /// </summary>
+    private async Task<int> ReconcileLiftdeskCustomerDeletionsAsync(
+        Guid projectId,
+        HashSet<string> seenSourceIds,
+        CancellationToken ct)
+    {
+        if (seenSourceIds.Count == 0)
+            return 0;
+
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var locals = await context.Customers
+            .IgnoreQueryFilters()
+            .Where(c => c.ProjectId == projectId
+                     && !c.IsDeleted
+                     && c.LegacyId != null
+                     && c.LegacyId.StartsWith("LIFT-"))
+            .Select(c => new { c.Id, c.LegacyId, c.CompanyName })
+            .ToListAsync(ct);
+
+        if (locals.Count == 0)
+            return 0;
+
+        var toDelete = locals
+            .Where(c => !seenSourceIds.Contains(c.LegacyId!["LIFT-".Length..]))
+            .ToList();
+
+        if (toDelete.Count == 0)
+            return 0;
+
+        if (locals.Count > 10 && toDelete.Count > locals.Count / 2)
+        {
+            _logger.LogWarning(
+                "Liftdesk reconcile: would soft-delete {ToDelete}/{Local} customers — refusing " +
+                "(suspicious API truncation). Fetched={Fetched}.",
+                toDelete.Count, locals.Count, seenSourceIds.Count);
+            return 0;
+        }
+
+        var now = DateTime.UtcNow;
+        int softDeleted = 0;
+        foreach (var c in toDelete)
+        {
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(
+                    @"UPDATE ""Customers"" SET ""IsDeleted"" = true, ""UpdatedAt"" = {0} WHERE ""Id"" = {1}",
+                    now, c.Id);
+                softDeleted++;
+
+                _logger.LogInformation(
+                    "Liftdesk reconcile: soft-deleted customer {CustomerId} legacyId={LegacyId} ({CompanyName}) — no longer in Liftdesk.",
+                    c.Id, c.LegacyId, c.CompanyName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Liftdesk reconcile: failed to soft-delete customer {CustomerId} legacyId={LegacyId}.",
+                    c.Id, c.LegacyId);
+            }
+        }
+
+        return softDeleted;
     }
 
     private async Task<int> UpsertLiftdeskCustomersAsync(
@@ -478,7 +681,17 @@ public sealed class SaasSyncJob
             action: async () =>
             {
                 var companies = await _saasBClient.GetRezervalCompaniesAsync(rezervAlApiKey, ct);
-                return await UpsertRezervalCompaniesAsync(companies, projectId, ct);
+                int totalChanges = await UpsertRezervalCompaniesAsync(companies, projectId, ct);
+
+                // Reconcile deletions — companies absent from the response are treated as deleted
+                // on the Rezerval side and soft-deleted locally. The upsert step handles the case
+                // where the API returns the record with IsDeleted=true (also soft-deleted below).
+                // seenSourceIds includes IsDeleted rows too: if Rezerval later restores one we won't
+                // reappearing-then-mass-deleting it.
+                var seenSourceIds = new HashSet<int>(companies.Select(c => c.Id));
+                totalChanges += await ReconcileRezervalCompanyDeletionsAsync(projectId, seenSourceIds, ct);
+
+                return totalChanges;
             });
     }
 
@@ -494,11 +707,32 @@ public sealed class SaasSyncJob
 
         foreach (var src in companies)
         {
-            // Skip records already marked deleted in the source system
-            if (src.IsDeleted)
-                continue;
-
             var legacyId = $"REZV-{src.Id}";
+
+            // Rezerval returns tombstones with IsDeleted=true. If we have a matching local row
+            // still marked live, soft-delete it (parallel to the reconcile pass, which only
+            // catches companies that vanish from the response entirely).
+            if (src.IsDeleted)
+            {
+                var tombstone = await context.Customers
+                    .IgnoreQueryFilters()
+                    .Where(c => c.LegacyId == legacyId && !c.IsDeleted)
+                    .Select(c => new { c.Id, c.CompanyName })
+                    .FirstOrDefaultAsync(ct);
+
+                if (tombstone is not null)
+                {
+                    await context.Database.ExecuteSqlRawAsync(
+                        @"UPDATE ""Customers"" SET ""IsDeleted"" = true, ""UpdatedAt"" = {0} WHERE ""Id"" = {1}",
+                        DateTime.UtcNow, tombstone.Id);
+                    changeCount++;
+
+                    _logger.LogInformation(
+                        "Rezerval sync: soft-deleted customer {CustomerId} legacyId={LegacyId} ({CompanyName}) — marked deleted on Rezerval.",
+                        tombstone.Id, legacyId, tombstone.CompanyName);
+                }
+                continue;
+            }
 
             // Force UTC — Rezerval API returns datetimes without timezone offset;
             // System.Text.Json deserialises them as Kind=Unspecified which Npgsql rejects.
@@ -570,6 +804,84 @@ public sealed class SaasSyncJob
         }
 
         return changeCount;
+    }
+
+    /// <summary>
+    /// Soft-deletes local Customer rows whose LegacyId is <c>REZV-{id}</c> for this project when
+    /// <paramref name="seenSourceIds"/> does not contain <c>{id}</c> — i.e. the Rezerval CompanyList
+    /// response omitted that company entirely (as opposed to returning it with IsDeleted=true, which
+    /// the upsert step handles inline). Same safeguards as the EMS/Liftdesk reconcile: empty
+    /// response is a no-op, and the operation aborts when the missing set exceeds half of the
+    /// local rows.
+    /// </summary>
+    private async Task<int> ReconcileRezervalCompanyDeletionsAsync(
+        Guid projectId,
+        HashSet<int> seenSourceIds,
+        CancellationToken ct)
+    {
+        if (seenSourceIds.Count == 0)
+            return 0;
+
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var locals = await context.Customers
+            .IgnoreQueryFilters()
+            .Where(c => c.ProjectId == projectId
+                     && !c.IsDeleted
+                     && c.LegacyId != null
+                     && c.LegacyId.StartsWith("REZV-"))
+            .Select(c => new { c.Id, c.LegacyId, c.CompanyName })
+            .ToListAsync(ct);
+
+        if (locals.Count == 0)
+            return 0;
+
+        var toDelete = locals
+            .Where(c =>
+            {
+                // Rezerval company ids are integers; strip the prefix and parse.
+                var raw = c.LegacyId!["REZV-".Length..];
+                return int.TryParse(raw, out var id) && !seenSourceIds.Contains(id);
+            })
+            .ToList();
+
+        if (toDelete.Count == 0)
+            return 0;
+
+        if (locals.Count > 10 && toDelete.Count > locals.Count / 2)
+        {
+            _logger.LogWarning(
+                "Rezerval reconcile: would soft-delete {ToDelete}/{Local} customers — refusing " +
+                "(suspicious API truncation). Fetched={Fetched}.",
+                toDelete.Count, locals.Count, seenSourceIds.Count);
+            return 0;
+        }
+
+        var now = DateTime.UtcNow;
+        int softDeleted = 0;
+        foreach (var c in toDelete)
+        {
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(
+                    @"UPDATE ""Customers"" SET ""IsDeleted"" = true, ""UpdatedAt"" = {0} WHERE ""Id"" = {1}",
+                    now, c.Id);
+                softDeleted++;
+
+                _logger.LogInformation(
+                    "Rezerval reconcile: soft-deleted customer {CustomerId} legacyId={LegacyId} ({CompanyName}) — no longer in Rezerval.",
+                    c.Id, c.LegacyId, c.CompanyName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Rezerval reconcile: failed to soft-delete customer {CustomerId} legacyId={LegacyId}.",
+                    c.Id, c.LegacyId);
+            }
+        }
+
+        return softDeleted;
     }
 
     // ── EMS payment → invoice draft sync ─────────────────────────────────────
