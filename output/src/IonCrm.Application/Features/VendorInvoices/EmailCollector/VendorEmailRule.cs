@@ -20,6 +20,16 @@ public sealed class VendorEmailRule
     /// <summary>Optional case-insensitive substring the body must contain (further disambiguation).</summary>
     public string? BodyContains { get; set; }
 
+    /// <summary>
+    /// Optional case-insensitive substring the PDF text must contain — used when the domain / tenant
+    /// name only appears inside the attached invoice (e.g. Google Workspace forwards where the mail
+    /// body carries generic marketing HTML and only the PDF names the account, like "ioniva.com").
+    /// When set, the collector extracts PDF text before deciding the match, so this rule is more
+    /// expensive than <see cref="BodyContains"/>; use it only when the cheaper filters cannot
+    /// disambiguate.
+    /// </summary>
+    public string? PdfContains { get; set; }
+
     /// <summary>Regex whose first capture group is the amount (searched in subject then body), e.g. <c>\$([0-9.,]+)</c>.</summary>
     public string? AmountRegex { get; set; }
 
@@ -44,4 +54,23 @@ public sealed class VendorEmailRule
     /// since invoices arrive in arrears (e.g. a June invoice with offset 1 → period May). Default 1.
     /// </summary>
     public int PeriodMonthOffset { get; set; } = 1;
+
+    /// <summary>
+    /// Effective month offset. Well-known post-paid providers (Google Workspace / Google Cloud /
+    /// Railway) bill in arrears — a config value of <c>0</c> for those is almost always a
+    /// misconfiguration ("1 Ağustos'ta gelen fatura Temmuz'un kullanımı", ie the July period).
+    /// When the explicit config value is 0 and the provider is known to be post-paid, override
+    /// to 1 so the invoice lands on the correct month without the operator needing to change env
+    /// vars first. Any explicit non-zero value is respected as-is.
+    /// </summary>
+    public int EffectivePeriodMonthOffset =>
+        PeriodMonthOffset != 0 ? PeriodMonthOffset : (IsPostPaidProvider(Provider) ? 1 : 0);
+
+    private static bool IsPostPaidProvider(string? provider)
+    {
+        if (string.IsNullOrWhiteSpace(provider)) return false;
+        return provider.StartsWith("GoogleWorkspace", StringComparison.OrdinalIgnoreCase)
+            || provider.Equals("GoogleCloud", StringComparison.OrdinalIgnoreCase)
+            || provider.Equals("Railway",     StringComparison.OrdinalIgnoreCase);
+    }
 }

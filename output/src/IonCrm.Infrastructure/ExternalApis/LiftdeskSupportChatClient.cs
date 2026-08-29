@@ -17,7 +17,7 @@ namespace IonCrm.Infrastructure.ExternalApis;
 /// </summary>
 public sealed class LiftdeskSupportChatClient : ILiftdeskSupportChatClient
 {
-    private const string DefaultBaseUrl = "https://ems-api-development.up.railway.app";
+    private const string DefaultBaseUrl = "https://api.liftdesk.app";
     private const string LogsPath = "/api/v1/crm/support-chat-logs";
 
     private static readonly JsonSerializerOptions JsonOpts = new()

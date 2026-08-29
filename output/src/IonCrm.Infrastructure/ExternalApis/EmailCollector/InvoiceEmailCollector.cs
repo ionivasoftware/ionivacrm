@@ -101,7 +101,13 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
                 var body = parsed.Body;
                 var emailDate = parsed.Date;
 
-                var rule = rules.FirstOrDefault(r => Matches(r, from, parsed.SubjectForMatch, body));
+                // Pass 1 (cheap): match on from/subject/body only. Cache PdfText lazily so a rule
+                // that also declares PdfContains can be checked without re-parsing.
+                string? pdfTextCache = null;
+                string EnsurePdfText() =>
+                    pdfTextCache ??= (parsed.PdfBytes is null ? string.Empty : ExtractPdfText(parsed.PdfBytes));
+
+                var rule = rules.FirstOrDefault(r => Matches(r, from, parsed.SubjectForMatch, body, EnsurePdfText));
                 if (rule is null)
                 {
                     // Dry-run: surface unmatched messages so their real From/Subject can be inspected
@@ -113,8 +119,9 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
                 }
 
                 // Google (and others) only put the amount in the attached PDF — include its text, and
-                // keep the raw bytes so the PDF can be stored and viewed in the CRM.
-                var pdfText = parsed.PdfBytes is null ? string.Empty : ExtractPdfText(parsed.PdfBytes);
+                // keep the raw bytes so the PDF can be stored and viewed in the CRM. Reuse the cached
+                // PDF text set up above if a matching rule already forced its extraction.
+                var pdfText = EnsurePdfText();
                 var haystack = subject + "\n" + body + "\n" + pdfText;
                 decimal? amount = TryExtractAmount(rule.AmountRegex, haystack, out var parsedAmount) ? parsedAmount : null;
                 var invoiceNo = Truncate(TryExtractGroup(rule.InvoiceNoRegex, haystack), 100);
@@ -134,7 +141,10 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
                 if (dateStr is not null && TryParseDate(dateStr, out var invoiceDate))
                     periodBase = invoiceDate;
 
-                var period = periodBase.AddMonths(-rule.PeriodMonthOffset);
+                // EffectivePeriodMonthOffset applies the sensible post-paid default (1) when the
+                // config leaves it at 0 for a known post-paid vendor (Google Workspace, Railway,
+                // Google Cloud). Any explicit non-zero value in config is respected as-is.
+                var period = periodBase.AddMonths(-rule.EffectivePeriodMonthOffset);
                 var year = period.Year;
                 var month = period.Month;
 
@@ -198,7 +208,12 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
             .ToList();
     }
 
-    private static bool Matches(VendorEmailRule rule, string from, string subject, string body)
+    private static bool Matches(
+        VendorEmailRule rule,
+        string from,
+        string subject,
+        string body,
+        Func<string> ensurePdfText)
     {
         // Forwarded mail rewrites the From header to the forwarder, but the original sender survives
         // in the quoted body ("From: ...@vendor"), so match FromContains against From + body.
@@ -209,10 +224,19 @@ public sealed class InvoiceEmailCollector : IInvoiceEmailCollector
             && subject.IndexOf(rule.SubjectContains, StringComparison.OrdinalIgnoreCase) < 0) return false;
         if (!string.IsNullOrWhiteSpace(rule.BodyContains)
             && body.IndexOf(rule.BodyContains, StringComparison.OrdinalIgnoreCase) < 0) return false;
+        // PdfContains forces a PDF parse (expensive) — only invoked when this rule declares it,
+        // and only after the cheaper filters have already passed. The delegate is memoised so
+        // several rules asking for PdfContains on the same message do not re-parse the file.
+        if (!string.IsNullOrWhiteSpace(rule.PdfContains))
+        {
+            var pdfText = ensurePdfText();
+            if (pdfText.IndexOf(rule.PdfContains, StringComparison.OrdinalIgnoreCase) < 0) return false;
+        }
         // A rule needs at least one positive matcher to avoid matching everything.
         return !string.IsNullOrWhiteSpace(rule.FromContains)
             || !string.IsNullOrWhiteSpace(rule.SubjectContains)
-            || !string.IsNullOrWhiteSpace(rule.BodyContains);
+            || !string.IsNullOrWhiteSpace(rule.BodyContains)
+            || !string.IsNullOrWhiteSpace(rule.PdfContains);
     }
 
     private static bool TryExtractAmount(string? pattern, string text, out decimal value)

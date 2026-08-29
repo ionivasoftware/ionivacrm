@@ -7,6 +7,8 @@ using IonCrm.Application.Features.Sync.Commands.ProcessWebhook;
 using IonCrm.Application.Features.Sync.Queries.GetSyncLogs;
 using IonCrm.Domain.Enums;
 using IonCrm.Infrastructure.BackgroundServices;
+using IonCrm.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -241,5 +243,80 @@ public sealed class SyncController : ApiControllerBase
     {
         var result = await Mediator.Send(new SyncEmsPaymentsCommand(windowMinutes), cancellationToken);
         return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// One-shot destructive reset: hard-deletes every <c>Customer</c> row whose <c>LegacyId</c>
+    /// starts with <c>LIFT-</c> so the next Liftdesk sync repopulates the mirror from scratch
+    /// against the new API host.  Cascades to every dependent row via the FK constraints —
+    /// <b>ContactHistories, CustomerTasks, Opportunities, Invoices and CustomerContracts</b>
+    /// attached to those customers ARE ALSO removed.  Meant for the Liftdesk host cutover;
+    /// requires <c>confirm=true</c> to fire so an idle click cannot wipe production data.
+    ///
+    /// After the delete, kicks off <see cref="SaasSyncJob"/> in the background so the mirror
+    /// starts refilling immediately (same fire-and-forget path as <see cref="TriggerSync"/>).
+    /// SuperAdmin only.
+    /// </summary>
+    [HttpPost("reset-liftdesk")]
+    [Authorize(Policy = "SuperAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ResetLiftdesk(
+        [FromQuery] bool confirm = false,
+        CancellationToken cancellationToken = default)
+    {
+        // Guard against accidental invocation. The frontend/UI never exposes this — it's a
+        // deliberate action reached via the API client / Swagger with an explicit flag.
+        if (!confirm)
+        {
+            return BadRequest(ApiResponse<object>.Fail(
+                "Reset işlemi kalıcıdır ve tüm Liftdesk müşterilerini (LIFT-*) ve bağlı kayıtlarını " +
+                "(iletişim geçmişi, görevler, fırsatlar, faturalar, sözleşmeler) siler. " +
+                "Onaylamak için ?confirm=true parametresiyle tekrar çağırın.",
+                400));
+        }
+
+        int deleted;
+        using (var scope = _scopeFactory.CreateScope())
+        {
+            var db     = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<SyncController>>();
+
+            // Hard delete — soft-deleted rows would block the sync from re-inserting because
+            // the upsert path skips existing IsDeleted rows to respect user deletions.
+            deleted = await db.Database.ExecuteSqlRawAsync(
+                @"DELETE FROM ""Customers"" WHERE ""LegacyId"" LIKE 'LIFT-%'",
+                cancellationToken);
+
+            logger.LogWarning(
+                "Reset Liftdesk: hard-deleted {Count} Customer row(s) with LegacyId LIKE 'LIFT-%'. " +
+                "Dependent ContactHistories / Tasks / Opportunities / Invoices / Contracts cascaded.",
+                deleted);
+        }
+
+        // Kick off a fresh sync so the mirror starts filling straight away.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var syncScope = _scopeFactory.CreateScope();
+                var logger = syncScope.ServiceProvider.GetRequiredService<ILogger<SyncController>>();
+                var job    = syncScope.ServiceProvider.GetRequiredService<SaasSyncJob>();
+                logger.LogInformation("Reset Liftdesk: triggering fresh SaaS sync.");
+                await job.RunAsync(cancellationToken: CancellationToken.None);
+                logger.LogInformation("Reset Liftdesk: fresh sync completed.");
+            }
+            catch (Exception ex)
+            {
+                using var errScope = _scopeFactory.CreateScope();
+                var logger = errScope.ServiceProvider.GetRequiredService<ILogger<SyncController>>();
+                logger.LogError(ex, "Reset Liftdesk: post-reset sync failed with unhandled exception.");
+            }
+        });
+
+        return OkResponse(
+            new { DeletedCustomers = deleted, SyncTriggered = true },
+            $"{deleted} Liftdesk müşteri kaydı silindi. Yeni URL üzerinden sync arka planda başlatıldı.");
     }
 }

@@ -18,7 +18,7 @@ namespace IonCrm.Infrastructure.ExternalApis;
 /// </summary>
 public sealed class LiftdeskTicketClient : ILiftdeskTicketClient
 {
-    private const string DefaultBaseUrl = "https://ems-api-development.up.railway.app";
+    private const string DefaultBaseUrl = "https://api.liftdesk.app";
     private const string TicketsRoot = "/api/v1/crm/tickets";
 
     private static readonly JsonSerializerOptions JsonOpts = new()
