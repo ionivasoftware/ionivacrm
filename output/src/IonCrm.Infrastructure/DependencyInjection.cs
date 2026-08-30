@@ -120,6 +120,9 @@ public static class DependencyInjection
         // One-shot EMS→Liftdesk customer-data migration (SuperAdmin endpoint on SyncController).
         services.AddScoped<EmsToLiftdeskMigrationService>();
 
+        // Report-driven undo for the above (the id-preserved assumption failed in prod).
+        services.AddScoped<EmsMigrationRollbackService>();
+
         // ── Automatic sync scheduler ─────────────────────────────────────────
         // Set Sync:Enabled = false in environment variables to disable the
         // automatic 15-minute sync cycle (e.g. in production where sync should

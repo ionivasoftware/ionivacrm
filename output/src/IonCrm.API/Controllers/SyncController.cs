@@ -392,4 +392,56 @@ public sealed class SyncController : ApiControllerBase
                 $"Migration başarısız (tüm değişiklikler geri alındı): {ex.GetBaseException().Message}", 400));
         }
     }
+
+    /// <summary>
+    /// Undoes an executed EMS→Liftdesk migration using the plan derived from its reports.
+    /// Moves every child back from the LIFT targets to the restored EMS sources, clears the
+    /// copied fields, un-deletes carry-over-deleted targets, restores the EMSMIGRATED rows to
+    /// their original LegacyId + deletion state, and deletes childless zombie duplicates the
+    /// still-running EMS sync re-inserted in the meantime.  Body: the RollbackPlan JSON.
+    /// Call with ?dryRun=true first; execute with ?dryRun=false&amp;confirm=true.  SuperAdmin only.
+    /// </summary>
+    [HttpPost("rollback-ems-migration")]
+    [Authorize(Policy = "SuperAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> RollbackEmsMigration(
+        [FromBody] RollbackPlan plan,
+        [FromQuery] bool dryRun = true,
+        [FromQuery] bool confirm = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (plan?.Pairs is not { Count: > 0 })
+            return BadRequest(ApiResponse<object>.Fail("Rollback planı boş — body'de Pairs listesi gerekli.", 400));
+
+        if (!dryRun && !confirm)
+        {
+            return BadRequest(ApiResponse<object>.Fail(
+                "Bu işlem migration'ı geri alır: çocuk kayıtlar LIFT hedeflerinden EMS kaynaklarına geri taşınır, " +
+                "kopyalanan alanlar temizlenir, zombi kayıtlar silinir. Önce ?dryRun=true ile raporu inceleyin; " +
+                "uygulamak için ?dryRun=false&confirm=true ile çağırın.",
+                400));
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var rollback = scope.ServiceProvider.GetRequiredService<EmsMigrationRollbackService>();
+
+        try
+        {
+            var report = await rollback.RollbackAsync(plan, dryRun, cancellationToken);
+            var message = dryRun
+                ? $"DRY-RUN: {report.GroupsProcessed} grup geri alınacak, {report.GroupsSkipped} atlanacak. Hiçbir veri değişmedi."
+                : $"{report.GroupsProcessed} grup geri alındı: {report.ChildrenMovedBack} çocuk kayıt, {report.SourcesRestored} kaynak, {report.ZombiesDeleted} zombi silindi.";
+            return OkResponse<object>(report, message);
+        }
+        catch (Exception ex)
+        {
+            using var errScope = _scopeFactory.CreateScope();
+            var logger = errScope.ServiceProvider.GetRequiredService<ILogger<SyncController>>();
+            logger.LogError(ex, "EMS migration rollback failed (dryRun={DryRun}). Transaction rolled back.", dryRun);
+            return BadRequest(ApiResponse<object>.Fail(
+                $"Rollback başarısız (tüm değişiklikler geri alındı): {ex.GetBaseException().Message}", 400));
+        }
+    }
 }
