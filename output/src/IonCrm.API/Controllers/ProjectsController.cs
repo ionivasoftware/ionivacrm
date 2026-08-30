@@ -1,6 +1,8 @@
 using IonCrm.Application.Projects.Commands.CreateProject;
+using IonCrm.Application.Projects.Commands.DeleteProject;
 using IonCrm.Application.Projects.Commands.SetProjectApiKeys;
 using IonCrm.Application.Projects.Commands.UpdateProject;
+using IonCrm.API.Common;
 using IonCrm.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -72,6 +74,27 @@ public class ProjectsController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(command with { Id = id }, cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// Archives (soft-deletes) a project so it disappears from the project list/switcher while
+    /// its customers, their archive and any migration markers stay in the DB. Reversible, no
+    /// cascade. SuperAdmin only; requires <c>?confirm=true</c>.
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> DeleteProject(
+        Guid id,
+        [FromQuery] bool confirm = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (!confirm)
+            return BadRequest(ApiResponse<object>.Fail(
+                "Bu işlem projeyi arşivler (proje seçicisinden kaldırır; veriler DB'de korunur). " +
+                "Onaylamak için ?confirm=true ekleyin.", 400));
+
+        var result = await Mediator.Send(new DeleteProjectCommand(id), cancellationToken);
         return ResultToResponse(result);
     }
 }
