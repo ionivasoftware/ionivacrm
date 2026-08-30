@@ -96,10 +96,23 @@ public sealed class SaasSyncJob
     {
         _logger.LogInformation("SaaS sync job started at {Time:O}", DateTime.UtcNow);
 
-        await SyncEmsCrmCustomersAsync(cancellationToken);
+        // EMS is RETIRED (tenants moved to Liftdesk, CRM data migrated on 2026-08-30). Its sync
+        // stages default OFF: the EMS API still answers and the global SaasA:ApiKey config kept
+        // the sync alive even after the project's EmsApiKey was cleared — every cycle re-inserted
+        // childless copies of the migrated companies. Set Sync:EmsEnabled=true only if EMS ever
+        // needs to be synced again.
+        var emsEnabled = string.Equals(_configuration["Sync:EmsEnabled"], "true", StringComparison.OrdinalIgnoreCase);
+        if (emsEnabled)
+            await SyncEmsCrmCustomersAsync(cancellationToken);
+        else
+            _logger.LogDebug("EMS CRM sync skipped — EMS is retired (Sync:EmsEnabled != true).");
+
         await SyncLiftdeskCustomersAsync(cancellationToken);
         await SyncRezervalCompaniesAsync(cancellationToken);
-        await SyncEmsPaymentsAsync(emsPaymentWindowMinutes, cancellationToken);
+
+        if (emsEnabled)
+            await SyncEmsPaymentsAsync(emsPaymentWindowMinutes, cancellationToken);
+
         await SyncRezervalContractInvoicesAsync(cancellationToken);
         // await SyncSaasAAsync(cancellationToken);
         // await SyncSaasBAsync(cancellationToken);

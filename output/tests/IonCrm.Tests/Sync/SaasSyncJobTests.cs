@@ -110,6 +110,30 @@ public class SaasSyncJobTests
     }
 
     [Fact]
+    public async Task RunAsync_EmsSyncDisabledByDefault_SkipsEmsStages()
+    {
+        // EMS is retired: even with a fully configured EMS project, the CRM-customer stage must
+        // NOT run unless Sync:EmsEnabled=true. (The global SaasA:ApiKey config once kept the
+        // sync alive after the project key was cleared — re-inserting migrated companies.)
+        var projectAId = Guid.NewGuid();
+        _configMock.Setup(c => c["SaasA:ProjectId"]).Returns(projectAId.ToString());
+        _configMock.Setup(c => c["Sync:EmsEnabled"]).Returns((string?)null);
+
+        var dbContext = CreateInMemoryDbContext("db_ems_disabled_default");
+        dbContext.Projects.Add(new Project { Id = projectAId, Name = "EMS", EmsApiKey = "test-ems-key" });
+        await dbContext.SaveChangesAsync();
+        SetupScopeFactory(dbContext);
+
+        await CreateJob().RunAsync(cancellationToken: CancellationToken.None);
+
+        _saasAClientMock.Verify(
+            c => c.GetCrmCustomersPageAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>(),
+                It.IsAny<CancellationToken>(), It.IsAny<string?>()),
+            Times.Never,
+            "EMS CRM sync must be skipped while Sync:EmsEnabled is unset");
+    }
+
+    [Fact]
     public async Task RunAsync_SaasBProjectIdNotConfigured_FallsBackToFirstProject()
     {
         // Arrange — SaaS B not configured but SaaS A IS configured.
@@ -119,6 +143,9 @@ public class SaasSyncJobTests
         var projectAId = Guid.NewGuid();
         _configMock.Setup(c => c["SaasA:ProjectId"]).Returns(projectAId.ToString());
         _configMock.Setup(c => c["SaasB:ProjectId"]).Returns((string?)null);
+        // EMS is retired and its sync stages default OFF — this test exercises the EMS path,
+        // so opt back in explicitly.
+        _configMock.Setup(c => c["Sync:EmsEnabled"]).Returns("true");
 
         var dbContext = CreateInMemoryDbContext("db_saasb_notconfigured");
         dbContext.Projects.Add(new Project { Id = projectAId, Name = "Test Project", EmsApiKey = "test-ems-key" });

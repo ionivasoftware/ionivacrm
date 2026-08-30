@@ -450,6 +450,52 @@ public sealed class SyncController : ApiControllerBase
     }
 
     /// <summary>
+    /// Deletes childless ZOMBIE rows the EMS sync re-inserted after the migration: live
+    /// bare-numeric rows whose project also holds the matching EMSMIGRATED-{id} marker.
+    /// Genuine un-migrated customers (no marker) are never touched; zombies that somehow own
+    /// children are kept and reported. Call with ?dryRun=true (default) first; execute with
+    /// ?dryRun=false&amp;confirm=true. SuperAdmin only.
+    /// </summary>
+    [HttpPost("purge-ems-zombies")]
+    [Authorize(Policy = "SuperAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> PurgeEmsZombies(
+        [FromQuery] bool dryRun = true,
+        [FromQuery] bool confirm = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (!dryRun && !confirm)
+        {
+            return BadRequest(ApiResponse<object>.Fail(
+                "Bu işlem EMS sync'inin migration sonrası yeniden eklediği çocuksuz zombi kayıtları " +
+                "kalıcı olarak siler. Önce ?dryRun=true ile raporu inceleyin; uygulamak için " +
+                "?dryRun=false&confirm=true ile çağırın.", 400));
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var purger = scope.ServiceProvider.GetRequiredService<EmsZombiePurgeService>();
+
+        try
+        {
+            var report = await purger.PurgeAsync(dryRun, cancellationToken);
+            var message = dryRun
+                ? $"DRY-RUN: {report.ZombiesFound} zombi bulundu, {report.ZombiesDeleted} silinecek. Hiçbir veri değişmedi."
+                : $"{report.ZombiesDeleted} zombi kayıt silindi ({report.KeptWithChildren} çocuklu kayıt korundu).";
+            return OkResponse<object>(report, message);
+        }
+        catch (Exception ex)
+        {
+            using var errScope = _scopeFactory.CreateScope();
+            var logger = errScope.ServiceProvider.GetRequiredService<ILogger<SyncController>>();
+            logger.LogError(ex, "EMS zombie purge failed (dryRun={DryRun}). Transaction rolled back.", dryRun);
+            return BadRequest(ApiResponse<object>.Fail(
+                $"Zombi temizliği başarısız (tüm değişiklikler geri alındı): {ex.GetBaseException().Message}", 400));
+        }
+    }
+
+    /// <summary>
     /// Undoes an executed EMS→Liftdesk migration using the plan derived from its reports.
     /// Moves every child back from the LIFT targets to the restored EMS sources, clears the
     /// copied fields, un-deletes carry-over-deleted targets, restores the EMSMIGRATED rows to

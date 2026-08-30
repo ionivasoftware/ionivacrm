@@ -126,6 +126,9 @@ public static class DependencyInjection
         // One-shot move of the EMS project's lead records into the Liftdesk project.
         services.AddScoped<EmsLeadMoveService>();
 
+        // Cleanup for childless zombie rows the EMS sync re-inserted post-migration.
+        services.AddScoped<EmsZombiePurgeService>();
+
         // ── Automatic sync scheduler ─────────────────────────────────────────
         // Set Sync:Enabled = false in environment variables to disable the
         // automatic 15-minute sync cycle (e.g. in production where sync should
