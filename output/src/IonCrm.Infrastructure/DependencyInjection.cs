@@ -123,6 +123,9 @@ public static class DependencyInjection
         // Report-driven undo for the above (the id-preserved assumption failed in prod).
         services.AddScoped<EmsMigrationRollbackService>();
 
+        // One-shot move of the EMS project's lead records into the Liftdesk project.
+        services.AddScoped<EmsLeadMoveService>();
+
         // ── Automatic sync scheduler ─────────────────────────────────────────
         // Set Sync:Enabled = false in environment variables to disable the
         // automatic 15-minute sync cycle (e.g. in production where sync should

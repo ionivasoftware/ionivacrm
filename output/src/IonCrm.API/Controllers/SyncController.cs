@@ -396,6 +396,60 @@ public sealed class SyncController : ApiControllerBase
     }
 
     /// <summary>
+    /// One-shot move of the EMS project's LEAD records (LegacyId null or "PC-*") into the
+    /// Liftdesk project — the customer rows themselves (labels, statuses, contact info intact)
+    /// plus every child row (contact histories, tasks, opportunities, invoices, contracts) via
+    /// a denormalized-ProjectId rewrite. Soft-deleted leads move too. No merging: leads whose
+    /// name matches an existing live customer in the target are flagged in the report only.
+    /// Call with ?dryRun=true (default) first; execute with ?dryRun=false&amp;confirm=true.
+    /// SuperAdmin only.
+    /// </summary>
+    [HttpPost("move-ems-leads")]
+    [Authorize(Policy = "SuperAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> MoveEmsLeads(
+        [FromQuery] Guid sourceProjectId,
+        [FromQuery] Guid targetProjectId,
+        [FromQuery] bool dryRun = true,
+        [FromQuery] bool confirm = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (sourceProjectId == Guid.Empty || targetProjectId == Guid.Empty)
+            return BadRequest(ApiResponse<object>.Fail(
+                "sourceProjectId ve targetProjectId zorunludur.", 400));
+
+        if (!dryRun && !confirm)
+        {
+            return BadRequest(ApiResponse<object>.Fail(
+                "Bu işlem kaynak projedeki tüm lead kayıtlarını (alt kayıtlarıyla birlikte) hedef projeye " +
+                "taşır. Önce ?dryRun=true ile raporu inceleyin; uygulamak için ?dryRun=false&confirm=true ile çağırın.",
+                400));
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var mover = scope.ServiceProvider.GetRequiredService<EmsLeadMoveService>();
+
+        try
+        {
+            var report = await mover.MoveAsync(sourceProjectId, targetProjectId, dryRun, cancellationToken);
+            var message = dryRun
+                ? $"DRY-RUN: {report.LeadsFound} lead taşınacak. Hiçbir veri değişmedi."
+                : $"{report.LeadsMoved} lead hedef projeye taşındı.";
+            return OkResponse<object>(report, message);
+        }
+        catch (Exception ex)
+        {
+            using var errScope = _scopeFactory.CreateScope();
+            var logger = errScope.ServiceProvider.GetRequiredService<ILogger<SyncController>>();
+            logger.LogError(ex, "EMS lead move failed (dryRun={DryRun}). Transaction rolled back.", dryRun);
+            return BadRequest(ApiResponse<object>.Fail(
+                $"Lead taşıma başarısız (tüm değişiklikler geri alındı): {ex.GetBaseException().Message}", 400));
+        }
+    }
+
+    /// <summary>
     /// Undoes an executed EMS→Liftdesk migration using the plan derived from its reports.
     /// Moves every child back from the LIFT targets to the restored EMS sources, clears the
     /// copied fields, un-deletes carry-over-deleted targets, restores the EMSMIGRATED rows to
