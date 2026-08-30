@@ -96,22 +96,25 @@ public sealed class SaasSyncJob
     {
         _logger.LogInformation("SaaS sync job started at {Time:O}", DateTime.UtcNow);
 
-        // EMS is RETIRED (tenants moved to Liftdesk, CRM data migrated on 2026-08-30). Its sync
-        // stages default OFF: the EMS API still answers and the global SaasA:ApiKey config kept
-        // the sync alive even after the project's EmsApiKey was cleared — every cycle re-inserted
-        // childless copies of the migrated companies. Set Sync:EmsEnabled=true only if EMS ever
-        // needs to be synced again.
+        // EMS CUSTOMER sync is RETIRED (tenants moved to Liftdesk, CRM data migrated 2026-08-30)
+        // and defaults OFF: the EMS API still answers and the global SaasA:ApiKey config kept the
+        // customer sync alive even after the project's EmsApiKey was cleared — every cycle
+        // re-inserted childless copies of the migrated companies. Set Sync:EmsEnabled=true only if
+        // EMS customers ever need syncing again. (This gate is EMS-CUSTOMER-ONLY — see below.)
         var emsEnabled = string.Equals(_configuration["Sync:EmsEnabled"], "true", StringComparison.OrdinalIgnoreCase);
         if (emsEnabled)
             await SyncEmsCrmCustomersAsync(cancellationToken);
         else
-            _logger.LogDebug("EMS CRM sync skipped — EMS is retired (Sync:EmsEnabled != true).");
+            _logger.LogDebug("EMS CRM customer sync skipped — EMS is retired (Sync:EmsEnabled != true).");
 
         await SyncLiftdeskCustomersAsync(cancellationToken);
         await SyncRezervalCompaniesAsync(cancellationToken);
 
-        if (emsEnabled)
-            await SyncEmsPaymentsAsync(emsPaymentWindowMinutes, cancellationToken);
+        // Payment → invoice-draft sync is NOT EMS-only: its handler builds one scan target per
+        // configured credential (EmsApiKey AND/OR LiftdeskApiKey) per project. With EMS keys
+        // cleared it scans Liftdesk targets exclusively, so it must run every cycle regardless of
+        // Sync:EmsEnabled — gating it here is what silently stopped Liftdesk payment collection.
+        await SyncEmsPaymentsAsync(emsPaymentWindowMinutes, cancellationToken);
 
         await SyncRezervalContractInvoicesAsync(cancellationToken);
         // await SyncSaasAAsync(cancellationToken);
