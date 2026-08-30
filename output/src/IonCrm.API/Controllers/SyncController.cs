@@ -339,15 +339,17 @@ public sealed class SyncController : ApiControllerBase
 
     /// <summary>
     /// One-shot migration of the retired EMS platform's CRM data onto the Liftdesk successor
-    /// customers.  EMS company ids were preserved by the EMS→Liftdesk platform migration, so an
-    /// EMS customer ("3" / "SAASA-3" / "EMS-3") maps to the Liftdesk customer "LIFT-3".
+    /// customers.  Matching is NAME-BASED (company ids were NOT preserved by the EMS→Liftdesk
+    /// platform migration): an EMS customer ("3" / "SAASA-3" / "EMS-3") maps to the single LIFT-*
+    /// customer with the same normalized company name, falling back to a unique "core name" match
+    /// (generic tokens like asansör/ltd/şti stripped). Ambiguous names are reported, never guessed.
     ///
     /// Per matched pair: every child row (contact histories, tasks, opportunities, invoices,
     /// contracts) is re-pointed to the Liftdesk customer (denormalized ProjectId rewritten too);
     /// CRM-only fields (Label, Code, AssignedUserId, ParasutContactId, e-invoice flags, contact
     /// name) are copied where the target is empty; a CRM-side soft-delete on the EMS row carries
     /// over to the Liftdesk row; the EMS row is retired (soft-delete + LegacyId → EMSMIGRATED-{id},
-    /// making re-runs idempotent).  EMS customers without a LIFT counterpart are reported and left
+    /// making re-runs idempotent).  EMS customers without a unique name match are reported and left
     /// untouched.  Executes inside a single DB transaction — any failure rolls everything back.
     ///
     /// Call with ?dryRun=true (default) first: zero writes, full matching report. Then execute

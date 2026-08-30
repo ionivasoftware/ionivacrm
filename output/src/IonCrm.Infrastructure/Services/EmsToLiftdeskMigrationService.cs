@@ -10,11 +10,19 @@ namespace IonCrm.Infrastructure.Services;
 /// <summary>One EMS source row and what moves off it onto its Liftdesk target.</summary>
 public sealed record EmsLiftdeskPair(
     string EmsLegacyId,
+    /// <summary>
+    /// The source's LegacyId as it was BEFORE the migration ("3" / "SAASA-3" / "EMS-3"), in BOTH
+    /// dry-run and execute reports. <see cref="EmsLegacyId"/> shows the post-state (the
+    /// EMSMIGRATED marker after execute); this field is what a rollback plan needs — the marker
+    /// alone cannot distinguish prefix variants that share a numeric id.
+    /// </summary>
+    string EmsOriginalLegacyId,
     string EmsCompanyName,
     bool EmsWasDeleted,
     string TargetLegacyId,
     string TargetCompanyName,
     bool TargetWasDeleted,
+    string MatchMethod,
     int ContactHistories,
     int Tasks,
     int Opportunities,
@@ -49,12 +57,16 @@ public sealed record EmsToLiftdeskMigrationReport(
 /// <summary>
 /// One-shot migration: EMS (the retired SaaS) customers → their Liftdesk successors.
 ///
-/// The EMS platform was shut down and its tenants were migrated to Liftdesk with COMPANY IDS
-/// PRESERVED, so an EMS customer with LegacyId <c>"3"</c> / <c>"SAASA-3"</c> / <c>"EMS-3"</c>
-/// corresponds to the Liftdesk-synced customer with LegacyId <c>"LIFT-3"</c>.
+/// The EMS platform was shut down and its tenants were migrated to Liftdesk. Company ids were
+/// NOT preserved in production (the id-based first attempt on 2026-08-30 paired 462 of 564 rows
+/// with the wrong firm and was fully rolled back), so matching is NAME-BASED via
+/// <see cref="CompanyNameMatcher"/>: an EMS customer maps to the single LIFT-* customer whose
+/// normalized company name matches exactly, falling back to a unique "core name" match
+/// (generic tokens like asansör/ltd/şti removed). Anything with zero or multiple candidates is
+/// reported as unmatched — ambiguity is a human decision, never a guess.
 ///
-/// Processing is TARGET-GROUP based: all EMS rows that resolve to the same LIFT-{id} customer
-/// (e.g. a leftover "SAASA-3" duplicate beside the canonical "3") are handled as one group with
+/// Processing is TARGET-GROUP based: all EMS rows that resolve to the same LIFT-* customer
+/// (e.g. a duplicated EMS row with the same company name) are handled as one group with
 /// one CANONICAL source (a live row when available). For each group:
 ///   1. Every source's child rows (ContactHistories, CustomerTasks, Opportunities, Invoices,
 ///      CustomerContracts) are re-pointed to the Liftdesk customer, rewriting the denormalized
@@ -74,14 +86,15 @@ public sealed record EmsToLiftdeskMigrationReport(
 ///
 /// Groups whose target was ALREADY soft-deleted while any source is live are skipped and
 /// reported — moving live data under a deleted row would hide it, so that case needs a human.
-/// EMS customers with no <c>LIFT-{id}</c> counterpart are reported and left untouched.
+/// EMS customers with no unique name match are reported and left untouched.
 ///
-/// EXECUTE MODE runs inside one DB transaction and takes the SAME PostgreSQL advisory lock as
-/// <see cref="SyncTimerService"/>: the 15-minute sync cannot run mid-migration (its reconcile
-/// could otherwise soft-delete a target we are moving data onto), and a second concurrent
-/// invocation of this endpoint is rejected outright. After the first write, the operation is
-/// past the point of no return — commit/rollback run with <see cref="CancellationToken.None"/>
-/// so a client timeout cannot leave a committed transaction reported as rolled back.
+/// EXECUTE MODE takes the SAME PostgreSQL advisory lock as <see cref="SyncTimerService"/>
+/// BEFORE reading the customer snapshot, then plans and writes inside one transaction: the
+/// 15-minute sync cannot mutate rows between planning and writing (no TOCTOU), and a second
+/// concurrent invocation of this endpoint is rejected outright. After the first write, the
+/// operation is past the point of no return — all DB calls use
+/// <see cref="CancellationToken.None"/> so a client timeout cannot leave a committed
+/// transaction reported as rolled back.
 /// DRY-RUN performs zero writes, takes no lock, and returns the identical report shape.
 /// </summary>
 public sealed class EmsToLiftdeskMigrationService
@@ -106,6 +119,10 @@ public sealed class EmsToLiftdeskMigrationService
         public required int NumericId { get; init; }
         /// <summary>Pre-mutation snapshot — the report must show the ORIGINAL state.</summary>
         public required bool EmsWasDeleted { get; init; }
+        /// <summary>Pre-mutation LegacyId snapshot — execute rewrites the entity's LegacyId.</summary>
+        public required string OriginalLegacyId { get; init; }
+        /// <summary>"exact-name" or "core-name" — how this source found its target.</summary>
+        public required string MatchMethod { get; init; }
         public int Ch; public int Tk; public int Op; public int Inv; public int Con;
         public List<string> Copied { get; } = new();
     }
@@ -124,6 +141,53 @@ public sealed class EmsToLiftdeskMigrationService
     /// <summary>Runs the migration (or a read-only preview when <paramref name="dryRun"/> is true).</summary>
     public async Task<EmsToLiftdeskMigrationReport> MigrateAsync(bool dryRun, CancellationToken ct)
     {
+        if (dryRun)
+            return await RunAsync(dryRun: true, ct);
+
+        // EXECUTE: the snapshot read, planning AND writes all happen inside ONE transaction while
+        // HOLDING the sync advisory lock. Taking the lock first closes the TOCTOU window where a
+        // sync cycle committing between a pre-lock snapshot and the writes would make the plan
+        // stale (e.g. a target soft-deleted by the Liftdesk reconcile after the guard checked it).
+        // CancellationToken.None throughout: past the first write the operation must fully commit
+        // or fully roll back — honoring a client abort mid-commit can misreport a durable commit.
+        await using var tx = await _db.Database.BeginTransactionAsync(CancellationToken.None);
+        var lockTaken = false;
+        try
+        {
+            // Same advisory lock as SyncTimerService: the 15-minute sync waits/skips while we
+            // hold it, and a concurrent second invocation of this endpoint is rejected outright.
+            lockTaken = await ExecuteScalarBoolAsync(
+                $"SELECT pg_try_advisory_lock({SyncTimerService.AdvisoryLockKey})");
+            if (!lockTaken)
+                throw new InvalidOperationException(
+                    "Sync kilidi alınamadı — 15 dakikalık senkronizasyon (veya başka bir migration çağrısı) şu anda çalışıyor. Lütfen kısa süre sonra tekrar deneyin.");
+
+            var report = await RunAsync(dryRun: false, CancellationToken.None);
+            await tx.CommitAsync(CancellationToken.None);
+            return report;
+        }
+        catch
+        {
+            // Guarded rollback: if the transaction already completed (e.g. commit raced a broken
+            // connection), RollbackAsync would throw and MASK the original exception.
+            try { await tx.RollbackAsync(CancellationToken.None); }
+            catch { /* transaction already completed or connection gone — original exception wins */ }
+            throw;
+        }
+        finally
+        {
+            if (lockTaken)
+            {
+                // Best-effort session-lock release; the pooled connection would otherwise keep it.
+                try { await ExecuteScalarBoolAsync($"SELECT pg_advisory_unlock({SyncTimerService.AdvisoryLockKey})"); }
+                catch { /* connection may be gone; lock dies with the session */ }
+            }
+        }
+    }
+
+    /// <summary>Planning + (in execute mode) application. Execute callers wrap this in a locked transaction.</summary>
+    private async Task<EmsToLiftdeskMigrationReport> RunAsync(bool dryRun, CancellationToken ct)
+    {
         var warnings = new List<string>();
 
         // Tracked load on purpose: field copies + retire flags below go through EF change
@@ -133,25 +197,24 @@ public sealed class EmsToLiftdeskMigrationService
             .IgnoreQueryFilters()
             .ToListAsync(ct);
 
-        // ── Liftdesk index: numeric id → customer (prefer the live row on duplicates) ──
-        var liftById = new Dictionary<int, Customer>();
+        // ── Liftdesk indexes: normalized name → candidate rows (deleted rows included; the
+        //    resolver prefers live rows and the group guard below handles deleted targets) ──
+        var liftByExact = new Dictionary<string, List<Customer>>();
+        var liftByCore = new Dictionary<string, List<Customer>>();
         foreach (var c in allCustomers)
         {
             if (c.LegacyId is null || !c.LegacyId.StartsWith("LIFT-", StringComparison.OrdinalIgnoreCase))
                 continue;
-            if (!int.TryParse(c.LegacyId["LIFT-".Length..], out var id))
+            var exact = CompanyNameMatcher.Normalize(c.CompanyName);
+            if (exact.Length == 0)
             {
-                warnings.Add($"LIFT satırı sayısal olmayan id taşıyor, atlandı: '{c.LegacyId}' ({c.CompanyName})");
+                warnings.Add($"LIFT satırının firma adı boş — eşleştirme dışı: {c.LegacyId}");
                 continue;
             }
-            if (liftById.TryGetValue(id, out var existing))
-            {
-                if (existing.IsDeleted && !c.IsDeleted)
-                    liftById[id] = c;
-                warnings.Add($"Birden fazla LIFT-{id} satırı bulundu — canlı olan tercih edildi.");
-                continue;
-            }
-            liftById[id] = c;
+            AddToIndex(liftByExact, exact, c);
+            var coreKey = CompanyNameMatcher.Core(c.CompanyName);
+            if (coreKey.Length > 0)
+                AddToIndex(liftByCore, coreKey, c);
         }
 
         // ── Classify EMS candidates ──────────────────────────────────────────
@@ -175,16 +238,58 @@ public sealed class EmsToLiftdeskMigrationService
             candidates.Add((c, numericId));
         }
 
-        // ── Build target groups ──────────────────────────────────────────────
+        // ── Resolve each EMS row to its LIFT target by name & build target groups ──
         var groupsByTarget = new Dictionary<Guid, TargetGroup>();
         foreach (var (ems, numericId) in candidates)
         {
-            if (!liftById.TryGetValue(numericId, out var target))
+            var exactKey = CompanyNameMatcher.Normalize(ems.CompanyName);
+            if (exactKey.Length == 0)
             {
                 unmatched.Add(new EmsLiftdeskUnmatched(
                     ems.LegacyId!, ems.CompanyName, ems.IsDeleted,
-                    $"LIFT-{numericId} karşılığı bulunamadı"));
+                    "Firma adı boş — isim eşleştirmesi yapılamadı"));
                 continue;
+            }
+
+            Customer? target;
+            string method;
+            if (liftByExact.TryGetValue(exactKey, out var exactCandidates))
+            {
+                // Exact-name hit. Multiple candidates (duplicate LIFT rows with the same name)
+                // are NEVER auto-resolved via the core fallback — that would guess.
+                target = PickUniqueCandidate(exactCandidates);
+                if (target is null)
+                {
+                    unmatched.Add(new EmsLiftdeskUnmatched(
+                        ems.LegacyId!, ems.CompanyName, ems.IsDeleted,
+                        $"Aynı isimde {exactCandidates.Count} LIFT adayı var: " +
+                        string.Join(", ", exactCandidates.Select(t => $"{t.LegacyId} ({t.CompanyName})")) +
+                        " — manuel karar gerekli"));
+                    continue;
+                }
+                method = "exact-name";
+            }
+            else
+            {
+                var coreKey = CompanyNameMatcher.Core(ems.CompanyName);
+                if (coreKey.Length == 0 || !liftByCore.TryGetValue(coreKey, out var coreCandidates))
+                {
+                    unmatched.Add(new EmsLiftdeskUnmatched(
+                        ems.LegacyId!, ems.CompanyName, ems.IsDeleted,
+                        "LIFT karşılığı bulunamadı (isim eşleşmesi yok)"));
+                    continue;
+                }
+                target = PickUniqueCandidate(coreCandidates);
+                if (target is null)
+                {
+                    unmatched.Add(new EmsLiftdeskUnmatched(
+                        ems.LegacyId!, ems.CompanyName, ems.IsDeleted,
+                        $"Çekirdek isim '{coreKey}' için {coreCandidates.Count} LIFT adayı var: " +
+                        string.Join(", ", coreCandidates.Select(t => $"{t.LegacyId} ({t.CompanyName})")) +
+                        " — manuel karar gerekli"));
+                    continue;
+                }
+                method = "core-name";
             }
 
             if (!groupsByTarget.TryGetValue(target.Id, out var group))
@@ -192,7 +297,14 @@ public sealed class EmsToLiftdeskMigrationService
                 group = new TargetGroup { Target = target, TargetOriginalDeleted = target.IsDeleted };
                 groupsByTarget[target.Id] = group;
             }
-            group.Sources.Add(new SourcePlan { Ems = ems, NumericId = numericId, EmsWasDeleted = ems.IsDeleted });
+            group.Sources.Add(new SourcePlan
+            {
+                Ems = ems,
+                NumericId = numericId,
+                EmsWasDeleted = ems.IsDeleted,
+                OriginalLegacyId = ems.LegacyId!,
+                MatchMethod = method,
+            });
         }
 
         // Group-level human-decision guard: an ALREADY-deleted target with any live source
@@ -262,9 +374,9 @@ public sealed class EmsToLiftdeskMigrationService
                 "Migration sonrası EMS arşivi LIFT müşterilerinin altında yaşar. /sync/reset-liftdesk yalnızca " +
                 "çocuk kaydı olmayan LIFT satırlarını siler; yine de resetten önce bu raporu saklayın.");
 
-        // ── Execute ──────────────────────────────────────────────────────────
+        // ── Execute (caller already holds the transaction + advisory lock) ───
         if (!dryRun && groups.Count > 0)
-            await ExecuteAsync(groups);
+            await ApplyAsync(groups);
 
         // ── Report (all figures from pre-mutation snapshots + real rowcounts on execute) ──
         var reportPairs = new List<EmsLiftdeskPair>();
@@ -278,12 +390,14 @@ public sealed class EmsToLiftdeskMigrationService
             {
                 chTotal += s.Ch; taskTotal += s.Tk; oppTotal += s.Op; invTotal += s.Inv; conTotal += s.Con;
                 reportPairs.Add(new EmsLiftdeskPair(
-                    EmsLegacyId:       dryRun ? s.Ems.LegacyId! : $"EMSMIGRATED-{s.NumericId}",
-                    EmsCompanyName:    s.Ems.CompanyName,
+                    EmsLegacyId:         dryRun ? s.OriginalLegacyId : $"EMSMIGRATED-{s.NumericId}",
+                    EmsOriginalLegacyId: s.OriginalLegacyId,
+                    EmsCompanyName:      s.Ems.CompanyName,
                     EmsWasDeleted:     s.EmsWasDeleted,
                     TargetLegacyId:    group.Target.LegacyId!,
                     TargetCompanyName: group.Target.CompanyName,
                     TargetWasDeleted:  group.TargetOriginalDeleted,
+                    MatchMethod:       s.MatchMethod,
                     ContactHistories:  s.Ch,
                     Tasks:             s.Tk,
                     Opportunities:     s.Op,
@@ -325,75 +439,41 @@ public sealed class EmsToLiftdeskMigrationService
     // ── Execute phase ────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Applies the plan inside one transaction. Uses <see cref="CancellationToken.None"/> for every
-    /// DB call: past the first write the operation must either fully commit or fully roll back —
-    /// honoring a client-abort token mid-commit can leave a durably-committed transaction that the
-    /// caller is told was rolled back.
+    /// Applies the plan. The caller (<see cref="MigrateAsync"/>) already holds the transaction and
+    /// the sync advisory lock — this method only performs the writes.
     /// </summary>
-    private async Task ExecuteAsync(List<TargetGroup> groups)
+    private async Task ApplyAsync(List<TargetGroup> groups)
     {
-        await using var tx = await _db.Database.BeginTransactionAsync(CancellationToken.None);
-        var lockTaken = false;
-        try
+        var now = DateTime.UtcNow;
+
+        foreach (var group in groups)
         {
-            // Same advisory lock as SyncTimerService: blocks the 15-minute sync (whose Liftdesk
-            // reconcile could soft-delete a target mid-migration) and rejects a concurrent second
-            // invocation of this endpoint. Non-blocking: fail fast instead of queueing.
-            lockTaken = await ExecuteScalarBoolAsync(
-                $"SELECT pg_try_advisory_lock({SyncTimerService.AdvisoryLockKey})");
-            if (!lockTaken)
-                throw new InvalidOperationException(
-                    "Sync kilidi alınamadı — 15 dakikalık senkronizasyon (veya başka bir migration çağrısı) şu anda çalışıyor. Lütfen kısa süre sonra tekrar deneyin.");
-
-            var now = DateTime.UtcNow;
-
-            foreach (var group in groups)
+            foreach (var s in group.Sources)
             {
-                foreach (var s in group.Sources)
-                {
-                    // Move ALL children (soft-deleted ones included) and rewrite the denormalized
-                    // ProjectId. Capture REAL affected-row counts so the execute report reflects
-                    // what actually moved, not a pre-transaction estimate.
-                    s.Ch  = await _db.Database.ExecuteSqlRawAsync(ChildMoveStatements[0], group.Target.Id, group.Target.ProjectId, now, s.Ems.Id);
-                    s.Tk  = await _db.Database.ExecuteSqlRawAsync(ChildMoveStatements[1], group.Target.Id, group.Target.ProjectId, now, s.Ems.Id);
-                    s.Op  = await _db.Database.ExecuteSqlRawAsync(ChildMoveStatements[2], group.Target.Id, group.Target.ProjectId, now, s.Ems.Id);
-                    s.Inv = await _db.Database.ExecuteSqlRawAsync(ChildMoveStatements[3], group.Target.Id, group.Target.ProjectId, now, s.Ems.Id);
-                    s.Con = await _db.Database.ExecuteSqlRawAsync(ChildMoveStatements[4], group.Target.Id, group.Target.ProjectId, now, s.Ems.Id);
+                // Move ALL children (soft-deleted ones included) and rewrite the denormalized
+                // ProjectId. Capture REAL affected-row counts so the execute report reflects
+                // what actually moved, not a planning-phase estimate.
+                s.Ch  = await _db.Database.ExecuteSqlRawAsync(ChildMoveStatements[0], group.Target.Id, group.Target.ProjectId, now, s.Ems.Id);
+                s.Tk  = await _db.Database.ExecuteSqlRawAsync(ChildMoveStatements[1], group.Target.Id, group.Target.ProjectId, now, s.Ems.Id);
+                s.Op  = await _db.Database.ExecuteSqlRawAsync(ChildMoveStatements[2], group.Target.Id, group.Target.ProjectId, now, s.Ems.Id);
+                s.Inv = await _db.Database.ExecuteSqlRawAsync(ChildMoveStatements[3], group.Target.Id, group.Target.ProjectId, now, s.Ems.Id);
+                s.Con = await _db.Database.ExecuteSqlRawAsync(ChildMoveStatements[4], group.Target.Id, group.Target.ProjectId, now, s.Ems.Id);
 
-                    // Retire the source. EMSMIGRATED- keeps re-runs idempotent and preserves the
-                    // original numeric id for audit.
-                    s.Ems.IsDeleted = true;
-                    s.Ems.LegacyId = $"EMSMIGRATED-{s.NumericId}";
-                }
-
-                // Field copies from the canonical source (plan already computed the list).
-                PlanFieldCopies(group, applyChanges: true);
-
-                // Deletion carry-over: only when every source was user-deleted.
-                if (group.CarryOverDelete)
-                    group.Target.IsDeleted = true;
+                // Retire the source. EMSMIGRATED- keeps re-runs idempotent and preserves the
+                // original numeric id for audit.
+                s.Ems.IsDeleted = true;
+                s.Ems.LegacyId = $"EMSMIGRATED-{s.NumericId}";
             }
 
-            await _db.SaveChangesAsync(CancellationToken.None);
-            await tx.CommitAsync(CancellationToken.None);
+            // Field copies from the canonical source (plan already computed the list).
+            PlanFieldCopies(group, applyChanges: true);
+
+            // Deletion carry-over: only when every source was user-deleted.
+            if (group.CarryOverDelete)
+                group.Target.IsDeleted = true;
         }
-        catch
-        {
-            // Guarded rollback: if the transaction already completed (e.g. commit raced a broken
-            // connection), RollbackAsync would throw and MASK the original exception.
-            try { await tx.RollbackAsync(CancellationToken.None); }
-            catch { /* transaction already completed or connection gone — original exception wins */ }
-            throw;
-        }
-        finally
-        {
-            if (lockTaken)
-            {
-                // Best-effort session-lock release; the pooled connection would otherwise keep it.
-                try { await ExecuteScalarBoolAsync($"SELECT pg_advisory_unlock({SyncTimerService.AdvisoryLockKey})"); }
-                catch { /* connection may be gone; lock dies with the session */ }
-            }
-        }
+
+        await _db.SaveChangesAsync(CancellationToken.None);
     }
 
     /// <summary>
@@ -436,6 +516,36 @@ public sealed class EmsToLiftdeskMigrationService
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static void AddToIndex(Dictionary<string, List<Customer>> index, string key, Customer c)
+    {
+        if (!index.TryGetValue(key, out var list))
+        {
+            list = new List<Customer>();
+            index[key] = list;
+        }
+        list.Add(c);
+    }
+
+    /// <summary>
+    /// Resolves a candidate list to a single target or null (= ambiguous, needs a human).
+    /// Exactly one LIVE candidate wins even when deleted duplicates exist beside it; a single
+    /// all-deleted candidate is also accepted (the group guard upstream decides whether moving
+    /// onto a deleted target is allowed). Two or more live — or two or more all-deleted —
+    /// candidates are ambiguous.
+    /// </summary>
+    private static Customer? PickUniqueCandidate(List<Customer> candidates)
+    {
+        if (candidates.Count == 1) return candidates[0];
+        Customer? live = null;
+        foreach (var c in candidates)
+        {
+            if (c.IsDeleted) continue;
+            if (live is not null) return null; // multiple live rows with the same name
+            live = c;
+        }
+        return live; // one live row, or null when all candidates are deleted duplicates
+    }
 
     /// <summary>
     /// Fixed re-pointing statements for the five child tables (no dynamic SQL — table names are

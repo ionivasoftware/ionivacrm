@@ -121,12 +121,6 @@ public sealed class EmsMigrationRollbackService
 
         foreach (var pair in plan.Pairs)
         {
-            if (!TryNumericId(pair.TargetLegacyId, "LIFT-", out var numericId))
-            {
-                skipped.Add(Skip(pair, null, "Hedef LegacyId çözümlenemedi"));
-                continue;
-            }
-
             var target = byLegacy.TryGetValue(pair.TargetLegacyId, out var tRows)
                 ? tRows.OrderBy(t => t.IsDeleted ? 1 : 0).First()
                 : null;
@@ -136,22 +130,46 @@ public sealed class EmsMigrationRollbackService
                 continue;
             }
 
-            var marker = $"EMSMIGRATED-{numericId}";
-            var sources = byLegacy.TryGetValue(marker, out var sRows) ? sRows : new List<Customer>();
-            if (sources.Count == 0)
+            // Locate the retired DB rows via the marker derived from EACH SOURCE's original
+            // LegacyId ("3" / "SAASA-3" / "EMS-3" → EMSMIGRATED-3). NEVER from the target's
+            // LIFT id: under name-based matching the EMS and LIFT numeric ids differ, and the
+            // overlapping id ranges mean a target-derived marker would frequently hit a
+            // DIFFERENT company retired in the same run — wrong-firm corruption inside the
+            // recovery tool. Prefix variants sharing one numeric id resolve to the SAME marker;
+            // MatchSources disambiguates those duplicates by name, then positionally.
+            var restoreMap = new List<(Customer Db, RollbackSourcePlan Plan)>();
+            foreach (var markerGroup in pair.Sources.GroupBy(
+                s => TryEmsNumericId(s.OriginalLegacyId, out var emsId) ? emsId : -1))
+            {
+                if (markerGroup.Key < 0)
+                {
+                    foreach (var s in markerGroup)
+                        warnings.Add(
+                            $"{pair.TargetLegacyId}: plan kaynağı '{s.OriginalLegacyId}' EMS deseninde değil — geri yüklenemedi.");
+                    continue;
+                }
+                var marker = $"EMSMIGRATED-{markerGroup.Key}";
+                var dbRows = byLegacy.TryGetValue(marker, out var sRows) ? sRows : new List<Customer>();
+                if (dbRows.Count == 0)
+                {
+                    warnings.Add(
+                        $"{pair.TargetLegacyId}: {marker} satırı bulunamadı (zaten geri alınmış?) — bu kaynak atlandı.");
+                    continue;
+                }
+                restoreMap.AddRange(MatchSources(dbRows, markerGroup.ToList(), warnings, marker));
+            }
+
+            if (restoreMap.Count == 0)
             {
                 skipped.Add(Skip(pair, target.CompanyName, "EMSMIGRATED kaynağı yok (zaten geri alınmış?)"));
                 continue;
             }
 
-            // Match DB source rows to plan sources by normalized name; leftovers pair up in order.
-            var restoreMap = MatchSources(sources, pair.Sources, warnings, marker);
-
             // Canonical restored source = the one whose plan says it was LIVE before migration
             // (children belong with the visible row); fall back to the first.
             var canonical = restoreMap.FirstOrDefault(m => !m.Plan.WasDeleted).Db ?? restoreMap[0].Db;
 
-            groups.Add(new GroupWork(pair, numericId, target, restoreMap, canonical));
+            groups.Add(new GroupWork(pair, target, restoreMap, canonical));
         }
 
         // ── Child counts for the report (dry-run authoritative; execute overwrites) ──
@@ -371,15 +389,14 @@ public sealed class EmsMigrationRollbackService
     private sealed class GroupWork
     {
         public GroupWork(
-            RollbackPairPlan pair, int numericId, Customer target,
+            RollbackPairPlan pair, Customer target,
             List<(Customer Db, RollbackSourcePlan Plan)> restoreMap, Customer canonical)
         {
-            Pair = pair; NumericId = numericId; Target = target;
+            Pair = pair; Target = target;
             RestoreMap = restoreMap; Canonical = canonical;
         }
 
         public RollbackPairPlan Pair { get; }
-        public int NumericId { get; }
         public Customer Target { get; }
         public List<(Customer Db, RollbackSourcePlan Plan)> RestoreMap { get; }
         public Customer Canonical { get; }
@@ -388,9 +405,12 @@ public sealed class EmsMigrationRollbackService
     }
 
     /// <summary>
-    /// Pairs the DB's EMSMIGRATED rows with the plan's original-source entries: first by
-    /// normalized company name, then leftovers in order. Counts must match or a warning is added
-    /// (extra DB rows restore with the first unused plan entry; extra plan entries are ignored).
+    /// Pairs one marker's DB rows with the plan sources that share that marker (prefix variants
+    /// of one numeric id, e.g. "3" + "SAASA-3" → EMSMIGRATED-3): first by normalized company
+    /// name, then leftovers in order — those are same-firm duplicates, so a positional fallback
+    /// can at worst swap which duplicate gets which LegacyId variant, never cross firms.
+    /// Every fallback is surfaced as a warning; extra DB rows restore with the marker's numeric
+    /// id, extra plan entries are ignored (also warned).
     /// </summary>
     private static List<(Customer Db, RollbackSourcePlan Plan)> MatchSources(
         List<Customer> dbRows, List<RollbackSourcePlan> planned, List<string> warnings, string marker)
@@ -402,7 +422,13 @@ public sealed class EmsMigrationRollbackService
         {
             var match = remainingPlans.FirstOrDefault(p =>
                 Normalize(p.CompanyName) == Normalize(db.CompanyName));
-            if (match is null && remainingPlans.Count > 0) match = remainingPlans[0];
+            if (match is null && remainingPlans.Count > 0)
+            {
+                match = remainingPlans[0];
+                warnings.Add(
+                    $"{marker}: '{db.CompanyName}' satırı isimle eşleşmedi — sıradaki plan girdisi " +
+                    $"('{match.OriginalLegacyId}' {match.CompanyName}) ile geri yüklendi.");
+            }
             if (match is null)
             {
                 warnings.Add($"{marker}: plan girdisi kalmadı — satır numeric id ile geri yüklendi.");
@@ -412,6 +438,10 @@ public sealed class EmsMigrationRollbackService
             remainingPlans.Remove(match);
             result.Add((db, match));
         }
+
+        foreach (var leftover in remainingPlans)
+            warnings.Add(
+                $"{marker}: plan kaynağı '{leftover.OriginalLegacyId}' ({leftover.CompanyName}) için DB satırı kalmadı — atlandı.");
 
         return result;
     }
@@ -423,11 +453,29 @@ public sealed class EmsMigrationRollbackService
         new(pair.TargetLegacyId, targetName, null, 0, 0, 0, 0, 0, 0,
             new List<string>(), false, 0, reason);
 
-    private static bool TryNumericId(string legacyId, string prefix, out int id)
+    /// <summary>
+    /// Extracts the EMS numeric company id from an ORIGINAL (pre-migration) LegacyId: bare
+    /// numeric ("3"), "SAASA-3" or "EMS-3". Mirrors the migration service's classification —
+    /// the retirement marker is always <c>EMSMIGRATED-{this id}</c>.
+    /// </summary>
+    private static bool TryEmsNumericId(string? legacyId, out int id)
     {
         id = 0;
-        return legacyId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            && int.TryParse(legacyId[prefix.Length..], out id);
+        if (string.IsNullOrEmpty(legacyId)) return false;
+
+        string raw;
+        if (legacyId.StartsWith("SAASA-", StringComparison.OrdinalIgnoreCase))
+            raw = legacyId["SAASA-".Length..];
+        else if (legacyId.StartsWith("EMSMIGRATED-", StringComparison.OrdinalIgnoreCase))
+            return false; // a marker is not an original id
+        else if (legacyId.StartsWith("EMS-", StringComparison.OrdinalIgnoreCase))
+            raw = legacyId["EMS-".Length..];
+        else if (char.IsDigit(legacyId[0]))
+            raw = legacyId;
+        else
+            return false;
+
+        return int.TryParse(raw, out id);
     }
 
     private async Task<bool> ExecuteScalarBoolAsync(string sql)

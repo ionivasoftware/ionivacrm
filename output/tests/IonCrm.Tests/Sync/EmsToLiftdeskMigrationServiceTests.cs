@@ -14,9 +14,9 @@ namespace IonCrm.Tests.Sync;
 ///
 /// The execute path uses raw SQL (child re-pointing UPDATEs) plus a PostgreSQL advisory lock,
 /// neither of which the InMemory provider supports; dry-run exercises the entire planning
-/// pipeline (LegacyId classification, target grouping, human-decision guards, deletion
-/// carry-over, field-copy planning, report arithmetic) with zero writes, which is where all
-/// the decision logic lives.
+/// pipeline (LegacyId classification, NAME-based target resolution, target grouping,
+/// human-decision guards, deletion carry-over, field-copy planning, report arithmetic) with
+/// zero writes, which is where all the decision logic lives.
 /// </summary>
 public class EmsToLiftdeskMigrationServiceTests
 {
@@ -58,19 +58,40 @@ public class EmsToLiftdeskMigrationServiceTests
         return c;
     }
 
+    // ── Name normalization ───────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("Elko Asansör San. ve Tic. Ltd. Şti", "elko asansor san ve tic ltd sti")]
+    [InlineData("elko asansör san.ve tic.ltd.şti.", "elko asansor san ve tic ltd sti")]
+    [InlineData("ERLİFT ASANSÖR", "erlift asansor")]
+    [InlineData("  Çağrı-Lift  (İzmir) ", "cagri lift izmir")]
+    [InlineData("", "")]
+    [InlineData(null, "")]
+    public void Normalize_FoldsTurkishCasePunctuationAndWhitespace(string? input, string expected) =>
+        Assert.Equal(expected, CompanyNameMatcher.Normalize(input));
+
+    [Theory]
+    [InlineData("Mega Asansör", "mega")]
+    [InlineData("MEGA ASANSÖR ELEKTRİK SANAYİ VE TİCARET LTD ŞTİ", "mega")]
+    [InlineData("Tork Mühendislik asansör inşaat ticaret", "tork")]
+    [InlineData("Asansör San. Tic. Ltd. Şti.", "")] // fully generic → empty core, no fallback
+    public void Core_StripsGenericTokens(string input, string expected) =>
+        Assert.Equal(expected, CompanyNameMatcher.Core(input));
+
     // ── Matching & classification ────────────────────────────────────────────
 
     [Fact]
-    public async Task DryRun_MatchesNumericSaasaAndEmsPrefixes_ToLiftTargets()
+    public async Task DryRun_MatchesNumericSaasaAndEmsPrefixes_ByExactNormalizedName()
     {
-        using var db = CreateDb(nameof(DryRun_MatchesNumericSaasaAndEmsPrefixes_ToLiftTargets));
+        using var db = CreateDb(nameof(DryRun_MatchesNumericSaasaAndEmsPrefixes_ByExactNormalizedName));
         var p = AddProject(db);
-        AddCustomer(db, p.Id, "3", "Ems Plain");
-        AddCustomer(db, p.Id, "SAASA-4", "Ems Saasa");
-        AddCustomer(db, p.Id, "EMS-5", "Ems Prefixed");
-        AddCustomer(db, p.Id, "LIFT-3", "Lift 3");
-        AddCustomer(db, p.Id, "LIFT-4", "Lift 4");
-        AddCustomer(db, p.Id, "LIFT-5", "Lift 5");
+        AddCustomer(db, p.Id, "3", "Orka Asansör");
+        AddCustomer(db, p.Id, "SAASA-4", "ERLİFT ASANSÖR");
+        AddCustomer(db, p.Id, "EMS-5", "Vega Lift San. Tic.");
+        // Liftdesk ids intentionally DIFFERENT from the EMS ids — names are the join key.
+        AddCustomer(db, p.Id, "LIFT-176", "ORKA ASANSOR");
+        AddCustomer(db, p.Id, "LIFT-201", "erlift asansör");
+        AddCustomer(db, p.Id, "LIFT-315", "VEGA LİFT SAN TİC");
         await db.SaveChangesAsync();
 
         var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
@@ -79,10 +100,107 @@ public class EmsToLiftdeskMigrationServiceTests
         Assert.Equal(3, report.EmsCustomersFound);
         Assert.Equal(3, report.MigratedPairs);
         Assert.Empty(report.Unmatched);
-        Assert.Equal(3, report.Pairs.Count);
-        Assert.Contains(report.Pairs, x => x.EmsLegacyId == "3" && x.TargetLegacyId == "LIFT-3");
-        Assert.Contains(report.Pairs, x => x.EmsLegacyId == "SAASA-4" && x.TargetLegacyId == "LIFT-4");
-        Assert.Contains(report.Pairs, x => x.EmsLegacyId == "EMS-5" && x.TargetLegacyId == "LIFT-5");
+        Assert.Contains(report.Pairs, x => x.EmsLegacyId == "3" && x.TargetLegacyId == "LIFT-176");
+        Assert.Contains(report.Pairs, x => x.EmsLegacyId == "SAASA-4" && x.TargetLegacyId == "LIFT-201");
+        Assert.Contains(report.Pairs, x => x.EmsLegacyId == "EMS-5" && x.TargetLegacyId == "LIFT-315");
+        Assert.All(report.Pairs, x => Assert.Equal("exact-name", x.MatchMethod));
+    }
+
+    [Fact]
+    public async Task DryRun_CoreNameFallback_MatchesWhenExactDiffers()
+    {
+        using var db = CreateDb(nameof(DryRun_CoreNameFallback_MatchesWhenExactDiffers));
+        var p = AddProject(db);
+        AddCustomer(db, p.Id, "3", "Mega Asansör");
+        AddCustomer(db, p.Id, "LIFT-277", "MEGA ASANSÖR ELEKTRİK SANAYİ VE TİCARET LTD ŞTİ");
+        await db.SaveChangesAsync();
+
+        var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
+
+        var pair = Assert.Single(report.Pairs);
+        Assert.Equal("LIFT-277", pair.TargetLegacyId);
+        Assert.Equal("core-name", pair.MatchMethod);
+    }
+
+    [Fact]
+    public async Task DryRun_DuplicateLiveLiftNames_ReportedAsAmbiguous_NeverGuessed()
+    {
+        using var db = CreateDb(nameof(DryRun_DuplicateLiveLiftNames_ReportedAsAmbiguous_NeverGuessed));
+        var p = AddProject(db);
+        AddCustomer(db, p.Id, "3", "Merkez Asansör");
+        AddCustomer(db, p.Id, "LIFT-70", "MERKEZ ASANSÖR");
+        AddCustomer(db, p.Id, "LIFT-88", "MERKEZ ASANSÖR");
+        await db.SaveChangesAsync();
+
+        var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
+
+        Assert.Equal(0, report.MigratedPairs);
+        var u = Assert.Single(report.Unmatched);
+        // "Aynı isimde" pins the EXACT-ambiguity reason — a regression falling through to the
+        // core index would produce the "Çekirdek isim" reason instead.
+        Assert.StartsWith("Aynı isimde", u.Reason);
+        Assert.Contains("LIFT-70", u.Reason);
+        Assert.Contains("LIFT-88", u.Reason);
+    }
+
+    [Fact]
+    public async Task DryRun_AmbiguousExactHit_NeverFallsThroughToUniqueLiveCoreCandidate()
+    {
+        // Mutation-killing test: exact key hits TWO soft-deleted LIFT duplicates (PickUnique →
+        // null via the all-deleted-multiple branch) while the core index holds a unique LIVE
+        // third row. A fallthrough-to-core regression would silently auto-match that third row —
+        // the wrong-firm-guess class the id-based disaster taught us to fear. Correct behavior:
+        // stop at the exact stage, report ambiguity, migrate nothing.
+        using var db = CreateDb(nameof(DryRun_AmbiguousExactHit_NeverFallsThroughToUniqueLiveCoreCandidate));
+        var p = AddProject(db);
+        AddCustomer(db, p.Id, "3", "Merkez Asansör");
+        AddCustomer(db, p.Id, "LIFT-70", "Merkez Asansör", isDeleted: true);
+        AddCustomer(db, p.Id, "LIFT-88", "MERKEZ ASANSÖR", isDeleted: true);
+        AddCustomer(db, p.Id, "LIFT-99", "Merkez Asansör Sanayi"); // live, core "merkez" — bait
+        await db.SaveChangesAsync();
+
+        var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
+
+        Assert.Equal(0, report.MigratedPairs);
+        var u = Assert.Single(report.Unmatched);
+        Assert.StartsWith("Aynı isimde", u.Reason);
+    }
+
+    [Fact]
+    public async Task DryRun_ExactMatchWins_EvenWhenCoreNamesCollide()
+    {
+        using var db = CreateDb(nameof(DryRun_ExactMatchWins_EvenWhenCoreNamesCollide));
+        var p = AddProject(db);
+        AddCustomer(db, p.Id, "3", "Daspa Lift");
+        AddCustomer(db, p.Id, "LIFT-160", "Daspa Lift San."); // core "daspa lift" — collides
+        AddCustomer(db, p.Id, "LIFT-260", "DASPA LİFT");      // exact "daspa lift" — unique, wins
+        await db.SaveChangesAsync();
+
+        var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
+
+        // The core index has two "daspa lift" candidates, but the unique EXACT hit resolves
+        // first — the core fallback is never consulted.
+        var pair = Assert.Single(report.Pairs);
+        Assert.Equal("LIFT-260", pair.TargetLegacyId);
+        Assert.Equal("exact-name", pair.MatchMethod);
+    }
+
+    [Fact]
+    public async Task DryRun_CoreCollisionWithoutExactTwin_IsAmbiguous()
+    {
+        using var db = CreateDb(nameof(DryRun_CoreCollisionWithoutExactTwin_IsAmbiguous));
+        var p = AddProject(db);
+        AddCustomer(db, p.Id, "3", "Emlift Asansör Ltd."); // exact "emlift asansor ltd" — no twin
+        AddCustomer(db, p.Id, "LIFT-252", "Emlift Asansör");    // core "emlift"
+        AddCustomer(db, p.Id, "LIFT-267", "EMLİFT ASANSÖR SAN"); // core "emlift"
+        await db.SaveChangesAsync();
+
+        var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
+
+        Assert.Equal(0, report.MigratedPairs);
+        var u = Assert.Single(report.Unmatched);
+        Assert.Contains("emlift", u.Reason);
+        Assert.Contains("manuel karar", u.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -93,9 +211,9 @@ public class EmsToLiftdeskMigrationServiceTests
         AddCustomer(db, p.Id, "REZV-1", "Rezerval");
         AddCustomer(db, p.Id, "SAASB-2", "Rezerval Legacy");
         AddCustomer(db, p.Id, "PC-9", "Lead");
-        AddCustomer(db, p.Id, "EMSMIGRATED-3", "Already Done", isDeleted: true);
+        AddCustomer(db, p.Id, "EMSMIGRATED-3", "Orka Asansör", isDeleted: true);
         AddCustomer(db, p.Id, null, "Manual Customer");
-        AddCustomer(db, p.Id, "LIFT-3", "Lift 3");
+        AddCustomer(db, p.Id, "LIFT-176", "Orka Asansör");
         await db.SaveChangesAsync();
 
         var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
@@ -110,10 +228,10 @@ public class EmsToLiftdeskMigrationServiceTests
     {
         using var db = CreateDb(nameof(DryRun_ReportArithmetic_FoundEqualsPairsPlusUnmatched_WithParseFailures));
         var p = AddProject(db);
-        AddCustomer(db, p.Id, "3", "Matched");
-        AddCustomer(db, p.Id, "7", "No Counterpart");
+        AddCustomer(db, p.Id, "3", "Orka Asansör");
+        AddCustomer(db, p.Id, "7", "Yok Böyle Firma");
         AddCustomer(db, p.Id, "SAASA-notanumber", "Parse Fail");
-        AddCustomer(db, p.Id, "LIFT-3", "Lift 3");
+        AddCustomer(db, p.Id, "LIFT-176", "ORKA ASANSOR");
         await db.SaveChangesAsync();
 
         var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
@@ -123,7 +241,8 @@ public class EmsToLiftdeskMigrationServiceTests
         Assert.Equal(2, report.UnmatchedCount);
         Assert.Equal(report.EmsCustomersFound, report.MigratedPairs + report.UnmatchedCount);
         Assert.Contains(report.Unmatched, u => u.LegacyId == "SAASA-notanumber");
-        Assert.Contains(report.Unmatched, u => u.LegacyId == "7");
+        Assert.Contains(report.Unmatched, u => u.LegacyId == "7"
+            && u.Reason.Contains("isim eşleşmesi yok"));
     }
 
     // ── Deletion carry-over & guards ─────────────────────────────────────────
@@ -131,13 +250,13 @@ public class EmsToLiftdeskMigrationServiceTests
     [Fact]
     public async Task DryRun_DeletedDuplicateBesideLiveSource_DoesNotSoftDeleteTarget()
     {
-        // The exact scenario the adversarial review flagged: a soft-deleted "SAASA-3"
-        // duplicate must NOT bury the live "3" row's archive under a deleted target.
+        // A soft-deleted duplicate EMS row (same company name) must NOT bury the live
+        // sibling's archive under a deleted target.
         using var db = CreateDb(nameof(DryRun_DeletedDuplicateBesideLiveSource_DoesNotSoftDeleteTarget));
         var p = AddProject(db);
-        AddCustomer(db, p.Id, "SAASA-3", "Dup Deleted", isDeleted: true);
-        AddCustomer(db, p.Id, "3", "Canonical Live");
-        AddCustomer(db, p.Id, "LIFT-3", "Lift 3");
+        AddCustomer(db, p.Id, "SAASA-3", "Orka Asansör", isDeleted: true);
+        AddCustomer(db, p.Id, "3", "Orka Asansör");
+        AddCustomer(db, p.Id, "LIFT-176", "Orka Asansör");
         await db.SaveChangesAsync();
 
         var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
@@ -153,9 +272,9 @@ public class EmsToLiftdeskMigrationServiceTests
     {
         using var db = CreateDb(nameof(DryRun_AllSourcesDeleted_CarriesDeletionToTarget_CountedOnce));
         var p = AddProject(db);
-        AddCustomer(db, p.Id, "SAASA-3", "Dup Deleted", isDeleted: true);
-        AddCustomer(db, p.Id, "3", "Also Deleted", isDeleted: true);
-        AddCustomer(db, p.Id, "LIFT-3", "Lift 3");
+        AddCustomer(db, p.Id, "SAASA-3", "Orka Asansör", isDeleted: true);
+        AddCustomer(db, p.Id, "3", "Orka Asansör", isDeleted: true);
+        AddCustomer(db, p.Id, "LIFT-176", "Orka Asansör");
         await db.SaveChangesAsync();
 
         var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
@@ -171,8 +290,8 @@ public class EmsToLiftdeskMigrationServiceTests
     {
         using var db = CreateDb(nameof(DryRun_LiveSourceWithDeletedTarget_SkipsWholeGroupForHumanDecision));
         var p = AddProject(db);
-        AddCustomer(db, p.Id, "3", "Live Ems");
-        AddCustomer(db, p.Id, "LIFT-3", "Deleted Lift", isDeleted: true);
+        AddCustomer(db, p.Id, "3", "Orka Asansör");
+        AddCustomer(db, p.Id, "LIFT-176", "Orka Asansör", isDeleted: true);
         await db.SaveChangesAsync();
 
         var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
@@ -187,8 +306,8 @@ public class EmsToLiftdeskMigrationServiceTests
     {
         using var db = CreateDb(nameof(DryRun_DeletedSourceWithDeletedTarget_MigratesArchive_NoExtraCarryOver));
         var p = AddProject(db);
-        AddCustomer(db, p.Id, "3", "Deleted Ems", isDeleted: true);
-        AddCustomer(db, p.Id, "LIFT-3", "Deleted Lift", isDeleted: true);
+        AddCustomer(db, p.Id, "3", "Orka Asansör", isDeleted: true);
+        AddCustomer(db, p.Id, "LIFT-176", "Orka Asansör", isDeleted: true);
         await db.SaveChangesAsync();
 
         var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
@@ -207,7 +326,7 @@ public class EmsToLiftdeskMigrationServiceTests
         using var db = CreateDb(nameof(DryRun_CopiesCrmOnlyFields_OnlyWhereTargetEmpty));
         var p = AddProject(db);
         var user = Guid.NewGuid();
-        AddCustomer(db, p.Id, "3", "Ems", mutate: c =>
+        AddCustomer(db, p.Id, "3", "Orka Asansör", mutate: c =>
         {
             c.Code = "MUS-1";
             c.ContactName = "Ali Veli";
@@ -215,7 +334,7 @@ public class EmsToLiftdeskMigrationServiceTests
             c.AssignedUserId = user;
             c.ParasutContactId = "999";
         });
-        AddCustomer(db, p.Id, "LIFT-3", "Lift", mutate: c =>
+        AddCustomer(db, p.Id, "LIFT-176", "Orka Asansör", mutate: c =>
         {
             c.Code = "EXISTING"; // occupied — must NOT be overwritten
         });
@@ -231,7 +350,7 @@ public class EmsToLiftdeskMigrationServiceTests
         Assert.Contains("ParasutContactId", pair.CopiedFields);
 
         // Dry-run must not have mutated anything.
-        var target = await db.Customers.IgnoreQueryFilters().FirstAsync(c => c.LegacyId == "LIFT-3");
+        var target = await db.Customers.IgnoreQueryFilters().FirstAsync(c => c.LegacyId == "LIFT-176");
         Assert.Equal("EXISTING", target.Code);
         Assert.Null(target.ContactName);
         Assert.Null(target.Label);
@@ -242,9 +361,9 @@ public class EmsToLiftdeskMigrationServiceTests
     {
         using var db = CreateDb(nameof(DryRun_DuplicateGroup_CopiesOnlyFromCanonicalLiveSource));
         var p = AddProject(db);
-        AddCustomer(db, p.Id, "SAASA-3", "Dup Deleted", isDeleted: true, mutate: c => c.Code = "DUP");
-        AddCustomer(db, p.Id, "3", "Canonical Live", mutate: c => c.Code = "CANON");
-        AddCustomer(db, p.Id, "LIFT-3", "Lift 3");
+        AddCustomer(db, p.Id, "SAASA-3", "Orka Asansör", isDeleted: true, mutate: c => c.Code = "DUP");
+        AddCustomer(db, p.Id, "3", "Orka Asansör", mutate: c => c.Code = "CANON");
+        AddCustomer(db, p.Id, "LIFT-176", "Orka Asansör");
         await db.SaveChangesAsync();
 
         var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
@@ -263,8 +382,8 @@ public class EmsToLiftdeskMigrationServiceTests
     {
         using var db = CreateDb(nameof(DryRun_CountsChildrenPerSource_IncludingSoftDeletedChildren));
         var p = AddProject(db);
-        var ems = AddCustomer(db, p.Id, "3", "Ems");
-        AddCustomer(db, p.Id, "LIFT-3", "Lift 3");
+        var ems = AddCustomer(db, p.Id, "3", "Orka Asansör");
+        AddCustomer(db, p.Id, "LIFT-176", "Orka Asansör");
         db.ContactHistories.Add(new IonCrm.Domain.Entities.ContactHistory
         {
             Id = Guid.NewGuid(), ProjectId = p.Id, CustomerId = ems.Id,
@@ -297,10 +416,10 @@ public class EmsToLiftdeskMigrationServiceTests
     {
         using var db = CreateDb(nameof(DryRun_ReportsOriginalDeletionFlags_NotMutatedState));
         var p = AddProject(db);
-        AddCustomer(db, p.Id, "3", "Live Ems");
-        AddCustomer(db, p.Id, "4", "Deleted Ems", isDeleted: true);
-        AddCustomer(db, p.Id, "LIFT-3", "Lift 3");
-        AddCustomer(db, p.Id, "LIFT-4", "Lift 4");
+        AddCustomer(db, p.Id, "3", "Orka Asansör");
+        AddCustomer(db, p.Id, "4", "Vega Lift", isDeleted: true);
+        AddCustomer(db, p.Id, "LIFT-176", "Orka Asansör");
+        AddCustomer(db, p.Id, "LIFT-315", "Vega Lift");
         await db.SaveChangesAsync();
 
         var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
@@ -313,19 +432,19 @@ public class EmsToLiftdeskMigrationServiceTests
     }
 
     [Fact]
-    public async Task DryRun_DuplicateLiftRows_PrefersLiveTarget()
+    public async Task DryRun_DuplicateLiftRowsSameName_PrefersLiveTarget()
     {
-        using var db = CreateDb(nameof(DryRun_DuplicateLiftRows_PrefersLiveTarget));
+        using var db = CreateDb(nameof(DryRun_DuplicateLiftRowsSameName_PrefersLiveTarget));
         var p = AddProject(db);
-        AddCustomer(db, p.Id, "3", "Ems");
-        AddCustomer(db, p.Id, "LIFT-3", "Dead Lift", isDeleted: true);
-        AddCustomer(db, p.Id, "LIFT-3", "Live Lift");
+        AddCustomer(db, p.Id, "3", "Orka Asansör");
+        AddCustomer(db, p.Id, "LIFT-90", "Orka Asansör", isDeleted: true); // dead duplicate
+        AddCustomer(db, p.Id, "LIFT-176", "Orka Asansör");                 // live — must win
         await db.SaveChangesAsync();
 
         var report = await CreateService(db).MigrateAsync(dryRun: true, CancellationToken.None);
 
         var pair = Assert.Single(report.Pairs);
-        Assert.Equal("Live Lift", pair.TargetCompanyName);
-        Assert.Contains(report.Warnings, w => w.Contains("Birden fazla LIFT-3"));
+        Assert.Equal("LIFT-176", pair.TargetLegacyId);
+        Assert.False(pair.TargetWasDeleted);
     }
 }
