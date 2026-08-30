@@ -8,6 +8,7 @@ using IonCrm.Application.Features.Sync.Queries.GetSyncLogs;
 using IonCrm.Domain.Enums;
 using IonCrm.Infrastructure.BackgroundServices;
 using IonCrm.Infrastructure.Persistence;
+using IonCrm.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -246,12 +247,14 @@ public sealed class SyncController : ApiControllerBase
     }
 
     /// <summary>
-    /// One-shot destructive reset: hard-deletes every <c>Customer</c> row whose <c>LegacyId</c>
-    /// starts with <c>LIFT-</c> so the next Liftdesk sync repopulates the mirror from scratch
-    /// against the new API host.  Cascades to every dependent row via the FK constraints —
-    /// <b>ContactHistories, CustomerTasks, Opportunities, Invoices and CustomerContracts</b>
-    /// attached to those customers ARE ALSO removed.  Meant for the Liftdesk host cutover;
-    /// requires <c>confirm=true</c> to fire so an idle click cannot wipe production data.
+    /// One-shot reset: hard-deletes <c>LIFT-*</c> Customer rows that own NO child data, so the
+    /// next Liftdesk sync repopulates the mirror from scratch against the new API host.
+    ///
+    /// Customers with ANY dependent rows (contact histories, tasks, opportunities, invoices,
+    /// contracts) are PRESERVED — a hard delete would cascade to those children, and after the
+    /// EMS→Liftdesk data migration the LIFT rows carry the retired EMS platform's only surviving
+    /// CRM archive, which must never be destroyed by a mirror reset. Preserved rows are simply
+    /// updated in place by the next sync.  Requires <c>confirm=true</c>.
     ///
     /// After the delete, kicks off <see cref="SaasSyncJob"/> in the background so the mirror
     /// starts refilling immediately (same fire-and-forget path as <see cref="TriggerSync"/>).
@@ -271,28 +274,41 @@ public sealed class SyncController : ApiControllerBase
         if (!confirm)
         {
             return BadRequest(ApiResponse<object>.Fail(
-                "Reset işlemi kalıcıdır ve tüm Liftdesk müşterilerini (LIFT-*) ve bağlı kayıtlarını " +
-                "(iletişim geçmişi, görevler, fırsatlar, faturalar, sözleşmeler) siler. " +
+                "Reset işlemi çocuk kaydı olmayan Liftdesk müşterilerini (LIFT-*) kalıcı olarak siler; " +
+                "iletişim geçmişi / görev / fırsat / fatura / sözleşme taşıyan müşteriler korunur. " +
                 "Onaylamak için ?confirm=true parametresiyle tekrar çağırın.",
                 400));
         }
 
         int deleted;
+        int preserved;
         using (var scope = _scopeFactory.CreateScope())
         {
             var db     = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<SyncController>>();
 
-            // Hard delete — soft-deleted rows would block the sync from re-inserting because
-            // the upsert path skips existing IsDeleted rows to respect user deletions.
+            // Hard delete of CHILDLESS rows only — soft-deleted rows would block the sync from
+            // re-inserting (the upsert path skips existing IsDeleted rows), but rows that own
+            // children must survive: the FK cascade would otherwise destroy the migrated EMS
+            // archive (and any CRM work) irrecoverably.
             deleted = await db.Database.ExecuteSqlRawAsync(
-                @"DELETE FROM ""Customers"" WHERE ""LegacyId"" LIKE 'LIFT-%'",
+                @"DELETE FROM ""Customers"" AS c
+                  WHERE c.""LegacyId"" LIKE 'LIFT-%'
+                    AND NOT EXISTS (SELECT 1 FROM ""ContactHistories""  t WHERE t.""CustomerId"" = c.""Id"")
+                    AND NOT EXISTS (SELECT 1 FROM ""CustomerTasks""     t WHERE t.""CustomerId"" = c.""Id"")
+                    AND NOT EXISTS (SELECT 1 FROM ""Opportunities""     t WHERE t.""CustomerId"" = c.""Id"")
+                    AND NOT EXISTS (SELECT 1 FROM ""Invoices""          t WHERE t.""CustomerId"" = c.""Id"")
+                    AND NOT EXISTS (SELECT 1 FROM ""CustomerContracts"" t WHERE t.""CustomerId"" = c.""Id"")",
                 cancellationToken);
 
+            preserved = await db.Customers
+                .IgnoreQueryFilters()
+                .CountAsync(c => c.LegacyId != null && c.LegacyId.StartsWith("LIFT-"), cancellationToken);
+
             logger.LogWarning(
-                "Reset Liftdesk: hard-deleted {Count} Customer row(s) with LegacyId LIKE 'LIFT-%'. " +
-                "Dependent ContactHistories / Tasks / Opportunities / Invoices / Contracts cascaded.",
-                deleted);
+                "Reset Liftdesk: hard-deleted {Deleted} childless LIFT-* Customer row(s); " +
+                "{Preserved} row(s) with dependent data preserved.",
+                deleted, preserved);
         }
 
         // Kick off a fresh sync so the mirror starts filling straight away.
@@ -316,7 +332,64 @@ public sealed class SyncController : ApiControllerBase
         });
 
         return OkResponse(
-            new { DeletedCustomers = deleted, SyncTriggered = true },
-            $"{deleted} Liftdesk müşteri kaydı silindi. Yeni URL üzerinden sync arka planda başlatıldı.");
+            new { DeletedCustomers = deleted, PreservedCustomers = preserved, SyncTriggered = true },
+            $"{deleted} çocuksuz Liftdesk müşteri kaydı silindi, {preserved} veri taşıyan kayıt korundu. " +
+            "Sync arka planda başlatıldı.");
+    }
+
+    /// <summary>
+    /// One-shot migration of the retired EMS platform's CRM data onto the Liftdesk successor
+    /// customers.  EMS company ids were preserved by the EMS→Liftdesk platform migration, so an
+    /// EMS customer ("3" / "SAASA-3" / "EMS-3") maps to the Liftdesk customer "LIFT-3".
+    ///
+    /// Per matched pair: every child row (contact histories, tasks, opportunities, invoices,
+    /// contracts) is re-pointed to the Liftdesk customer (denormalized ProjectId rewritten too);
+    /// CRM-only fields (Label, Code, AssignedUserId, ParasutContactId, e-invoice flags, contact
+    /// name) are copied where the target is empty; a CRM-side soft-delete on the EMS row carries
+    /// over to the Liftdesk row; the EMS row is retired (soft-delete + LegacyId → EMSMIGRATED-{id},
+    /// making re-runs idempotent).  EMS customers without a LIFT counterpart are reported and left
+    /// untouched.  Executes inside a single DB transaction — any failure rolls everything back.
+    ///
+    /// Call with ?dryRun=true (default) first: zero writes, full matching report. Then execute
+    /// with ?dryRun=false&amp;confirm=true.  SuperAdmin only.
+    /// </summary>
+    [HttpPost("migrate-ems-to-liftdesk")]
+    [Authorize(Policy = "SuperAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> MigrateEmsToLiftdesk(
+        [FromQuery] bool dryRun = true,
+        [FromQuery] bool confirm = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (!dryRun && !confirm)
+        {
+            return BadRequest(ApiResponse<object>.Fail(
+                "Bu işlem EMS müşterilerinin tüm verilerini (iletişim geçmişi, görevler, fırsatlar, " +
+                "faturalar, sözleşmeler) Liftdesk karşılıklarına taşır ve EMS kayıtlarını emekliye ayırır. " +
+                "Önce ?dryRun=true ile raporu inceleyin; uygulamak için ?dryRun=false&confirm=true ile çağırın.",
+                400));
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var migrator = scope.ServiceProvider.GetRequiredService<EmsToLiftdeskMigrationService>();
+
+        try
+        {
+            var report = await migrator.MigrateAsync(dryRun, cancellationToken);
+            var message = dryRun
+                ? $"DRY-RUN: {report.MigratedPairs} eşleşme, {report.UnmatchedCount} eşleşmeyen. Hiçbir veri değişmedi."
+                : $"{report.MigratedPairs} EMS müşterisi Liftdesk karşılığına taşındı ({report.UnmatchedCount} eşleşmeyen dokunulmadı).";
+            return OkResponse<object>(report, message);
+        }
+        catch (Exception ex)
+        {
+            using var errScope = _scopeFactory.CreateScope();
+            var logger = errScope.ServiceProvider.GetRequiredService<ILogger<SyncController>>();
+            logger.LogError(ex, "EMS→Liftdesk migration failed (dryRun={DryRun}). Transaction rolled back.", dryRun);
+            return BadRequest(ApiResponse<object>.Fail(
+                $"Migration başarısız (tüm değişiklikler geri alındı): {ex.GetBaseException().Message}", 400));
+        }
     }
 }

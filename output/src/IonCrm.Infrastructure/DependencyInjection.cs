@@ -117,6 +117,9 @@ public static class DependencyInjection
         // regardless of whether the automatic sync scheduler is enabled.
         services.AddScoped<SaasSyncJob>();
 
+        // One-shot EMS→Liftdesk customer-data migration (SuperAdmin endpoint on SyncController).
+        services.AddScoped<EmsToLiftdeskMigrationService>();
+
         // ── Automatic sync scheduler ─────────────────────────────────────────
         // Set Sync:Enabled = false in environment variables to disable the
         // automatic 15-minute sync cycle (e.g. in production where sync should

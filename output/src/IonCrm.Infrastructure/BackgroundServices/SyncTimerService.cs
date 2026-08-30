@@ -29,8 +29,10 @@ public sealed class SyncTimerService : BackgroundService
     /// <summary>
     /// Arbitrary unique int64 key for <c>pg_try_advisory_lock</c>.
     /// Must not collide with any other advisory lock in the application.
+    /// Internal so one-shot admin operations that must not run concurrently with a sync cycle
+    /// (e.g. <see cref="Services.EmsToLiftdeskMigrationService"/>) can take the SAME lock.
     /// </summary>
-    private const long AdvisoryLockKey = 7_391_827_364_918_273L;
+    internal const long AdvisoryLockKey = 7_391_827_364_918_273L;
 
     /// <summary>Delay before the first sync so DB migrations can complete.</summary>
     private static readonly TimeSpan StartupDelay = TimeSpan.FromSeconds(30);
