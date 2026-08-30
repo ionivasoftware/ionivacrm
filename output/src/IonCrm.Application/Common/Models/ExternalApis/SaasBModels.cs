@@ -50,15 +50,6 @@ public record SaasBOrder(
     long OrderTimestamp,
     long UpdatedTimestamp);
 
-/// <summary>Payload sent to SaaS B webhook endpoint on CRM events.</summary>
-public record SaasBCallbackPayload(
-    string Event,          // "crm.subscription_extended" | "crm.status_changed"
-    string Id,
-    string Type,           // "customer" | "subscription"
-    string Project,
-    object Payload,
-    long Timestamp);
-
 /// <summary>Incoming webhook payload pushed by SaaS B to POST /api/v1/sync/saas-b.</summary>
 public record SaasBWebhookPayload(
     string Event,

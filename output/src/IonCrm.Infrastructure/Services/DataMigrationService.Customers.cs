@@ -58,8 +58,8 @@ public sealed partial class DataMigrationService
 
             await SaveCustomerBatchAsync(
                 rows,
-                // Canonical LegacyId for EMS rows = plain numeric ID, matching what
-                // SaasSyncJob.SyncEmsCrmCustomersAsync writes for the same companies.
+                // Canonical LegacyId for EMS rows = plain numeric ID (the format the EMS
+                // customer sync historically wrote for the same companies).
                 // The dedupe step below ALSO checks the legacy "EMS-{id}" format so
                 // earlier migration runs that used the prefixed form are recognized
                 // and not duplicated.

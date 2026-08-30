@@ -116,23 +116,6 @@ public sealed class SaasBClient : ISaasBClient
     }
 
     /// <inheritdoc />
-    public async Task NotifyCallbackAsync(SaasBCallbackPayload payload, string? apiKey = null, CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug(
-            "SaaS B: posting callback. Event={Event} Type={Type} Id={Id}",
-            payload.Event, payload.Type, payload.Id);
-
-        await _retryPipeline.ExecuteAsync(async ct =>
-        {
-            var request = new HttpRequestMessage(HttpMethod.Post, "webhooks/crm");
-            ApplyAuth(request, apiKey);
-            request.Content = JsonContent.Create(payload, options: JsonOpts);
-            var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
     public async Task<List<RezervalCompany>> GetRezervalCompaniesAsync(string? apiKey = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Rezerval CRM: fetching company list.");

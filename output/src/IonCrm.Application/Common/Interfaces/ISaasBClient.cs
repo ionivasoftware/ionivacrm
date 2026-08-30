@@ -21,12 +21,6 @@ public interface ISaasBClient
     Task<SaasBOrdersResponse> GetOrdersAsync(string? apiKey = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Sends an outbound CRM event to SaaS B's webhook endpoint.
-    /// Called instantly when: subscription extended, status changed, etc.
-    /// </summary>
-    Task NotifyCallbackAsync(SaasBCallbackPayload payload, string? apiKey = null, CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Fetches all companies from the Rezerval CRM API.
     /// Endpoint: GET https://rezback.rezerval.com/v1/Crm/CompanyList
     /// Auth: Authorization: Bearer {apiKey}

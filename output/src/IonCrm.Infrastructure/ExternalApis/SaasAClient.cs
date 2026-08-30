@@ -67,21 +67,6 @@ public sealed class SaasAClient : ISaasAClient
     }
 
     /// <inheritdoc />
-    public async Task<SaasACustomersResponse> GetCustomersAsync(string? apiKey = null, CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("SaaS A: fetching customers.");
-        return await _retryPipeline.ExecuteAsync<SaasACustomersResponse>(async ct =>
-        {
-            var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/customers");
-            ApplyAuth(request, apiKey);
-            var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
-            var result = await response.Content.ReadFromJsonAsync<SaasACustomersResponse>(JsonOpts, ct);
-            return result ?? new SaasACustomersResponse(new List<SaasACustomer>(), 0);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
     public async Task<EmsCrmCustomersResponse> GetCrmCustomersPageAsync(
         string? apiKey,
         int page,
@@ -104,53 +89,6 @@ public sealed class SaasAClient : ISaasAClient
             await EnsureSuccessAsync(response, ct);
             var result = await response.Content.ReadFromJsonAsync<EmsCrmCustomersResponse>(JsonOpts, ct);
             return result ?? new EmsCrmCustomersResponse(new List<EmsCrmCustomer>(), 0, page, pageSize, 0);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<SaasASubscriptionsResponse> GetSubscriptionsAsync(string? apiKey = null, CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("SaaS A: fetching subscriptions.");
-        return await _retryPipeline.ExecuteAsync<SaasASubscriptionsResponse>(async ct =>
-        {
-            var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/subscriptions");
-            ApplyAuth(request, apiKey);
-            var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
-            var result = await response.Content.ReadFromJsonAsync<SaasASubscriptionsResponse>(JsonOpts, ct);
-            return result ?? new SaasASubscriptionsResponse(new List<SaasASubscription>(), 0);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<SaasAOrdersResponse> GetOrdersAsync(string? apiKey = null, CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("SaaS A: fetching orders.");
-        return await _retryPipeline.ExecuteAsync<SaasAOrdersResponse>(async ct =>
-        {
-            var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/orders");
-            ApplyAuth(request, apiKey);
-            var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
-            var result = await response.Content.ReadFromJsonAsync<SaasAOrdersResponse>(JsonOpts, ct);
-            return result ?? new SaasAOrdersResponse(new List<SaasAOrder>(), 0);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task NotifyCallbackAsync(SaasACallbackPayload payload, string? apiKey = null, CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug(
-            "SaaS A: posting callback. EventType={EventType} EntityType={EntityType} EntityId={EntityId}",
-            payload.EventType, payload.EntityType, payload.EntityId);
-
-        await _retryPipeline.ExecuteAsync(async ct =>
-        {
-            var request = new HttpRequestMessage(HttpMethod.Post, "api/v1/crm-callbacks");
-            ApplyAuth(request, apiKey);
-            request.Content = JsonContent.Create(payload, options: JsonOpts);
-            var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
         }, cancellationToken);
     }
 
