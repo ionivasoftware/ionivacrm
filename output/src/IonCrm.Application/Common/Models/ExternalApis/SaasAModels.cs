@@ -115,7 +115,10 @@ public record EmsRecentPaymentsResponse(
 public record EmsPayment(
     int Id,
     int CompanyId,
-    int UserId,
+    // Nullable: Liftdesk payment records carry no user field and send userId=null; a non-nullable
+    // int here made the WHOLE payment sync fail to deserialize ("$.data[0].userId"), so no payment
+    // (subscription or SMS) ever became a draft invoice.
+    int? UserId,
     string PaymentType,
     decimal Price,
     decimal SubTotal,
