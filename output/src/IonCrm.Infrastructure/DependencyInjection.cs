@@ -72,6 +72,9 @@ public static class DependencyInjection
         services.AddScoped<IVendorInvoiceService, VendorInvoiceService>();
         services.AddHostedService<VendorInvoiceReconcileService>();
 
+        // ── Churn dashboard: daily monthly-usage snapshot writer ──────────────
+        services.AddHostedService<UsageSnapshotService>();
+
         // ── Phase 2: cost-API auto-expect ─────────────────────────────────────
         // Each provider is dual-mode: live API when its credentials are configured, otherwise a
         // fixed VendorCosts:{Provider}:MonthlyAmount. Anthropic → Admin Cost API; Railway → GraphQL;
