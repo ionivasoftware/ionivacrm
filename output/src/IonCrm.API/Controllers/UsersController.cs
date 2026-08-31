@@ -1,6 +1,7 @@
 using IonCrm.API.Common;
 using IonCrm.Application.Auth.Commands.AssignRole;
 using IonCrm.Application.Auth.Commands.DeleteUser;
+using IonCrm.Application.Auth.Commands.RemoveRole;
 using IonCrm.Application.Auth.Commands.RegisterUser;
 using IonCrm.Application.Auth.Commands.ResetUserPassword;
 using IonCrm.Application.Auth.Commands.UpdateUser;
@@ -148,6 +149,29 @@ public class UsersController : ControllerBase
 
         return Ok(ApiResponse<object>.Ok(
             new { message = $"Role '{request.Role}' assigned to user {userId} in project {request.ProjectId}." }));
+    }
+
+    // ── DELETE /api/v1/users/{userId}/roles/{projectId} ──────────────────────
+
+    /// <summary>
+    /// Removes a user's role in a single project (soft-delete of the membership). The user is not
+    /// deleted; they simply stop appearing in that project and it drops from their token on next
+    /// login. Restricted to SuperAdmin.
+    /// </summary>
+    [HttpDelete("{userId:guid}/roles/{projectId:guid}")]
+    [Authorize(Policy = "SuperAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<object>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    public async Task<IActionResult> RemoveRole(
+        [FromRoute] Guid userId,
+        [FromRoute] Guid projectId)
+    {
+        var result = await _mediator.Send(new RemoveRoleCommand(userId, projectId));
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<object>.Fail(result.Errors));
+
+        return Ok(ApiResponse<object>.Ok(
+            new { message = $"User {userId} removed from project {projectId}." }));
     }
 }
 
