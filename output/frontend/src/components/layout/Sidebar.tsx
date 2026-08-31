@@ -17,6 +17,7 @@ import {
   Tags,
   MessageSquareText,
   MessageCircle,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -50,6 +51,7 @@ const navItems: NavItem[] = [
   { label: 'Gelen Faturalar', href: '/admin/vendor-invoices', icon: Receipt, financeOnly: true, badgeKey: 'missingInvoices' },
   { label: 'Faturalar', href: '/invoices', icon: FileText, financeOnly: true },
   { label: 'Raporlar', href: '/reports', icon: BarChart3 },
+  { label: 'Kullanım Raporu', href: '/usage-report', icon: Activity },
   { label: 'Ayarlar', href: '/settings', icon: Settings },
 ];
 

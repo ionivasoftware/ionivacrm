@@ -33,3 +33,44 @@ export function useNotifications() {
     retry: 1,
   });
 }
+
+// ── Customer usage report (churn dashboard) ────────────────────────────────
+
+export interface UsageReportRow {
+  customerId: string;
+  companyName: string;
+  legacyId: string | null;
+  status: string | null;
+  snapshotYear: number;
+  snapshotMonth: number;
+  elevatorCount: number;
+  userCount: number;
+  lastLoginAt: string | null;
+  maintenanceCount: number;
+  faultCount: number;
+  partChangeOfferCount: number;
+  revisionOfferCount: number;
+  assemblyOfferCount: number;
+  workOrderCount: number;
+  planTier: string | null;
+  planStatus: string | null;
+  planMonthlyPrice: number | null;
+  expirationDate: string | null;
+  capturedAt: string;
+}
+
+/** Customer usage report for a month (defaults to current on the server). */
+export function useUsageReport(year?: number, month?: number) {
+  return useQuery({
+    queryKey: ['dashboard', 'usage-report', year, month],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<UsageReportRow[]>>(
+        '/dashboard/usage-report',
+        { params: { year, month } }
+      );
+      return response.data.data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
