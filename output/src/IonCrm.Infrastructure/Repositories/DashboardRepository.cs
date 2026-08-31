@@ -290,4 +290,45 @@ public class DashboardRepository : IDashboardRepository
                 h.ContactedAt))
             .ToList();
     }
+
+    /// <inheritdoc />
+    public async Task<List<UsageReportRowDto>> GetUsageReportAsync(
+        int year, int month, Guid? projectId, CancellationToken cancellationToken = default)
+    {
+        // Tenant-scoped by the global query filters on both entities (SuperAdmin sees all).
+        var query =
+            from s in _db.CustomerUsageSnapshots
+            join c in _db.Customers on s.CustomerId equals c.Id
+            where s.SnapshotYear == year && s.SnapshotMonth == month
+            select new { s, c };
+
+        if (projectId.HasValue)
+            query = query.Where(x => x.s.ProjectId == projectId.Value);
+
+        var rows = await query
+            .OrderBy(x => x.c.CompanyName)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(x => new UsageReportRowDto(
+            x.c.Id,
+            x.c.CompanyName,
+            x.c.LegacyId,
+            x.c.Status.ToString(),
+            x.s.SnapshotYear,
+            x.s.SnapshotMonth,
+            x.s.ElevatorCount,
+            x.s.UserCount,
+            x.s.LastLoginAt,
+            x.s.MaintenanceCount,
+            x.s.FaultCount,
+            x.s.PartChangeOfferCount,
+            x.s.RevisionOfferCount,
+            x.s.AssemblyOfferCount,
+            x.s.WorkOrderCount,
+            x.s.PlanTier,
+            x.s.PlanStatus,
+            x.s.PlanMonthlyPrice,
+            x.s.ExpirationDate,
+            x.s.CapturedAt)).ToList();
+    }
 }

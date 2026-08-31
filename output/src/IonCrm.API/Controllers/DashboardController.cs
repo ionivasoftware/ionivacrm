@@ -1,6 +1,7 @@
 using IonCrm.API.Common;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Dashboard.Queries.GetDashboardStats;
+using IonCrm.Application.Dashboard.Queries.GetUsageReport;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IonCrm.API.Controllers;
@@ -35,6 +36,21 @@ public class DashboardController : ApiControllerBase
     {
         var activities = await _dashboardRepository.GetRecentActivitiesAsync(10, cancellationToken);
         return OkResponse(activities);
+    }
+
+    /// <summary>
+    /// Returns the customer usage report for a month (defaults to the current UTC month) — the
+    /// churn dashboard's usage list. Optionally scoped to one project. Tenant-scoped by access.
+    /// </summary>
+    [HttpGet("usage-report")]
+    public async Task<IActionResult> GetUsageReport(
+        [FromQuery] int? year = null,
+        [FromQuery] int? month = null,
+        [FromQuery] Guid? projectId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(new GetUsageReportQuery(year, month, projectId), cancellationToken);
+        return ResultToResponse(result);
     }
 }
 

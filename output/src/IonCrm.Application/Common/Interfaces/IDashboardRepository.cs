@@ -13,4 +13,11 @@ public interface IDashboardRepository
 
     /// <summary>Returns aggregated report data for the given project and date range.</summary>
     Task<ReportsDto> GetReportsAsync(Guid projectId, DateTime startDate, DateTime endDate, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the customer usage report for a given month — every customer that has a usage
+    /// snapshot for (year, month), ordered by company name. Tenant-scoped by the caller's access.
+    /// </summary>
+    Task<List<UsageReportRowDto>> GetUsageReportAsync(
+        int year, int month, Guid? projectId, CancellationToken cancellationToken = default);
 }
