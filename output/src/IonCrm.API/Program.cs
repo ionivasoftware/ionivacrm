@@ -259,6 +259,42 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 WHERE ""IsDeleted"" = false;
         ");
 
+        // ── CustomerUsageSnapshots (churn dashboard monthly usage history) ─────────
+        // One immutable row per (customer, month). The UNIQUE index on
+        // (CustomerId, SnapshotYear, SnapshotMonth) is what makes the monthly writer idempotent.
+        await RunSafe("CustomerUsageSnapshots table + indexes", @"
+            CREATE TABLE IF NOT EXISTS ""CustomerUsageSnapshots"" (
+                ""Id""                   uuid          NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""ProjectId""            uuid          NOT NULL,
+                ""CustomerId""           uuid          NOT NULL,
+                ""SnapshotYear""         integer       NOT NULL,
+                ""SnapshotMonth""        integer       NOT NULL,
+                ""ElevatorCount""        integer       NOT NULL DEFAULT 0,
+                ""UserCount""            integer       NOT NULL DEFAULT 0,
+                ""LastLoginAt""          timestamp with time zone,
+                ""MaintenanceCount""     integer       NOT NULL DEFAULT 0,
+                ""FaultCount""           integer       NOT NULL DEFAULT 0,
+                ""PartChangeOfferCount"" integer       NOT NULL DEFAULT 0,
+                ""RevisionOfferCount""   integer       NOT NULL DEFAULT 0,
+                ""AssemblyOfferCount""   integer       NOT NULL DEFAULT 0,
+                ""WorkOrderCount""       integer       NOT NULL DEFAULT 0,
+                ""PlanTier""             text,
+                ""PlanStatus""           text,
+                ""PlanMonthlyPrice""     numeric(18,2),
+                ""ExpirationDate""       timestamp with time zone,
+                ""CapturedAt""           timestamp with time zone NOT NULL DEFAULT now(),
+                ""CreatedAt""            timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""            timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""            boolean       NOT NULL DEFAULT false,
+                CONSTRAINT ""fk_customerusagesnapshots_customers"" FOREIGN KEY (""CustomerId"")
+                    REFERENCES ""Customers"" (""Id"") ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ux_customerusagesnapshots_customer_month""
+                ON ""CustomerUsageSnapshots"" (""CustomerId"", ""SnapshotYear"", ""SnapshotMonth"");
+            CREATE INDEX IF NOT EXISTS ""ix_customerusagesnapshots_project_month""
+                ON ""CustomerUsageSnapshots"" (""ProjectId"", ""SnapshotYear"", ""SnapshotMonth"");
+        ");
+
         // ── User theme preference ────────────────────────────────────────────────
         await RunSafe("Users ThemePreference column", @"
             ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""ThemePreference"" text NOT NULL DEFAULT 'dark';

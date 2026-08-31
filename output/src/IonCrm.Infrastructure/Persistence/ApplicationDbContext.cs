@@ -65,6 +65,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Gets or sets the VendorInvoices table (global vendor-cost reconciliation, SuperAdmin-only).</summary>
     public DbSet<VendorInvoice> VendorInvoices => Set<VendorInvoice>();
 
+    /// <summary>Gets or sets the CustomerUsageSnapshots table (monthly usage history for the churn dashboard).</summary>
+    public DbSet<CustomerUsageSnapshot> CustomerUsageSnapshots => Set<CustomerUsageSnapshot>();
+
     /// <summary>Gets or sets the VendorInvoicePdfs table (stored invoice PDF files).</summary>
     public DbSet<VendorInvoicePdf> VendorInvoicePdfs => Set<VendorInvoicePdf>();
 
@@ -149,6 +152,16 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<VendorInvoicePdf>()
             .HasQueryFilter(e => !e.IsDeleted);
+
+        // CustomerUsageSnapshot: one immutable row per (customer, month). Tenant-scoped like customer data.
+        modelBuilder.Entity<CustomerUsageSnapshot>(b =>
+        {
+            b.HasQueryFilter(e => !e.IsDeleted &&
+                (_currentUser.IsSuperAdmin || _currentUser.ProjectIds.Contains(e.ProjectId)));
+            // Idempotency + fast lookup: never two snapshots for the same customer-month.
+            b.HasIndex(e => new { e.CustomerId, e.SnapshotYear, e.SnapshotMonth }).IsUnique();
+            b.HasIndex(e => new { e.ProjectId, e.SnapshotYear, e.SnapshotMonth });
+        });
     }
 
     // ── Audit intercept ───────────────────────────────────────────────────────

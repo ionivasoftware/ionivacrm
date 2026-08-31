@@ -90,7 +90,10 @@ public sealed class GetCustomerEmsSummaryQueryHandler
                 m.Month,
                 m.MaintenanceCount,
                 m.FaultCount,
-                m.PartChangeOfferCount + m.RevisionOfferCount + m.AssemblyOfferCount))
+                m.PartChangeOfferCount + m.RevisionOfferCount + m.AssemblyOfferCount,
+                m.PartChangeOfferCount,
+                m.RevisionOfferCount,
+                m.AssemblyOfferCount))
             .ToList();
 
         // Storage is optional: older EMS/Liftdesk builds omit the block entirely.

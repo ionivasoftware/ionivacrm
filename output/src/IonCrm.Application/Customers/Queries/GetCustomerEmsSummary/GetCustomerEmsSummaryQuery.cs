@@ -39,4 +39,11 @@ public record EmsSummaryMonthlyStatDto(
     int Month,
     int MaintenanceCount,
     int BreakdownCount,
-    int ProposalCount);
+    /// <summary>Sum of the three offer types — kept for backward compatibility with the summary tab.</summary>
+    int ProposalCount,
+    /// <summary>Part-change offers alone (split out for the churn model's breadth/stickiness scoring).</summary>
+    int PartChangeOfferCount = 0,
+    /// <summary>Revision offers alone.</summary>
+    int RevisionOfferCount = 0,
+    /// <summary>Assembly offers alone.</summary>
+    int AssemblyOfferCount = 0);
