@@ -66,14 +66,17 @@ public interface ISaasAClient
         string? baseUrl = null);
 
     /// <summary>
-    /// Fetches recent completed payments from the EMS CRM API.
+    /// Fetches recent completed payments from the EMS/Liftdesk CRM API.
     /// GET /api/v1/crm/payments/recent
-    /// Returns payments with CompletionPayment=1 created within the last <paramref name="windowMinutes"/> minutes,
-    /// ordered by CreatedOn DESC.
+    /// Returns payments with CompletionPayment=1 ordered by CreatedOn DESC. When
+    /// <paramref name="sinceUtc"/> is supplied it is sent as <c>?sinceUtc=</c> to widen the window
+    /// (e.g. a one-shot backfill of everything since a given instant); otherwise the server's default
+    /// <paramref name="windowMinutes"/> window applies.
     /// </summary>
     Task<EmsRecentPaymentsResponse> GetRecentPaymentsAsync(
         string? apiKey,
         int windowMinutes = 20,
         CancellationToken cancellationToken = default,
-        string? baseUrl = null);
+        string? baseUrl = null,
+        DateTime? sinceUtc = null);
 }

@@ -86,7 +86,8 @@ public sealed class SyncEmsPaymentsCommandHandler
                     apiKey,
                     request.WindowMinutes,
                     cancellationToken,
-                    baseUrl);
+                    baseUrl,
+                    request.SinceUtc);
 
                 projectsScanned++;
                 paymentsFetched += response.Data.Count;

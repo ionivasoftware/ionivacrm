@@ -16,7 +16,13 @@ namespace IonCrm.Application.Features.Sync.Commands.SyncEmsPayments;
 /// </summary>
 public record SyncEmsPaymentsCommand(
     /// <summary>How far back to look for payments (minutes). Defaults to 20.</summary>
-    int WindowMinutes = 20
+    int WindowMinutes = 20,
+    /// <summary>
+    /// When set, sent to the source as <c>?sinceUtc=</c> to widen the fixed server window — used for a
+    /// one-shot backfill (e.g. everything since 2026-08-30). Duplicate drafts are prevented by the
+    /// existing Invoice.EmsPaymentId dedup, so a wide backfill is safe to re-run.
+    /// </summary>
+    DateTime? SinceUtc = null
 ) : IRequest<Result<SyncEmsPaymentsResult>>;
 
 /// <summary>Summary returned after the sync run.</summary>

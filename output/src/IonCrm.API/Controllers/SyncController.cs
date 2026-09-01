@@ -169,20 +169,25 @@ public sealed class SyncController : ApiControllerBase
     }
 
     /// <summary>
-    /// Fetches recent completed payments from all EMS-connected projects and
-    /// auto-creates invoice drafts for any payment not yet recorded.
-    /// SuperAdmin only.
+    /// Fetches recent completed payments (subscription + SMS) from all EMS/Liftdesk-connected
+    /// projects and auto-creates invoice drafts for any payment not yet recorded. SuperAdmin only.
     /// </summary>
     /// <param name="windowMinutes">How many minutes back to look for payments (default: 20).</param>
+    /// <param name="sinceUtc">
+    /// Optional. When set, sent to the source as <c>?sinceUtc=</c> to widen the window — for a
+    /// one-shot backfill, e.g. <c>?sinceUtc=2026-08-30T00:00:00Z</c>. Duplicate drafts are prevented
+    /// by the existing EmsPaymentId dedup, so re-running is safe.
+    /// </param>
     [HttpPost("ems-payments")]
     [Authorize(Policy = "SuperAdmin")]
     [ProducesResponseType(typeof(ApiResponse<SyncEmsPaymentsResult>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> SyncEmsPayments(
         [FromQuery] int windowMinutes = 20,
+        [FromQuery] DateTime? sinceUtc = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await Mediator.Send(new SyncEmsPaymentsCommand(windowMinutes), cancellationToken);
+        var result = await Mediator.Send(new SyncEmsPaymentsCommand(windowMinutes, sinceUtc), cancellationToken);
         return ResultToResponse(result);
     }
 

@@ -228,13 +228,19 @@ public sealed class SaasAClient : ISaasAClient
         string? apiKey,
         int windowMinutes = 20,
         CancellationToken cancellationToken = default,
-        string? baseUrl = null)
+        string? baseUrl = null,
+        DateTime? sinceUtc = null)
     {
-        _logger.LogDebug("SaaS A: fetching recent payments (window={WindowMinutes}min).", windowMinutes);
+        _logger.LogDebug("SaaS A: fetching recent payments (window={WindowMinutes}min, sinceUtc={Since}).",
+            windowMinutes, sinceUtc);
 
         return await _retryPipeline.ExecuteAsync<EmsRecentPaymentsResponse>(async ct =>
         {
-            var uri = BuildRequestUri("api/v1/crm/payments/recent", baseUrl);
+            // sinceUtc widens the fixed 20-min server window (one-shot backfill). ISO-8601 round-trip.
+            var path = sinceUtc.HasValue
+                ? $"api/v1/crm/payments/recent?sinceUtc={Uri.EscapeDataString(sinceUtc.Value.ToUniversalTime().ToString("o"))}"
+                : "api/v1/crm/payments/recent";
+            var uri = BuildRequestUri(path, baseUrl);
             var request = new HttpRequestMessage(HttpMethod.Get, uri);
             ApplyAuth(request, apiKey);
             var response = await _httpClient.SendAsync(request, ct);
