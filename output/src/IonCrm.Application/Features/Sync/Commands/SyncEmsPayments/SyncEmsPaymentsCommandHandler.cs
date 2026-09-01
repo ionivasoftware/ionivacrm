@@ -235,7 +235,12 @@ public sealed class SyncEmsPaymentsCommandHandler
                         IssueDate    = payment.CreatedOn,
                         DueDate      = payment.CreatedOn.Date,
                         Currency     = "TRL",
-                        GrossTotal   = payment.Price,
+                        // Derive gross from net + VAT rather than trusting the raw Price field: after a
+                        // Liftdesk change Price started arriving KDV-HARİÇ (net), which made "GrossTotal =
+                        // Price" store the net amount as if it were the KDV-included total (VAT lost). Net
+                        // (SubTotal) + VatPrice is correct whether Price is net or gross, and matches the
+                        // line's own net unitPrice + vatRate.
+                        GrossTotal   = payment.SubTotal + payment.VatPrice,
                         NetTotal     = payment.SubTotal,
                         LinesJson    = JsonSerializer.Serialize(lines),
                         Status       = InvoiceStatus.Draft,
