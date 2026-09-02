@@ -420,6 +420,9 @@ export interface EmsSummaryTotals {
   customerCount: number;
   elevatorCount: number;
   userCount: number;
+  lastLoginAt?: string | null;
+  /** "CurrentAccount" | "Invoice" — firmanın muhasebe modu; null ise kaynak bildirmiyor. */
+  accountingMode?: string | null;
 }
 
 export interface EmsSummaryMonthlyStat {

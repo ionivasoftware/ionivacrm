@@ -82,6 +82,13 @@ public class CustomerUsageSnapshot : BaseEntity
     /// </summary>
     public int CollectionCount { get; set; }
 
+    /// <summary>
+    /// Muhasebe modu ("CurrentAccount" | "Invoice"), yakalama anındaki değer. <see cref="InvoiceCount"/>
+    /// sıfırını doğru yorumlamak için: CurrentAccount modundaki firma hiç fatura kesmeyip yalnız
+    /// tahsilat işleyebilir. Kaynak bildirmiyorsa null.
+    /// </summary>
+    public string? AccountingMode { get; set; }
+
     // ── Commercial context (weight/priority, not a score input) ──────────────
 
     /// <summary>Current plan tier name at capture (e.g. Standart / Pro / Prime).</summary>

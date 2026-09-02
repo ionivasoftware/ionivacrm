@@ -26,6 +26,8 @@ public record UsageReportRowDto(
     int InvoiceCount,
     /// <summary>Collections recorded this month (cari-fatura usage — "cari" half).</summary>
     int CollectionCount,
+    /// <summary>"CurrentAccount" | "Invoice" — 0 fatura sayısını doğru yorumlamak için.</summary>
+    string? AccountingMode,
     string? PlanTier,
     string? PlanStatus,
     decimal? PlanMonthlyPrice,

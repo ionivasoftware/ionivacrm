@@ -32,7 +32,9 @@ public record EmsSummaryTotalsDto(
     int CustomerCount,
     int ElevatorCount,
     int UserCount,
-    DateTime? LastLoginAt = null);
+    DateTime? LastLoginAt = null,
+    /// <summary>"CurrentAccount" | "Invoice" — firmanın muhasebe modu; null ise kaynak bildirmiyor.</summary>
+    string? AccountingMode = null);
 
 /// <summary>Monthly activity counts for a single calendar month.</summary>
 public record EmsSummaryMonthlyStatDto(

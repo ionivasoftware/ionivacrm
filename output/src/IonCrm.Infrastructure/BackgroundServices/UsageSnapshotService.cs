@@ -221,6 +221,7 @@ public sealed class UsageSnapshotService : BackgroundService
         // defaults them, so this maps harmlessly until then.
         row.InvoiceCount         = m?.InvoiceCount ?? 0;
         row.CollectionCount      = m?.CollectionCount ?? 0;
+        row.AccountingMode       = summary.Totals.AccountingMode;
         row.PlanTier             = plan?.Current?.Tier;
         row.PlanStatus           = plan?.Current?.Status;
         row.PlanMonthlyPrice     = planPrice;

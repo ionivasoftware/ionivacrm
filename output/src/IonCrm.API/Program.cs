@@ -280,6 +280,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 ""WorkOrderCount""       integer       NOT NULL DEFAULT 0,
                 ""InvoiceCount""         integer       NOT NULL DEFAULT 0,
                 ""CollectionCount""      integer       NOT NULL DEFAULT 0,
+                ""AccountingMode""       text,
                 ""PlanTier""             text,
                 ""PlanStatus""           text,
                 ""PlanMonthlyPrice""     numeric(18,2),
@@ -302,6 +303,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
         await RunSafe("CustomerUsageSnapshots accounting columns", @"
             ALTER TABLE ""CustomerUsageSnapshots"" ADD COLUMN IF NOT EXISTS ""InvoiceCount""    integer NOT NULL DEFAULT 0;
             ALTER TABLE ""CustomerUsageSnapshots"" ADD COLUMN IF NOT EXISTS ""CollectionCount"" integer NOT NULL DEFAULT 0;
+            ALTER TABLE ""CustomerUsageSnapshots"" ADD COLUMN IF NOT EXISTS ""AccountingMode""  text;
         ");
 
         // ── User theme preference ────────────────────────────────────────────────

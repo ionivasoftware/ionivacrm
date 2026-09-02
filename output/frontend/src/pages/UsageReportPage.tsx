@@ -50,6 +50,17 @@ function accountingActivity(r: UsageReportRow): number {
   return r.invoiceCount + r.collectionCount;
 }
 
+/**
+ * Muhasebe modunun okunur karşılığı. Fatura sayısının 0 olmasını yorumlamak için gerekli:
+ * "Cari hesap" modundaki firma hiç fatura kesmeyip yalnız tahsilat işleyebilir — bu, ürünü
+ * kullanmadığı anlamına gelmez.
+ */
+function accountingModeLabel(mode: string): string {
+  if (mode === 'CurrentAccount') return 'Cari hesap';
+  if (mode === 'Invoice') return 'Fatura';
+  return mode;
+}
+
 // ── Sekme filtreleri ──────────────────────────────────────────────────────────
 // Tek tanım: hem listeyi hem sekme sayacını besler (ikisine kopyalanınca sessizce ayrışıyordu).
 //
@@ -332,7 +343,9 @@ export function UsageReportPage() {
                     </TableCell>
                     <TableCell
                       className={`text-right tabular-nums ${accountingActivity(r) > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
-                      title={`Fatura ${r.invoiceCount} · Tahsilat ${r.collectionCount}`}
+                      title={`Fatura ${r.invoiceCount} · Tahsilat ${r.collectionCount}${
+                        r.accountingMode ? ` · Mod: ${accountingModeLabel(r.accountingMode)}` : ''
+                      }`}
                     >
                       {accountingActivity(r) || '—'}
                     </TableCell>

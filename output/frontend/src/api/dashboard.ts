@@ -56,6 +56,8 @@ export interface UsageReportRow {
   invoiceCount: number;
   /** Ay içinde kaydedilen tahsilat — "cari" yarısı; fatura kesmeyen firmalarda asıl gösterge. */
   collectionCount: number;
+  /** "CurrentAccount" | "Invoice" — 0 fatura sayısını doğru yorumlamak için. */
+  accountingMode: string | null;
   planTier: string | null;
   planStatus: string | null;
   planMonthlyPrice: number | null;

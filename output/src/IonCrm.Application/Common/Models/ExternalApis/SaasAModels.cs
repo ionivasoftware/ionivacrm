@@ -98,7 +98,14 @@ public record EmsCompanySummaryTotals(
     int UserCount,
     /// <summary>Most recent login of any company staff (UTC). Null on older Liftdesk builds or
     /// for tenants whose users have not logged in since the field shipped.</summary>
-    DateTime? LastLoginAt = null);
+    DateTime? LastLoginAt = null,
+    /// <summary>
+    /// Firmanın muhasebe modu: "CurrentAccount" (varsayılan — fatura kesmeyebilir, tahsilat işler)
+    /// veya "Invoice". Cari-fatura kullanımını yorumlamak için gerekli: CurrentAccount modundaki bir
+    /// firmada fatura sayısının 0 olması kullanmamak demek değildir, tahsilata bakmak gerekir.
+    /// Ayar yoksa null.
+    /// </summary>
+    string? AccountingMode = null);
 
 /// <summary>
 /// Document-storage footprint of the tenant on the Liftdesk volume. Optional: only newer Liftdesk
