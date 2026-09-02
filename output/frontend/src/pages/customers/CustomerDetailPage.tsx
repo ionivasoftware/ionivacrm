@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -222,6 +222,26 @@ function isEmsCustomer(legacyId: string | null | undefined): boolean {
   if (!legacyId) return false;
   if (legacyId.startsWith('PC-')) return false;
   return /^\d/.test(legacyId) || legacyId.startsWith('SAASA-') || legacyId.startsWith('LIFT-');
+}
+
+// ── EMS user ordering ─────────────────────────────────────────────────────────
+
+// Kullanıcı listesi sırası: Ana hesap → Admin → Yönetici → Personel → Teknisyen → diğerleri.
+// Liftdesk rolü İngilizce enum adı olarak gönderir (Admin/Manager/Staff/Technician/...); Türkçe
+// karşılıkları da eşlenir ki kaynak taraf etiketi yerelleştirirse sıralama sessizce bozulmasın.
+const EMS_ROLE_RANK: Record<string, number> = {
+  admin: 1,
+  manager: 2, yönetici: 2, yonetici: 2,
+  staff: 3, personel: 3,
+  technician: 4, teknisyen: 4,
+  subcontractor: 5, taşeron: 5, taseron: 5,
+  customeruser: 6, 'customer user': 6,
+};
+
+/** Sıralama anahtarı: ana hesap her zaman en üstte, sonra rol sırası, bilinmeyen roller en sonda. */
+function emsUserRank(u: EmsUser): number {
+  if (u.isPrimaryAdmin) return 0;
+  return EMS_ROLE_RANK[(u.role ?? '').trim().toLowerCase()] ?? 90;
 }
 
 // ── RezervAl customer helper ──────────────────────────────────────────────────
@@ -1253,9 +1273,28 @@ export function CustomerDetailPage() {
   );
 
   // EMS summary — only fetch when tab is active and customer is an EMS customer
+  // Ana hesap → Admin → Yönetici → Personel → Teknisyen; eşitlikte ada göre (tr locale).
+  const sortedEmsUsers = useMemo(
+    () =>
+      emsUsersData
+        ? [...emsUsersData].sort(
+            (a, b) =>
+              emsUserRank(a) - emsUserRank(b) ||
+              `${a.name} ${a.surname}`.localeCompare(`${b.name} ${b.surname}`, 'tr')
+          )
+        : emsUsersData,
+    [emsUsersData]
+  );
+
   const { data: emsSummaryData, isLoading: emsSummaryLoading, error: emsSummaryError } = useCustomerEmsSummary(
     customerId,
     activeTab === 'ems-summary' && isEmsCustomer(customer?.legacyId)
+  );
+
+  // Kullanım Özeti aylık tablosu: yalnız son 3 ay (en yeni üstte). Kaynak diziyi bozmamak için kopya.
+  const recentMonthly = useMemo(
+    () => [...(emsSummaryData?.monthly ?? [])].reverse().slice(0, 3),
+    [emsSummaryData]
   );
 
   // Rezerval summary — only fetch when tab is active and customer is a Rezerval customer
@@ -2072,12 +2111,12 @@ export function CustomerDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {emsUsersData.map((user, idx) => (
+                      {(sortedEmsUsers ?? []).map((user, idx) => (
                         <tr
                           key={user.userId}
                           className={cn(
                             'border-b border-border/50 transition-colors hover:bg-muted/20',
-                            idx === emsUsersData.length - 1 && 'border-b-0'
+                            idx === (sortedEmsUsers?.length ?? 0) - 1 && 'border-b-0'
                           )}
                         >
                           <td className="px-4 py-3 font-medium text-foreground">
@@ -2222,38 +2261,41 @@ export function CustomerDetailPage() {
                     </div>
                   )}
 
-                  {/* Monthly table */}
-                  {emsSummaryData.monthly.length > 0 && (
-                    <div className="rounded-lg border border-border overflow-x-auto">
-                      <table className="w-full text-sm min-w-[360px]">
-                        <thead>
-                          <tr className="bg-muted/40 border-b border-border">
-                            <th className="text-left px-4 py-3 font-medium text-muted-foreground">Dönem</th>
-                            <th className="text-right px-4 py-3 font-medium text-muted-foreground">Bakım</th>
-                            <th className="text-right px-4 py-3 font-medium text-muted-foreground">Arıza</th>
-                            <th className="text-right px-4 py-3 font-medium text-muted-foreground">Teklif</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[...emsSummaryData.monthly].reverse().map((m, idx) => (
-                            <tr
-                              key={`${m.year}-${m.month}`}
-                              className={cn(
-                                'border-b border-border/50 hover:bg-muted/20 transition-colors',
-                                idx === emsSummaryData.monthly.length - 1 && 'border-b-0'
-                              )}
-                            >
-                              <td className="px-4 py-3 font-medium text-foreground">
-                                {m.year}/{String(m.month).padStart(2, '0')}
-                              </td>
-                              <td className="px-4 py-3 text-right tabular-nums text-blue-400">{m.maintenanceCount}</td>
-                              <td className="px-4 py-3 text-right tabular-nums text-red-400">{m.breakdownCount}</td>
-                              <td className="px-4 py-3 text-right tabular-nums text-emerald-400">{m.proposalCount}</td>
+                  {/* Monthly table — son 3 ay */}
+                  {recentMonthly.length > 0 && (
+                    <>
+                      <p className="text-xs text-muted-foreground">Son 3 ay</p>
+                      <div className="rounded-lg border border-border overflow-x-auto">
+                        <table className="w-full text-sm min-w-[360px]">
+                          <thead>
+                            <tr className="bg-muted/40 border-b border-border">
+                              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Dönem</th>
+                              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Bakım</th>
+                              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Arıza</th>
+                              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Teklif</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {recentMonthly.map((m, idx) => (
+                              <tr
+                                key={`${m.year}-${m.month}`}
+                                className={cn(
+                                  'border-b border-border/50 hover:bg-muted/20 transition-colors',
+                                  idx === recentMonthly.length - 1 && 'border-b-0'
+                                )}
+                              >
+                                <td className="px-4 py-3 font-medium text-foreground">
+                                  {m.year}/{String(m.month).padStart(2, '0')}
+                                </td>
+                                <td className="px-4 py-3 text-right tabular-nums text-blue-400">{m.maintenanceCount}</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-red-400">{m.breakdownCount}</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-emerald-400">{m.proposalCount}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
                   )}
                 </>
               )}
