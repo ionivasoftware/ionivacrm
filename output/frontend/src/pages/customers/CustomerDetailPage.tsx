@@ -245,6 +245,21 @@ function emsUserRank(u: EmsUser): number {
   return EMS_ROLE_RANK[(u.role ?? '').trim().toLowerCase()] ?? 90;
 }
 
+// Liftdesk rolü İngilizce enum adı olarak gönderiyor (Admin/Manager/Staff/...). Ekranda Türkçe
+// karşılığı gösterilir; eşleşmeyen rol olduğu gibi basılır ki yeni bir rol eklendiğinde kaybolmasın.
+const EMS_ROLE_LABEL: Record<string, string> = {
+  admin: 'Admin',
+  manager: 'Yönetici',
+  staff: 'Personel',
+  technician: 'Teknisyen',
+  subcontractor: 'Taşeron',
+  customeruser: 'Müşteri kullanıcısı',
+};
+
+function emsRoleLabel(role: string | null | undefined): string {
+  return EMS_ROLE_LABEL[(role ?? '').trim().toLowerCase()] ?? (role || '—');
+}
+
 // ── RezervAl customer helper ──────────────────────────────────────────────────
 
 /** Returns true for RezervAl customers: SAASB-{n} (from sync) or REZV-{n} (after push) */
@@ -2160,7 +2175,7 @@ export function CustomerDetailPage() {
                           </td>
                           <td className="px-4 py-3">
                             <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold bg-blue-500/10 text-blue-400 border-blue-500/30">
-                              {user.role || '—'}
+                              {emsRoleLabel(user.role)}
                             </span>
                           </td>
                           <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
