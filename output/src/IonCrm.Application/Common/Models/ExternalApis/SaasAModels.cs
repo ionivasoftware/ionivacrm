@@ -121,7 +121,17 @@ public record EmsCompanyMonthlyStat(
     int FaultCount,
     int PartChangeOfferCount,
     int RevisionOfferCount,
-    int AssemblyOfferCount);
+    int AssemblyOfferCount,
+    /// <summary>Ay içinde AÇILAN iş emri sayısı. Liftdesk bunu 2026-08-31'den beri gönderiyor;
+    /// alan burada eksik olduğu için değer sessizce düşüyor ve snapshot'ta 0 kalıyordu.</summary>
+    int WorkOrderCount = 0,
+    /// <summary>Ay içinde kesilen fatura sayısı — cari-fatura modülü kullanım sinyalinin "fatura"
+    /// yarısı. Liftdesk henüz göndermiyor; gelene kadar 0.</summary>
+    int InvoiceCount = 0,
+    /// <summary>Ay içinde kaydedilen tahsilat sayısı — cari-fatura sinyalinin "cari" yarısı. Fatura
+    /// kesmeyen (CurrentAccount modundaki) firmalar için asıl göstergedir. Liftdesk henüz
+    /// göndermiyor; gelene kadar 0.</summary>
+    int CollectionCount = 0);
 
 // ── EMS recent payments ───────────────────────────────────────────────────────
 

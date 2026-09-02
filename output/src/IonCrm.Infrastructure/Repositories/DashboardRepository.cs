@@ -325,6 +325,8 @@ public class DashboardRepository : IDashboardRepository
             x.s.RevisionOfferCount,
             x.s.AssemblyOfferCount,
             x.s.WorkOrderCount,
+            x.s.InvoiceCount,
+            x.s.CollectionCount,
             x.s.PlanTier,
             x.s.PlanStatus,
             x.s.PlanMonthlyPrice,

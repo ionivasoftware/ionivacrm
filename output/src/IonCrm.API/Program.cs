@@ -278,6 +278,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 ""RevisionOfferCount""   integer       NOT NULL DEFAULT 0,
                 ""AssemblyOfferCount""   integer       NOT NULL DEFAULT 0,
                 ""WorkOrderCount""       integer       NOT NULL DEFAULT 0,
+                ""InvoiceCount""         integer       NOT NULL DEFAULT 0,
+                ""CollectionCount""      integer       NOT NULL DEFAULT 0,
                 ""PlanTier""             text,
                 ""PlanStatus""           text,
                 ""PlanMonthlyPrice""     numeric(18,2),
@@ -293,6 +295,13 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 ON ""CustomerUsageSnapshots"" (""CustomerId"", ""SnapshotYear"", ""SnapshotMonth"");
             CREATE INDEX IF NOT EXISTS ""ix_customerusagesnapshots_project_month""
                 ON ""CustomerUsageSnapshots"" (""ProjectId"", ""SnapshotYear"", ""SnapshotMonth"");
+        ");
+
+        // The CREATE TABLE above is a no-op once the table exists, so later columns need their own
+        // idempotent ALTER — otherwise they only appear on a fresh database.
+        await RunSafe("CustomerUsageSnapshots accounting columns", @"
+            ALTER TABLE ""CustomerUsageSnapshots"" ADD COLUMN IF NOT EXISTS ""InvoiceCount""    integer NOT NULL DEFAULT 0;
+            ALTER TABLE ""CustomerUsageSnapshots"" ADD COLUMN IF NOT EXISTS ""CollectionCount"" integer NOT NULL DEFAULT 0;
         ");
 
         // ── User theme preference ────────────────────────────────────────────────

@@ -52,6 +52,10 @@ export interface UsageReportRow {
   revisionOfferCount: number;
   assemblyOfferCount: number;
   workOrderCount: number;
+  /** Ay içinde kesilen fatura — cari-fatura kullanımının "fatura" yarısı. */
+  invoiceCount: number;
+  /** Ay içinde kaydedilen tahsilat — "cari" yarısı; fatura kesmeyen firmalarda asıl gösterge. */
+  collectionCount: number;
   planTier: string | null;
   planStatus: string | null;
   planMonthlyPrice: number | null;

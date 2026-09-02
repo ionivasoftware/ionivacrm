@@ -22,6 +22,10 @@ public record UsageReportRowDto(
     int RevisionOfferCount,
     int AssemblyOfferCount,
     int WorkOrderCount,
+    /// <summary>Invoices issued this month (cari-fatura usage — "fatura" half).</summary>
+    int InvoiceCount,
+    /// <summary>Collections recorded this month (cari-fatura usage — "cari" half).</summary>
+    int CollectionCount,
     string? PlanTier,
     string? PlanStatus,
     decimal? PlanMonthlyPrice,

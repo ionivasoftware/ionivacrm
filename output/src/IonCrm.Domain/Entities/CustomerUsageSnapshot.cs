@@ -58,8 +58,21 @@ public class CustomerUsageSnapshot : BaseEntity
     /// <summary>Assembly offers this month.</summary>
     public int AssemblyOfferCount { get; set; }
 
-    /// <summary>Work orders this month. Stays 0 until Liftdesk exposes the count.</summary>
+    /// <summary>Work orders opened this month.</summary>
     public int WorkOrderCount { get; set; }
+
+    /// <summary>
+    /// Invoices issued this month — the "fatura" half of the cari-fatura (accounting) usage signal.
+    /// Stays 0 until Liftdesk exposes the count.
+    /// </summary>
+    public int InvoiceCount { get; set; }
+
+    /// <summary>
+    /// Collections (tahsilat) recorded this month — the "cari" half of the accounting usage signal.
+    /// This is the meaningful one for firms running in CurrentAccount mode, which may never issue an
+    /// invoice. Stays 0 until Liftdesk exposes the count.
+    /// </summary>
+    public int CollectionCount { get; set; }
 
     // ── Commercial context (weight/priority, not a score input) ──────────────
 

@@ -24,10 +24,11 @@ namespace IonCrm.Infrastructure.BackgroundServices;
 /// (distinct key from <see cref="SyncTimerService"/>) so a rolling-deploy double-container can't
 /// double-write, but it does NOT block or get blocked by the sync.
 ///
-/// Fields that depend on Liftdesk work not yet shipped — <see cref="CustomerUsageSnapshot.LastLoginAt"/>
-/// and <see cref="CustomerUsageSnapshot.WorkOrderCount"/> — stay null/0 until the summary endpoint
-/// starts returning them, at which point they populate automatically (no code change here needed
-/// beyond reading the new fields once they exist on the wire DTO).
+/// Fields that depend on Liftdesk work not yet shipped — <see cref="CustomerUsageSnapshot.InvoiceCount"/>
+/// and <see cref="CustomerUsageSnapshot.CollectionCount"/> — stay 0 until the summary endpoint starts
+/// returning them, at which point they populate automatically. Note the wire DTO must carry the field
+/// too: WorkOrderCount silently stayed 0 for months because Liftdesk was sending it but
+/// <see cref="Application.Common.Models.ExternalApis.EmsCompanyMonthlyStat"/> had no property to bind.
 /// </summary>
 public sealed class UsageSnapshotService : BackgroundService
 {
@@ -212,7 +213,11 @@ public sealed class UsageSnapshotService : BackgroundService
         row.PartChangeOfferCount = m?.PartChangeOfferCount ?? 0;
         row.RevisionOfferCount   = m?.RevisionOfferCount ?? 0;
         row.AssemblyOfferCount   = m?.AssemblyOfferCount ?? 0;
-        // WorkOrderCount: not on the wire DTO yet (Liftdesk gap) — stays 0 until it ships.
+        row.WorkOrderCount       = m?.WorkOrderCount ?? 0;
+        // Invoice/Collection stay 0 until Liftdesk adds them to the monthly summary; the wire DTO
+        // defaults them, so this maps harmlessly until then.
+        row.InvoiceCount         = m?.InvoiceCount ?? 0;
+        row.CollectionCount      = m?.CollectionCount ?? 0;
         row.PlanTier             = plan?.Current?.Tier;
         row.PlanStatus           = plan?.Current?.Status;
         row.PlanMonthlyPrice     = planPrice;

@@ -36,7 +36,18 @@ function pulse(r: UsageReportRow): number {
 
 function totalActivity(r: UsageReportRow): number {
   return r.maintenanceCount + r.faultCount + r.partChangeOfferCount +
-         r.revisionOfferCount + r.assemblyOfferCount + r.workOrderCount;
+         r.revisionOfferCount + r.assemblyOfferCount + r.workOrderCount +
+         accountingActivity(r);
+}
+
+/**
+ * Cari-fatura (muhasebe) kullanımı. Bazı firmalar ürünü ağırlıklı buradan kullanıyor: saha
+ * aktivitesi düşük olsa da fatura kesip tahsilat işliyorlar. Bu iki tablo insan eliyle dolduğu için
+ * gerçek kullanım sinyali — cari hareket sayısı KULLANILMAZ, çünkü her bakım tamamlanışında
+ * otomatik satır atılıyor ve bakım sayısını tekrar saymış olurduk.
+ */
+function accountingActivity(r: UsageReportRow): number {
+  return r.invoiceCount + r.collectionCount;
 }
 
 // ── Sekme filtreleri ──────────────────────────────────────────────────────────
@@ -61,9 +72,12 @@ function severity(r: UsageReportRow): Severity {
   if (r.elevatorCount === 0) return 'nodata';
   if (totalActivity(r) === 0) return 'critical'; // silent: elevators but zero activity
   const p = pulse(r);
-  if (p < 0.2) return 'critical';
-  if (p < 0.5) return 'watch';
-  return 'healthy';
+  let s: Severity = p < 0.2 ? 'critical' : p < 0.5 ? 'watch' : 'healthy';
+  // Nabız yalnız bakım/asansör oranını ölçüyor. Cari-fatura tarafını ağırlıklı kullanan firma
+  // ürünü aktif kullanıyordur; düşük bakım nabzı tek başına onu "kritik" saymamalı — bir kademe
+  // yukarı çekiyoruz (sessize düşen firmalar yukarıdaki totalActivity kontrolüyle zaten ayrışıyor).
+  if (s === 'critical' && accountingActivity(r) > 0) s = 'watch';
+  return s;
 }
 
 const SEV_META: Record<Severity, { label: string; cls: string; dot: string }> = {
@@ -248,6 +262,7 @@ export function UsageReportPage() {
                 <SortHead label="Arıza" k="fault" align="right" {...{ sortKey, sortAsc, toggleSort }} />
                 <TableHead className="text-right">Teklif</TableHead>
                 <TableHead className="text-right">İş emri</TableHead>
+                <TableHead className="text-right">Cari-Fatura</TableHead>
                 <TableHead className="text-right">Son giriş</TableHead>
                 <SortHead label="Paket" k="plan" {...{ sortKey, sortAsc, toggleSort }} />
               </TableRow>
@@ -282,6 +297,12 @@ export function UsageReportPage() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
                       {r.workOrderCount || '—'}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right tabular-nums ${accountingActivity(r) > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
+                      title={`Fatura ${r.invoiceCount} · Tahsilat ${r.collectionCount}`}
+                    >
+                      {accountingActivity(r) || '—'}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
                       {fmtLogin(r.lastLoginAt)}
