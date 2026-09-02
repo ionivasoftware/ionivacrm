@@ -67,12 +67,30 @@ const isRecentChurn = (r: UsageReportRow, cutoff: Date) =>
 
 type Severity = 'critical' | 'watch' | 'healthy' | 'nodata';
 
+/**
+ * Satırın ayının ne kadarının geçtiği (0..1]. Geçmiş aylar için 1.
+ *
+ * Bakım sayacı artık PLANLANAN'ı değil TAMAMLANAN bakımı sayıyor, yani ay boyunca birikiyor.
+ * Sabit eşikle karşılaştırırsak ayın 2'sinde neredeyse her firma "kritik" çıkar — sahte alarm.
+ * Bu yüzden eşikler ayın geçen kısmıyla ölçekleniyor; ay bitince çarpan 1 olur ve eşik
+ * tam değerine döner.
+ */
+function monthProgress(r: UsageReportRow): number {
+  const now = new Date();
+  const isCurrentMonth =
+    r.snapshotYear === now.getFullYear() && r.snapshotMonth === now.getMonth() + 1;
+  if (!isCurrentMonth) return 1;
+  const daysInMonth = new Date(r.snapshotYear, r.snapshotMonth, 0).getDate();
+  return Math.min(1, now.getDate() / daysInMonth);
+}
+
 /** Usage severity from the heartbeat + whether the firm did anything at all this month. */
 function severity(r: UsageReportRow): Severity {
   if (r.elevatorCount === 0) return 'nodata';
   if (totalActivity(r) === 0) return 'critical'; // silent: elevators but zero activity
   const p = pulse(r);
-  let s: Severity = p < 0.2 ? 'critical' : p < 0.5 ? 'watch' : 'healthy';
+  const f = monthProgress(r);
+  let s: Severity = p < 0.2 * f ? 'critical' : p < 0.5 * f ? 'watch' : 'healthy';
   // Nabız yalnız bakım/asansör oranını ölçüyor. Cari-fatura tarafını ağırlıklı kullanan firma
   // ürünü aktif kullanıyordur; düşük bakım nabzı tek başına onu "kritik" saymamalı — bir kademe
   // yukarı çekiyoruz (sessize düşen firmalar yukarıdaki totalActivity kontrolüyle zaten ayrışıyor).
@@ -160,6 +178,13 @@ export function UsageReportPage() {
     churn: rows.filter((r) => isRecentChurn(r, churnCutoff)).length,
   }), [rows, churnCutoff]);
 
+  // Seçili ay içinde bulunulan ay ise kaçıncı gününde olduğumuz — kısmi ay uyarısı için.
+  const partialMonth = useMemo(() => {
+    const now = new Date();
+    if (year !== now.getFullYear() || month !== now.getMonth() + 1) return null;
+    return { elapsed: now.getDate(), total: new Date(year, month, 0).getDate() };
+  }, [year, month]);
+
   const fmtLogin = (s: string | null) =>
     s ? new Date(s).toLocaleDateString('tr-TR') : '—';
 
@@ -191,6 +216,13 @@ export function UsageReportPage() {
           </Button>
         </div>
       </div>
+
+      {partialMonth && (
+        <p className="text-xs text-muted-foreground">
+          Bu ay henüz tamamlanmadı ({partialMonth.elapsed}/{partialMonth.total} gün). Bakım sayıları ay
+          boyunca birikir; durum değerlendirmesi ayın geçen kısmına göre orantılanıyor.
+        </p>
+      )}
 
       {/* Aktif / Churn sekmeleri */}
       <div className="flex gap-1 border-b border-border">

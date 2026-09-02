@@ -120,6 +120,7 @@ import type {
   OpportunityStage,
   CustomerTask,
   EmsUser,
+  EmsSummaryMonthlyStat,
 } from '@/types';
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -1291,11 +1292,27 @@ export function CustomerDetailPage() {
     activeTab === 'ems-summary' && isEmsCustomer(customer?.legacyId)
   );
 
-  // Kullanım Özeti aylık tablosu: yalnız son 3 ay (en yeni üstte). Kaynak diziyi bozmamak için kopya.
-  const recentMonthly = useMemo(
-    () => [...(emsSummaryData?.monthly ?? [])].reverse().slice(0, 3),
-    [emsSummaryData]
-  );
+  // Kullanım Özeti aylık tablosu: son 3 TAKVİM ayı (en yeni üstte).
+  //
+  // Diziden son 3 elemanı almak YANLIŞ olur: Liftdesk bir ayın tüm sayaçları 0 ise o ayı satır
+  // olarak hiç döndürmüyor. Öyle bir ayda "son 3 eleman" takvimde geriye atlar (ör. Ağustos boşsa
+  // Eylül-Temmuz-Haziran gösterir ve Ağustos'u sessizce yutar). Bu yüzden ayları takvimden kurup
+  // gelen veriyle eşleştiriyoruz; eşleşmeyen ay sıfır olarak gösterilir.
+  const recentMonthly = useMemo<EmsSummaryMonthlyStat[]>(() => {
+    const byKey = new Map(
+      (emsSummaryData?.monthly ?? []).map((m) => [`${m.year}-${m.month}`, m])
+    );
+    const now = new Date();
+    return Array.from({ length: 3 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+      return (
+        byKey.get(`${year}-${month}`) ??
+        { year, month, maintenanceCount: 0, breakdownCount: 0, proposalCount: 0 }
+      );
+    });
+  }, [emsSummaryData]);
 
   // Rezerval summary — only fetch when tab is active and customer is a Rezerval customer
   const { data: rezervalSummaryData, isLoading: rezervalSummaryLoading, error: rezervalSummaryError } = useCustomerRezervalSummary(

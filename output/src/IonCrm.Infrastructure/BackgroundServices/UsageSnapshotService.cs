@@ -178,6 +178,9 @@ public sealed class UsageSnapshotService : BackgroundService
         DateTime now,
         CancellationToken ct)
     {
+        // Liftdesk bir ayın TÜM sayaçları 0 ise o ayı satır olarak hiç döndürmüyor (yalnız-planlı
+        // aylar artık listeyi doldurmuyor). Yani m == null "veri yok" değil, "o ay hiç aktivite
+        // yok" demek — aşağıdaki ?? 0 bu yüzden taşıyıcıdır, kozmetik değil.
         var m = summary.Monthly.FirstOrDefault(x => x.Year == year && x.Month == month);
 
         // Plan monthly price: match the current plan against the available-plans price list.

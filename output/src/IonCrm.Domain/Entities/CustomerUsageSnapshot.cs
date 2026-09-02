@@ -43,7 +43,15 @@ public class CustomerUsageSnapshot : BaseEntity
 
     // ── Monthly activity counts (for SnapshotYear / SnapshotMonth) ───────────
 
-    /// <summary>Maintenance records this month (the adoption heartbeat).</summary>
+    /// <summary>
+    /// Maintenance records this month (the adoption heartbeat).
+    ///
+    /// ANLAM KIRILMASI: Liftdesk bu sayacı başlangıçta PLANLANAN bakımı sayacak şekilde
+    /// gönderiyordu — bakım planı asansör başına otomatik üretildiği için değer fiilen asansör
+    /// sayısını yansıtıyor, kullanımı değil. Düzeltmeden sonra TAMAMLANAN bakım sayılıyor.
+    /// Snapshot yalnız içinde bulunulan ayı güncellediği için düzeltmeden ÖNCEKİ ay satırları eski
+    /// anlamı taşımaya devam eder; geçmişle kıyaslama yapılırken bu kırılma unutulmamalı.
+    /// </summary>
     public int MaintenanceCount { get; set; }
 
     /// <summary>Fault/breakdown records this month.</summary>
