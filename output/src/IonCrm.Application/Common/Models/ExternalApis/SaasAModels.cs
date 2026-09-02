@@ -75,7 +75,10 @@ public record EmsCompanySummaryResponse(
 public record EmsCompanySummaryTotals(
     int CustomerCount,
     int ElevatorCount,
-    int UserCount);
+    int UserCount,
+    /// <summary>Most recent login of any company staff (UTC). Null on older Liftdesk builds or
+    /// for tenants whose users have not logged in since the field shipped.</summary>
+    DateTime? LastLoginAt = null);
 
 /// <summary>
 /// Document-storage footprint of the tenant on the Liftdesk volume. Optional: only newer Liftdesk

@@ -206,7 +206,7 @@ public sealed class UsageSnapshotService : BackgroundService
 
         row.ElevatorCount        = summary.Totals.ElevatorCount;
         row.UserCount            = summary.Totals.UserCount;
-        // LastLoginAt: not on the wire DTO yet (Liftdesk gap) — stays null until it ships.
+        row.LastLoginAt          = summary.Totals.LastLoginAt;
         row.MaintenanceCount     = m?.MaintenanceCount ?? 0;
         row.FaultCount           = m?.FaultCount ?? 0;
         row.PartChangeOfferCount = m?.PartChangeOfferCount ?? 0;

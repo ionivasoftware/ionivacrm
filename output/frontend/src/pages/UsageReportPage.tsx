@@ -68,8 +68,23 @@ export function UsageReportPage() {
   // Default: worst usage first — exactly the "who is barely using it" worklist.
   const [sortKey, setSortKey] = useState<SortKey>('pulse');
   const [sortAsc, setSortAsc] = useState(true);
+  const [view, setView] = useState<'active' | 'churn'>('active');
 
   const { data: rows = [], isLoading, isError } = useUsageReport(year, month);
+
+  // Churn view shows only firms that churned within the last 3 months (recent, still worth a call);
+  // older churns are dropped. Churn date ≈ ExpirationDate (status flips to Churned when it passes).
+  const churnCutoff = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    return d;
+  }, []);
+
+  const viewRows = useMemo(() => {
+    if (view === 'active') return rows.filter((r) => r.status !== 'Churned');
+    return rows.filter((r) =>
+      r.status === 'Churned' && r.expirationDate != null && new Date(r.expirationDate) >= churnCutoff);
+  }, [rows, view, churnCutoff]);
 
   function prevMonth() {
     setMonth((m) => (m === 1 ? (setYear((y) => y - 1), 12) : m - 1));
@@ -85,7 +100,7 @@ export function UsageReportPage() {
 
   const filteredSorted = useMemo(() => {
     const q = search.trim().toLocaleLowerCase('tr');
-    let out = rows;
+    let out = viewRows;
     if (q) out = out.filter((r) => r.companyName.toLocaleLowerCase('tr').includes(q));
 
     const sevRank: Record<Severity, number> = { critical: 0, watch: 1, nodata: 2, healthy: 3 };
@@ -101,13 +116,20 @@ export function UsageReportPage() {
       }
     };
     return [...out].sort((a, b) => (sortAsc ? cmp(a, b) : -cmp(a, b)));
-  }, [rows, search, sortKey, sortAsc]);
+  }, [viewRows, search, sortKey, sortAsc]);
 
   const stats = useMemo(() => {
-    const critical = rows.filter((r) => severity(r) === 'critical').length;
-    const silent = rows.filter((r) => r.elevatorCount > 0 && totalActivity(r) === 0).length;
-    return { total: rows.length, critical, silent };
-  }, [rows]);
+    const critical = viewRows.filter((r) => severity(r) === 'critical').length;
+    const silent = viewRows.filter((r) => r.elevatorCount > 0 && totalActivity(r) === 0).length;
+    return { total: viewRows.length, critical, silent };
+  }, [viewRows]);
+
+  // Counts for the tab labels (independent of the active view).
+  const tabCounts = useMemo(() => ({
+    active: rows.filter((r) => r.status !== 'Churned').length,
+    churn: rows.filter((r) =>
+      r.status === 'Churned' && r.expirationDate != null && new Date(r.expirationDate) >= churnCutoff).length,
+  }), [rows, churnCutoff]);
 
   const fmtLogin = (s: string | null) =>
     s ? new Date(s).toLocaleDateString('tr-TR') : '—';
@@ -139,6 +161,21 @@ export function UsageReportPage() {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
+      </div>
+
+      {/* Aktif / Churn sekmeleri */}
+      <div className="flex gap-1 border-b border-border">
+        {([['active', 'Aktif firmalar'], ['churn', 'Churn (son 3 ay)']] as const).map(([v, label]) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              view === v ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {label} <span className="text-xs opacity-60">({tabCounts[v]})</span>
+          </button>
+        ))}
       </div>
 
       {/* Summary cards */}

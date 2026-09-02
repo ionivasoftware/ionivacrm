@@ -82,7 +82,8 @@ public sealed class GetCustomerEmsSummaryQueryHandler
         var totals = new EmsSummaryTotalsDto(
             emsSummary.Totals.CustomerCount,
             emsSummary.Totals.ElevatorCount,
-            emsSummary.Totals.UserCount);
+            emsSummary.Totals.UserCount,
+            emsSummary.Totals.LastLoginAt);
 
         var monthly = emsSummary.Monthly
             .Select(m => new EmsSummaryMonthlyStatDto(

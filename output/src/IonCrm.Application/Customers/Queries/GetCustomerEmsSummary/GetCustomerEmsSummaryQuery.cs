@@ -31,7 +31,8 @@ public record EmsSummaryStorageDto(
 public record EmsSummaryTotalsDto(
     int CustomerCount,
     int ElevatorCount,
-    int UserCount);
+    int UserCount,
+    DateTime? LastLoginAt = null);
 
 /// <summary>Monthly activity counts for a single calendar month.</summary>
 public record EmsSummaryMonthlyStatDto(
