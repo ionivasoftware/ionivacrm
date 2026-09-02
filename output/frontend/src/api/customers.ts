@@ -403,6 +403,32 @@ export function useAddCustomerSms(customerId: string) {
 
 // ── EMS Users ─────────────────────────────────────────────────────────────────
 
+export interface SetPrimaryEmsUserResult {
+  companyId: number;
+  userId: string;
+  previousUserId: string | null;
+}
+
+/**
+ * Changes the firm's primary admin to one of its existing users. SuperAdmin only; the endpoint
+ * requires `?confirm=true`. Invalidates the EMS users list so the new primary badge reflects.
+ */
+export function useSetPrimaryEmsUser(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { userId: string }) => {
+      const response = await apiClient.post<ApiResponse<SetPrimaryEmsUserResult>>(
+        `/customers/${customerId}/set-primary-admin?confirm=true`,
+        body
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customerEmsUsers', customerId] });
+    },
+  });
+}
+
 export function useCustomerEmsUsers(customerId: string, enabled: boolean) {
   return useQuery({
     queryKey: ['customerEmsUsers', customerId],

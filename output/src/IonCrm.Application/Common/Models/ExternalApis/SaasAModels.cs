@@ -42,6 +42,18 @@ public record EmsAddSmsResponse(
     int SmsCount,
     int Added);
 
+// ── EMS set primary admin ─────────────────────────────────────────────────────
+
+/// <summary>
+/// Response from POST /api/v1/crm/companies/{id}/set-primary-admin. The source flips the firm's
+/// primary admin (Liftdesk <c>User.IsOwner</c>) from the previous owner to <see cref="UserId"/> in
+/// one transaction; the previous owner keeps its Admin role and is echoed back for the audit line.
+/// </summary>
+public record EmsSetPrimaryAdminResponse(
+    int CompanyId,
+    string UserId,
+    string? PreviousUserId = null);
+
 // ── EMS company users ─────────────────────────────────────────────────────────
 
 /// <summary>A single user record returned by EMS GET /api/v1/crm/companies/{companyId}/users.</summary>
@@ -52,7 +64,15 @@ public record EmsCompanyUser(
     string Email,
     string Role,
     string LoginName,
-    string Password);
+    string Password,
+    /// <summary>True when this user is the firm's primary admin (Liftdesk <c>User.IsOwner</c>). Null on
+    /// older Liftdesk builds that do not yet emit the flag — the CRM then cannot pre-badge the current
+    /// primary and relies on the set-primary-admin endpoint's server-side no-op for idempotency.</summary>
+    bool? IsPrimaryAdmin = null,
+    /// <summary>True when the user is active in the source (IsActive &amp;&amp; !IsDeleted). Null on older
+    /// builds. When false the CRM greys out the "make primary" action; the Liftdesk endpoint enforces
+    /// liveness authoritatively regardless.</summary>
+    bool? IsActive = null);
 
 /// <summary>Wrapper response from EMS GET /api/v1/crm/companies/{companyId}/users.</summary>
 public record EmsCompanyUsersResponse(

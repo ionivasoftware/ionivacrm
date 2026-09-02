@@ -36,6 +36,7 @@ import {
   Banknote,
   CreditCard,
   XCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -77,6 +78,7 @@ import {
   useAddCustomerSms,
   useExtendEmsExpiration,
   useCustomerEmsUsers,
+  useSetPrimaryEmsUser,
   useCustomerEmsSummary,
   useCustomerRezervalSummary,
   useUpdateCustomer,
@@ -117,6 +119,7 @@ import type {
   TaskStatus,
   OpportunityStage,
   CustomerTask,
+  EmsUser,
 } from '@/types';
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -1054,6 +1057,110 @@ function AddSmsDialog({ open, onOpenChange, companyName, addSms }: AddSmsDialogP
   );
 }
 
+// ── Set Primary Admin Dialog ──────────────────────────────────────────────────
+
+interface SetPrimaryAdminDialogProps {
+  /** The user chosen to become primary admin; null closes the dialog. */
+  target: EmsUser | null;
+  onOpenChange: (open: boolean) => void;
+  companyName: string;
+  /** The current primary admin (if the source reports it), shown as the "from" side. */
+  currentPrimary: EmsUser | null;
+  setPrimary: ReturnType<typeof useSetPrimaryEmsUser>;
+}
+
+function fullName(u: EmsUser): string {
+  return `${u.name ?? ''} ${u.surname ?? ''}`.trim() || u.loginName || u.email || u.userId;
+}
+
+/**
+ * Confirmation gate for changing a firm's primary admin. Shows the firm, the FROM→TO users (each as
+ * name + email), and a distinct, non-default confirm button so a misclick on the row cannot commit.
+ */
+function SetPrimaryAdminDialog({
+  target,
+  onOpenChange,
+  companyName,
+  currentPrimary,
+  setPrimary,
+}: SetPrimaryAdminDialogProps) {
+  const { toast } = useToast();
+
+  async function handleConfirm() {
+    if (!target) return;
+    try {
+      await setPrimary.mutateAsync({ userId: target.userId });
+      toast({
+        title: 'Ana kullanıcı değiştirildi',
+        description: `${fullName(target)} artık ${companyName} firmasının ana kullanıcı admini. Önceki ana kullanıcı admin olarak kalır.`,
+      });
+      onOpenChange(false);
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0] ??
+        (err as Error)?.message ??
+        'Ana kullanıcı değiştirilemedi.';
+      toast({ title: 'Hata', description: msg, variant: 'destructive' });
+    }
+  }
+
+  return (
+    <Dialog open={!!target} onOpenChange={v => { if (!v) onOpenChange(false); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-amber-500" />
+            Ana kullanıcı adminini değiştir
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{companyName}</span> firmasının ana kullanıcı
+            admini değişecek. Ana kullanıcı yalnızca <span className="font-medium text-foreground">bir</span> kişi
+            olabilir; önceki ana kullanıcı <span className="font-medium text-foreground">admin olarak kalır</span>.
+          </p>
+          <div className="rounded-lg border border-border divide-y divide-border">
+            <div className="flex items-center gap-3 px-3 py-2.5">
+              <span className="text-xs font-medium text-muted-foreground w-16 shrink-0">Mevcut</span>
+              <div className="min-w-0">
+                <div className="font-medium text-foreground truncate">
+                  {currentPrimary ? fullName(currentPrimary) : 'Bilinmiyor'}
+                </div>
+                {currentPrimary?.email && (
+                  <div className="text-xs text-muted-foreground truncate">{currentPrimary.email}</div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 px-3 py-2.5 bg-amber-500/5">
+              <span className="text-xs font-medium text-amber-600 dark:text-amber-500 w-16 shrink-0">Yeni</span>
+              <div className="min-w-0">
+                <div className="font-medium text-foreground truncate">{target ? fullName(target) : ''}</div>
+                {target?.email && (
+                  <div className="text-xs text-muted-foreground truncate">{target.email}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Vazgeç</Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={!target || setPrimary.isPending}
+            className="bg-amber-500 hover:bg-amber-600 text-white"
+          >
+            {setPrimary.isPending ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Değiştiriliyor...</>
+            ) : (
+              <><ShieldCheck className="h-4 w-4 mr-1.5" />Evet, ana kullanıcıyı değiştir</>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function CustomerDetailPage() {
@@ -1063,6 +1170,7 @@ export function CustomerDetailPage() {
   const { toast } = useToast();
   const customerId = id ?? '';
   const { currentProjectId } = useAuthStore();
+  const isSuperAdmin = useAuthStore((s) => s.user?.isSuperAdmin ?? false);
   const canAccessFinance = useCanAccessFinance();
 
   // The customer list page passes its current URL (with active filters and page
@@ -1105,6 +1213,8 @@ export function CustomerDetailPage() {
   // SMS loading state
   const [showSmsDialog, setShowSmsDialog] = useState(false);
   const addSms = useAddCustomerSms(id ?? '');
+  const setPrimaryEmsUser = useSetPrimaryEmsUser(id ?? '');
+  const [primaryTarget, setPrimaryTarget] = useState<EmsUser | null>(null);
 
   // RezervAl
   const { data: adminProjects } = useAdminProjects();
@@ -1956,6 +2066,9 @@ export function CustomerDetailPage() {
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">Rol</th>
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kullanıcı Adı</th>
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">Şifre</th>
+                        {isSuperAdmin && (
+                          <th className="text-right px-4 py-3 font-medium text-muted-foreground">İşlem</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -1968,7 +2081,23 @@ export function CustomerDetailPage() {
                           )}
                         >
                           <td className="px-4 py-3 font-medium text-foreground">
-                            {user.name} {user.surname}
+                            <span className="inline-flex items-center gap-1.5">
+                              {user.name} {user.surname}
+                              {user.isPrimaryAdmin && (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-500/30"
+                                  title="Firmanın ana kullanıcı admini"
+                                >
+                                  <ShieldCheck className="h-3 w-3" />
+                                  Ana kullanıcı
+                                </span>
+                              )}
+                              {user.isActive === false && (
+                                <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border-border">
+                                  Pasif
+                                </span>
+                              )}
+                            </span>
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">
                             {user.email || '—'}
@@ -1988,6 +2117,27 @@ export function CustomerDetailPage() {
                               <span className="text-muted-foreground text-xs">—</span>
                             )}
                           </td>
+                          {isSuperAdmin && (
+                            <td className="px-4 py-3 text-right">
+                              {user.isPrimaryAdmin ? (
+                                <span className="text-xs text-muted-foreground">Ana kullanıcı</span>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  disabled={user.isActive === false}
+                                  title={user.isActive === false
+                                    ? 'Pasif kullanıcı ana kullanıcı yapılamaz'
+                                    : 'Bu kullanıcıyı firmanın ana kullanıcı admini yap'}
+                                  onClick={() => setPrimaryTarget(user)}
+                                >
+                                  <ShieldCheck className="h-3.5 w-3.5 mr-1" />
+                                  Ana kullanıcı yap
+                                </Button>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -2268,6 +2418,14 @@ export function CustomerDetailPage() {
         onOpenChange={setShowSmsDialog}
         companyName={customer?.companyName ?? ''}
         addSms={addSms}
+      />
+
+      <SetPrimaryAdminDialog
+        target={primaryTarget}
+        onOpenChange={(open) => { if (!open) setPrimaryTarget(null); }}
+        companyName={customer?.companyName ?? ''}
+        currentPrimary={emsUsersData?.find((u) => u.isPrimaryAdmin) ?? null}
+        setPrimary={setPrimaryEmsUser}
       />
 
       <CustomerFormDialog

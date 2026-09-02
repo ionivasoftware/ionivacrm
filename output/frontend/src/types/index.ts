@@ -407,6 +407,11 @@ export interface EmsUser {
   role: string;
   loginName: string;
   password: string;
+  /** True when this user is the firm's primary admin (Liftdesk owner). Null/undefined on older
+   *  Liftdesk builds that don't emit the flag yet. */
+  isPrimaryAdmin?: boolean | null;
+  /** True when the user is active in the source. Null/undefined on older builds. */
+  isActive?: boolean | null;
 }
 
 // ----- EMS Summary -----

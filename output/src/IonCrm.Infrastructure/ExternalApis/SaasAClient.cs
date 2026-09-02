@@ -172,6 +172,30 @@ public sealed class SaasAClient : ISaasAClient
     }
 
     /// <inheritdoc />
+    public async Task<EmsSetPrimaryAdminResponse> SetPrimaryAdminAsync(
+        string? apiKey,
+        int emsCompanyId,
+        string userId,
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null)
+    {
+        _logger.LogDebug("SaaS A: setting primary admin for company {CompanyId} to user {UserId}.",
+            emsCompanyId, userId);
+
+        return await _retryPipeline.ExecuteAsync<EmsSetPrimaryAdminResponse>(async ct =>
+        {
+            var uri = BuildRequestUri($"api/v1/crm/companies/{emsCompanyId}/set-primary-admin", baseUrl);
+            var request = new HttpRequestMessage(HttpMethod.Post, uri);
+            ApplyAuth(request, apiKey);
+            request.Content = JsonContent.Create(new { userId }, options: JsonOpts);
+            var response = await _httpClient.SendAsync(request, ct);
+            await EnsureSuccessAsync(response, ct);
+            var result = await response.Content.ReadFromJsonAsync<EmsSetPrimaryAdminResponse>(JsonOpts, ct);
+            return result ?? throw new InvalidOperationException("Empty response from EMS set-primary-admin.");
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<List<EmsCompanyUser>> GetCompanyUsersAsync(
         string? apiKey,
         int companyId,

@@ -45,6 +45,20 @@ public interface ISaasAClient
         string? baseUrl = null);
 
     /// <summary>
+    /// Sets a company's primary admin (the firm's main account user) via the EMS CRM API.
+    /// POST /api/v1/crm/companies/{emsCompanyId}/set-primary-admin
+    /// The source flips <c>User.IsOwner</c> from the current owner to <paramref name="userId"/> in one
+    /// transaction; the previous owner keeps its Admin role. Idempotent: re-selecting the current
+    /// primary is a server-side no-op.
+    /// </summary>
+    Task<EmsSetPrimaryAdminResponse> SetPrimaryAdminAsync(
+        string? apiKey,
+        int emsCompanyId,
+        string userId,
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null);
+
+    /// <summary>
     /// Fetches the user list for a company via the EMS CRM API.
     /// GET /api/v1/crm/companies/{companyId}/users
     /// </summary>

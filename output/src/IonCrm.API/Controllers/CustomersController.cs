@@ -7,6 +7,7 @@ using IonCrm.Application.Customers.Commands.DeleteCustomer;
 using IonCrm.Application.Customers.Commands.ExtendEmsExpiration;
 using IonCrm.Application.Customers.Commands.PushCustomerToRezerval;
 using IonCrm.Application.Customers.Commands.ResetCustomerChecklists;
+using IonCrm.Application.Customers.Commands.SetPrimaryEmsUser;
 using IonCrm.Application.Customers.Commands.TransferLead;
 using IonCrm.Application.Customers.Commands.UpdateContractPaymentType;
 using IonCrm.Application.Customers.Commands.UpdateCustomer;
@@ -25,6 +26,7 @@ using IonCrm.Application.Customers.Queries.GetCustomerRezervalSummary;
 using IonCrm.Application.Customers.Queries.GetCustomerWithDetails;
 using IonCrm.Application.Customers.Queries.GetCustomers;
 using IonCrm.Application.Customers.Queries.GetLinkedParasutContactIds;
+using IonCrm.API.Common;
 using IonCrm.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -190,6 +192,28 @@ public class CustomersController : ApiControllerBase
     public async Task<IActionResult> GetEmsUsers(Guid id, CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(new GetCustomerEmsUsersQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// POST /api/v1/customers/{id}/set-primary-admin
+    /// Changes the firm's primary admin (the "ana kullanıcı admini") to one of its existing users.
+    /// SuperAdmin only; requires <c>?confirm=true</c> so a misclick cannot commit the change. The
+    /// previous primary admin keeps its admin rights — the source only moves the "owner" flag.
+    /// </summary>
+    [HttpPost("{id:guid}/set-primary-admin")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> SetPrimaryEmsUser(
+        Guid id,
+        [FromBody] SetPrimaryEmsUserRequest body,
+        [FromQuery] bool confirm = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (!confirm)
+            return BadRequest(ApiResponse<object>.Fail(
+                "Bu işlem firmanın ana kullanıcı adminini değiştirir. Onaylamak için ?confirm=true ekleyin.", 400));
+
+        var result = await Mediator.Send(new SetPrimaryEmsUserCommand(id, body.UserId), cancellationToken);
         return ResultToResponse(result);
     }
 
@@ -517,6 +541,10 @@ public record UpdateCustomerPlanRequest(string? Tier, Guid? PlanId, string? Bill
 
 /// <summary>Request body for POST /api/v1/customers/{id}/add-sms.</summary>
 public record AddCustomerSmsRequest(int Count);
+
+/// <summary>Request body for POST /api/v1/customers/{id}/set-primary-admin. The source user id of the
+/// firm user to promote to primary admin.</summary>
+public record SetPrimaryEmsUserRequest(string UserId);
 
 /// <summary>Request body for PUT /api/v1/customers/{id}/checklists/{kind} — the FULL new checklist.</summary>
 public record UpdateChecklistRequest(List<LiftdeskChecklistHeaderInput> Headers);

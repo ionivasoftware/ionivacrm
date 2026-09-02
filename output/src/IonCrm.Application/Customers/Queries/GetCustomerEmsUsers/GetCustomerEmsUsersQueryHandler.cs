@@ -87,7 +87,9 @@ public sealed class GetCustomerEmsUsersQueryHandler
                 u.Email,
                 u.Role,
                 u.LoginName,
-                u.Password))
+                u.Password,
+                u.IsPrimaryAdmin,
+                u.IsActive))
             .ToList();
 
         _logger.LogInformation(
