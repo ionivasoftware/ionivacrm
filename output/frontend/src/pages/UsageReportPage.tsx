@@ -39,6 +39,21 @@ function totalActivity(r: UsageReportRow): number {
          r.revisionOfferCount + r.assemblyOfferCount + r.workOrderCount;
 }
 
+// ── Sekme filtreleri ──────────────────────────────────────────────────────────
+// Tek tanım: hem listeyi hem sekme sayacını besler (ikisine kopyalanınca sessizce ayrışıyordu).
+//
+// "Aktif" = CustomerStatus.Active — Dashboard'un "aktif müşteri" sayımıyla birebir aynı tanım.
+// Statü CRM'de elle set edilmez; sync ExpirationDate'ten türetir (SaasSyncJob.ResolveStatus):
+//   Active  = gerçek müşteri (CreatedAt+40g < exp) ve süresi dolmamış (today < exp)
+//   Churned = gerçek müşteri ve süresi dolmuş
+//   Demo    = kısa deneme, süresi dolmamış      Passive = kısa deneme, süresi dolmuş
+// Eski filtre (status !== 'Churned') Lead/Demo/Passive'i de aktif sayıp sayıyı şişiriyordu.
+const isActiveRow = (r: UsageReportRow) => r.status === 'Active';
+
+/** Churn sekmesi: yalnız son 3 ayda düşenler (hâlâ aranmaya değer); eskiler elenir. */
+const isRecentChurn = (r: UsageReportRow, cutoff: Date) =>
+  r.status === 'Churned' && r.expirationDate != null && new Date(r.expirationDate) >= cutoff;
+
 type Severity = 'critical' | 'watch' | 'healthy' | 'nodata';
 
 /** Usage severity from the heartbeat + whether the firm did anything at all this month. */
@@ -72,19 +87,20 @@ export function UsageReportPage() {
 
   const { data: rows = [], isLoading, isError } = useUsageReport(year, month);
 
-  // Churn view shows only firms that churned within the last 3 months (recent, still worth a call);
-  // older churns are dropped. Churn date ≈ ExpirationDate (status flips to Churned when it passes).
+  // Churn date ≈ ExpirationDate (statü süre dolunca Churned'a döner).
   const churnCutoff = useMemo(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 3);
     return d;
   }, []);
 
-  const viewRows = useMemo(() => {
-    if (view === 'active') return rows.filter((r) => r.status !== 'Churned');
-    return rows.filter((r) =>
-      r.status === 'Churned' && r.expirationDate != null && new Date(r.expirationDate) >= churnCutoff);
-  }, [rows, view, churnCutoff]);
+  const viewRows = useMemo(
+    () =>
+      view === 'active'
+        ? rows.filter(isActiveRow)
+        : rows.filter((r) => isRecentChurn(r, churnCutoff)),
+    [rows, view, churnCutoff]
+  );
 
   function prevMonth() {
     setMonth((m) => (m === 1 ? (setYear((y) => y - 1), 12) : m - 1));
@@ -126,9 +142,8 @@ export function UsageReportPage() {
 
   // Counts for the tab labels (independent of the active view).
   const tabCounts = useMemo(() => ({
-    active: rows.filter((r) => r.status !== 'Churned').length,
-    churn: rows.filter((r) =>
-      r.status === 'Churned' && r.expirationDate != null && new Date(r.expirationDate) >= churnCutoff).length,
+    active: rows.filter(isActiveRow).length,
+    churn: rows.filter((r) => isRecentChurn(r, churnCutoff)).length,
   }), [rows, churnCutoff]);
 
   const fmtLogin = (s: string | null) =>
