@@ -147,12 +147,30 @@ public sealed class SyncEmsPaymentsCommandHandler
                     string? parasutProductId   = null;
                     string? parasutProductName = null;
 
+                    // Ürün eşleşmesi: önce sayısal EMS ürün id'si, sonra İSİM.
+                    //
+                    // İsim yedeği şart: Liftdesk recent-payments sözleşmesinde ProductId SABİT null
+                    // ("EMS planlarında sayısal Paraşüt ürün id'si yok") ama ProductName plan/paket
+                    // adını taşıyor. Yalnız id'ye bakıldığı için ParasutProducts kataloğu abonelik ve
+                    // SMS ödemelerinde hiç devreye girmiyordu; her fatura satırı "Ödeme #123" olarak
+                    // Paraşüt ürün bağı olmadan oluşuyordu. ProductName ParasutProduct'ın benzersiz
+                    // anahtarı olduğu için doğrudan eşleşir.
+                    ParasutProduct? product = null;
+
                     if (payment.ProductId.HasValue)
                     {
-                        var product = await _productRepository.GetByEmsProductIdAsync(
+                        product = await _productRepository.GetByEmsProductIdAsync(
                             payment.ProductId.Value.ToString(),
                             cancellationToken);
+                    }
 
+                    if (product is null && !string.IsNullOrWhiteSpace(payment.ProductName))
+                    {
+                        product = await _productRepository.GetByNameAsync(
+                            payment.ProductName.Trim(), cancellationToken);
+                    }
+
+                    {
                         if (product is not null)
                         {
                             // If product data is incomplete, enrich from Paraşüt API
@@ -192,20 +210,16 @@ public sealed class SyncEmsPaymentsCommandHandler
                         }
                         else
                         {
-                            lineDescription = payment.ProductName ?? $"{srcLabel} Ürün #{payment.ProductId}";
+                            // Katalogda karşılığı yok: satır adı yine de kaynağın ürün adını taşısın
+                            // (ör. "EMS Pro", "1000 SMS") — "Ödeme #123" hangi ürün olduğunu gizliyordu.
+                            lineDescription = !string.IsNullOrWhiteSpace(payment.ProductName)
+                                ? payment.ProductName!
+                                : $"{srcLabel} Ödeme #{payment.Id}";
                             unitPrice       = payment.SubTotal;
                             vatRate         = payment.SubTotal > 0
                                 ? (int)Math.Round(payment.VatPrice / payment.SubTotal * 100)
                                 : 20;
                         }
-                    }
-                    else
-                    {
-                        lineDescription = $"{srcLabel} Ödeme #{payment.Id}";
-                        unitPrice       = payment.SubTotal;
-                        vatRate         = payment.SubTotal > 0
-                            ? (int)Math.Round(payment.VatPrice / payment.SubTotal * 100)
-                            : 20;
                     }
 
                     // 4. Build invoice line JSON (parasutProductId included when mapping exists)
