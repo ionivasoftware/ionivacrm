@@ -360,6 +360,11 @@ export interface SyncLog {
 export type ParasutProductKey =
   | 'membership_monthly'
   | 'membership_yearly'
+  | 'membership_pro_monthly'
+  | 'membership_pro_yearly'
+  | 'membership_prime_monthly'
+  | 'membership_prime_yearly'
+  | 'plan_upgrade'
   | 'sms_1000'
   | 'sms_2500'
   | 'sms_5000'

@@ -64,9 +64,22 @@ interface CrmProductDef {
   label: string;
 }
 
+// DİKKAT: label AYNI ZAMANDA eşleşme anahtarıdır. Kaydedilen ProductName budur (backend productKey'i
+// kullanmaz) ve ödeme sync'i Liftdesk'ten gelen ürün adını bununla eşleştirir. Bu yüzden abonelik
+// label'ları Liftdesk'in ürettiği adla BİREBİR aynı olmak zorunda:
+// CrmSaasRepository.BuildSubscriptionProductName → "LiftDesk {Kademe} - 1 Aylık|1 Yıllık",
+// yükseltmede "Paket Yükseltme". Bir harf şaşarsa eşleşme sessizce kopar ve fatura Paraşüt ürün
+// bağı olmadan oluşur.
 const CRM_PRODUCTS: CrmProductDef[] = [
-  { key: 'membership_monthly', label: '1 Aylık Üyelik' },
-  { key: 'membership_yearly', label: '1 Yıllık Üyelik' },
+  { key: 'membership_monthly', label: 'LiftDesk Standart - 1 Aylık' },
+  { key: 'membership_yearly', label: 'LiftDesk Standart - 1 Yıllık' },
+  { key: 'membership_pro_monthly', label: 'LiftDesk Pro - 1 Aylık' },
+  { key: 'membership_pro_yearly', label: 'LiftDesk Pro - 1 Yıllık' },
+  { key: 'membership_prime_monthly', label: 'LiftDesk Prime - 1 Aylık' },
+  { key: 'membership_prime_yearly', label: 'LiftDesk Prime - 1 Yıllık' },
+  // Tutarı oransal (kalan ay üzerinden) hesaplandığı için sabit birim fiyatı YOKTUR —
+  // birim fiyat 0 bırakılmalı ki ödemenin gerçek tutarı kullanılsın.
+  { key: 'plan_upgrade', label: 'Paket Yükseltme' },
   { key: 'sms_1000', label: '1000 SMS' },
   { key: 'sms_2500', label: '2500 SMS' },
   { key: 'sms_5000', label: '5000 SMS' },
