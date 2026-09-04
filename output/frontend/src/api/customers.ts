@@ -561,7 +561,14 @@ export interface ExtendExpirationResult {
 export function useExtendEmsExpiration(customerId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { durationType: string; amount: number }) => {
+    mutationFn: async (body: {
+      durationType: string;
+      amount: number;
+      /** İskonto — gönderilmezse iskontosuz faturalanır. */
+      discountValue?: number;
+      /** 'percentage' (varsayılan) | 'amount'. */
+      discountType?: 'percentage' | 'amount';
+    }) => {
       const response = await apiClient.post<ApiResponse<ExtendExpirationResult>>(
         `/customers/${customerId}/extend-expiration`,
         body

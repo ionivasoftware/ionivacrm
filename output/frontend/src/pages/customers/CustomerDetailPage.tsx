@@ -869,12 +869,22 @@ function ExtendExpirationDialog({
 }: ExtendExpirationDialogProps) {
   const { toast } = useToast();
   const [selection, setSelection] = useState<DurationSelection>({ type: 'days', amount: '' });
+  // Varsayılan iskonto tipi yüzde; boş bırakılırsa iskontosuz faturalanır.
+  const [discountValue, setDiscountValue] = useState('');
+  const [discountType, setDiscountType] = useState<'percentage' | 'amount'>('percentage');
 
   // Fatura firmanın MEVCUT PAKETİNE göre kesiliyor (Pro uzatması Standart fiyatından
   // faturalanmamalı), bu yüzden kademe burada da görünür olmalı: operatör neyi faturalayacağını
   // onaylamadan önce görür.
   const { data: plan, isLoading: planLoading } = useCustomerPlan(customerId, open);
   const tier = plan?.current?.tier ?? null;
+
+  const discountNum = parseFloat(discountValue.replace(',', '.'));
+  const discount = isNaN(discountNum) || discountNum < 0 ? 0 : discountNum;
+  // Yüzde 100'ü aşamaz; tutar iskontosu da satır toplamını aşamaz (sunucudaki koruma ile aynı).
+  const discountInvalid =
+    discountValue.trim() !== '' && (isNaN(discountNum) || discountNum < 0 ||
+      (discountType === 'percentage' && discountNum > 100));
 
   // Seçili döneme karşılık gelen liste fiyatı (KDV hariç) — yalnız bilgi amaçlı.
   const tierPrice = (() => {
@@ -884,6 +894,13 @@ function ExtendExpirationDialog({
     return selection.durationType === 'Years' ? p.priceYearly : p.priceMonthly;
   })();
 
+  // İskonto sonrası net — sunucudaki InvoiceLineCalculator ile aynı kural (iskonto satır
+  // toplamını aşamaz). Yalnız önizleme; faturayı sunucu hesaplar.
+  const discountedNet =
+    tierPrice == null ? null
+      : Math.max(0, tierPrice - (discountType === 'amount' ? Math.min(discount, tierPrice)
+                                                           : tierPrice * (discount / 100)));
+
   const isValid = selection.type === 'preset'
     ? true
     : !isNaN(parseInt(selection.amount, 10)) && parseInt(selection.amount, 10) > 0;
@@ -891,13 +908,19 @@ function ExtendExpirationDialog({
   function handleClose() {
     onOpenChange(false);
     setSelection({ type: 'days', amount: '' });
+    setDiscountValue('');
+    setDiscountType('percentage');
   }
 
   async function handleConfirm() {
     if (!isValid) return;
     try {
       const payload = selection.type === 'preset'
-        ? { durationType: selection.durationType, amount: selection.amount }
+        ? {
+            durationType: selection.durationType,
+            amount: selection.amount,
+            ...(discount > 0 ? { discountValue: discount, discountType } : {}),
+          }
         : { durationType: 'Days' as const, amount: parseInt(selection.amount, 10) };
 
       const result = await extendExpiration.mutateAsync(payload);
@@ -966,16 +989,71 @@ function ExtendExpirationDialog({
                   </span>
                 </div>
                 {selection.type === 'preset' && (
-                  <p className="text-muted-foreground mt-1.5">
-                    Fatura{' '}
-                    <span className="font-medium text-foreground">
-                      LiftDesk {tier} - {selection.durationType === 'Years' ? '1 Yıllık' : '1 Aylık'}
-                    </span>{' '}
-                    ürününden kesilecek
-                    {tierPrice != null && (
-                      <> · liste {tierPrice.toLocaleString('tr-TR')} ₺ + KDV</>
-                    )}
-                  </p>
+                  <>
+                    <p className="text-muted-foreground mt-1.5">
+                      Fatura{' '}
+                      <span className="font-medium text-foreground">
+                        LiftDesk {tier} - {selection.durationType === 'Years' ? '1 Yıllık' : '1 Aylık'}
+                      </span>{' '}
+                      ürününden kesilecek
+                      {tierPrice != null && (
+                        <> · liste {tierPrice.toLocaleString('tr-TR')} ₺ + KDV</>
+                      )}
+                    </p>
+
+                    {/* İskonto — yalnız fatura kesilen dönemlerde (1 Ay / 1 Yıl) anlamlı. */}
+                    <div className="mt-2.5 pt-2.5 border-t border-border/60">
+                      <label className="text-muted-foreground">İskonto (opsiyonel)</label>
+                      <div className="flex gap-2 mt-1">
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={discountValue}
+                          onChange={e => setDiscountValue(e.target.value)}
+                          placeholder="0"
+                          className={cn(
+                            'flex h-8 w-full rounded-md border bg-transparent px-2 text-sm',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                            discountInvalid ? 'border-destructive' : 'border-input'
+                          )}
+                        />
+                        <div className="flex rounded-md border border-input overflow-hidden shrink-0">
+                          {(['percentage', 'amount'] as const).map(t => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setDiscountType(t)}
+                              className={cn(
+                                'px-2.5 text-sm transition-colors',
+                                discountType === t
+                                  ? 'bg-amber-500/15 text-amber-500 font-medium'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              )}
+                            >
+                              {t === 'percentage' ? '%' : '₺'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {discountInvalid ? (
+                        <p className="text-destructive mt-1">
+                          {discountType === 'percentage'
+                            ? 'İskonto oranı 0–100 arasında olmalı.'
+                            : 'Geçerli bir iskonto tutarı girin.'}
+                        </p>
+                      ) : discount > 0 && discountedNet != null ? (
+                        <p className="text-foreground mt-1">
+                          İskontolu net:{' '}
+                          <span className="font-medium">
+                            {discountedNet.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ₺
+                          </span>{' '}
+                          + KDV
+                        </p>
+                      ) : null}
+                    </div>
+                  </>
                 )}
               </>
             ) : (
@@ -1044,7 +1122,7 @@ function ExtendExpirationDialog({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!isValid || extendExpiration.isPending}
+            disabled={!isValid || discountInvalid || extendExpiration.isPending}
             className="bg-amber-500 hover:bg-amber-600 text-white"
           >
             {extendExpiration.isPending ? (

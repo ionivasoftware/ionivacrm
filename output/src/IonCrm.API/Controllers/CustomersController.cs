@@ -163,7 +163,11 @@ public class CustomersController : ApiControllerBase
         [FromBody] ExtendEmsExpirationRequest body,
         CancellationToken cancellationToken = default)
     {
-        var command = new ExtendEmsExpirationCommand(id, body.DurationType, body.Amount);
+        var command = new ExtendEmsExpirationCommand(
+            id, body.DurationType, body.Amount,
+            body.DiscountValue ?? 0m,
+            string.Equals(body.DiscountType, "amount", StringComparison.OrdinalIgnoreCase)
+                ? "amount" : "percentage");
         var result = await Mediator.Send(command, cancellationToken);
         return ResultToResponse(result);
     }
@@ -533,8 +537,13 @@ public class CustomersController : ApiControllerBase
 /// <summary>Request body for PATCH /api/v1/customers/{id}/contracts/payment-type.</summary>
 public record UpdatePaymentTypeRequest(ContractPaymentType PaymentType);
 
-/// <summary>Request body for POST /api/v1/customers/{id}/extend-expiration.</summary>
-public record ExtendEmsExpirationRequest(string DurationType, int Amount);
+/// <summary>Request body for POST /api/v1/customers/{id}/extend-expiration.
+/// İskonto opsiyoneldir; gönderilmezse iskontosuz (0) faturalanır.</summary>
+public record ExtendEmsExpirationRequest(
+    string DurationType,
+    int Amount,
+    decimal? DiscountValue = null,
+    string? DiscountType = null);
 
 /// <summary>Request body for PUT /api/v1/customers/{id}/plan. PlanId wins when both are sent.</summary>
 public record UpdateCustomerPlanRequest(string? Tier, Guid? PlanId, string? BillingPeriod);

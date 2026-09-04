@@ -11,7 +11,11 @@ namespace IonCrm.Application.Customers.Commands.ExtendEmsExpiration;
 public record ExtendEmsExpirationCommand(
     Guid CustomerId,
     string DurationType,   // "Days" | "Months" | "Years"
-    int Amount)
+    int Amount,
+    /// <summary>İskonto tutarı/oranı. 0 = iskonto yok.</summary>
+    decimal DiscountValue = 0m,
+    /// <summary>"percentage" (varsayılan) | "amount" — fatura satırıyla aynı sözleşme.</summary>
+    string DiscountType = "percentage")
     : IRequest<Result<ExtendEmsExpirationDto>>;
 
 /// <summary>Result returned after a successful expiration extension.</summary>

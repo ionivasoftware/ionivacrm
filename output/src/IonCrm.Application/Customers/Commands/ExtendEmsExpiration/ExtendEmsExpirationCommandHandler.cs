@@ -1,7 +1,9 @@
+using IonCrm.Application.Common.DTOs;
 using IonCrm.Application.Common.Helpers;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models;
 using IonCrm.Application.Common.Models.ExternalApis;
+using IonCrm.Application.Features.Invoices;
 using IonCrm.Domain.Entities;
 using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
@@ -145,6 +147,8 @@ public sealed class ExtendEmsExpirationCommandHandler
             customer.CompanyName,
             request.DurationType,
             tier!,
+            request.DiscountValue,
+            request.DiscountType,
             cancellationToken);
 
         return Result<ExtendEmsExpirationDto>.Success(
@@ -163,6 +167,8 @@ public sealed class ExtendEmsExpirationCommandHandler
         string companyName,
         string durationType,
         string tier,
+        decimal discountValue,
+        string discountType,
         CancellationToken ct)
     {
         try
@@ -217,8 +223,6 @@ public sealed class ExtendEmsExpirationCommandHandler
 
             decimal unitPrice = configProduct?.UnitPrice ?? 0m;
             int     vatRate   = configProduct is not null ? (int)(configProduct.TaxRate * 100) : 20;
-            decimal netTotal  = unitPrice;
-            decimal grossTotal = unitPrice * (1 + vatRate / 100m);
 
             var lines = new[]
             {
@@ -230,13 +234,28 @@ public sealed class ExtendEmsExpirationCommandHandler
                     quantity           = 1,
                     unitPrice,
                     vatRate,
-                    discountValue      = 0,
-                    discountType       = "percentage",
+                    discountValue,
+                    discountType,
                     unit               = "Adet",
                     parasutProductId   = configProduct?.ParasutProductId,
                     parasutProductName = configProduct?.ParasutProductName
                 }
             };
+
+            // Toplamlar paylaşılan hesaplayıcıdan: iskonto tipini (yüzde/tutar) ve "iskonto satır
+            // toplamını aşamaz" korumasını tek yerde tutar. Elde hesaplamak, iskonto eklendiğinde
+            // KDV'yi iskonto ÖNCESİ tutardan hesaplama hatasına açık olurdu.
+            var (netTotal, grossTotal) = InvoiceLineCalculator.ComputeTotals(new[]
+            {
+                new InvoiceLineDto
+                {
+                    Quantity      = 1,
+                    UnitPrice     = unitPrice,
+                    VatRate       = vatRate,
+                    DiscountValue = discountValue,
+                    DiscountType  = discountType,
+                }
+            });
 
             var invoice = new Invoice
             {
