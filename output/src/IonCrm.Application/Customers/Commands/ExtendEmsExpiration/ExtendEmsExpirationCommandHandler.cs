@@ -21,6 +21,7 @@ public sealed class ExtendEmsExpirationCommandHandler
     private readonly IInvoiceRepository _invoiceRepository;
     private readonly IParasutProductRepository _productRepository;
     private readonly IParasutService _parasutService;
+    private readonly ILiftdeskPlanClient _planClient;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<ExtendEmsExpirationCommandHandler> _logger;
 
@@ -32,6 +33,7 @@ public sealed class ExtendEmsExpirationCommandHandler
         IInvoiceRepository invoiceRepository,
         IParasutProductRepository productRepository,
         IParasutService parasutService,
+        ILiftdeskPlanClient planClient,
         ICurrentUserService currentUser,
         ILogger<ExtendEmsExpirationCommandHandler> logger)
     {
@@ -41,6 +43,7 @@ public sealed class ExtendEmsExpirationCommandHandler
         _invoiceRepository  = invoiceRepository;
         _productRepository  = productRepository;
         _parasutService     = parasutService;
+        _planClient         = planClient;
         _currentUser        = currentUser;
         _logger             = logger;
     }
@@ -108,11 +111,40 @@ public sealed class ExtendEmsExpirationCommandHandler
             return Result<ExtendEmsExpirationDto>.Success(
                 new ExtendEmsExpirationDto(emsResponse.ExpirationDate, false, null));
 
+        // Fatura, firmanın MEVCUT PAKETİNE göre kesilmeli: Pro uzatması Standart fiyatından
+        // faturalanmamalı. Kademe kaynaktan okunur; okunamazsa fatura kesilmez (yanlış üründen
+        // fatura kesmektense hiç kesmemek doğru — operatöre sebebi bildirilir).
+        string? tier = null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(emsBaseUrl) && !string.IsNullOrWhiteSpace(emsApiKey))
+            {
+                var plan = await _planClient.GetPlanAsync(emsBaseUrl, emsApiKey, emsCompanyId, cancellationToken);
+                tier = plan?.Current?.Tier;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Extend EMS: paket bilgisi alınamadı (customer {CustomerId}, company {EmsId}).",
+                customer.Id, emsCompanyId);
+        }
+
+        if (string.IsNullOrWhiteSpace(tier))
+        {
+            return Result<ExtendEmsExpirationDto>.Success(
+                new ExtendEmsExpirationDto(
+                    emsResponse.ExpirationDate, false, null,
+                    "Süre uzatıldı ancak firmanın paketi okunamadığı için taslak fatura oluşturulmadı. " +
+                    "Paket sekmesinden kademeyi kontrol edip faturayı elle oluşturabilirsiniz."));
+        }
+
         var (invoiceId, invoiceError) = await TryCreateLocalDraftInvoiceAsync(
             customer.ProjectId,
             customer.Id,
             customer.CompanyName,
             request.DurationType,
+            tier!,
             cancellationToken);
 
         return Result<ExtendEmsExpirationDto>.Success(
@@ -130,12 +162,18 @@ public sealed class ExtendEmsExpirationCommandHandler
         Guid customerId,
         string companyName,
         string durationType,
+        string tier,
         CancellationToken ct)
     {
         try
         {
             var durationLabel = durationType == "Years" ? "1 Yıllık" : "1 Aylık";
-            var productName   = durationType == "Years" ? "1 Yıllık Üyelik" : "1 Aylık Üyelik";
+
+            // Ürün adı KADEME + DÖNEM'den kurulur ve Ayarlar → Paraşüt Ürün Eşleştirmesi'ndeki
+            // label ile birebir aynı olmak zorundadır (eşleşme anahtarı ProductName'dir).
+            // Eskiden sabit "1 Aylık Üyelik" aranıyordu; bu, Pro/Prime firmalarını Standart
+            // fiyatından faturalıyordu.
+            var productName = $"LiftDesk {tier} - {durationLabel}";
             var today         = DateTime.UtcNow;
             var dueDate       = today.AddDays(30);
 
@@ -188,7 +226,7 @@ public sealed class ExtendEmsExpirationCommandHandler
                 {
                     description        = !string.IsNullOrEmpty(configProduct?.ParasutProductName)
                                             ? configProduct.ParasutProductName
-                                            : $"{durationLabel} EMS Lisans — {companyName}",
+                                            : $"{productName} — {companyName}",
                     quantity           = 1,
                     unitPrice,
                     vatRate,
@@ -204,7 +242,7 @@ public sealed class ExtendEmsExpirationCommandHandler
             {
                 ProjectId    = projectId,
                 CustomerId   = customerId,
-                Title        = $"{durationLabel} EMS Lisans Yenileme — {companyName}",
+                Title        = $"{productName} Lisans Yenileme — {companyName}",
                 Description  = null,
                 IssueDate    = today,
                 DueDate      = dueDate,

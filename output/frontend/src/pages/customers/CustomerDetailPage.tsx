@@ -78,6 +78,7 @@ import {
   useAddCustomerSms,
   useExtendEmsExpiration,
   useCustomerEmsUsers,
+  useCustomerPlan,
   useSetPrimaryEmsUser,
   useCustomerEmsSummary,
   useCustomerRezervalSummary,
@@ -849,6 +850,8 @@ interface ExtendExpirationDialogProps {
   onOpenChange: (open: boolean) => void;
   companyName: string;
   currentExpiry: string | null;
+  /** Paket bilgisini modal açıkken çekmek için — fatura kademeye göre kesiliyor. */
+  customerId: string;
   extendExpiration: ReturnType<typeof useExtendEmsExpiration>;
 }
 
@@ -861,10 +864,25 @@ function ExtendExpirationDialog({
   onOpenChange,
   companyName,
   currentExpiry,
+  customerId,
   extendExpiration,
 }: ExtendExpirationDialogProps) {
   const { toast } = useToast();
   const [selection, setSelection] = useState<DurationSelection>({ type: 'days', amount: '' });
+
+  // Fatura firmanın MEVCUT PAKETİNE göre kesiliyor (Pro uzatması Standart fiyatından
+  // faturalanmamalı), bu yüzden kademe burada da görünür olmalı: operatör neyi faturalayacağını
+  // onaylamadan önce görür.
+  const { data: plan, isLoading: planLoading } = useCustomerPlan(customerId, open);
+  const tier = plan?.current?.tier ?? null;
+
+  // Seçili döneme karşılık gelen liste fiyatı (KDV hariç) — yalnız bilgi amaçlı.
+  const tierPrice = (() => {
+    if (!tier || selection.type !== 'preset') return null;
+    const p = plan?.availablePlans?.find(a => a.tier === tier);
+    if (!p) return null;
+    return selection.durationType === 'Years' ? p.priceYearly : p.priceMonthly;
+  })();
 
   const isValid = selection.type === 'preset'
     ? true
@@ -934,6 +952,39 @@ function ExtendExpirationDialog({
               </span>
             </p>
           )}
+
+          {/* Mevcut paket — faturanın hangi üründen kesileceğini belirler. */}
+          <div className="rounded-lg border border-border px-3 py-2.5 text-xs">
+            {planLoading ? (
+              <span className="text-muted-foreground">Paket bilgisi yükleniyor…</span>
+            ) : tier ? (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground">Mevcut paket</span>
+                  <span className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold bg-blue-500/10 text-blue-400 border-blue-500/30">
+                    LiftDesk {tier}
+                  </span>
+                </div>
+                {selection.type === 'preset' && (
+                  <p className="text-muted-foreground mt-1.5">
+                    Fatura{' '}
+                    <span className="font-medium text-foreground">
+                      LiftDesk {tier} - {selection.durationType === 'Years' ? '1 Yıllık' : '1 Aylık'}
+                    </span>{' '}
+                    ürününden kesilecek
+                    {tierPrice != null && (
+                      <> · liste {tierPrice.toLocaleString('tr-TR')} ₺ + KDV</>
+                    )}
+                  </p>
+                )}
+              </>
+            ) : (
+              // Kademe okunamazsa fatura kesilmiyor — operatör bunu ÖNCEDEN bilmeli.
+              <span className="text-amber-600 dark:text-amber-500">
+                Paket bilgisi okunamadı — süre uzatılır ancak taslak fatura oluşturulmaz.
+              </span>
+            )}
+          </div>
 
           {/* Gün — serbest input */}
           <div className="space-y-2">
@@ -2483,6 +2534,7 @@ export function CustomerDetailPage() {
         onOpenChange={setShowExtendDialog}
         companyName={customer?.companyName ?? ''}
         currentExpiry={customer?.expirationDate ?? null}
+        customerId={customerId}
         extendExpiration={extendExpiration}
       />
 
