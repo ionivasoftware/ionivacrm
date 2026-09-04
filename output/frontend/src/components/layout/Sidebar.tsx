@@ -13,6 +13,7 @@ import {
   ChevronRight,
   FileText,
   ShieldAlert,
+  DatabaseBackup,
   Receipt,
   Tags,
   MessageSquareText,
@@ -62,6 +63,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Hata Onayları', href: '/admin/error-triage', icon: ShieldAlert, superAdminOnly: true },
   { label: 'Destek Sohbetleri', href: '/admin/support-chat-logs', icon: MessageCircle, superAdminOnly: true },
   { label: 'Fiyat Yönetimi', href: '/admin/pricing', icon: Tags, superAdminOnly: true },
+  { label: 'Yedekleme', href: '/admin/backups', icon: DatabaseBackup, superAdminOnly: true },
 ];
 
 export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: SidebarProps) {

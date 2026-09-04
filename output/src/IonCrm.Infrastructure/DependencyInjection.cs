@@ -294,6 +294,15 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(60);
             })
             .AddPolicyHandler(BuildCircuitBreakerPolicy());
+
+        // Liftdesk (EMS) backup-status API — read-only, same static Bearer key + base URL.
+        // Infrastructure-wide (not tenant-scoped): one backup covers the whole installation.
+        services
+            .AddHttpClient<ILiftdeskBackupClient, LiftdeskBackupClient>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(60);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
     }
 
     private static void RegisterSaasBClient(

@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDashboardStats } from '@/api/dashboard';
+import { useAuthStore } from '@/stores/authStore';
+import { BackupStatusCard } from '@/components/dashboard/BackupStatusCard';
 import {
   AreaChart,
   Area,
@@ -115,6 +117,8 @@ function StatCard({ title, value, icon: Icon, description, isLoading }: StatCard
 export function DashboardPage() {
   const { data: stats, isLoading, isError } = useDashboardStats();
   const navigate = useNavigate();
+  // Yedek uçları SuperAdmin korumalı; kartı diğer rollerde hiç çağırmıyoruz ki panoda 403 düşmesin.
+  const isSuperAdmin = useAuthStore((s) => s.user?.isSuperAdmin ?? false);
 
   if (isError) {
     return (
@@ -134,6 +138,9 @@ export function DashboardPage() {
           Hoş geldiniz! İşte bugünkü özet bilgileriniz.
         </p>
       </div>
+
+      {/* Liftdesk yedekleme — altyapı geneli, yalnız SuperAdmin */}
+      <BackupStatusCard enabled={isSuperAdmin} />
 
       {/* Stats grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

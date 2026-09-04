@@ -23,6 +23,7 @@ const UsageReportPage   = lazy(() => import('@/pages/UsageReportPage').then(m =>
 const InvoicesPage      = lazy(() => import('@/pages/InvoicesPage').then(m => ({ default: m.InvoicesPage })));
 const SyncLogsPage      = lazy(() => import('@/pages/SyncLogsPage').then(m => ({ default: m.SyncLogsPage })));
 const ErrorTriagePage   = lazy(() => import('@/pages/admin/ErrorTriagePage').then(m => ({ default: m.ErrorTriagePage })));
+const BackupsPage       = lazy(() => import('@/pages/BackupsPage').then(m => ({ default: m.BackupsPage })));
 const VendorInvoicesPage = lazy(() => import('@/pages/admin/VendorInvoicesPage').then(m => ({ default: m.VendorInvoicesPage })));
 const PricingAdminPage  = lazy(() => import('@/pages/admin/PricingAdminPage').then(m => ({ default: m.PricingAdminPage })));
 const TicketsPage       = lazy(() => import('@/pages/admin/TicketsPage').then(m => ({ default: m.TicketsPage })));
@@ -143,6 +144,14 @@ export default function App() {
                 element={
                   <ProtectedRoute superAdminOnly>
                     <ErrorTriagePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/backups"
+                element={
+                  <ProtectedRoute superAdminOnly>
+                    <BackupsPage />
                   </ProtectedRoute>
                 }
               />

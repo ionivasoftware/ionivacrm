@@ -1,0 +1,241 @@
+import { useState } from 'react';
+import { ExternalLink, AlertTriangle, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  useBackupRuns,
+  useBackupStatus,
+  formatBytes,
+  formatUtc,
+  formatDuration,
+  type BackupRun,
+} from '@/api/backups';
+
+const KINDS = [
+  { value: '', label: 'Tümü' },
+  { value: 'Backup', label: 'Yedekleme' },
+  { value: 'Verify', label: 'Doğrulama' },
+  { value: 'Mirror', label: 'Ayna' },
+] as const;
+
+const KIND_TR: Record<string, string> = {
+  Backup: 'Yedekleme',
+  Verify: 'Doğrulama',
+  Mirror: 'Ayna',
+};
+
+const STATUS_TR: Record<string, string> = {
+  Running: 'Çalışıyor',
+  Succeeded: 'Başarılı',
+  Failed: 'Başarısız',
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const cls =
+    status === 'Succeeded'
+      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+      : status === 'Failed'
+      ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30'
+      : 'bg-blue-500/10 text-blue-500 border-blue-500/30';
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${cls}`}>
+      {STATUS_TR[status] ?? status}
+    </span>
+  );
+}
+
+/**
+ * Doğrulama gücü rozeti — bu ekranın asıl bilgisi.
+ *
+ * full + countsMatched=true → yedeğin GERÇEKTEN geri yüklenebildiği kanıtlanmış.
+ * schema → yalnız şema doğrulanmış; veri geri geliyor mu bilinmiyor (zayıf hâl).
+ * countsMatched=false → geri yükleme oldu ama VERİ EKSİK; en kötü hâl.
+ */
+function VerifyBadge({ run }: { run: BackupRun }) {
+  if (run.kind !== 'Verify') return <span className="text-muted-foreground">—</span>;
+  if (run.verifyMode == null && run.countsMatched == null)
+    return <span className="text-muted-foreground">—</span>;
+
+  const full = run.verifyMode === 'full';
+  const matched = run.countsMatched === true;
+  const strong = full && matched;
+  const dataMissing = run.countsMatched === false;
+
+  const cls = strong
+    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+    : dataMissing
+    ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30'
+    : 'bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-500/30';
+
+  const label = dataMissing
+    ? 'veri eksik'
+    : strong
+    ? 'tam · sayımlar tuttu'
+    : full
+    ? 'tam · sayım doğrulanmadı'
+    : 'yalnız şema';
+
+  const title = dataMissing
+    ? 'Geri yükleme yapıldı ama satır sayımları künyeyle tutmadı — veri eksik.'
+    : strong
+    ? 'Yedek gerçekten geri yüklenebiliyor: veri dahil geri yüklendi ve sayımlar tuttu.'
+    : full
+    ? 'Veri dahil geri yüklendi ancak sayım eşleşmesi bildirilmedi.'
+    : 'Yalnız şema doğrulandı — verinin geri gelip gelmediği kanıtlanmadı (zayıf hâl).';
+
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`} title={title}>
+      {label}
+    </span>
+  );
+}
+
+export function BackupsPage() {
+  const [kind, setKind] = useState<string>('');
+  const { data: status } = useBackupStatus(true);
+  const { data: runs = [], isLoading, isError, error } = useBackupRuns(kind || null, 50, true);
+
+  const errMsg =
+    (error as { response?: { data?: { errors?: string[]; message?: string } } })?.response?.data
+      ?.errors?.[0] ??
+    (error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+    'Yedek geçmişi alınamadı.';
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Liftdesk Yedekleme</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Tüm Liftdesk kurulumunu kapsayan tek altyapı yedeği — firma bazlı yedek yoktur.
+          Tarihler yerel saate çevrilmiştir.
+        </p>
+      </div>
+
+      {status && (
+        <Card className={status.isHealthy ? 'border-emerald-500/40' : 'border-red-500/50'}>
+          <CardContent className="p-4 flex items-start gap-3">
+            {status.isHealthy ? (
+              <ShieldCheck className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
+            ) : (
+              <ShieldAlert className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+            )}
+            <div className="min-w-0 text-sm">
+              {status.isHealthy ? (
+                <span className="text-foreground">Yedekleme sağlıklı.</span>
+              ) : (
+                <ul className="space-y-1">
+                  {(status.problems ?? []).map((p, i) => (
+                    <li key={i} className="text-red-600 dark:text-red-400">• {p}</li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-muted-foreground mt-1">
+                Kaynak DB: {formatBytes(status.latestDatabaseSizeBytes)} · Son arşiv:{' '}
+                {formatBytes(status.latestBackupSizeBytes)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex gap-1 border-b border-border">
+        {KINDS.map(k => (
+          <button
+            key={k.value}
+            onClick={() => setKind(k.value)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              kind === k.value
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {k.label}
+          </button>
+        ))}
+      </div>
+
+      {isLoading && (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" /> Yükleniyor…
+        </div>
+      )}
+
+      {isError && (
+        <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+          <AlertTriangle className="h-4 w-4" /> {errMsg}
+        </div>
+      )}
+
+      {!isLoading && !isError && runs.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+          <AlertTriangle className="h-8 w-8 text-amber-500/60" />
+          <p className="font-medium text-foreground">Hiç koşu kaydı yok</p>
+          <p className="text-sm text-muted-foreground max-w-md">
+            Kayıt bulunmaması iyi haber değildir: yedekleme boru hattı hiç çalışmamış olabilir.
+          </p>
+        </div>
+      )}
+
+      {!isLoading && runs.length > 0 && (
+        <div className="rounded-lg border border-border overflow-x-auto">
+          <table className="w-full text-sm min-w-[900px]">
+            <thead>
+              <tr className="bg-muted/40 border-b border-border">
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Başlangıç</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tür</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Durum</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Doğrulama</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Yedek adı</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Süre</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Boyut</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Log</th>
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((r, idx) => (
+                <tr
+                  key={r.id}
+                  className={`border-b border-border/50 transition-colors hover:bg-muted/20 ${
+                    idx === runs.length - 1 ? 'border-b-0' : ''
+                  } ${r.status === 'Failed' ? 'bg-red-500/5' : ''}`}
+                >
+                  <td className="px-4 py-3 whitespace-nowrap">{formatUtc(r.startedAt)}</td>
+                  <td className="px-4 py-3">{KIND_TR[r.kind] ?? r.kind}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={r.status} />
+                    {r.message && (
+                      <div className="text-xs text-muted-foreground mt-1 max-w-[280px] truncate" title={r.message}>
+                        {r.message}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3"><VerifyBadge run={r} /></td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                    {r.backupName ?? '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                    {formatDuration(r.durationSeconds)}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">{formatBytes(r.sizeBytes)}</td>
+                  <td className="px-4 py-3 text-right">
+                    {r.runUrl ? (
+                      <a
+                        href={r.runUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary hover:underline inline-flex items-center gap-1"
+                      >
+                        Aç <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
