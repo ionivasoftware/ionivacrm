@@ -79,9 +79,16 @@ const PLATFORM_OPTIONS: { value: TicketPlatform; label: string }[] = [
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function Pill({ className, children }: { className: string; children: React.ReactNode }) {
+function Pill({
+  className,
+  children,
+  title,
+}: { className: string; children: React.ReactNode; title?: string }) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${className}`}>
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${className}`}
+    >
       {children}
     </span>
   );
@@ -579,9 +586,19 @@ function TicketCard({ ticket, onOpen }: { ticket: Ticket; onOpen: (id: string) =
           <div className="flex flex-wrap items-center gap-2">
             <TypeBadge type={ticket.type} />
             <StatusBadge status={ticket.status} />
-            {ticket.agentComment && (
-              <Pill className="border-violet-500/30 bg-violet-500/10 text-violet-300">
-                <Sparkles className="h-3 w-3" /> AI
+            {/* "AI inceledi" işareti agentAnalyzedAt'e bakar: incelemenin kanıtı budur.
+                Yalnız agentComment'e bakmak, AI inceleyip yorum yazmadığı (sadece öneri ürettiği
+                ya da yorumsuz bıraktığı) kartlarda rozeti sessizce gizliyordu. */}
+            {(ticket.agentAnalyzedAt || ticket.agentComment || ticket.agentSuggestedAction) && (
+              <Pill
+                className="border-violet-500/30 bg-violet-500/10 text-violet-300"
+                title={
+                  ticket.agentAnalyzedAt
+                    ? `AI inceledi · ${formatDate(ticket.agentAnalyzedAt)}`
+                    : 'AI inceledi'
+                }
+              >
+                <Sparkles className="h-3 w-3" /> AI inceledi
               </Pill>
             )}
             <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
@@ -608,7 +625,9 @@ function TicketCard({ ticket, onOpen }: { ticket: Ticket; onOpen: (id: string) =
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export function TicketsPage() {
-  const [status, setStatus] = useState('');
+  // Sayfa "Yeni" sekmesiyle açılır: burası iş kuyruğu — karar bekleyen talepler.
+  // Boş (tümü) varsayılanı kapanmış kayıtları da getirip yeni gelenleri gömüyordu.
+  const [status, setStatus] = useState('New');
   const [type, setType] = useState('all');
   const [platform, setPlatform] = useState('all');
   const [page, setPage] = useState(1);
