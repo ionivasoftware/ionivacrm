@@ -71,6 +71,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Gets or sets the VendorInvoicePdfs table (stored invoice PDF files).</summary>
     public DbSet<VendorInvoicePdf> VendorInvoicePdfs => Set<VendorInvoicePdf>();
 
+    /// <summary>Liftdesk backup health transitions (infrastructure-wide, no tenant scope).</summary>
+    public DbSet<BackupHealthEvent> BackupHealthEvents => Set<BackupHealthEvent>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)

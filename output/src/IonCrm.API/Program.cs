@@ -306,6 +306,24 @@ app.Lifetime.ApplicationStarted.Register(() =>
             ALTER TABLE ""CustomerUsageSnapshots"" ADD COLUMN IF NOT EXISTS ""AccountingMode""  text;
         ");
 
+        // ── BackupHealthEvents (Liftdesk yedek sağlığı durum değişiklikleri) ──────
+        // Yalnız durum DEĞİŞİMİNDE satır yazılır; tablo bir zaman çizelgesi gibi okunur.
+        // Altyapı geneli olduğu için ProjectId yok.
+        await RunSafe("BackupHealthEvents table + index", @"
+            CREATE TABLE IF NOT EXISTS ""BackupHealthEvents"" (
+                ""Id""                             uuid    NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""IsHealthy""                      boolean NOT NULL,
+                ""Problems""                       text,
+                ""HoursSinceLastSuccessfulBackup"" double precision,
+                ""DetectedAt""                     timestamp with time zone NOT NULL DEFAULT now(),
+                ""CreatedAt""                      timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""                      timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""                      boolean NOT NULL DEFAULT false
+            );
+            CREATE INDEX IF NOT EXISTS ""ix_backuphealthevents_detectedat""
+                ON ""BackupHealthEvents"" (""DetectedAt"" DESC);
+        ");
+
         // ── User theme preference ────────────────────────────────────────────────
         await RunSafe("Users ThemePreference column", @"
             ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""ThemePreference"" text NOT NULL DEFAULT 'dark';

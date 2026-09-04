@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   useBackupRuns,
   useBackupStatus,
+  useBackupHealthEvents,
   formatBytes,
   formatUtc,
   formatDuration,
@@ -92,6 +93,7 @@ function VerifyBadge({ run }: { run: BackupRun }) {
 export function BackupsPage() {
   const [kind, setKind] = useState<string>('');
   const { data: status } = useBackupStatus(true);
+  const { data: events = [] } = useBackupHealthEvents(true, 10);
   const { data: runs = [], isLoading, isError, error } = useBackupRuns(kind || null, 50, true);
 
   const errMsg =
@@ -135,6 +137,38 @@ export function BackupsPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {events.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-foreground mb-2">Durum değişiklikleri</h2>
+          <p className="text-xs text-muted-foreground mb-2">
+            Arka plan izleyicisi 30 dakikada bir kontrol eder ve yalnız durum değiştiğinde kaydeder —
+            kimse ekrana bakmasa da yazılır.
+          </p>
+          <div className="rounded-lg border border-border divide-y divide-border">
+            {events.map(e => (
+              <div key={e.id} className="px-4 py-2.5 flex items-start gap-3 text-sm">
+                <span
+                  className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${
+                    e.isHealthy ? 'bg-emerald-500' : 'bg-red-500'
+                  }`}
+                />
+                <div className="min-w-0">
+                  <span className="font-medium text-foreground">
+                    {e.isHealthy ? 'Düzeldi' : 'Sorunlu'}
+                  </span>
+                  <span className="text-muted-foreground"> · {formatUtc(e.detectedAt)}</span>
+                  {e.problems && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 whitespace-pre-line">
+                      {e.problems}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="flex gap-1 border-b border-border">

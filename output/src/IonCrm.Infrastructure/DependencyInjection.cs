@@ -75,6 +75,10 @@ public static class DependencyInjection
         // ── Churn dashboard: daily monthly-usage snapshot writer ──────────────
         services.AddHostedService<UsageSnapshotService>();
 
+        // ── Liftdesk backup health: server-side watch so silent failure is caught
+        //    even when nobody has the dashboard open. Records state changes only.
+        services.AddHostedService<BackupHealthMonitorService>();
+
         // ── Phase 2: cost-API auto-expect ─────────────────────────────────────
         // Each provider is dual-mode: live API when its credentials are configured, otherwise a
         // fixed VendorCosts:{Provider}:MonthlyAmount. Anthropic → Admin Cost API; Railway → GraphQL;

@@ -3,8 +3,10 @@ import { ShieldCheck, ShieldAlert, ExternalLink, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   useBackupStatus,
+  useBackupHealthEvents,
   formatBytes,
   formatHoursAgo,
+  formatUtc,
 } from '@/api/backups';
 
 /**
@@ -20,6 +22,7 @@ import {
 export function BackupStatusCard({ enabled }: { enabled: boolean }) {
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useBackupStatus(enabled);
+  const { data: events } = useBackupHealthEvents(enabled, 5);
 
   if (!enabled) return null;
 
@@ -92,14 +95,22 @@ export function BackupStatusCard({ enabled }: { enabled: boolean }) {
             {healthy ? (
               <p className="text-sm text-muted-foreground mt-1">Son yedek: {summary}</p>
             ) : (
-              <ul className="mt-1.5 space-y-1">
-                {(data.problems ?? ['Yedekleme sağlıksız (ayrıntı bildirilmedi).']).map((p, i) => (
-                  <li key={i} className="text-sm text-red-600 dark:text-red-400 flex gap-1.5">
-                    <span aria-hidden>•</span>
-                    <span className="min-w-0">{p}</span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="mt-1.5 space-y-1">
+                  {(data.problems ?? ['Yedekleme sağlıksız (ayrıntı bildirilmedi).']).map((p, i) => (
+                    <li key={i} className="text-sm text-red-600 dark:text-red-400 flex gap-1.5">
+                      <span aria-hidden>•</span>
+                      <span className="min-w-0">{p}</span>
+                    </li>
+                  ))}
+                </ul>
+                {/* Arka plan izleyicisinin kaydettiği başlangıç anı — kimse ekrana bakmasa da yazılır. */}
+                {events?.[0] && !events[0].isHealthy && (
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    {formatUtc(events[0].detectedAt)}'ten beri sorunlu
+                  </p>
+                )}
+              </>
             )}
 
             <div className="flex items-center gap-4 mt-3 text-xs">

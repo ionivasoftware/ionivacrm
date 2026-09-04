@@ -1,8 +1,10 @@
 using IonCrm.API.Common;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models.ExternalApis;
+using IonCrm.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace IonCrm.API.Controllers;
 
@@ -18,11 +20,47 @@ namespace IonCrm.API.Controllers;
 public sealed class BackupsController : ApiControllerBase
 {
     private readonly ILiftdeskBackupClient _backupClient;
+    private readonly ApplicationDbContext _db;
 
     /// <summary>Initialises a new instance of <see cref="BackupsController"/>.</summary>
-    public BackupsController(ILiftdeskBackupClient backupClient)
+    public BackupsController(ILiftdeskBackupClient backupClient, ApplicationDbContext db)
     {
         _backupClient = backupClient;
+        _db = db;
+    }
+
+    /// <summary>One recorded backup-health state change.</summary>
+    public record BackupHealthEventDto(
+        Guid Id,
+        bool IsHealthy,
+        string? Problems,
+        double? HoursSinceLastSuccessfulBackup,
+        DateTime DetectedAt);
+
+    /// <summary>
+    /// GET /api/v1/backups/events
+    /// Recorded health transitions, newest first. Written by the background monitor — this is what
+    /// answers "ne zamandan beri sorunlu", and it exists even when nobody had the dashboard open.
+    /// </summary>
+    [HttpGet("events")]
+    [ProducesResponseType(typeof(ApiResponse<List<BackupHealthEventDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetEvents(
+        [FromQuery] int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        limit = limit is < 1 or > 100 ? 20 : limit;
+
+        var events = await _db.BackupHealthEvents
+            .IgnoreQueryFilters()
+            .Where(e => !e.IsDeleted)
+            .OrderByDescending(e => e.DetectedAt)
+            .Take(limit)
+            .Select(e => new BackupHealthEventDto(
+                e.Id, e.IsHealthy, e.Problems, e.HoursSinceLastSuccessfulBackup, e.DetectedAt))
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        return OkResponse(events);
     }
 
     /// <summary>

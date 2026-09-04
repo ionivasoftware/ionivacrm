@@ -87,6 +87,35 @@ export function useBackupRuns(kind: string | null, limit = 50, enabled = true) {
   });
 }
 
+/** Arka plan izleyicisinin kaydettiği durum değişikliği. */
+export interface BackupHealthEvent {
+  id: string;
+  isHealthy: boolean;
+  problems: string | null;
+  hoursSinceLastSuccessfulBackup: number | null;
+  /** UTC. */
+  detectedAt: string;
+}
+
+/**
+ * Kaydedilmiş sağlık değişiklikleri (yeniden eskiye). "Ne zamandan beri sorunlu" sorusunu bu
+ * cevaplar — pano kartından bağımsız, kimse ekrana bakmasa da arka planda yazılır.
+ */
+export function useBackupHealthEvents(enabled = true, limit = 20) {
+  return useQuery({
+    queryKey: ['backups', 'events', limit],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<BackupHealthEvent[]>>('/backups/events', {
+        params: { limit },
+      });
+      return response.data.data ?? [];
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+}
+
 // ── Ortak biçimlendiriciler ───────────────────────────────────────────────────
 
 /** Byte → GB/MB. Sözleşme 1024³ kullanılmasını şart koşuyor. */
