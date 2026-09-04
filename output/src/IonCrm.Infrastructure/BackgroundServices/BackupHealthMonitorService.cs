@@ -79,6 +79,7 @@ public sealed class BackupHealthMonitorService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var db     = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var client = scope.ServiceProvider.GetRequiredService<ILiftdeskBackupClient>();
+        var mail   = scope.ServiceProvider.GetRequiredService<INotificationEmailSender>();
 
         if (!client.IsConfigured)
         {
@@ -143,6 +144,11 @@ public sealed class BackupHealthMonitorService : BackgroundService
             if (status.IsHealthy)
             {
                 _logger.LogInformation("BackupHealthMonitor: yedekleme DÜZELDİ.");
+                await mail.SendAsync(
+                    "Liftdesk yedekleme düzeldi",
+                    "<p>Liftdesk yedekleme durumu <b>sağlıklıya</b> döndü.</p>" +
+                    $"<p>Son başarılı yedek: {Hours(status.HoursSinceLastSuccessfulBackup)}</p>",
+                    ct);
             }
             else
             {
@@ -151,6 +157,20 @@ public sealed class BackupHealthMonitorService : BackgroundService
                     "BackupHealthMonitor: YEDEKLEME SORUNLU. Son başarılı yedek: {Hours} saat önce. Sebepler: {Problems}",
                     status.HoursSinceLastSuccessfulBackup?.ToString("0.#") ?? "bilinmiyor",
                     problems);
+
+                // Bu özelliğin var oluş sebebi: yedeğin alınmadığını felaket anında öğrenmemek.
+                var items = string.Join("", (status.Problems ?? new List<string>())
+                    .Select(p => $"<li>{System.Net.WebUtility.HtmlEncode(p)}</li>"));
+                await mail.SendAsync(
+                    "DİKKAT: Liftdesk yedekleme sorunlu",
+                    "<p><b>Liftdesk yedekleme sağlıksız duruma geçti.</b></p>" +
+                    (string.IsNullOrEmpty(items) ? "" : $"<ul>{items}</ul>") +
+                    $"<p>Son başarılı yedek: {Hours(status.HoursSinceLastSuccessfulBackup)}<br/>" +
+                    $"Son 7 gündeki hata sayısı: {status.FailuresLast7Days}</p>" +
+                    (string.IsNullOrWhiteSpace(status.LastBackup?.RunUrl)
+                        ? ""
+                        : $"<p><a href=\"{status.LastBackup!.RunUrl}\">Koşu logunu aç</a></p>"),
+                    ct);
             }
         }
         finally
@@ -159,6 +179,9 @@ public sealed class BackupHealthMonitorService : BackgroundService
             catch { /* connection gone — session lock dies with it */ }
         }
     }
+
+    private static string Hours(double? h) =>
+        h is null ? "bilinmiyor" : $"{h.Value:0.#} saat önce";
 
     private static string Join(List<string>? problems) =>
         problems is { Count: > 0 } ? string.Join("\n", problems) : "(sebep bildirilmedi)";

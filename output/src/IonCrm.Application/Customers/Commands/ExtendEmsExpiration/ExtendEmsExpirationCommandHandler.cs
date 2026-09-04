@@ -24,6 +24,7 @@ public sealed class ExtendEmsExpirationCommandHandler
     private readonly IParasutProductRepository _productRepository;
     private readonly IParasutService _parasutService;
     private readonly ILiftdeskPlanClient _planClient;
+    private readonly INotificationEmailSender _mail;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<ExtendEmsExpirationCommandHandler> _logger;
 
@@ -36,9 +37,11 @@ public sealed class ExtendEmsExpirationCommandHandler
         IParasutProductRepository productRepository,
         IParasutService parasutService,
         ILiftdeskPlanClient planClient,
+        INotificationEmailSender mail,
         ICurrentUserService currentUser,
         ILogger<ExtendEmsExpirationCommandHandler> logger)
     {
+        _mail               = mail;
         _customerRepository = customerRepository;
         _projectRepository  = projectRepository;
         _saasAClient        = saasAClient;
@@ -151,12 +154,43 @@ public sealed class ExtendEmsExpirationCommandHandler
             request.DiscountType,
             cancellationToken);
 
+        await NotifyAsync(
+            $"Süre uzatıldı — {customer.CompanyName}",
+            $"<p><b>{Enc(customer.CompanyName)}</b> firmasının aboneliği uzatıldı.</p>" +
+            $"<p>Süre: {request.Amount} {DurationTr(request.DurationType)}<br/>" +
+            $"Paket: LiftDesk {Enc(tier!)}<br/>" +
+            $"Yeni bitiş: {emsResponse.ExpirationDate:dd.MM.yyyy}" +
+            (request.DiscountValue > 0
+                ? $"<br/>İskonto: {request.DiscountValue:0.##}{(request.DiscountType == "amount" ? " ₺" : "%")}"
+                : "") +
+            "</p>" +
+            (invoiceId.HasValue
+                ? "<p>CRM'de taslak fatura oluşturuldu.</p>"
+                : $"<p><b>Taslak fatura oluşturulmadı.</b> {Enc(invoiceError ?? "")}</p>"),
+            cancellationToken);
+
         return Result<ExtendEmsExpirationDto>.Success(
             new ExtendEmsExpirationDto(
                 emsResponse.ExpirationDate,
                 invoiceId.HasValue,
                 invoiceId,
                 invoiceError));
+    }
+
+    private static string Enc(string s) => System.Net.WebUtility.HtmlEncode(s);
+
+    private static string DurationTr(string durationType) => durationType switch
+    {
+        "Years"  => "yıl",
+        "Months" => "ay",
+        _        => "gün",
+    };
+
+    /// <summary>Bildirim gönderimi işlemi bozmaz — hata yalnız loglanır.</summary>
+    private async Task NotifyAsync(string subject, string body, CancellationToken ct)
+    {
+        try { await _mail.SendAsync(subject, body, ct); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Süre uzatma bildirimi gönderilemedi."); }
     }
 
     // ── Local CRM draft invoice helper ────────────────────────────────────────

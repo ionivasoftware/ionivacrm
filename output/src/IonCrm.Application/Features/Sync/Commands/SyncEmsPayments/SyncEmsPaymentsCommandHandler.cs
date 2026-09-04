@@ -20,6 +20,7 @@ public sealed class SyncEmsPaymentsCommandHandler
     private readonly ISyncLogRepository _syncLogRepository;
     private readonly ISaasAClient _saasAClient;
     private readonly IParasutService _parasutService;
+    private readonly INotificationEmailSender _mail;
     private readonly ILogger<SyncEmsPaymentsCommandHandler> _logger;
 
     /// <summary>Initialises a new instance of <see cref="SyncEmsPaymentsCommandHandler"/>.</summary>
@@ -31,8 +32,10 @@ public sealed class SyncEmsPaymentsCommandHandler
         ISyncLogRepository syncLogRepository,
         ISaasAClient saasAClient,
         IParasutService parasutService,
+        INotificationEmailSender mail,
         ILogger<SyncEmsPaymentsCommandHandler> logger)
     {
+        _mail               = mail;
         _projectRepository  = projectRepository;
         _customerRepository = customerRepository;
         _productRepository  = productRepository;
@@ -66,6 +69,7 @@ public sealed class SyncEmsPaymentsCommandHandler
         int projectsScanned  = 0;
         int paymentsFetched  = 0;
         int invoicesCreated  = 0;
+        var notifyLines      = new List<string>();
         int skipped          = 0;
         var errors           = new List<string>();
 
@@ -265,6 +269,13 @@ public sealed class SyncEmsPaymentsCommandHandler
                     invoicesCreated++;
                     projectInvoicesCreated++;
 
+                    // Bildirim için biriktiriliyor: ödeme başına e-posta atmak, tek sync turunda
+                    // gelen 20 ödemede 20 posta demek olurdu. Tur sonunda tek özet gönderilir.
+                    notifyLines.Add(
+                        $"{System.Net.WebUtility.HtmlEncode(customer.CompanyName)} — " +
+                        $"{System.Net.WebUtility.HtmlEncode(lineDescription)} · " +
+                        $"{invoice.GrossTotal:N2} ₺ (KDV dahil)");
+
                     // 6. Write sync log entry for this payment
                     await _syncLogRepository.AddAsync(new SyncLog
                     {
@@ -349,6 +360,28 @@ public sealed class SyncEmsPaymentsCommandHandler
         _logger.LogInformation(
             "EMS payment sync complete. Projects={Projects} Payments={Payments} Created={Created} Skipped={Skipped} Errors={Errors}.",
             projectsScanned, paymentsFetched, invoicesCreated, skipped, errors.Count);
+
+        // Tur başına TEK özet: sync 15 dakikada bir koştuğu için ödeme başına posta atmak
+        // kısa sürede gelen kutusunu doldururdu. Yeni ödeme yoksa hiç posta gitmez.
+        if (notifyLines.Count > 0)
+        {
+            try
+            {
+                var items = string.Join("", notifyLines.Select(l => $"<li>{l}</li>"));
+                await _mail.SendAsync(
+                    notifyLines.Count == 1
+                        ? "Yeni ödeme alındı"
+                        : $"Yeni ödeme alındı ({notifyLines.Count})",
+                    $"<p>Liftdesk'ten {notifyLines.Count} yeni ödeme geldi ve CRM'de taslak fatura oluşturuldu:</p>" +
+                    $"<ul>{items}</ul>",
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Bildirim sync'i bozmaz: faturalar zaten oluşturuldu.
+                _logger.LogWarning(ex, "Ödeme bildirimi gönderilemedi.");
+            }
+        }
 
         return Result<SyncEmsPaymentsResult>.Success(result);
     }

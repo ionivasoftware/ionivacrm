@@ -21,6 +21,7 @@ public sealed class AddCustomerSmsCommandHandler
     private readonly IInvoiceRepository _invoiceRepository;
     private readonly IParasutProductRepository _productRepository;
     private readonly IParasutService _parasutService;
+    private readonly INotificationEmailSender _mail;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<AddCustomerSmsCommandHandler> _logger;
 
@@ -31,9 +32,11 @@ public sealed class AddCustomerSmsCommandHandler
         IInvoiceRepository invoiceRepository,
         IParasutProductRepository productRepository,
         IParasutService parasutService,
+        INotificationEmailSender mail,
         ICurrentUserService currentUser,
         ILogger<AddCustomerSmsCommandHandler> logger)
     {
+        _mail               = mail;
         _customerRepository = customerRepository;
         _projectRepository  = projectRepository;
         _saasAClient        = saasAClient;
@@ -101,6 +104,22 @@ public sealed class AddCustomerSmsCommandHandler
             customer.CompanyName,
             request.Count,
             cancellationToken);
+
+        try
+        {
+            await _mail.SendAsync(
+                $"SMS yüklendi — {customer.CompanyName}",
+                $"<p><b>{System.Net.WebUtility.HtmlEncode(customer.CompanyName)}</b> firmasına SMS kredisi yüklendi.</p>" +
+                $"<p>Eklenen: {emsResponse.Added:N0} SMS<br/>" +
+                $"Yeni toplam: {emsResponse.SmsCount:N0} SMS</p>" +
+                (invoiceId.HasValue ? "<p>CRM'de taslak fatura oluşturuldu.</p>" : ""),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Bildirim işlemi bozmaz: SMS zaten yüklendi.
+            _logger.LogWarning(ex, "SMS yükleme bildirimi gönderilemedi.");
+        }
 
         return Result<AddCustomerSmsDto>.Success(new AddCustomerSmsDto(
             CompanyId:     emsResponse.CompanyId,

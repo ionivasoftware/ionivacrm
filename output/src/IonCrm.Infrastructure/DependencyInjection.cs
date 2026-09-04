@@ -9,6 +9,7 @@ using IonCrm.Infrastructure.BackgroundServices;
 using IonCrm.Infrastructure.ExternalApis;
 using IonCrm.Infrastructure.ExternalApis.CostProviders;
 using IonCrm.Infrastructure.ExternalApis.EmailCollector;
+using IonCrm.Infrastructure.Notifications;
 using IonCrm.Infrastructure.Persistence;
 using IonCrm.Infrastructure.Repositories;
 using IonCrm.Infrastructure.Services;
@@ -97,6 +98,10 @@ public static class DependencyInjection
 
         // ── Phase 3: e-mail PDF collector (IMAP → MarkReceived) ───────────────
         services.AddScoped<IInvoiceEmailCollector, InvoiceEmailCollector>();
+
+        // ── Operatör bildirim e-postaları (yedekleme uyarısı, ödeme, CRM işlemleri) ──
+        // SMTP tanımlı değilse sessizce devre dışı kalır; hiçbir iş akışını bozmaz.
+        services.AddScoped<INotificationEmailSender, NotificationEmailSender>();
 
         // ── Auth services ─────────────────────────────────────────────────────
         services.AddScoped<ITokenService, TokenService>();
