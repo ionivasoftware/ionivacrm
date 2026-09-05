@@ -32,4 +32,13 @@ public interface ILiftdeskBackupClient
         string? kind,
         int limit,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Infrastructure usage/cost breakdown by environment + service.
+    /// GET /api/v1/crm/backups/infra-usage?days=
+    /// </summary>
+    /// <param name="days">Son N gün (1–90). Null ise kaynak ay başından bugüne hesaplar.</param>
+    Task<LiftdeskEnvelope<LiftdeskInfraUsage>> GetInfraUsageAsync(
+        int? days,
+        CancellationToken cancellationToken = default);
 }

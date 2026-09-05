@@ -116,6 +116,67 @@ export function useBackupHealthEvents(enabled = true, limit = 20) {
   });
 }
 
+// ── Altyapı maliyeti (sözleşme §7.4 / §8) ─────────────────────────────────────
+
+export interface InfraUsageRow {
+  environment: string;
+  service: string;
+  /** Pencere boyunca ORTALAMA kullanım — toplam değil. */
+  avgVCpu: number;
+  avgRamGb: number;
+  avgDiskGb: number;
+  avgBackupGb: number;
+  /** Pencere boyunca TOPLAM giden trafik. */
+  egressGb: number;
+  /** Bu pencerenin TAHMİNİ maliyeti. */
+  estimatedCostUsd: number;
+  /** Aynı hızda devam ederse aylık projeksiyon. */
+  estimatedMonthlyUsd: number;
+}
+
+export interface EnvironmentTotal {
+  environment: string;
+  estimatedCostUsd: number;
+  estimatedMonthlyUsd: number;
+}
+
+export interface InfraUsage {
+  /** false = HATA DEĞİL: Railway token'ı yok ya da API'ye ulaşılamadı → nötr gösterilir. */
+  configured: boolean;
+  message: string | null;
+  periodStartUtc: string | null;
+  periodEndUtc: string | null;
+  periodDays: number | null;
+  /** Kaynakta zaten ortam adına, sonra maliyete göre sıralı — olduğu gibi basılır. */
+  rows: InfraUsageRow[] | null;
+  environmentTotals: EnvironmentTotal[] | null;
+  totalEstimatedCostUsd: number | null;
+  totalEstimatedMonthlyUsd: number | null;
+  fetchedAtUtc: string | null;
+}
+
+/** Altyapı kullanımı/maliyeti. days verilmezse kaynak ay başından bugüne hesaplar. */
+export function useInfraUsage(days: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ['backups', 'infra-usage', days],
+    queryFn: async () => {
+      const response = await apiClient.get<ApiResponse<InfraUsage>>('/backups/infra-usage', {
+        params: { days: days ?? undefined },
+      });
+      return response.data.data;
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+/** USD biçimi — tutarlar tahmini olduğu için 2 hane yeter. */
+export function formatUsd(v: number | null | undefined): string {
+  if (v == null) return '—';
+  return `$${v.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 // ── Ortak biçimlendiriciler ───────────────────────────────────────────────────
 
 /** Byte → GB/MB. Sözleşme 1024³ kullanılmasını şart koşuyor. */

@@ -40,6 +40,53 @@ public record LiftdeskBackupRun(
     string? TriggeredBy);
 
 /// <summary>
+/// One row of the infrastructure usage/cost breakdown (docs/crm-backup-api.md §8).
+///
+/// DİKKAT — alanların anlamı karışmasın: <see cref="AvgVCpu"/>, <see cref="AvgRamGb"/>,
+/// <see cref="AvgDiskGb"/> ve <see cref="AvgBackupGb"/> pencere boyunca ORTALAMA kullanımdır
+/// (toplam değil), <see cref="EgressGb"/> ise pencere boyunca TOPLAM giden trafiktir.
+/// </summary>
+public record LiftdeskInfraUsageRow(
+    string Environment,
+    string Service,
+    double AvgVCpu,
+    double AvgRamGb,
+    double AvgDiskGb,
+    double AvgBackupGb,
+    double EgressGb,
+    /// <summary>Bu pencerenin TAHMİNİ maliyeti — kesin fatura değil.</summary>
+    decimal EstimatedCostUsd,
+    /// <summary>Aynı hızda devam ederse aylık projeksiyon (trend içindir).</summary>
+    decimal EstimatedMonthlyUsd);
+
+/// <summary>Per-environment cost subtotal.</summary>
+public record LiftdeskEnvironmentTotal(
+    string Environment,
+    decimal EstimatedCostUsd,
+    decimal EstimatedMonthlyUsd);
+
+/// <summary>
+/// Infrastructure usage/cost payload from GET /api/v1/crm/backups/infra-usage.
+///
+/// <see cref="Configured"/> = false BİR HATA DEĞİLDİR: Railway token'ı tanımsızsa ya da API'ye
+/// ulaşılamadıysa böyle döner ve <see cref="Message"/> sebebi taşır. Ekranda nötr bir
+/// "yapılandırılmadı" olarak gösterilmeli, kırmızı alarm olarak değil.
+///
+/// <see cref="Rows"/> kaynakta zaten ortam adına, sonra maliyete göre sıralıdır — CRM olduğu gibi basar.
+/// </summary>
+public record LiftdeskInfraUsage(
+    bool Configured,
+    string? Message,
+    DateTime? PeriodStartUtc,
+    DateTime? PeriodEndUtc,
+    double? PeriodDays,
+    List<LiftdeskInfraUsageRow>? Rows,
+    List<LiftdeskEnvironmentTotal>? EnvironmentTotals,
+    decimal? TotalEstimatedCostUsd,
+    decimal? TotalEstimatedMonthlyUsd,
+    DateTime? FetchedAtUtc);
+
+/// <summary>
 /// Dashboard-card payload from GET /api/v1/crm/backups/status (docs/crm-backup-api.md §3).
 ///
 /// <see cref="IsHealthy"/> is the single field an operator reads; when false,

@@ -94,6 +94,41 @@ public sealed class BackupsController : ApiControllerBase
     }
 
     /// <summary>
+    /// GET /api/v1/backups/infra-usage?days=
+    /// Infrastructure usage/cost by environment + service. Amounts are ESTIMATES.
+    ///
+    /// configured=false is NOT an error (Railway token missing / API unreachable) — it is passed
+    /// through as-is so the UI can show a neutral "yapılandırılmadı", not a red alarm.
+    /// </summary>
+    [HttpGet("infra-usage")]
+    [ProducesResponseType(typeof(ApiResponse<LiftdeskInfraUsage>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetInfraUsage(
+        [FromQuery] int? days,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_backupClient.IsConfigured)
+            return BadRequest(ApiResponse<object>.Fail("Liftdesk API anahtarı yapılandırılmamış.", 400));
+
+        if (days is < 1 or > 90) days = null;   // sözleşme: 1–90; dışındaysa kaynağın varsayılanı
+
+        var envelope = await _backupClient.GetInfraUsageAsync(days, cancellationToken);
+
+        if (!envelope.Success)
+            return BadRequest(ApiResponse<object>.Fail(envelope.Message ?? "Altyapı kullanımı alınamadı.", 400));
+
+        // Boş gövde de "yapılandırılmadı" olarak sunulur — burada kırmızı alarm üretmiyoruz.
+        var usage = envelope.Data ?? new LiftdeskInfraUsage(
+            Configured: false,
+            Message: "Altyapı kullanım bilgisi alınamadı.",
+            PeriodStartUtc: null, PeriodEndUtc: null, PeriodDays: null,
+            Rows: null, EnvironmentTotals: null,
+            TotalEstimatedCostUsd: null, TotalEstimatedMonthlyUsd: null, FetchedAtUtc: null);
+
+        return OkResponse(usage);
+    }
+
+    /// <summary>
     /// GET /api/v1/backups?kind=Backup|Verify|Mirror&amp;limit=50
     /// Run history, newest first.
     /// </summary>

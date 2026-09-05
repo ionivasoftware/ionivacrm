@@ -5,9 +5,11 @@ import {
   useBackupRuns,
   useBackupStatus,
   useBackupHealthEvents,
+  useInfraUsage,
   formatBytes,
   formatUtc,
   formatDuration,
+  formatUsd,
   type BackupRun,
 } from '@/api/backups';
 
@@ -87,6 +89,145 @@ function VerifyBadge({ run }: { run: BackupRun }) {
     <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`} title={title}>
       {label}
     </span>
+  );
+}
+
+/**
+ * Altyapı maliyeti (sözleşme §7.4). Yedek ekranının ALT bölümünde durur.
+ *
+ * İki kural sözleşmeden geliyor ve bilerek uygulanmıştır:
+ *  - Tutarlar TAHMİNDİR (Railway'in yayınlanmış oranlarıyla hesaplanır) → başlıkta açıkça yazar.
+ *  - configured=false HATA DEĞİLDİR (token yok / API'ye ulaşılamadı) → kırmızı alarm değil,
+ *    nötr bir bilgi satırı gösterilir.
+ */
+function InfraUsageSection() {
+  const [days, setDays] = useState<number | null>(null);
+  const { data, isLoading, isError } = useInfraUsage(days, true);
+
+  const RANGES = [
+    { value: null, label: 'Ay başından' },
+    { value: 7, label: 'Son 7 gün' },
+    { value: 30, label: 'Son 30 gün' },
+  ] as const;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Altyapı maliyeti</h2>
+          <p className="text-xs text-muted-foreground">
+            Tutarlar <span className="font-medium">tahminidir</span> — Railway'in yayınlanmış
+            oranlarıyla hesaplanır, kesin fatura değildir.
+          </p>
+        </div>
+        <div className="flex gap-1">
+          {RANGES.map(r => (
+            <button
+              key={r.label}
+              onClick={() => setDays(r.value)}
+              className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
+                days === r.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isLoading && (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" /> Yükleniyor…
+        </div>
+      )}
+
+      {/* Erişilemedi ya da yapılandırılmadı: ikisi de nötr — yedek sağlığıyla karıştırılmamalı. */}
+      {!isLoading && (isError || !data?.configured) && (
+        <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          {data?.message ?? 'Altyapı maliyeti yapılandırılmadı.'}
+        </div>
+      )}
+
+      {!isLoading && data?.configured && (
+        <>
+          {/* Ortam toplamları üstte — sözleşme §7.4 */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            {(data.environmentTotals ?? []).map(t => (
+              <span key={t.environment}>
+                <span className="text-muted-foreground">{t.environment}</span>{' '}
+                <span className="font-semibold text-foreground tabular-nums">
+                  {formatUsd(t.estimatedCostUsd)}
+                </span>
+              </span>
+            ))}
+            {data.totalEstimatedCostUsd != null && (
+              <span className="ml-auto">
+                <span className="text-muted-foreground">toplam</span>{' '}
+                <span className="font-semibold text-foreground tabular-nums">
+                  {formatUsd(data.totalEstimatedCostUsd)}
+                </span>
+                {data.totalEstimatedMonthlyUsd != null && (
+                  <span className="text-xs text-muted-foreground">
+                    {' '}· aylık projeksiyon {formatUsd(data.totalEstimatedMonthlyUsd)}
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+
+          {data.periodStartUtc && data.periodEndUtc && (
+            <p className="text-xs text-muted-foreground">
+              Dönem: {formatUtc(data.periodStartUtc)} — {formatUtc(data.periodEndUtc)}
+              {data.periodDays != null && <> ({data.periodDays.toFixed(1)} gün)</>}
+            </p>
+          )}
+
+          {(data.rows?.length ?? 0) > 0 && (
+            <div className="rounded-lg border border-border overflow-x-auto">
+              <table className="w-full text-sm min-w-[760px]">
+                <thead>
+                  <tr className="bg-muted/40 border-b border-border">
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Ortam</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Servis</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground" title="Pencere boyunca ortalama">vCPU⌀</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground" title="Pencere boyunca ortalama">RAM⌀</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground" title="Pencere boyunca ortalama">Disk⌀</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground" title="Pencere boyunca TOPLAM giden trafik">Egress</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Tahmini $</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* rows kaynakta zaten sıralı — yeniden sıralanmıyor. */}
+                  {(data.rows ?? []).map((r, idx) => (
+                    <tr
+                      key={`${r.environment}-${r.service}-${idx}`}
+                      className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${
+                        idx === (data.rows?.length ?? 0) - 1 ? 'border-b-0' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-3 text-muted-foreground">{r.environment}</td>
+                      <td className="px-4 py-3 font-medium text-foreground">{r.service}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.avgVCpu.toFixed(3)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.avgRamGb.toFixed(2)} GB</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.avgDiskGb.toFixed(2)} GB</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.egressGb.toFixed(2)} GB</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-medium text-foreground">
+                        {formatUsd(r.estimatedCostUsd)}
+                        <span className="block text-[10px] text-muted-foreground font-normal">
+                          ay ~{formatUsd(r.estimatedMonthlyUsd)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -270,6 +411,11 @@ export function BackupsPage() {
           </table>
         </div>
       )}
+
+      {/* Altyapı maliyeti — sözleşme §7.4: yedek ekranının ALTINDA. */}
+      <div className="pt-2 border-t border-border">
+        <InfraUsageSection />
+      </div>
     </div>
   );
 }

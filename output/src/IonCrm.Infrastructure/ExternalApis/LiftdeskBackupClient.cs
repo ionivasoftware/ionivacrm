@@ -66,6 +66,18 @@ public sealed class LiftdeskBackupClient : ILiftdeskBackupClient
         return await SendAsync<List<LiftdeskBackupRun>>(request, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<LiftdeskEnvelope<LiftdeskInfraUsage>> GetInfraUsageAsync(
+        int? days, CancellationToken cancellationToken = default)
+    {
+        var query = days.HasValue ? $"?days={days.Value}" : string.Empty;
+
+        _logger.LogDebug("Liftdesk: fetching infra usage. Days={Days}", days);
+
+        using var request = BuildRequest(HttpMethod.Get, $"{BackupsRoot}/infra-usage{query}");
+        return await SendAsync<LiftdeskInfraUsage>(request, cancellationToken);
+    }
+
     private HttpRequestMessage BuildRequest(HttpMethod method, string path)
     {
         var baseUrl = _configuration["Liftdesk:BaseUrl"];
