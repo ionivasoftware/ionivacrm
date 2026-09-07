@@ -167,7 +167,8 @@ public class CustomersController : ApiControllerBase
             id, body.DurationType, body.Amount,
             body.DiscountValue ?? 0m,
             string.Equals(body.DiscountType, "amount", StringComparison.OrdinalIgnoreCase)
-                ? "amount" : "percentage");
+                ? "amount" : "percentage",
+            string.IsNullOrWhiteSpace(body.Tier) ? null : body.Tier.Trim());
         var result = await Mediator.Send(command, cancellationToken);
         return ResultToResponse(result);
     }
@@ -543,7 +544,9 @@ public record ExtendEmsExpirationRequest(
     string DurationType,
     int Amount,
     decimal? DiscountValue = null,
-    string? DiscountType = null);
+    string? DiscountType = null,
+    /// <summary>Seçilen paket kademesi; boşsa mevcut kademe korunur.</summary>
+    string? Tier = null);
 
 /// <summary>Request body for PUT /api/v1/customers/{id}/plan. PlanId wins when both are sent.</summary>
 public record UpdateCustomerPlanRequest(string? Tier, Guid? PlanId, string? BillingPeriod);

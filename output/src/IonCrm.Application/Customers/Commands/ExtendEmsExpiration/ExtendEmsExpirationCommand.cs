@@ -15,7 +15,13 @@ public record ExtendEmsExpirationCommand(
     /// <summary>İskonto tutarı/oranı. 0 = iskonto yok.</summary>
     decimal DiscountValue = 0m,
     /// <summary>"percentage" (varsayılan) | "amount" — fatura satırıyla aynı sözleşme.</summary>
-    string DiscountType = "percentage")
+    string DiscountType = "percentage",
+    /// <summary>
+    /// Seçilen paket kademesi ("Standart" | "Pro" | "Prime"). Null/boş ise firmanın mevcut kademesi
+    /// kullanılır ve kademe DEĞİŞTİRİLMEZ. Mevcut kademeden farklı bir değer verilirse Liftdesk'te
+    /// kademe güncellenir (özellik erişimi tüm firma için anında değişir) ve fatura yeni kademeden kesilir.
+    /// </summary>
+    string? Tier = null)
     : IRequest<Result<ExtendEmsExpirationDto>>;
 
 /// <summary>Result returned after a successful expiration extension.</summary>

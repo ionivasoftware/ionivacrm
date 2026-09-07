@@ -877,7 +877,12 @@ function ExtendExpirationDialog({
   // faturalanmamalı), bu yüzden kademe burada da görünür olmalı: operatör neyi faturalayacağını
   // onaylamadan önce görür.
   const { data: plan, isLoading: planLoading } = useCustomerPlan(customerId, open);
-  const tier = plan?.current?.tier ?? null;
+  const currentTier = plan?.current?.tier ?? null;
+  // Seçili kademe; null iken mevcut kademe kullanılır. Kullanıcı değiştirirse firmanın
+  // Liftdesk'teki paketi de bu işlemde güncellenir (özellik erişimi anında değişir).
+  const [pickedTier, setPickedTier] = useState<string | null>(null);
+  const tier = pickedTier ?? currentTier;
+  const tierWillChange = tier != null && currentTier != null && tier !== currentTier;
 
   const discountNum = parseFloat(discountValue.replace(',', '.'));
   const discount = isNaN(discountNum) || discountNum < 0 ? 0 : discountNum;
@@ -910,6 +915,7 @@ function ExtendExpirationDialog({
     setSelection({ type: 'days', amount: '' });
     setDiscountValue('');
     setDiscountType('percentage');
+    setPickedTier(null);
   }
 
   async function handleConfirm() {
@@ -920,6 +926,7 @@ function ExtendExpirationDialog({
             durationType: selection.durationType,
             amount: selection.amount,
             ...(discount > 0 ? { discountValue: discount, discountType } : {}),
+            ...(tier ? { tier } : {}),
           }
         : { durationType: 'Days' as const, amount: parseInt(selection.amount, 10) };
 
@@ -983,11 +990,35 @@ function ExtendExpirationDialog({
             ) : tier ? (
               <>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-muted-foreground">Mevcut paket</span>
-                  <span className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold bg-blue-500/10 text-blue-400 border-blue-500/30">
-                    LiftDesk {tier}
-                  </span>
+                  <span className="text-muted-foreground">Paket</span>
+                  <div className="flex rounded-md border border-input overflow-hidden">
+                    {(plan?.availablePlans ?? []).map(p => (
+                      <button
+                        key={p.planId}
+                        type="button"
+                        onClick={() => setPickedTier(p.tier)}
+                        className={cn(
+                          'px-2.5 py-1 text-xs transition-colors',
+                          tier === p.tier
+                            ? 'bg-blue-500/15 text-blue-400 font-semibold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {p.tier}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+                {/* Kademe değişimi yalnız faturayı etkilemiyor: firmanın Liftdesk'teki paketi de
+                    bu işlemde güncelleniyor ve özellik erişimi tüm firma için anında değişiyor.
+                    Onaydan önce açıkça yazılmalı. */}
+                {tierWillChange && (
+                  <p className="text-amber-600 dark:text-amber-500 mt-1.5">
+                    Paket <span className="font-medium">{currentTier}</span> →{' '}
+                    <span className="font-medium">{tier}</span> olarak değiştirilecek; özellik
+                    erişimi tüm firma için anında güncellenir.
+                  </p>
+                )}
                 {selection.type === 'preset' && (
                   <>
                     <p className="text-muted-foreground mt-1.5">

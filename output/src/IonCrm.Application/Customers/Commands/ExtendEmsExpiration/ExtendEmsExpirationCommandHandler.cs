@@ -76,6 +76,59 @@ public sealed class ExtendEmsExpirationCommandHandler
                 "Bu müşteri EMS/Liftdesk'ten gelmemiş. Süre uzatma yalnızca EMS/Liftdesk kaynaklı müşteriler için geçerlidir.");
         }
 
+        // 3. Paket kademesi: önce mevcut kademeyi oku, istenmişse DEĞİŞTİR.
+        //
+        // Sıra bilinçli: kademe değişimi süre uzatmadan ÖNCE yapılır. Başarısız olursa henüz
+        // hiçbir şey olmamıştır ve temiz iptal edilir. Tersi sırada (önce uzat, sonra kademe)
+        // kademe hatası, süresi çoktan uzatılmış bir firmayı yarım durumda bırakırdı.
+        string? currentTier = null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(emsBaseUrl) && !string.IsNullOrWhiteSpace(emsApiKey))
+            {
+                var plan = await _planClient.GetPlanAsync(emsBaseUrl, emsApiKey, emsCompanyId, cancellationToken);
+                currentTier = plan?.Current?.Tier;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Extend EMS: paket bilgisi alınamadı (customer {CustomerId}, company {EmsId}).",
+                customer.Id, emsCompanyId);
+        }
+
+        var tierChanged = false;
+        if (!string.IsNullOrWhiteSpace(request.Tier) &&
+            !string.Equals(request.Tier, currentTier, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(emsBaseUrl) || string.IsNullOrWhiteSpace(emsApiKey))
+                return Result<ExtendEmsExpirationDto>.Failure(
+                    "Paket değiştirilemedi: Liftdesk bağlantı bilgisi eksik.");
+
+            try
+            {
+                var updated = await _planClient.UpdatePlanAsync(
+                    emsBaseUrl, emsApiKey, emsCompanyId,
+                    new LiftdeskPlanChangeRequest(request.Tier, null, null), cancellationToken);
+
+                currentTier = updated?.Current?.Tier ?? request.Tier;
+                tierChanged = true;
+
+                _logger.LogInformation(
+                    "Extend EMS: paket değiştirildi — customer {CustomerId} (company {EmsId}) → {Tier}.",
+                    customer.Id, emsCompanyId, currentTier);
+            }
+            catch (Exception ex)
+            {
+                // Süre HENÜZ uzatılmadı; kullanıcıya yarım bir işlem bırakmıyoruz.
+                _logger.LogError(ex,
+                    "Extend EMS: paket değiştirilemedi (customer {CustomerId}, company {EmsId}, tier {Tier}).",
+                    customer.Id, emsCompanyId, request.Tier);
+                return Result<ExtendEmsExpirationDto>.Failure(
+                    $"Paket değiştirilemedi, süre uzatılmadı: {ex.Message}");
+            }
+        }
+
         // 4. Call EMS/Liftdesk API to extend expiration
         EmsExtendExpirationResponse emsResponse;
         try
@@ -119,21 +172,8 @@ public sealed class ExtendEmsExpirationCommandHandler
         // Fatura, firmanın MEVCUT PAKETİNE göre kesilmeli: Pro uzatması Standart fiyatından
         // faturalanmamalı. Kademe kaynaktan okunur; okunamazsa fatura kesilmez (yanlış üründen
         // fatura kesmektense hiç kesmemek doğru — operatöre sebebi bildirilir).
-        string? tier = null;
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(emsBaseUrl) && !string.IsNullOrWhiteSpace(emsApiKey))
-            {
-                var plan = await _planClient.GetPlanAsync(emsBaseUrl, emsApiKey, emsCompanyId, cancellationToken);
-                tier = plan?.Current?.Tier;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex,
-                "Extend EMS: paket bilgisi alınamadı (customer {CustomerId}, company {EmsId}).",
-                customer.Id, emsCompanyId);
-        }
+        // Fatura, (varsa yeni) kademeden kesilir.
+        var tier = currentTier;
 
         if (string.IsNullOrWhiteSpace(tier))
         {
@@ -158,7 +198,7 @@ public sealed class ExtendEmsExpirationCommandHandler
             $"Süre uzatıldı — {customer.CompanyName}",
             $"<p><b>{Enc(customer.CompanyName)}</b> firmasının aboneliği uzatıldı.</p>" +
             $"<p>Süre: {request.Amount} {DurationTr(request.DurationType)}<br/>" +
-            $"Paket: LiftDesk {Enc(tier!)}<br/>" +
+            $"Paket: LiftDesk {Enc(tier!)}{(tierChanged ? " <b>(bu işlemde değiştirildi)</b>" : "")}<br/>" +
             $"Yeni bitiş: {emsResponse.ExpirationDate:dd.MM.yyyy}" +
             (request.DiscountValue > 0
                 ? $"<br/>İskonto: {request.DiscountValue:0.##}{(request.DiscountType == "amount" ? " ₺" : "%")}"
