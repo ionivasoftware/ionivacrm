@@ -241,7 +241,7 @@ public class MultiTenantIsolationTests
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
                 null, search, status, segment, null, projectId, 2, 15, null, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)new List<(Customer, DateTime?)>(), 0));
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate, DateTime? ContractEndDate)>)new List<(Customer, DateTime?, DateTime?)>(), 0));
 
         var query = new GetCustomersQuery
         {

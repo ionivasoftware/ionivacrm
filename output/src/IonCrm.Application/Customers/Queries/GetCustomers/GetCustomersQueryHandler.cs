@@ -38,6 +38,7 @@ public class GetCustomersQueryHandler : IRequestHandler<GetCustomersQuery, Resul
         {
             var dto = x.Customer.ToDto();
             dto.LastActivityDate = x.LastActivityDate;
+            dto.ContractEndDate  = x.ContractEndDate;
             return dto;
         }).ToList().AsReadOnly();
 

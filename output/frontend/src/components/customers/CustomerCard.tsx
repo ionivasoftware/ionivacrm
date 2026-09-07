@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Phone, Mail, StickyNote, MoreVertical, MapPin, FolderOpen, Clock, CalendarClock } from 'lucide-react';
+import { Phone, Mail, StickyNote, MoreVertical, MapPin, FolderOpen, Clock, CalendarClock, FileText } from 'lucide-react';
 import { CustomerStatusBadge, CustomerLabelBadge } from './CustomerStatusBadge';
 import { Button } from '@/components/ui/button';
 import {
@@ -124,6 +124,27 @@ export function CustomerCard({ customer, onQuickAction }: CustomerCardProps) {
             >
               <CalendarClock className="h-3 w-3" />
               {new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short' }).format(exp)}
+            </span>
+          );
+        })()}
+        {/* Sözleşme bitişi, erişim bitişinden AYRI gösterilir: CreditCard'da iyzico açık uçlu
+            çalıştığı için erişim ilerlemeye devam eder ama sözleşme bitmiş olabilir. Bu firmalar
+            "Aktif" görünürken sözleşmesiz durumda olur — işaretlenmeleri bu yüzden önemli. */}
+        {customer.contractEndDate && (() => {
+          const end = new Date(customer.contractEndDate);
+          const over = end.getTime() < Date.now();
+          return (
+            <span
+              className={`text-xs hidden lg:flex items-center gap-1 ${
+                over ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'
+              }`}
+              title={`Sözleşme bitişi: ${end.toLocaleDateString('tr-TR')}${
+                over ? ' · SÖZLEŞME BİTTİ (tahsilat otomatik durmaz)' : ''
+              }`}
+            >
+              <FileText className="h-3 w-3" />
+              {new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short' }).format(end)}
+              {over && ' ·  bitti'}
             </span>
           );
         })()}

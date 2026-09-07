@@ -24,7 +24,7 @@ public class GetCustomersWithFiltersTests
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
                 _projectId, null, null, null, null, null, 1, 20, null, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)new List<(Customer, DateTime?)>(), 0));
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate, DateTime? ContractEndDate)>)new List<(Customer, DateTime?, DateTime?)>(), 0));
 
         var query = new GetCustomersQuery { ProjectId = _projectId };
 
@@ -45,7 +45,7 @@ public class GetCustomersWithFiltersTests
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
                 null, null, null, null, CustomerLabel.YuksekPotansiyel, null, 1, 20, null, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)new List<(Customer, DateTime?)>(), 0));
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate, DateTime? ContractEndDate)>)new List<(Customer, DateTime?, DateTime?)>(), 0));
 
         var query = new GetCustomersQuery { Label = CustomerLabel.YuksekPotansiyel };
 
@@ -76,7 +76,7 @@ public class GetCustomersWithFiltersTests
                 2, 15,
                 null,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)new List<(Customer, DateTime?)>(), 0));
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate, DateTime? ContractEndDate)>)new List<(Customer, DateTime?, DateTime?)>(), 0));
 
         var query = new GetCustomersQuery
         {

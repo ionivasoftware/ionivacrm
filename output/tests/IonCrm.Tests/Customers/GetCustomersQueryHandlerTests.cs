@@ -35,7 +35,7 @@ public class GetCustomersQueryHandlerTests
                 It.IsAny<int>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)customers.Select(c => (c, (DateTime?)null)).ToList(), 5));
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate, DateTime? ContractEndDate)>)customers.Select(c => (c, (DateTime?)null, (DateTime?)null)).ToList(), 5));
 
         var query = new GetCustomersQuery { Page = 1, PageSize = 10 };
 
@@ -60,7 +60,7 @@ public class GetCustomersQueryHandlerTests
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
                 null, null, null, null, null, null, 1, 100, null, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)new List<(Customer, DateTime?)>(), 0));
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate, DateTime? ContractEndDate)>)new List<(Customer, DateTime?, DateTime?)>(), 0));
 
         var query = new GetCustomersQuery { Page = 1, PageSize = 9999 };
 
@@ -80,7 +80,7 @@ public class GetCustomersQueryHandlerTests
         _customerRepoMock
             .Setup(r => r.GetPagedAsync(
                 null, null, null, null, null, null, 1, 20, null, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)>)new List<(Customer, DateTime?)>(), 0));
+            .ReturnsAsync(((IReadOnlyList<(Customer Customer, DateTime? LastActivityDate, DateTime? ContractEndDate)>)new List<(Customer, DateTime?, DateTime?)>(), 0));
 
         var query = new GetCustomersQuery { Page = -5, PageSize = 20 };
 

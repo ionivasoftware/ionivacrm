@@ -7,7 +7,7 @@ namespace IonCrm.Domain.Interfaces;
 public interface ICustomerRepository : IRepository<Customer>
 {
     /// <summary>Returns a paginated, filtered list of customers with their last activity date.</summary>
-    Task<(IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)> Items, int TotalCount)> GetPagedAsync(
+    Task<(IReadOnlyList<(Customer Customer, DateTime? LastActivityDate, DateTime? ContractEndDate)> Items, int TotalCount)> GetPagedAsync(
         Guid? projectId,
         string? search,
         CustomerStatus? status,

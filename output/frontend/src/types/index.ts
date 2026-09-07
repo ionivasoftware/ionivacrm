@@ -200,6 +200,8 @@ export interface Customer {
   assignedUserId: string | null;
   assignedUserName: string | null;
   expirationDate: string | null;
+  /** Sözleşme bitişi — erişim bitişinden (expirationDate) AYRI. CreditCard'da ikisi eşit olmaz. */
+  contractEndDate?: string | null;
   /** Company logo URL synced from Rezerval. */
   logoUrl: string | null;
   legacyId: string | null;

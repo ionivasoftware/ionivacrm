@@ -42,4 +42,11 @@ public class CustomerDto
     /// Null when no contact history exists. Computed by the list query, not stored.
     /// </summary>
     public DateTime? LastActivityDate { get; set; }
+
+    /// <summary>
+    /// Sözleşme bitişi — ERİŞİM bitişinden (<see cref="ExpirationDate"/>) ayrı bir kavramdır.
+    /// CreditCard aboneliklerinde iyzico açık uçlu çalıştığı için erişim tarihi ilerlemeye devam
+    /// eder; sözleşme çoktan bitmiş olabilir. Bu yüzden ikisi listede ayrı gösterilir.
+    /// </summary>
+    public DateTime? ContractEndDate { get; set; }
 }

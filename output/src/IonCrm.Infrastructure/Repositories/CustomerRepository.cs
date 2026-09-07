@@ -16,7 +16,7 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
     public CustomerRepository(ApplicationDbContext context) : base(context) { }
 
     /// <inheritdoc />
-    public async Task<(IReadOnlyList<(Customer Customer, DateTime? LastActivityDate)> Items, int TotalCount)> GetPagedAsync(
+    public async Task<(IReadOnlyList<(Customer Customer, DateTime? LastActivityDate, DateTime? ContractEndDate)> Items, int TotalCount)> GetPagedAsync(
         Guid? projectId,
         string? search,
         CustomerStatus? status,
@@ -90,7 +90,13 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
             Customer = c,
             LastActivityDate = Context.ContactHistories
                 .Where(h => h.CustomerId == c.Id && !h.IsDeleted)
-                .Max(h => (DateTime?)h.ContactedAt)
+                .Max(h => (DateTime?)h.ContactedAt),
+            // Sözleşme bitişi, erişim bitişinden (Customer.ExpirationDate) AYRI bir kavram:
+            // CreditCard'da iyzico açık uçlu çektiği için erişim ilerlemeye devam eder ama
+            // sözleşme bitmiş olabilir. En geç biten aktif sözleşme alınır.
+            ContractEndDate = Context.CustomerContracts
+                .Where(k => k.CustomerId == c.Id && !k.IsDeleted && k.EndDate != null)
+                .Max(k => (DateTime?)k.EndDate)
         });
 
         // Sort: default is lastActivity descending (newest first).
@@ -121,7 +127,7 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
             .ToListAsync(cancellationToken);
 
         var result = items
-            .Select(x => (x.Customer, x.LastActivityDate))
+            .Select(x => (x.Customer, x.LastActivityDate, x.ContractEndDate))
             .ToList();
 
         return (result, totalCount);
