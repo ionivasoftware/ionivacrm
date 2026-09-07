@@ -104,6 +104,13 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
             "created"      => projected.OrderBy(x => x.Customer.CreatedAt),
             "created_desc" => projected.OrderByDescending(x => x.Customer.CreatedAt),
             "activity"     => projected.OrderBy(x => x.LastActivityDate),
+            // ExpirationDate NULL olabilir. Her iki yönde de NULL'ları SONA atıyoruz: bitiş
+            // tarihine göre bakan biri için tarihi olmayan müşterinin listenin başında durması
+            // işe yaramaz (Postgres varsayılanı DESC'te NULL'ları başa alırdı).
+            "expiration"      => projected.OrderBy(x => x.Customer.ExpirationDate == null)
+                                          .ThenBy(x => x.Customer.ExpirationDate),
+            "expiration_desc" => projected.OrderBy(x => x.Customer.ExpirationDate == null)
+                                          .ThenByDescending(x => x.Customer.ExpirationDate),
             _              => projected.OrderByDescending(x => x.LastActivityDate)
                                        .ThenByDescending(x => x.Customer.CreatedAt), // "activity_desc" or default
         };

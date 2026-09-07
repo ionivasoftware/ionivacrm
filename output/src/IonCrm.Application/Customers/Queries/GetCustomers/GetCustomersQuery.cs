@@ -19,7 +19,9 @@ public record GetCustomersQuery : IRequest<Result<PagedResult<CustomerDto>>>
     public int PageSize { get; init; } = 20;
     /// <summary>
     /// Sort key. Default (null / "activity_desc") = last activity date descending.
-    /// Other options: "name", "name_desc", "created", "created_desc", "activity".
+    /// Other options: "name", "name_desc", "created", "created_desc", "activity",
+    /// "expiration" (bitiş tarihi yakın olan önce), "expiration_desc" (uzak olan önce).
+    /// Bitiş tarihi olmayan müşteriler her iki yönde de sona düşer.
     /// </summary>
     public string? SortBy { get; init; }
 }

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Phone, Mail, StickyNote, MoreVertical, MapPin, FolderOpen, Clock } from 'lucide-react';
+import { Phone, Mail, StickyNote, MoreVertical, MapPin, FolderOpen, Clock, CalendarClock } from 'lucide-react';
 import { CustomerStatusBadge, CustomerLabelBadge } from './CustomerStatusBadge';
 import { Button } from '@/components/ui/button';
 import {
@@ -106,6 +106,27 @@ export function CustomerCard({ customer, onQuickAction }: CustomerCardProps) {
             )}
           </span>
         )}
+        {/* Lisans bitiş tarihi. Sadece tarihi basmak yetmez: bu alanın işe yaraması "ne zaman
+            bitiyor"dan çok "yaklaştı mı" sorusunda, o yüzden geçmiş kırmızı, 30 gün içi amber. */}
+        {customer.expirationDate && (() => {
+          const exp = new Date(customer.expirationDate);
+          const days = Math.ceil((exp.getTime() - Date.now()) / 86_400_000);
+          const cls =
+            days < 0 ? 'text-red-600 dark:text-red-400'
+            : days <= 30 ? 'text-amber-600 dark:text-amber-500'
+            : 'text-muted-foreground';
+          return (
+            <span
+              className={`text-xs hidden md:flex items-center gap-1 ${cls}`}
+              title={`Lisans bitiş: ${exp.toLocaleDateString('tr-TR')}${
+                days < 0 ? ` · ${Math.abs(days)} gün önce doldu` : ` · ${days} gün kaldı`
+              }`}
+            >
+              <CalendarClock className="h-3 w-3" />
+              {new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short' }).format(exp)}
+            </span>
+          );
+        })()}
         {showProjectBadge && projectName && (
           <span className="text-xs text-muted-foreground hidden lg:inline px-2 py-0.5 rounded-full border border-primary/30 bg-primary/5 gap-1 flex items-center">
             <FolderOpen className="h-3 w-3 inline" /> {projectName}

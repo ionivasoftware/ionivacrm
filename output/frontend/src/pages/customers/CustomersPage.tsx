@@ -250,6 +250,8 @@ export function CustomersPage() {
                 <SelectItem value="name_desc">İsim (Z-A)</SelectItem>
                 <SelectItem value="created_desc">Kayıt Tarihi (Yeni)</SelectItem>
                 <SelectItem value="created">Kayıt Tarihi (Eski)</SelectItem>
+                <SelectItem value="expiration">Bitiş Tarihi (Yakın)</SelectItem>
+                <SelectItem value="expiration_desc">Bitiş Tarihi (Uzak)</SelectItem>
               </SelectContent>
             </Select>
             <Button
