@@ -640,7 +640,7 @@ export function VendorInvoicesPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <AlertTriangle className="h-3.5 w-3.5" />
-          “Servis” sırasıyla çalışır: hazırla → otomatik doldur → e-posta işle → mutabakat. Her gün otomatik da çalışır.
+          “Servis” sırasıyla çalışır: hazırla → otomatik doldur → e-posta işle → mutabakat. Günlük otomatik doldurma kapalı; yalnız vade kontrolü (eksik alarmı) her gün çalışır.
         </p>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setPreviewOpen(true)}>
           E-posta önizle (teşhis)

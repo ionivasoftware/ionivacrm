@@ -32,6 +32,18 @@ public sealed class VendorInvoiceReconcileService : BackgroundService
     private readonly IConfiguration _configuration;
     private readonly ILogger<VendorInvoiceReconcileService> _logger;
 
+    /// <summary>
+    /// VendorInvoices:AutoRunEnabled (varsayılan FALSE). Kapalıyken günlük tur yalnız vade
+    /// kontrolünü (Bekleniyor → Eksik) çalıştırır; maliyet API'sinden otomatik doldurma, Railway
+    /// gelen-fatura senkronu ve IMAP e-posta işleme yalnız "Servis" butonuyla koşar.
+    ///
+    /// Neden: otomatik doldurma, operatörün elle eşlediği satırların üzerine her gün yeniden
+    /// yazıyordu. Vade kontrolü ise yalnız Status==Expected satırlara dokunur — elle eşlenen
+    /// (Received/Reconciled/Mismatch) kayıtları değiştiremez — ve kenar çubuğundaki "Eksik"
+    /// rozetini besler; bu yüzden kapatılmadı. Tamamen kapatmak o alarmı sessizce öldürürdü.
+    /// </summary>
+    private bool AutoFillEnabled => _configuration.GetValue("VendorInvoices:AutoRunEnabled", false);
+
     /// <summary>Initialises a new instance of <see cref="VendorInvoiceReconcileService"/>.</summary>
     public VendorInvoiceReconcileService(
         IServiceScopeFactory scopeFactory,
@@ -46,7 +58,10 @@ public sealed class VendorInvoiceReconcileService : BackgroundService
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("VendorInvoiceReconcileService started — running every {Hours}h.", ReconcileInterval.TotalHours);
+        _logger.LogInformation(
+            "VendorInvoiceReconcileService started — every {Hours}h; auto-fill {Mode}.",
+            ReconcileInterval.TotalHours,
+            AutoFillEnabled ? "ON" : "OFF (VendorInvoices:AutoRunEnabled=false — yalnız vade kontrolü çalışır)");
 
         try { await Task.Delay(StartupDelay, stoppingToken); }
         catch (OperationCanceledException) { return; }
@@ -97,37 +112,48 @@ public sealed class VendorInvoiceReconcileService : BackgroundService
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
 
-            // Phase 2: refresh expected amounts from cost APIs before reconciling. Current month keeps
-            // the running total fresh; previous month finalises it before its due date passes. Expect is
-            // idempotent and never downgrades a Received/Reconciled row, so a daily run is safe.
-            try
+            // Phase 2 + 3 (OTOMATİK DOLDURMA) yalnız bayrak açıkken. Varsayılan kapalı: bu adımlar
+            // operatörün elle eşlediği satırların üzerine yazıyordu. "Servis" butonu aynı adımları
+            // istek üzerine yine çalıştırır.
+            if (AutoFillEnabled)
             {
-                var autoExpect = scope.ServiceProvider.GetService<ICostAutoExpectService>();
-                if (autoExpect is not null)
+                // Phase 2: refresh expected amounts from cost APIs before reconciling. Current month keeps
+                // the running total fresh; previous month finalises it before its due date passes.
+                try
                 {
-                    var now = DateTime.UtcNow;
-                    var prev = now.AddMonths(-1);
-                    await autoExpect.RunAsync(now.Year, now.Month, ct);
-                    await autoExpect.RunAsync(prev.Year, prev.Month, ct);
+                    var autoExpect = scope.ServiceProvider.GetService<ICostAutoExpectService>();
+                    if (autoExpect is not null)
+                    {
+                        var now = DateTime.UtcNow;
+                        var prev = now.AddMonths(-1);
+                        await autoExpect.RunAsync(now.Year, now.Month, ct);
+                        await autoExpect.RunAsync(prev.Year, prev.Month, ct);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "VendorInvoiceReconcileService: auto-expect step failed (continuing to reconcile).");
+                }
+
+                // Phase 3: pull received invoices from the accounting mailbox before reconciling, so the
+                // received side is current. No-op when the collector isn't configured.
+                try
+                {
+                    var collector = scope.ServiceProvider.GetService<IInvoiceEmailCollector>();
+                    if (collector is { IsConfigured: true })
+                        await collector.CollectAsync(dryRun: false, cancellationToken: ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "VendorInvoiceReconcileService: e-mail collect step failed (continuing to reconcile).");
                 }
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogError(ex, "VendorInvoiceReconcileService: auto-expect step failed (continuing to reconcile).");
+                _logger.LogDebug("VendorInvoiceReconcileService: auto-fill atlandı (VendorInvoices:AutoRunEnabled=false).");
             }
 
-            // Phase 3: pull received invoices from the accounting mailbox before reconciling, so the
-            // received side is current. No-op when the collector isn't configured.
-            try
-            {
-                var collector = scope.ServiceProvider.GetService<IInvoiceEmailCollector>();
-                if (collector is { IsConfigured: true })
-                    await collector.CollectAsync(dryRun: false, cancellationToken: ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "VendorInvoiceReconcileService: e-mail collect step failed (continuing to reconcile).");
-            }
+            // Phase C (her zaman): vadesi geçen Bekleniyor → Eksik. Yalnız Expected satırlara dokunur.
 
             var service = scope.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
             var result  = await service.ReconcileAsync(asOf: null, cancellationToken: ct);
