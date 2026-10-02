@@ -55,6 +55,8 @@ export interface Invoice {
   parasutId: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Güncellemede ÖĞRENİLEN ürün eşlemeleri ("ad → Paraşüt ürünü"); normalde null. */
+  learnedProductMappings?: string[] | null;
 }
 
 export interface InvoiceLineItem {
@@ -67,6 +69,8 @@ export interface InvoiceLineItem {
   unit: string;
   parasutProductId?: string;
   parasutProductName?: string;
+  /** Kaynak sistemin (Liftdesk) gönderdiği ürün adı — eşleştirme öğrenme anahtarı; kayıtta korunmalı. */
+  sourceProductName?: string;
 }
 
 export interface CreateCrmInvoiceRequest {

@@ -227,6 +227,8 @@ interface InvoiceLineForm {
   unit: string;
   parasutProductId?: string;
   parasutProductName?: string;
+  /** Liftdesk'in gönderdiği ürün adı — düzenleme/kayıtta kaybolmamalı (öğrenme anahtarı). */
+  sourceProductName?: string;
 }
 
 /** Returns the absolute discount amount for a single line */
@@ -588,6 +590,7 @@ function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
         unit: l.unit ?? 'Adet',
         parasutProductId: l.parasutProductId,
         parasutProductName: l.parasutProductName,
+        sourceProductName: l.sourceProductName,
       }));
     } catch {
       return [{ description: '', quantity: 1, unitPrice: 0, vatRate: 20, discountValue: 0, discountType: 'percentage', unit: 'Adet' }];
@@ -635,6 +638,9 @@ function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
       unit: l.unit || 'Adet',
       parasutProductId: l.parasutProductId || undefined,
       parasutProductName: l.parasutProductName || undefined,
+      // Kaynak ürün adı olduğu gibi geri yazılır; kullanıcı açıklamayı değiştirse de
+      // sunucu öğrenmeyi bununla yapar.
+      sourceProductName: l.sourceProductName || undefined,
     }));
 
     const netTotal = lines.reduce((acc, l) => {
@@ -651,7 +657,7 @@ function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
     }, 0);
 
     try {
-      await updateInvoice.mutateAsync({
+      const saved = await updateInvoice.mutateAsync({
         id: invoice.id,
         customerId: invoice.customerId,
         title: data.title,
@@ -664,7 +670,13 @@ function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
         netTotal,
         linesJson: JSON.stringify(lines),
       });
-      toast({ title: 'Fatura güncellendi' });
+      const learned = saved?.learnedProductMappings ?? [];
+      toast({
+        title: 'Fatura güncellendi',
+        description: learned.length
+          ? `Ürün eşleştirmesi öğrenildi — bundan sonraki faturalarda otomatik eşleşecek: ${learned.join(' · ')}`
+          : undefined,
+      });
       onClose();
     } catch {
       toast({ title: 'Hata', description: 'Fatura güncellenemedi.', variant: 'destructive' });

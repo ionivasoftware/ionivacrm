@@ -37,4 +37,14 @@ public class InvoiceLineDto
 
     /// <summary>Optional linked Paraşüt product ID for product-level sync.</summary>
     public string? ParasutProductId { get; set; }
+
+    /// <summary>Display name of the linked Paraşüt product (informational).</summary>
+    public string? ParasutProductName { get; set; }
+
+    /// <summary>
+    /// Kaynak sistemin (Liftdesk) gönderdiği ÜRÜN ADI — ödeme sync'i yazar. Eşleştirme ÖĞRENME
+    /// anahtarı budur: kullanıcı açıklamayı düzenlese bile katalogdaki ProductName ile aynı kalır,
+    /// böylece öğrenilen eşleme bir sonraki ödemede gerçekten tutar. Elle oluşturulan faturalarda null.
+    /// </summary>
+    public string? SourceProductName { get; set; }
 }

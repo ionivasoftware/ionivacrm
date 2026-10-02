@@ -14,15 +14,18 @@ public sealed class UpdateInvoiceCommandHandler
     : IRequestHandler<UpdateInvoiceCommand, Result<InvoiceDto>>
 {
     private readonly IInvoiceRepository _invoiceRepository;
+    private readonly IParasutProductRepository _productRepository;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<UpdateInvoiceCommandHandler> _logger;
 
     public UpdateInvoiceCommandHandler(
         IInvoiceRepository invoiceRepository,
+        IParasutProductRepository productRepository,
         ICurrentUserService currentUser,
         ILogger<UpdateInvoiceCommandHandler> logger)
     {
         _invoiceRepository = invoiceRepository;
+        _productRepository = productRepository;
         _currentUser = currentUser;
         _logger = logger;
     }
@@ -70,7 +73,11 @@ public sealed class UpdateInvoiceCommandHandler
                 "(NetTotal={NetTotal}, GrossTotal={GrossTotal})",
                 invoice.Id, invoice.ProjectId, netTotal, grossTotal);
 
-            return Result<InvoiceDto>.Success(invoice.ToDto());
+            var dto = invoice.ToDto();
+            // Liftdesk kaynaklı faturada seçilen Paraşüt ürünlerini kataloğa öğret — bir sonraki
+            // ödeme sync'i aynı ürünü kendiliğinden eşlesin, kullanıcı tekrar seçmesin.
+            dto.LearnedProductMappings = await LearnProductMappingsAsync(invoice, lines, cancellationToken);
+            return Result<InvoiceDto>.Success(dto);
         }
         catch (Exception ex)
         {
@@ -80,5 +87,80 @@ public sealed class UpdateInvoiceCommandHandler
             return Result<InvoiceDto>.Failure(
                 $"Fatura güncellenemedi: {ex.InnerException?.Message ?? ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Kullanıcının fatura satırında yaptığı Paraşüt ürün seçimini katalog bilgisine dönüştürür.
+    ///
+    /// Neden: Liftdesk ödeme sync'i ürünü yalnız isimle (ParasutProduct.ProductName) eşleştirir.
+    /// Katalogda karşılığı olmayan ürün her faturada boş gelir, kullanıcı her seferinde elle seçer
+    /// ve seçilmeden Paraşüt'e aktarım yapılamaz. Seçimi kataloğa yazınca döngü kırılır.
+    ///
+    /// Kurallar — bilinçli olarak muhafazakâr:
+    ///  - Yalnız Liftdesk kaynaklı faturalar öğretir (EmsPaymentId dolu). Elle oluşturulan faturadaki
+    ///    tek seferlik satırlar kataloğu kirletmez.
+    ///  - Anahtar SourceProductName (kullanıcı açıklamayı değiştirse de sync'in gönderdiği ad);
+    ///    yoksa Description'a düşülür (eski faturalar).
+    ///  - Katalogda zaten DOLU bir eşleme varsa ÜZERİNE YAZILMAZ: Ayarlar'daki açık tanım otoritedir,
+    ///    tek faturadaki farklı bir seçim onu sessizce değiştirmemeli.
+    ///  - UnitPrice 0 bırakılır ki sync gerçek ödeme tutarını kullansın; TaxRate satırın KDV'sinden
+    ///    alınır, 0 ise %20 — katalogdaki 0 KDV, sonraki faturaların %0 KDV ile kesilmesine yol açar.
+    ///  - Best-effort: öğrenme hatası fatura güncellemesini ASLA bozmaz.
+    /// </summary>
+    private async Task<List<string>?> LearnProductMappingsAsync(
+        Domain.Entities.Invoice invoice, List<InvoiceLineDto> lines, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(invoice.EmsPaymentId)) return null;
+
+        var learned = new List<string>();
+        foreach (var line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line.ParasutProductId)) continue;
+            var key = (line.SourceProductName ?? line.Description)?.Trim();
+            if (string.IsNullOrWhiteSpace(key)) continue;
+
+            try
+            {
+                var existing = await _productRepository.GetByNameAsync(key, ct);
+                if (existing is null)
+                {
+                    await _productRepository.AddAsync(new Domain.Entities.ParasutProduct
+                    {
+                        ProjectId          = null, // katalog global
+                        ProductName        = key,
+                        ParasutProductId   = line.ParasutProductId!,
+                        ParasutProductName = line.ParasutProductName,
+                        UnitPrice          = 0m,
+                        TaxRate            = line.VatRate > 0 ? line.VatRate / 100m : 0.20m,
+                    }, ct);
+                    learned.Add($"{key} → {line.ParasutProductName ?? line.ParasutProductId}");
+                }
+                else if (string.IsNullOrWhiteSpace(existing.ParasutProductId))
+                {
+                    existing.ParasutProductId   = line.ParasutProductId!;
+                    existing.ParasutProductName = line.ParasutProductName ?? existing.ParasutProductName;
+                    if (existing.TaxRate <= 0) existing.TaxRate = line.VatRate > 0 ? line.VatRate / 100m : 0.20m;
+                    await _productRepository.UpdateAsync(existing, ct);
+                    learned.Add($"{key} → {line.ParasutProductName ?? line.ParasutProductId}");
+                }
+                else if (!string.Equals(existing.ParasutProductId, line.ParasutProductId, StringComparison.Ordinal))
+                {
+                    _logger.LogInformation(
+                        "Invoice {InvoiceId}: '{Key}' için katalogda farklı bir Paraşüt ürünü tanımlı ({Existing}); " +
+                        "satırdaki seçim ({Picked}) kataloğa yazılmadı.",
+                        invoice.Id, key, existing.ParasutProductId, line.ParasutProductId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Invoice {InvoiceId}: '{Key}' ürün eşlemesi öğrenilemedi.", invoice.Id, key);
+            }
+        }
+
+        if (learned.Count > 0)
+            _logger.LogInformation("Invoice {InvoiceId}: {Count} Paraşüt ürün eşlemesi öğrenildi: {Items}",
+                invoice.Id, learned.Count, string.Join("; ", learned));
+
+        return learned.Count > 0 ? learned : null;
     }
 }

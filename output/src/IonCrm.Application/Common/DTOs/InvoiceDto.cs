@@ -24,4 +24,10 @@ public class InvoiceDto
     public string? ParasutId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Bu kayıtta ÖĞRENİLEN Paraşüt ürün eşlemeleri ("ürün adı → Paraşüt ürünü"). Yalnız fatura
+    /// güncellemesinde dolar; UI kullanıcıya "bundan sonra otomatik eşleşecek" diyebilsin diye.
+    /// </summary>
+    public List<string>? LearnedProductMappings { get; set; }
 }

@@ -13,6 +13,7 @@ namespace IonCrm.Tests.Invoices;
 public class UpdateInvoiceCommandHandlerTests
 {
     private readonly Mock<IInvoiceRepository> _invoiceRepoMock = new();
+    private readonly Mock<IParasutProductRepository> _productRepoMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly Mock<ILogger<UpdateInvoiceCommandHandler>> _loggerMock = new();
 
@@ -22,6 +23,7 @@ public class UpdateInvoiceCommandHandlerTests
 
     private UpdateInvoiceCommandHandler CreateHandler() => new(
         _invoiceRepoMock.Object,
+        _productRepoMock.Object,
         _currentUserMock.Object,
         _loggerMock.Object);
 

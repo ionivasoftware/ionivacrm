@@ -239,7 +239,10 @@ public sealed class SyncEmsPaymentsCommandHandler
                             discountType     = "percentage",
                             unit             = "Adet",
                             parasutProductId,
-                            parasutProductName
+                            parasutProductName,
+                            // Öğrenme anahtarı: kullanıcı bu faturada ürün seçerse CRM
+                            // "sourceProductName → Paraşüt ürünü" eşlemesini katalogda saklar.
+                            sourceProductName = payment.ProductName
                         }
                     };
 
