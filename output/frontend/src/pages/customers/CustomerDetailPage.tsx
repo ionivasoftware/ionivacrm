@@ -1357,6 +1357,79 @@ function SetPrimaryAdminDialog({
   );
 }
 
+
+// ── Dahili/test firması anahtarı ─────────────────────────────────────────────
+
+/**
+ * Firmayı pano ve kullanım raporu sayımlarından hariç tutan işaret (ör. IONIVA test firması).
+ * Şirket geneli sayıları etkilediği için yalnız SuperAdmin görür ve değiştirir; sunucu aynı kısıtı
+ * uygular. "isInternal" gönderilmezse sunucu mevcut değeri korur, bu yüzden tam payload ile açıkça
+ * gönderiliyor (ücret düzenleyiciyle aynı payload — monthlyLicenseFee korunur).
+ */
+function InternalFlagToggle({ customer }: { customer: CustomerType }) {
+  const { toast } = useToast();
+  const updateCustomer = useUpdateCustomer();
+  const isSuperAdmin = useAuthStore((s) => s.user?.isSuperAdmin ?? false);
+  if (!isSuperAdmin) return null;
+
+  async function toggle() {
+    const next = !customer.isInternal;
+    if (!window.confirm(next
+      ? `"${customer.companyName}" dahili/test firması olarak işaretlenecek ve müşteri sayımlarından çıkarılacak. Devam?`
+      : `"${customer.companyName}" dahili işareti kaldırılacak ve tekrar müşteri olarak sayılacak. Devam?`)) return;
+    try {
+      await updateCustomer.mutateAsync({
+        id: customer.id,
+        projectId: customer.projectId,
+        companyName: customer.companyName,
+        contactName: customer.contactName ?? undefined,
+        email: customer.email ?? undefined,
+        phone: customer.phone ?? undefined,
+        address: customer.address ?? undefined,
+        taxNumber: customer.taxNumber ?? undefined,
+        taxUnit: customer.taxUnit ?? undefined,
+        status: customer.status,
+        segment: customer.segment ?? undefined,
+        label: customer.label ?? undefined,
+        assignedUserId: customer.assignedUserId ?? undefined,
+        code: customer.code ?? undefined,
+        monthlyLicenseFee: customer.monthlyLicenseFee ?? undefined,
+        isInternal: next,
+      });
+      toast({
+        title: next ? 'Dahili firma olarak işaretlendi' : 'Dahili işareti kaldırıldı',
+        description: next ? 'Pano ve kullanım raporu sayımlarına artık girmez.' : 'Tekrar müşteri olarak sayılır.',
+      });
+    } catch {
+      toast({ title: 'Hata', description: 'Kaydedilemedi.', variant: 'destructive' });
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3 py-2 mb-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-foreground">Dahili / test firması</div>
+        <div className="text-xs text-muted-foreground">
+          {customer.isInternal
+            ? 'Müşteri sayımlarından hariç tutuluyor.'
+            : 'Kendi test firmanızsa işaretleyin; pano ve kullanım raporu sayımlarına girmez.'}
+        </div>
+      </div>
+      <Button
+        variant={customer.isInternal ? 'secondary' : 'outline'}
+        size="sm"
+        className="h-7 px-3 text-xs shrink-0"
+        onClick={toggle}
+        disabled={updateCustomer.isPending}
+      >
+        {updateCustomer.isPending
+          ? <Loader2 className="h-3 w-3 animate-spin" />
+          : (customer.isInternal ? 'İşareti kaldır' : 'Dahili işaretle')}
+      </Button>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function CustomerDetailPage() {
@@ -1899,6 +1972,8 @@ export function CustomerDetailPage() {
       {/* ── Tabs ── */}
       <div>
         {/* Tab bar */}
+        {/* Dahili/test firması anahtarı — yalnız SuperAdmin görür; her müşteri türünde görünür. */}
+        {customer && <InternalFlagToggle customer={customer} />}
         <div className="flex border-b border-border overflow-x-auto">
           {tabItems.map((tab) => (
             <button
