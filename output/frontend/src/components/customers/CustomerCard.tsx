@@ -153,6 +153,14 @@ export function CustomerCard({ customer, onQuickAction }: CustomerCardProps) {
             <FolderOpen className="h-3 w-3 inline" /> {projectName}
           </span>
         )}
+        {customer.isInternal && (
+          <span
+            className="text-xs hidden lg:inline px-2 py-0.5 rounded-full border border-dashed border-border text-muted-foreground"
+            title="Dahili/test firması — pano ve kullanım raporu sayımlarına girmez"
+          >
+            Dahili
+          </span>
+        )}
         {customer.segment && (
           <span className="text-xs text-muted-foreground hidden lg:inline px-2 py-0.5 rounded-full border border-border">
             {SEGMENT_LABELS[customer.segment] ?? customer.segment}

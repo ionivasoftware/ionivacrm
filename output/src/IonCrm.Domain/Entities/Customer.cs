@@ -91,6 +91,13 @@ public class Customer : BaseEntity
     /// </summary>
     public decimal? MonthlyLicenseFee { get; set; }
 
+    /// <summary>
+    /// Dahili / test firması (ör. IONIVA). Müşteri metriklerinden — pano sayımları, kullanım
+    /// raporu — HARİÇ tutulur. CRM'e özgü bayrak: SaaS sync bu alanı yazmaz, dolayısıyla sync
+    /// turlarında sıfırlanmaz. Yalnız SuperAdmin değiştirebilir (şirket geneli sayıları etkiler).
+    /// </summary>
+    public bool IsInternal { get; set; }
+
     // Navigation properties
     /// <summary>Gets or sets the project (tenant).</summary>
     public Project Project { get; set; } = null!;

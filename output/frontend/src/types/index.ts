@@ -216,6 +216,8 @@ export interface Customer {
   updatedAt: string;
   /** Most recent ContactHistory date. Null when no history exists. */
   lastActivityDate: string | null;
+  /** Dahili/test firması (ör. IONIVA) — pano ve kullanım raporu sayımlarından hariç. */
+  isInternal: boolean;
 }
 
 export interface CreateCustomerRequest {
@@ -239,6 +241,8 @@ export interface UpdateCustomerRequest extends CreateCustomerRequest {
   id: string;
   /** Monthly license fee for RezervAl customers ("RezervAl Aylık Lisans Bedeli"). */
   monthlyLicenseFee?: number | null;
+  /** Dahili/test işareti; gönderilmezse (undefined) sunucu mevcut değeri korur. Yalnız SuperAdmin. */
+  isInternal?: boolean;
 }
 
 export interface CustomerListParams {

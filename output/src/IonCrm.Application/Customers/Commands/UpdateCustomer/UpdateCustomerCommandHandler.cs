@@ -55,6 +55,10 @@ public class UpdateCustomerCommandHandler : IRequestHandler<UpdateCustomerComman
         customer.AssignedUserId = request.AssignedUserId;
         customer.MonthlyLicenseFee = request.MonthlyLicenseFee;
 
+        // Şirket geneli sayıları etkilediği için yalnız SuperAdmin; null ise dokunulmaz.
+        if (request.IsInternal.HasValue && _currentUser.IsSuperAdmin)
+            customer.IsInternal = request.IsInternal.Value;
+
         await _customerRepository.UpdateAsync(customer, cancellationToken);
 
         _logger.LogInformation("Customer {CustomerId} updated", customer.Id);

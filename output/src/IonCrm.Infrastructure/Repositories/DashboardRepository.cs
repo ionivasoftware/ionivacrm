@@ -25,16 +25,17 @@ public class DashboardRepository : IDashboardRepository
 
         // ── Scalars ──────────────────────────────────────────────────────────
 
+        // Dahili/test firmaları (IsInternal) hiçbir müşteri sayımına girmez.
         var totalCustomers = await _db.Customers
-            .Where(c => c.ProjectId == projectId)
+            .Where(c => c.ProjectId == projectId && !c.IsInternal)
             .CountAsync(cancellationToken);
 
         var activeCustomers = await _db.Customers
-            .Where(c => c.ProjectId == projectId && c.Status == CustomerStatus.Active)
+            .Where(c => c.ProjectId == projectId && !c.IsInternal && c.Status == CustomerStatus.Active)
             .CountAsync(cancellationToken);
 
         var newLeadsThisMonth = await _db.Customers
-            .Where(c => c.ProjectId == projectId &&
+            .Where(c => c.ProjectId == projectId && !c.IsInternal &&
                         c.Status == CustomerStatus.Lead &&
                         c.CreatedAt >= monthStart)
             .CountAsync(cancellationToken);
@@ -77,7 +78,7 @@ public class DashboardRepository : IDashboardRepository
         // ── Customers by status — group in memory ────────────────────────────
 
         var allCustomerStatuses = await _db.Customers
-            .Where(c => c.ProjectId == projectId)
+            .Where(c => c.ProjectId == projectId && !c.IsInternal)
             .Select(c => c.Status)
             .ToListAsync(cancellationToken);
 
@@ -299,7 +300,7 @@ public class DashboardRepository : IDashboardRepository
         var query =
             from s in _db.CustomerUsageSnapshots
             join c in _db.Customers on s.CustomerId equals c.Id
-            where s.SnapshotYear == year && s.SnapshotMonth == month
+            where s.SnapshotYear == year && s.SnapshotMonth == month && !c.IsInternal
             select new { s, c };
 
         if (projectId.HasValue)

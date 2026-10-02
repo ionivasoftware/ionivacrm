@@ -27,4 +27,10 @@ public record UpdateCustomerCommand : IRequest<Result<CustomerDto>>
     /// Only applies to RezervAl customers (LegacyId starts with "REZV-").
     /// </summary>
     public decimal? MonthlyLicenseFee { get; init; }
+
+    /// <summary>
+    /// Dahili/test firması işareti. Null = DEĞİŞTİRME (mevcut değer korunur) — böylece bu alanı
+    /// göndermeyen eski/diğer formlar işareti istemeden sıfırlamaz. Yalnız SuperAdmin set edebilir.
+    /// </summary>
+    public bool? IsInternal { get; init; }
 }

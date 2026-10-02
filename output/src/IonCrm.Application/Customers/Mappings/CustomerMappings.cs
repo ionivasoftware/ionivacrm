@@ -33,6 +33,7 @@ public static class CustomerMappings
         IsEInvoicePayer = c.IsEInvoicePayer,
         EInvoiceAddress = c.EInvoiceAddress,
         MonthlyLicenseFee = c.MonthlyLicenseFee,
+        IsInternal = c.IsInternal,
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt
     };

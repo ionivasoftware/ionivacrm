@@ -337,6 +337,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
             ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""EInvoiceAddress""   text;
             ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""MonthlyLicenseFee"" numeric;
             ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""LogoUrl""           text;
+            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""IsInternal""        boolean NOT NULL DEFAULT false;
             ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsBaseUrl""        text;
             ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""EmsApiKey""         text;
             ALTER TABLE ""Projects""  ADD COLUMN IF NOT EXISTS ""RezervAlBaseUrl""   text;

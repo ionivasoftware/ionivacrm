@@ -35,6 +35,9 @@ public class CustomerDto
     /// Null for EMS customers (EMS pricing is stored in ParasutProducts configuration).
     /// </summary>
     public decimal? MonthlyLicenseFee { get; set; }
+
+    /// <summary>Dahili/test firması — müşteri metriklerinden hariç.</summary>
+    public bool IsInternal { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     /// <summary>
