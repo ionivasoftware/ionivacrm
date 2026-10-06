@@ -59,6 +59,24 @@ public interface ISaasAClient
         string? baseUrl = null);
 
     /// <summary>
+    /// Destek oturumu bağlantısı alır ("Hesaba Gir").
+    /// POST /api/v1/crm/companies/{emsCompanyId}/users/{userId}/impersonation
+    /// Yanıt tek kullanımlık, 2 dk geçerli bir giriş bağlantısıdır (gizli değer — loglanmaz).
+    /// İş reddi (400/404/409/401/503) <see cref="EmsApiErrorException"/> olarak fırlatılır ve
+    /// yeniden DENENMEZ; başarılı çağrı Liftdesk'te denetim kaydı açtığı için bu uç idempotent değildir.
+    /// </summary>
+    /// <param name="agent">Oturum açmış CRM operatörünün e-postası — SUNUCU doldurur, istemciden alınmaz.</param>
+    /// <param name="reason">Gerekçe, kırpılmış 10–500 karakter (Liftdesk denetim kaydına yazılır).</param>
+    Task<EmsImpersonationResponse> CreateImpersonationAsync(
+        string? apiKey,
+        int emsCompanyId,
+        string userId,
+        string agent,
+        string reason,
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null);
+
+    /// <summary>
     /// Fetches the user list for a company via the EMS CRM API.
     /// GET /api/v1/crm/companies/{companyId}/users
     /// </summary>

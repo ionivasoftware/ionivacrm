@@ -3,6 +3,7 @@ using IonCrm.Application.Customers.Commands.CancelCustomerContract;
 using IonCrm.Application.Customers.Commands.ConvertLeadToCustomer;
 using IonCrm.Application.Customers.Commands.CreateCustomer;
 using IonCrm.Application.Customers.Commands.CreateCustomerContract;
+using IonCrm.Application.Customers.Commands.CreateEmsImpersonation;
 using IonCrm.Application.Customers.Commands.DeleteCustomer;
 using IonCrm.Application.Customers.Commands.ExtendEmsExpiration;
 using IonCrm.Application.Customers.Commands.PushCustomerToRezerval;
@@ -197,6 +198,24 @@ public class CustomersController : ApiControllerBase
     public async Task<IActionResult> GetEmsUsers(Guid id, CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(new GetCustomerEmsUsersQuery(id), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// POST /api/v1/customers/{id}/ems-users/{userId}/impersonation
+    /// "Hesaba Gir": seçilen Liftdesk kullanıcısı için tek kullanımlık (2 dk) destek giriş bağlantısı
+    /// alır. API anahtarı ve operatör kimliği (agent) sunucuda kalır; bağlantı tarayıcıda yeni sekmede
+    /// açılır, hiçbir yerde loglanmaz/saklanmaz. Her çağrı Liftdesk'te ayrı bir denetim oturumudur.
+    /// </summary>
+    [HttpPost("{id:guid}/ems-users/{userId}/impersonation")]
+    public async Task<IActionResult> CreateEmsImpersonation(
+        Guid id,
+        string userId,
+        [FromBody] CreateEmsImpersonationRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Mediator.Send(
+            new CreateEmsImpersonationCommand(id, userId, body?.Reason ?? string.Empty), cancellationToken);
         return ResultToResponse(result);
     }
 
@@ -557,6 +576,10 @@ public record AddCustomerSmsRequest(int Count);
 /// <summary>Request body for POST /api/v1/customers/{id}/set-primary-admin. The source user id of the
 /// firm user to promote to primary admin.</summary>
 public record SetPrimaryEmsUserRequest(string UserId);
+
+/// <summary>Request body for POST /api/v1/customers/{id}/ems-users/{userId}/impersonation.
+/// Yalnız gerekçe — <c>agent</c> sunucuda oturum açmış operatörden alınır.</summary>
+public record CreateEmsImpersonationRequest(string Reason);
 
 /// <summary>Request body for PUT /api/v1/customers/{id}/checklists/{kind} — the FULL new checklist.</summary>
 public record UpdateChecklistRequest(List<LiftdeskChecklistHeaderInput> Headers);

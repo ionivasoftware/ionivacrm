@@ -429,6 +429,30 @@ export function useSetPrimaryEmsUser(customerId: string) {
   });
 }
 
+export interface EmsImpersonationResult {
+  /** GİZLİ değer: tek kullanımlık giriş bağlantısı. Yalnız yeni sekmede açılır; loglanmaz,
+   *  saklanmaz, ekranda metin olarak gösterilmez. */
+  loginUrl: string;
+  expiresAt: string;
+}
+
+/**
+ * "Hesaba Gir" — seçilen Liftdesk kullanıcısı için destek oturumu bağlantısı alır. API anahtarı ve
+ * operatör kimliği sunucuda kalır; istemci yalnız gerekçe gönderir. Sorgu geçersiz kılınmaz: her
+ * çağrı Liftdesk'te ayrı bir denetim oturumudur, liste değişmez.
+ */
+export function useCreateEmsImpersonation(customerId: string) {
+  return useMutation({
+    mutationFn: async (body: { userId: string; reason: string }) => {
+      const response = await apiClient.post<ApiResponse<EmsImpersonationResult>>(
+        `/customers/${customerId}/ems-users/${encodeURIComponent(body.userId)}/impersonation`,
+        { reason: body.reason }
+      );
+      return response.data.data;
+    },
+  });
+}
+
 export function useCustomerEmsUsers(customerId: string, enabled: boolean) {
   return useQuery({
     queryKey: ['customerEmsUsers', customerId],

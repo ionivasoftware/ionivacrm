@@ -29,14 +29,13 @@ import {
   CalendarClock,
   ArrowRight,
   MessageSquarePlus,
-  Eye,
-  EyeOff,
   Send,
   FileText,
   Banknote,
   CreditCard,
   XCircle,
   ShieldCheck,
+  LogIn,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -80,6 +79,7 @@ import {
   useCustomerEmsUsers,
   useCustomerPlan,
   useSetPrimaryEmsUser,
+  useCreateEmsImpersonation,
   useCustomerEmsSummary,
   useCustomerRezervalSummary,
   useUpdateCustomer,
@@ -392,25 +392,6 @@ function RezervalLicenseFeeSection({ customer }: { customer: CustomerType }) {
 }
 
 // ── EMS Users Tab ─────────────────────────────────────────────────────────────
-
-function PasswordCell({ password }: { password: string }) {
-  const [visible, setVisible] = useState(false);
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="font-mono text-xs">
-        {visible ? password : '••••••••'}
-      </span>
-      <button
-        onClick={() => setVisible((v) => !v)}
-        className="text-muted-foreground hover:text-foreground transition-colors"
-        title={visible ? 'Gizle' : 'Göster'}
-        type="button"
-      >
-        {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-      </button>
-    </div>
-  );
-}
 
 // ── Quick Invoice Form (inline in Cari tab) ───────────────────────────────────
 
@@ -1430,6 +1411,133 @@ function InternalFlagToggle({ customer }: { customer: CustomerType }) {
   );
 }
 
+// ── Destek Oturumu ("Hesaba Gir") Dialog ─────────────────────────────────────
+
+interface ImpersonationDialogProps {
+  target: EmsUser | null;
+  onOpenChange: (open: boolean) => void;
+  companyName: string;
+  impersonate: ReturnType<typeof useCreateEmsImpersonation>;
+}
+
+const REASON_MIN = 10;
+const REASON_MAX = 500;
+
+/**
+ * Gerekçe penceresi + yeni sekmede giriş. İki güvenlik kuralı sözleşmeden:
+ *  - Dönen bağlantı GİZLİ değerdir: loglanmaz, saklanmaz, metin olarak gösterilmez.
+ *  - Bağlantı yeni sekmede, opener bağı koparılarak açılır.
+ *
+ * Sekme, API çağrısından ÖNCE ve kullanıcı tıklamasının içinde senkron açılır: tarayıcılar
+ * await sonrası window.open'ı pop-up sayıp engeller. Engellenirse API hiç çağrılmaz — boşa
+ * (kullanılmayacak) bir denetim oturumu açılmasın.
+ */
+function ImpersonationDialog({ target, onOpenChange, companyName, impersonate }: ImpersonationDialogProps) {
+  const { toast } = useToast();
+  const [reason, setReason] = useState('');
+  const trimmed = reason.trim();
+  const valid = trimmed.length >= REASON_MIN && trimmed.length <= REASON_MAX;
+
+  function close() {
+    onOpenChange(false);
+    setReason('');
+  }
+
+  async function handleConfirm() {
+    if (!target || !valid) return;
+
+    // Tıklama bağlamında senkron aç; opener bağını kopar (noopener eşdeğeri — 'noopener'
+    // parametresi referansı null döndürdüğü için sonradan yönlendirilemezdi).
+    const tab = window.open('about:blank', '_blank');
+    if (!tab) {
+      toast({
+        title: 'Yeni sekme açılamadı',
+        description: 'Tarayıcı pop-up engelledi. Bu site için pop-up izni verip yeniden deneyin.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    tab.opener = null;
+    try {
+      tab.document.title = 'Destek oturumu açılıyor…';
+      tab.document.body.innerHTML =
+        '<p style="font:14px system-ui;padding:24px;color:#444">Destek oturumu açılıyor…</p>';
+    } catch { /* about:blank yazılamazsa önemli değil */ }
+
+    try {
+      const result = await impersonate.mutateAsync({ userId: target.userId, reason: trimmed });
+      tab.location.href = result.loginUrl;
+      const mins = Math.max(1, Math.round((new Date(result.expiresAt).getTime() - Date.now()) / 60000));
+      toast({
+        title: 'Destek oturumu yeni sekmede açıldı',
+        description: `${fullName(target)} · bağlantı ${mins} dk geçerli. Sekme açılmadıysa düğmeye yeniden basın; her basış ayrı kayıtlı bir oturumdur.`,
+      });
+      close();
+    } catch (err) {
+      try { tab.close(); } catch { /* ignore */ }
+      const msg =
+        (err as { response?: { data?: { errors?: string[]; message?: string } } })?.response?.data?.errors?.[0] ??
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Destek oturumu açılamadı.';
+      toast({ title: 'Hesaba girilemedi', description: msg, variant: 'destructive' });
+    }
+  }
+
+  return (
+    <Dialog open={!!target} onOpenChange={v => { if (!v) close(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <LogIn className="h-5 w-5 text-blue-400" />
+            Hesaba Gir
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{target ? fullName(target) : ''}</span>
+            {target?.email && <span className="text-xs"> · {target.email}</span>}
+            <span> — {companyName}</span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Parolasız, 60 dk ile sınırlı ve Liftdesk'te <span className="font-medium text-foreground">denetim kayıtlı</span> bir
+            destek oturumu açılır; adınız ve gerekçeniz kaydedilir. Parola değiştirme, hesap silme, imza ve
+            ödeme işlemleri bu oturumda engellidir.
+          </p>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground" htmlFor="imp-reason">Gerekçe</label>
+            <Textarea
+              id="imp-reason"
+              rows={3}
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="Örn: Bakım listesi boş görünüyor, ekran kontrolü"
+              maxLength={REASON_MAX + 50}
+              autoFocus
+            />
+            <p className={cn('text-xs', valid ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-500')}>
+              {trimmed.length}/{REASON_MAX} · en az {REASON_MIN} karakter
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={close}>Vazgeç</Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={!target || !valid || impersonate.isPending}
+            className="bg-blue-500 hover:bg-blue-600 text-white"
+          >
+            {impersonate.isPending ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Açılıyor…</>
+            ) : (
+              <><LogIn className="h-4 w-4 mr-1.5" />Yeni sekmede gir</>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function CustomerDetailPage() {
@@ -1484,6 +1592,8 @@ export function CustomerDetailPage() {
   const addSms = useAddCustomerSms(id ?? '');
   const setPrimaryEmsUser = useSetPrimaryEmsUser(id ?? '');
   const [primaryTarget, setPrimaryTarget] = useState<EmsUser | null>(null);
+  const impersonate = useCreateEmsImpersonation(id ?? '');
+  const [impersonateTarget, setImpersonateTarget] = useState<EmsUser | null>(null);
 
   // RezervAl
   const { data: adminProjects } = useAdminProjects();
@@ -2371,10 +2481,7 @@ export function CustomerDetailPage() {
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">E-posta</th>
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">Rol</th>
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kullanıcı Adı</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Şifre</th>
-                        {isSuperAdmin && (
-                          <th className="text-right px-4 py-3 font-medium text-muted-foreground">İşlem</th>
-                        )}
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">İşlem</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2416,16 +2523,25 @@ export function CustomerDetailPage() {
                           <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                             {user.loginName || '—'}
                           </td>
-                          <td className="px-4 py-3">
-                            {user.password ? (
-                              <PasswordCell password={user.password} />
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
-                          </td>
-                          {isSuperAdmin && (
-                            <td className="px-4 py-3 text-right">
-                              {user.isPrimaryAdmin ? (
+                          <td className="px-4 py-3 text-right">
+                            <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
+                              {/* Parola sütunu kaldırıldı (Liftdesk düz metin saklamıyor); yerine
+                                  denetim kayıtlı destek oturumu. Yalnız aktif kullanıcıya. */}
+                              {user.isActive !== false ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  title="Parolasız, 60 dk ile sınırlı, denetim kayıtlı destek oturumu aç"
+                                  onClick={() => setImpersonateTarget(user)}
+                                >
+                                  <LogIn className="h-3.5 w-3.5 mr-1" />
+                                  Hesaba Gir
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-muted-foreground" title="Pasif kullanıcıya destek oturumu açılamaz">—</span>
+                              )}
+                              {isSuperAdmin && (user.isPrimaryAdmin ? (
                                 <span className="text-xs text-muted-foreground">Ana kullanıcı</span>
                               ) : (
                                 <Button
@@ -2441,9 +2557,9 @@ export function CustomerDetailPage() {
                                   <ShieldCheck className="h-3.5 w-3.5 mr-1" />
                                   Ana kullanıcı yap
                                 </Button>
-                              )}
-                            </td>
-                          )}
+                              ))}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -2728,6 +2844,13 @@ export function CustomerDetailPage() {
         onOpenChange={setShowSmsDialog}
         companyName={customer?.companyName ?? ''}
         addSms={addSms}
+      />
+
+      <ImpersonationDialog
+        target={impersonateTarget}
+        onOpenChange={(open) => { if (!open) setImpersonateTarget(null); }}
+        companyName={customer?.companyName ?? ''}
+        impersonate={impersonate}
       />
 
       <SetPrimaryAdminDialog

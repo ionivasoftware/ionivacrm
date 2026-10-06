@@ -196,6 +196,64 @@ public sealed class SaasAClient : ISaasAClient
     }
 
     /// <inheritdoc />
+    public async Task<EmsImpersonationResponse> CreateImpersonationAsync(
+        string? apiKey,
+        int emsCompanyId,
+        string userId,
+        string agent,
+        string reason,
+        CancellationToken cancellationToken = default,
+        string? baseUrl = null)
+    {
+        // Yalnız kimlikler loglanır — gerekçe ve dönen bağlantı ASLA değil.
+        _logger.LogDebug("SaaS A: issuing impersonation for company {CompanyId}, user {UserId}, agent {Agent}.",
+            emsCompanyId, userId, agent);
+
+        // BİLEREK retry pipeline'ı dışında: her başarılı çağrı Liftdesk'te bir denetim oturumu + tek
+        // kullanımlık kod üretir. Zaman aşımı sonrası yeniden deneme, sunucu ilkini işlemişse ikinci
+        // (hiç kullanılmayacak) bir oturum açardı. Sözleşmenin kurtarma modeli "düğmeye yeniden bas".
+        var uri = BuildRequestUri($"api/v1/crm/companies/{emsCompanyId}/users/{Uri.EscapeDataString(userId)}/impersonation", baseUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Post, uri);
+        ApplyAuth(request, apiKey);
+        request.Content = JsonContent.Create(new { agent, reason }, options: JsonOpts);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            string body = string.Empty;
+            try { body = await response.Content.ReadAsStringAsync(cancellationToken); } catch { /* ignore */ }
+
+            string? errorCode = null; string? message = null;
+            if (!string.IsNullOrWhiteSpace(body))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(body);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                    {
+                        if (doc.RootElement.TryGetProperty("errorCode", out var ec) && ec.ValueKind == JsonValueKind.String)
+                            errorCode = ec.GetString();
+                        if (doc.RootElement.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String)
+                            message = m.GetString();
+                    }
+                }
+                catch (JsonException) { /* gövde JSON değil — ham metin mesaja düşer */ }
+            }
+
+            throw new EmsApiErrorException(
+                (int)response.StatusCode,
+                errorCode,
+                message ?? (string.IsNullOrWhiteSpace(body) ? $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}" : body.Trim()));
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<EmsImpersonationResponse>(JsonOpts, cancellationToken);
+        if (result is null || string.IsNullOrWhiteSpace(result.LoginUrl))
+            throw new InvalidOperationException("Empty response from EMS impersonation.");
+        return result;
+    }
+
+    /// <inheritdoc />
     public async Task<List<EmsCompanyUser>> GetCompanyUsersAsync(
         string? apiKey,
         int companyId,

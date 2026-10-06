@@ -54,6 +54,18 @@ public record EmsSetPrimaryAdminResponse(
     string UserId,
     string? PreviousUserId = null);
 
+// ── EMS destek oturumu ("Hesaba Gir") ─────────────────────────────────────────
+
+/// <summary>
+/// Response from POST /api/v1/crm/companies/{companyId}/users/{userId}/impersonation
+/// (docs/crm-impersonation-api.md §1). <see cref="LoginUrl"/> içindeki kod TEK KULLANIMLIK ve
+/// GİZLİ bir değerdir: 2 dk boyunca hesaba giriş anahtarıdır. CRM bunu loglamaz, saklamaz, ekranda
+/// metin olarak göstermez — yalnız tarayıcıya iletip yeni sekmede açtırır.
+/// </summary>
+public record EmsImpersonationResponse(
+    string LoginUrl,
+    DateTime ExpiresAt);
+
 // ── EMS company users ─────────────────────────────────────────────────────────
 
 /// <summary>A single user record returned by EMS GET /api/v1/crm/companies/{companyId}/users.</summary>

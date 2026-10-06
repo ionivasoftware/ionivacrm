@@ -421,6 +421,8 @@ export interface EmsUser {
   email: string;
   role: string;
   loginName: string;
+  /** Geriye uyum için şemada kalıyor; Liftdesk 06.10.2026'dan beri düz metin parola saklamıyor,
+   *  bu alan HER ZAMAN boş string gelir. Parola yerine "Hesaba Gir" (destek oturumu) kullanılır. */
   password: string;
   /** True when this user is the firm's primary admin (Liftdesk owner). Null/undefined on older
    *  Liftdesk builds that don't emit the flag yet. */
