@@ -181,4 +181,13 @@ public record EmsPayment(
     string? CompletionProcess,
     int? ProductId,
     string? ProductName,
-    DateTime CreatedOn);
+    DateTime CreatedOn,
+    /// <summary>K4 (06.10.2026): tutarların para birimi, ISO 4217 — "TRY" (Türk firması) | "USD"
+    /// (yurt dışı abonelik). SMS paketleri her zaman TRY. Null = eski Liftdesk sürümü → TRY sayılır.</summary>
+    string? Currency = null,
+    /// <summary>K4: uygulanan KDV oranı KESİR olarak (0.20 = %20; yurt dışı 0). Yüzde DEĞİL.
+    /// Null = eski sürüm → vatPrice/subTotal'dan türetilir.</summary>
+    decimal? VatRate = null,
+    /// <summary>K4: true = KDV istisnası (yurt dışına hizmet ihracatı, KDVK 11/1-a): price = subTotal,
+    /// vatPrice = 0. İstisna kodunu CRM/muhasebe seçer, Liftdesk göndermez.</summary>
+    bool VatExempt = false);

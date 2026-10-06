@@ -174,6 +174,18 @@ public sealed class SyncEmsPaymentsCommandHandler
                             payment.ProductName.Trim(), cancellationToken);
                     }
 
+                    // K4 — para birimi ve KDV istisnası. Liftdesk "TRY" gönderir; Paraşüt'ün kodu "TRL".
+                    // Yurt dışı USD ödemeler hizmet ihracatı olarak KDV'den istisnadır: KDV oranı 0 ve
+                    // KATALOGDAKİ TRY birim fiyatı / %20 KDV bu satıra ASLA uygulanmaz — aksi hâlde USD
+                    // ödeme TRY liste fiyatıyla ve %20 KDV'yle faturalanırdı.
+                    var currency  = NormalizeCurrency(payment.Currency);
+                    var isForeign = currency != "TRL";
+                    var vatExempt = payment.VatExempt;
+                    int sourceVatRate = vatExempt ? 0
+                        : payment.VatRate is { } srcVr ? (int)Math.Round(srcVr * 100)
+                        : payment.SubTotal > 0 ? (int)Math.Round(payment.VatPrice / payment.SubTotal * 100)
+                        : 20;
+
                     {
                         if (product is not null)
                         {
@@ -207,8 +219,12 @@ public sealed class SyncEmsPaymentsCommandHandler
                             lineDescription    = !string.IsNullOrEmpty(product.ParasutProductName)
                                                     ? product.ParasutProductName
                                                     : product.ProductName;
-                            unitPrice          = product.UnitPrice > 0 ? product.UnitPrice : payment.SubTotal;
-                            vatRate            = (int)(product.TaxRate * 100);
+                            // Yabancı para: kataloğun TRY fiyatı ve KDV'si geçersiz — ödemenin kendisi otorite.
+                            unitPrice          = isForeign ? payment.SubTotal
+                                               : product.UnitPrice > 0 ? product.UnitPrice : payment.SubTotal;
+                            vatRate            = vatExempt ? 0
+                                               : isForeign ? sourceVatRate
+                                               : (int)(product.TaxRate * 100);
                             parasutProductId   = product.ParasutProductId;
                             parasutProductName = product.ParasutProductName;
                         }
@@ -220,9 +236,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                                 ? payment.ProductName!
                                 : $"{srcLabel} Ödeme #{payment.Id}";
                             unitPrice       = payment.SubTotal;
-                            vatRate         = payment.SubTotal > 0
-                                ? (int)Math.Round(payment.VatPrice / payment.SubTotal * 100)
-                                : 20;
+                            vatRate         = sourceVatRate;
                         }
                     }
 
@@ -252,10 +266,13 @@ public sealed class SyncEmsPaymentsCommandHandler
                         ProjectId    = project.Id,
                         CustomerId   = customer.Id,
                         Title        = $"{srcLabel} Ödeme - {payment.PaymentType} ({payment.CreatedOn:dd.MM.yyyy})",
-                        Description  = null,
+                        // İstisna kodunu Paraşüt'te muhasebe seçer (sözleşme K4); taslakta görünür not.
+                        Description  = vatExempt
+                            ? "KDV istisnası — yurt dışına hizmet ihracatı (KDVK 11/1-a). İstisna kodu Paraşüt'te resmileştirirken seçilecek."
+                            : null,
                         IssueDate    = payment.CreatedOn,
                         DueDate      = payment.CreatedOn.Date,
-                        Currency     = "TRL",
+                        Currency     = currency,
                         // Derive gross from net + VAT rather than trusting the raw Price field: after a
                         // Liftdesk change Price started arriving KDV-HARİÇ (net), which made "GrossTotal =
                         // Price" store the net amount as if it were the KDV-included total (VAT lost). Net
@@ -277,7 +294,7 @@ public sealed class SyncEmsPaymentsCommandHandler
                     notifyLines.Add(
                         $"{System.Net.WebUtility.HtmlEncode(customer.CompanyName)} — " +
                         $"{System.Net.WebUtility.HtmlEncode(lineDescription)} · " +
-                        $"{invoice.GrossTotal:N2} ₺ (KDV dahil)");
+                        $"{invoice.GrossTotal:N2} {CurrencyLabel(currency)}{(vatExempt ? " (KDV istisnalı)" : " (KDV dahil)")}");
 
                     // 6. Write sync log entry for this payment
                     await _syncLogRepository.AddAsync(new SyncLog
@@ -304,8 +321,8 @@ public sealed class SyncEmsPaymentsCommandHandler
                     }, cancellationToken);
 
                     _logger.LogInformation(
-                        "{Source} payment sync: created invoice draft for customer {CustomerId} from payment {PaymentId} (company {CompanyId}).",
-                        srcLabel, customer.Id, payment.Id, payment.CompanyId);
+                        "{Source} payment sync: created invoice draft for customer {CustomerId} from payment {PaymentId} (company {CompanyId}) — {Currency}{Exempt}.",
+                        srcLabel, customer.Id, payment.Id, payment.CompanyId, currency, vatExempt ? ", KDV istisnalı" : "");
                 }
 
                 // Persist a summary SyncLog only when something meaningful happened.
@@ -388,4 +405,22 @@ public sealed class SyncEmsPaymentsCommandHandler
 
         return Result<SyncEmsPaymentsResult>.Success(result);
     }
+
+    /// <summary>
+    /// Liftdesk ISO 4217 kodunu Paraşüt'ün beklediği koda çevirir. Paraşüt Türk lirası için "TRL"
+    /// kullanır ("TRY" değil); eski Liftdesk sürümü alanı hiç göndermez → TRY varsayılır.
+    /// </summary>
+    private static string NormalizeCurrency(string? iso)
+    {
+        var c = (iso ?? "TRY").Trim().ToUpperInvariant();
+        return c is "TRY" or "TRL" or "" ? "TRL" : c;
+    }
+
+    private static string CurrencyLabel(string parasutCode) => parasutCode switch
+    {
+        "TRL" => "₺",
+        "USD" => "$",
+        "EUR" => "€",
+        _     => parasutCode,
+    };
 }
