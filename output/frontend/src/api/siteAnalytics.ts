@@ -102,7 +102,7 @@ export function useSiteEvents(f: Pick<SiteFilters, 'site' | 'country'>, type: st
 
 /**
  * §6.8 sessizlik yoklaması — "son 24 saatte hiç PageView var mı?" sorusu HAM olaylardan, SÜZGEÇSİZ
- * ve anlık sorulur. overview özetten okur ve "bugün" 1 saate kadar geriden gelir; üstelik overview
+ * ve anlık sorulur. overview özetten okur ve "bugün" 5 dakikaya kadar geriden gelir; üstelik overview
  * süzgeçlidir — country=GB seçiliyken GB'den ziyaret olmaması ölçüm arızası değildir. Bu yüzden ayrı,
  * tüm siteyi kapsayan tek olaylık bir sorgu: boş dönerse ölçüm kopmuş olabilir.
  */

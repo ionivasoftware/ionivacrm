@@ -202,8 +202,8 @@ export function SiteAnalyticsPage() {
                 <h3 className="text-sm font-semibold text-foreground">
                   Günlük görüntüleme ve ziyaretçi
                   {filters.to === today && (
-                    <span className="ml-2 text-xs font-normal text-muted-foreground" title="Pano saatlik özetten okur; bugünün sayıları en çok 1 saat geriden gelir. Canlı akış ise anlıktır.">
-                      · bugün ≤ 1 sa geriden
+                    <span className="ml-2 text-xs font-normal text-muted-foreground" title="Pano 5 dakikada bir yenilenen özetten okur; bugünün sayıları en çok 5 dk geriden gelir. Canlı akış ise anlıktır.">
+                      · bugün ≤ 5 dk geriden
                     </span>
                   )}
                 </h3>
