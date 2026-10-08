@@ -14,6 +14,7 @@ import {
   FileText,
   ShieldAlert,
   DatabaseBackup,
+  Globe,
   Receipt,
   Tags,
   MessageSquareText,
@@ -64,6 +65,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Destek Sohbetleri', href: '/admin/support-chat-logs', icon: MessageCircle, superAdminOnly: true },
   { label: 'Fiyat Yönetimi', href: '/admin/pricing', icon: Tags, superAdminOnly: true },
   { label: 'Yedekleme', href: '/admin/backups', icon: DatabaseBackup, superAdminOnly: true },
+  { label: 'Site Kullanımı', href: '/admin/site-analytics', icon: Globe, superAdminOnly: true },
 ];
 
 export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: SidebarProps) {

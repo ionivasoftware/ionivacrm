@@ -312,6 +312,15 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(60);
             })
             .AddPolicyHandler(BuildCircuitBreakerPolicy());
+
+        // Liftdesk kurumsal site analitiği — salt okunur, aynı statik anahtar. Birinci taraf,
+        // çerezsiz; kişisel veri taşımaz.
+        services
+            .AddHttpClient<ILiftdeskSiteAnalyticsClient, LiftdeskSiteAnalyticsClient>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(60);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
     }
 
     private static void RegisterSaasBClient(
