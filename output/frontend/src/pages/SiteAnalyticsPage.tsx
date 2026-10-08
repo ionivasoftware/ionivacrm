@@ -8,7 +8,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  useSiteOverview, useSiteEvents, fillDaily, todayUtc, addDaysUtc,
+  useSiteOverview, useSiteEvents, useSiteSilenceProbe, fillDaily, todayUtc, addDaysUtc,
   type SiteBucket, type SiteFilters,
 } from '@/api/siteAnalytics';
 
@@ -87,19 +87,16 @@ export function SiteAnalyticsPage() {
 
   const countryValid = !filters.country || /^[A-Z]{2}$/.test(filters.country);
   const { data, isLoading, isError, error, refetch, isFetching } = useSiteOverview(filters, countryValid);
-  const { data: events = [], isFetching: eventsFetching } = useSiteEvents(filters, eventType || null, 50, countryValid);
+  const { data: events = [], isFetching: eventsFetching } = useSiteEvents(
+    { site: filters.site, country: filters.country }, eventType || null, 50, countryValid);
+  const { data: probe } = useSiteSilenceProbe(true);
 
   const daily = useMemo(() => fillDaily(data?.daily, filters.from, filters.to), [data, filters.from, filters.to]);
 
-  // Sözleşme §6.8 — SESSİZLİK ÖLÇÜM KOPMUŞ OLABİLİR: dönem bugünü kapsıyorsa ve son 24 saatte
-  // (bugün + dün, UTC gün) hiç görüntüleme yoksa tracker ya da ingest ucu kırılmış olabilir.
-  // Geçmiş bir aralığa bakılırken bu uyarı anlamsız olduğu için yalnız to == bugün iken.
-  const silent = useMemo(() => {
-    if (!data || filters.to !== today) return false;
-    const y = addDaysUtc(today, -1);
-    const last = daily.filter(d => d.day === today || d.day === y);
-    return last.length > 0 && last.every(d => d.pageViews === 0);
-  }, [data, daily, filters.to, today]);
+  // Sözleşme §6.8 — sessizlik = ölçüm kopmuş olabilir. Yoklama HAM olaylardan, süzgeçsiz ve anlık
+  // (useSiteSilenceProbe); seçili dönem/süzgeçten bağımsız bir site-sağlığı sinyali olduğu için
+  // her zaman gösterilir.
+  const silent = probe?.silent === true;
 
   const t = data?.totals;
   const errMsg =
@@ -202,7 +199,14 @@ export function SiteAnalyticsPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-baseline justify-between mb-2">
-                <h3 className="text-sm font-semibold text-foreground">Günlük görüntüleme ve ziyaretçi</h3>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Günlük görüntüleme ve ziyaretçi
+                  {filters.to === today && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground" title="Pano saatlik özetten okur; bugünün sayıları en çok 1 saat geriden gelir. Canlı akış ise anlıktır.">
+                      · bugün ≤ 1 sa geriden
+                    </span>
+                  )}
+                </h3>
                 {t.averageScrollDepth != null && (
                   <span className="text-xs text-muted-foreground">Ort. kaydırma derinliği {t.averageScrollDepth.toFixed(0)}%</span>
                 )}
@@ -334,7 +338,7 @@ export function SiteAnalyticsPage() {
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <MousePointerClick className="h-4 w-4" /> Canlı akış
-                  <span className="text-xs font-normal text-muted-foreground">30 sn'de bir yenilenir{eventsFetching ? ' · yenileniyor…' : ''}</span>
+                  <span className="text-xs font-normal text-muted-foreground">en son olaylar · 30 sn'de bir yenilenir · dönem süzgecinden bağımsız{eventsFetching ? ' · yenileniyor…' : ''}</span>
                 </h3>
                 <select value={eventType} onChange={e => setEventType(e.target.value)}
                   className="h-8 rounded-md border border-input bg-transparent px-2 text-xs">

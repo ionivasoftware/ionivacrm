@@ -79,19 +79,49 @@ export function useSiteOverview(f: SiteFilters, enabled = true) {
   });
 }
 
-/** Canlı akış: 30 sn'de bir yenilenir (sözleşme §6.7). */
-export function useSiteEvents(f: SiteFilters, type: string | null, limit = 50, enabled = true) {
+/**
+ * Canlı akış: en son olaylar, 30 sn'de bir (sözleşme §6.7). DÖNEM süzgeci bilerek YOK — akış "şimdi"dir;
+ * ham olaylar yalnız 30 gün tutulduğu için (§5) eski bir aralık seçiliyken dönemi geçirmek akışı boş
+ * bırakırdı. Site/ülke süzgeci kalır ("GB'den gelen ne yapıyor" teşhisi için).
+ */
+export function useSiteEvents(f: Pick<SiteFilters, 'site' | 'country'>, type: string | null, limit = 50, enabled = true) {
   return useQuery({
-    queryKey: ['site-analytics', 'events', f.from, f.to, f.site, f.country, type, limit],
+    queryKey: ['site-analytics', 'events', f.site, f.country, type, limit],
     queryFn: async () => {
       const r = await apiClient.get<ApiResponse<SiteEvent[]>>('/site-analytics/events', {
-        params: { from: f.from, to: f.to, site: f.site || undefined, country: f.country || undefined, type: type || undefined, limit },
+        params: { site: f.site || undefined, country: f.country || undefined, type: type || undefined, limit },
       });
       return r.data.data ?? [];
     },
     enabled,
     refetchInterval: 30 * 1000,
     staleTime: 15 * 1000,
+    retry: 1,
+  });
+}
+
+/**
+ * §6.8 sessizlik yoklaması — "son 24 saatte hiç PageView var mı?" sorusu HAM olaylardan, SÜZGEÇSİZ
+ * ve anlık sorulur. overview özetten okur ve "bugün" 1 saate kadar geriden gelir; üstelik overview
+ * süzgeçlidir — country=GB seçiliyken GB'den ziyaret olmaması ölçüm arızası değildir. Bu yüzden ayrı,
+ * tüm siteyi kapsayan tek olaylık bir sorgu: boş dönerse ölçüm kopmuş olabilir.
+ */
+export function useSiteSilenceProbe(enabled = true) {
+  const today = todayUtc();
+  const yesterday = addDaysUtc(today, -1);
+  return useQuery({
+    queryKey: ['site-analytics', 'silence-probe', today],
+    queryFn: async () => {
+      const r = await apiClient.get<ApiResponse<SiteEvent[]>>('/site-analytics/events', {
+        params: { from: yesterday, to: today, type: 'pageview', limit: 1 },
+      });
+      const last24h = Date.now() - 24 * 3600 * 1000;
+      const recent = (r.data.data ?? []).some(e => new Date(e.occurredAt).getTime() >= last24h);
+      return { silent: !recent };
+    },
+    enabled,
+    refetchInterval: 60 * 1000,
+    staleTime: 30 * 1000,
     retry: 1,
   });
 }
