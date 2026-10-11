@@ -77,6 +77,15 @@ public class ApplicationDbContext : DbContext
     /// <summary>Custom images uploaded for Liftdesk social-media posts (served anonymously by id; no tenant scope).</summary>
     public DbSet<SocialPostImage> SocialPostImages => Set<SocialPostImage>();
 
+    /// <summary>Connected social-media accounts (encrypted tokens; infrastructure-wide).</summary>
+    public DbSet<SocialAccount> SocialAccounts => Set<SocialAccount>();
+
+    /// <summary>Publisher bookkeeping per EMS post (stamp-back state).</summary>
+    public DbSet<SocialPublishPost> SocialPublishPosts => Set<SocialPublishPost>();
+
+    /// <summary>Publisher jobs per (post × account) — unique pair, platform never posted twice.</summary>
+    public DbSet<SocialPublishJob> SocialPublishJobs => Set<SocialPublishJob>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -162,6 +171,11 @@ public class ApplicationDbContext : DbContext
         // SocialPostImage: Liftdesk marketing blob store — infrastructure-wide, soft-delete filter only.
         modelBuilder.Entity<SocialPostImage>()
             .HasQueryFilter(e => !e.IsDeleted);
+
+        // Social publisher tables: Liftdesk's own marketing accounts/jobs — infrastructure-wide, soft-delete only.
+        modelBuilder.Entity<SocialAccount>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<SocialPublishPost>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<SocialPublishJob>().HasQueryFilter(e => !e.IsDeleted);
 
         // CustomerUsageSnapshot: one immutable row per (customer, month). Tenant-scoped like customer data.
         modelBuilder.Entity<CustomerUsageSnapshot>(b =>

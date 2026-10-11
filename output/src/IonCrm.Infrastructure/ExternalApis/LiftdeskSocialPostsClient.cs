@@ -106,6 +106,13 @@ public sealed class LiftdeskSocialPostsClient : ILiftdeskSocialPostsClient
         return await SendAsync<object>(request, cancellationToken);
     }
 
+    public async Task<LiftdeskEnvelope<LiftdeskSocialPost>> MarkPublishedAsync(Guid id, DateTime? publishedAt, CancellationToken cancellationToken = default)
+    {
+        using var request = BuildRequest(HttpMethod.Post, $"{Root}/{id}/published");
+        request.Content = JsonContent.Create(new { publishedAt = publishedAt?.ToUniversalTime() }, options: JsonOpts);
+        return await SendAsync<LiftdeskSocialPost>(request, cancellationToken);
+    }
+
     private HttpRequestMessage BuildRequest(HttpMethod method, string path)
     {
         var baseUrl = _configuration["Liftdesk:BaseUrl"];

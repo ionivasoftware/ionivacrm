@@ -94,6 +94,7 @@ output/
 - `Projects.RezervAlApiKey` → `text` (nullable)
 - Tüm entity'ler `BaseEntity`'den türer: `Id`, `CreatedAt`, `UpdatedAt`, `IsDeleted`
 - `SocialPostImages` → sosyal medya özel görselleri (bytea, PostId indeksli; tenant kapsamı yok; satır hard-delete)
+- `SocialAccounts` (şifreli token, `(Provider, ExternalId)` tekil) · `SocialPublishPosts` (`PostId` tekil, damga) · `SocialPublishJobs` (`(PostId, AccountId)` tekil — mükerrer yayın engeli) · `SocialPostImages.Kind/Language` (Card = publisher'ın sakladığı şablon kart)
 
 ## API Endpoint'leri
 
@@ -163,3 +164,29 @@ output/
 | POST | `/{id}/approve` | Pending/Rejected → Approved |
 | POST | `/{id}/reject` | Pending/Approved → Rejected (`{reason?}`) |
 | DELETE | `/{id}` | Soft-delete, slot boşalır (Published silinemez) |
+
+### Sosyal Hesaplar — `/api/v1/social-accounts` (SuperAdmin; token döndürmez)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/` | Bağlı hesaplar |
+| GET | `/config` | Yapılandırma (Meta/X hazır mı, redirect URI'lar, yayın saati) |
+| POST | `/meta/connect` | Meta OAuth adresi (state sunucuda) |
+| GET | `/meta/callback` | **Anonim** OAuth dönüşü → sayfalar state altında → ekrana yönlendirme |
+| GET | `/meta/pending/{state}` | Seçilebilir sayfalar (+ bağlı Instagram) |
+| POST | `/meta/complete` | Seçilen sayfa/IG'yi kaydet (`{state, pageId, language, connectFacebook, connectInstagram}`) |
+| POST | `/x/connect` | X PKCE adresi |
+| GET | `/x/callback` | **Anonim** X dönüşü → hesap kaydı → ekrana yönlendirme |
+| PUT | `/{id}` | Etiket / dil eşlemesi / etkin |
+| DELETE | `/{id}` | Bağlantıyı kaldır (token silinir) |
+| POST | `/{id}/verify` | Token'ı platformda dene |
+| POST | `/{id}/test` | GERÇEK test gönderisi (`{text, imageUrl?}`; IG için imageUrl zorunlu) |
+
+### Sosyal Publisher — `/api/v1/social-publisher` (SuperAdmin)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/status` | Sayımlar, son döngü, uyarılar |
+| GET | `/jobs?postId=&status=&limit=` | Yayın günlüğü (platform post id) |
+| GET | `/posts?limit=` | Gönderi bazlı damga durumu |
+| POST | `/run` | Bir döngüyü hemen koştur |
+| POST | `/jobs/{id}/retry` | Failed/Blocked/Skipped → Pending |
+| POST | `/jobs/{id}/skip` | Atla (damgayı engellemesin) |

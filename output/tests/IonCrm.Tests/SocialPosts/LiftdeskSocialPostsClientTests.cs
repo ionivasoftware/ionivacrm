@@ -96,6 +96,22 @@ public class LiftdeskSocialPostsClientTests
     }
 
     [Fact]
+    public async Task MarkPublished_posts_stamp_body_and_empty_object_when_no_time()
+    {
+        var (client, handler) = Build();
+        handler.Respond = _ => Json(HttpStatusCode.OK, """{"success":true,"data":null,"statusCode":200}""");
+        var id = Guid.NewGuid();
+
+        await client.MarkPublishedAsync(id, new DateTime(2026, 10, 12, 7, 0, 0, DateTimeKind.Utc));
+        handler.LastRequest!.Method.Should().Be(HttpMethod.Post);
+        handler.LastRequest.RequestUri!.AbsolutePath.Should().Be($"/api/v1/crm/social-posts/{id}/published");
+        handler.LastBody.Should().Be("""{"publishedAt":"2026-10-12T07:00:00Z"}""");
+
+        await client.MarkPublishedAsync(id, null);
+        handler.LastBody.Should().Be("{}");
+    }
+
+    [Fact]
     public async Task Card_returns_bytes_and_content_type_or_404_envelope()
     {
         var (client, handler) = Build();

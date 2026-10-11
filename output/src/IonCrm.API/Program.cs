@@ -606,6 +606,78 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 ON ""SocialPostImages"" (""PostId"");
         ");
 
+        // ── Social publisher: accounts (encrypted tokens), per-post bookkeeping, per-(post×account) jobs ──
+        await RunSafe("SocialAccounts table + index", @"
+            CREATE TABLE IF NOT EXISTS ""SocialAccounts"" (
+                ""Id""                    uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""Provider""              integer      NOT NULL,
+                ""Label""                 varchar(200) NOT NULL DEFAULT '',
+                ""Language""              varchar(8),
+                ""ExternalId""            varchar(100) NOT NULL,
+                ""ExternalName""          varchar(200),
+                ""ParentExternalId""      varchar(100),
+                ""AccessTokenEncrypted""  text         NOT NULL,
+                ""RefreshTokenEncrypted"" text,
+                ""TokenExpiresAt""        timestamp with time zone,
+                ""Scopes""                varchar(500),
+                ""Status""                integer      NOT NULL DEFAULT 1,
+                ""LastError""             text,
+                ""LastVerifiedAt""        timestamp with time zone,
+                ""IsEnabled""             boolean      NOT NULL DEFAULT true,
+                ""ConnectedBy""           varchar(320),
+                ""CreatedAt""             timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""             timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""             boolean      NOT NULL DEFAULT false
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_socialaccounts_provider_external""
+                ON ""SocialAccounts"" (""Provider"", ""ExternalId"");
+        ");
+        await RunSafe("SocialPublishPosts table + index", @"
+            CREATE TABLE IF NOT EXISTS ""SocialPublishPosts"" (
+                ""Id""            uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""PostId""        uuid         NOT NULL,
+                ""ScheduledFor""  timestamp with time zone NOT NULL,
+                ""Topic""         varchar(300) NOT NULL DEFAULT '',
+                ""Kind""          varchar(32)  NOT NULL DEFAULT '',
+                ""FirstSeenAt""   timestamp with time zone NOT NULL DEFAULT now(),
+                ""AllDoneAt""     timestamp with time zone,
+                ""StampedAt""     timestamp with time zone,
+                ""StampError""    text,
+                ""StampAttempts"" integer      NOT NULL DEFAULT 0,
+                ""Note""          text,
+                ""CreatedAt""     timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""     timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""     boolean      NOT NULL DEFAULT false
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_socialpublishposts_postid"" ON ""SocialPublishPosts"" (""PostId"");
+        ");
+        await RunSafe("SocialPublishJobs table + indexes", @"
+            CREATE TABLE IF NOT EXISTS ""SocialPublishJobs"" (
+                ""Id""             uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""PostId""         uuid         NOT NULL,
+                ""AccountId""      uuid         NOT NULL,
+                ""Provider""       integer      NOT NULL,
+                ""Language""       varchar(8)   NOT NULL DEFAULT '',
+                ""Status""         integer      NOT NULL DEFAULT 1,
+                ""Attempts""       integer      NOT NULL DEFAULT 0,
+                ""NextAttemptAt""  timestamp with time zone,
+                ""StartedAt""      timestamp with time zone,
+                ""FinishedAt""     timestamp with time zone,
+                ""LastError""      text,
+                ""PlatformPostId"" varchar(200),
+                ""ImageUrl""       varchar(1000),
+                ""CreatedAt""      timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""      timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""      boolean      NOT NULL DEFAULT false
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_socialpublishjobs_post_account"" ON ""SocialPublishJobs"" (""PostId"", ""AccountId"");
+            CREATE INDEX IF NOT EXISTS ""ix_socialpublishjobs_status_next"" ON ""SocialPublishJobs"" (""Status"", ""NextAttemptAt"");
+        ");
+        await RunSafe("SocialPostImages Kind/Language columns", @"
+            ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Kind"" varchar(16) NOT NULL DEFAULT 'Custom';
+            ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Language"" varchar(8);
+        ");
+
             Log.Information("Startup bootstrap complete");
         }
         catch (Exception ex)

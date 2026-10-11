@@ -1,12 +1,13 @@
 using System.Text.RegularExpressions;
 
-namespace IonCrm.API.Common;
+namespace IonCrm.Application.Common.Helpers;
 
 /// <summary>
 /// Builds and recognises the CRM's own public image links for social-media posts
 /// (<c>{base}/api/v1/social-posts/images/{id}</c>). Recognising them matters for cleanup: when an
 /// operator replaces or clears a custom image, the old blob is removed only if the URL is ours —
-/// a hand-pasted external URL is never touched.
+/// a hand-pasted external URL is never touched. The publisher uses the same links for template
+/// cards it stores for Instagram (which fetches images from a public URL).
 /// </summary>
 public static partial class SocialPostImageLinks
 {
@@ -43,5 +44,18 @@ public static partial class SocialPostImageLinks
             bytes[8] == (byte)'W' && bytes[9] == (byte)'E' && bytes[10] == (byte)'B' && bytes[11] == (byte)'P')
             return "image/webp";
         return null;
+    }
+
+    /// <summary>
+    /// Public root of this API for links handed to third parties. Explicit config wins
+    /// (<c>SocialPosts:PublicApiBaseUrl</c>); otherwise Railway's injected public domain. Null when
+    /// neither exists — callers must then fail loudly rather than hand out an unreachable URL.
+    /// </summary>
+    public static string? ResolvePublicApiBaseUrl(Func<string, string?> config)
+    {
+        var configured = config("SocialPosts:PublicApiBaseUrl");
+        if (!string.IsNullOrWhiteSpace(configured)) return configured.TrimEnd('/');
+        var railway = config("RAILWAY_PUBLIC_DOMAIN");
+        return string.IsNullOrWhiteSpace(railway) ? null : $"https://{railway.Trim().TrimEnd('/')}";
     }
 }

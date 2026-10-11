@@ -30,6 +30,7 @@ const PricingAdminPage  = lazy(() => import('@/pages/admin/PricingAdminPage').th
 const TicketsPage       = lazy(() => import('@/pages/admin/TicketsPage').then(m => ({ default: m.TicketsPage })));
 const SupportChatLogsPage = lazy(() => import('@/pages/admin/SupportChatLogsPage').then(m => ({ default: m.SupportChatLogsPage })));
 const SocialPostsPage   = lazy(() => import('@/pages/admin/SocialPostsPage').then(m => ({ default: m.SocialPostsPage })));
+const SocialPublisherPage = lazy(() => import('@/pages/admin/SocialPublisherPage').then(m => ({ default: m.SocialPublisherPage })));
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 function PageLoader() {
@@ -202,6 +203,14 @@ export default function App() {
                 element={
                   <ProtectedRoute superAdminOnly>
                     <SocialPostsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/social-posts/publisher"
+                element={
+                  <ProtectedRoute superAdminOnly>
+                    <SocialPublisherPage />
                   </ProtectedRoute>
                 }
               />

@@ -69,6 +69,13 @@ public static class DependencyInjection
         services.AddScoped<ICustomerContractRepository, CustomerContractRepository>();
         services.AddScoped<IVendorInvoiceRepository, VendorInvoiceRepository>();
         services.AddScoped<ISocialPostImageRepository, SocialPostImageRepository>();
+        services.AddScoped<ISocialAccountRepository, SocialAccountRepository>();
+        services.AddScoped<ISocialPublishRepository, SocialPublishRepository>();
+        services.AddSingleton<ITokenProtector, AesGcmTokenProtector>();
+        services.AddSingleton<ISocialPublisherState, SocialPublisherState>();
+        services.AddScoped<ISocialPublishRunner, SocialPublishRunner>();
+        services.AddHostedService<SocialPublisherService>();
+        services.AddHttpClient("social-image-download", c => c.Timeout = TimeSpan.FromSeconds(30));
 
         // ── Vendor-invoice reconciliation (global, SuperAdmin) ────────────────
         services.AddScoped<IVendorInvoiceService, VendorInvoiceService>();
@@ -331,6 +338,10 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(60);
             })
             .AddPolicyHandler(BuildCircuitBreakerPolicy());
+
+        // Sosyal medya publisher platform istemcileri — token'lar CRM DB'sinde şifreli, EMS görmez.
+        services.AddHttpClient<IMetaGraphClient, MetaGraphClient>(client => client.Timeout = TimeSpan.FromSeconds(60));
+        services.AddHttpClient<IXApiClient, XApiClient>(client => client.Timeout = TimeSpan.FromSeconds(60));
     }
 
     private static void RegisterSaasBClient(

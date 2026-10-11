@@ -22,4 +22,10 @@ public class SocialPostImage : BaseEntity
 
     /// <summary>The raw file bytes (≤ 5 MB, enforced at upload).</summary>
     public byte[] Content { get; set; } = Array.Empty<byte>();
+
+    /// <summary>"Custom" (operator upload) or "Card" (template card stored by the publisher for Instagram).</summary>
+    public string Kind { get; set; } = "Custom";
+
+    /// <summary>Card images only: variant language the card was rendered for.</summary>
+    public string? Language { get; set; }
 }

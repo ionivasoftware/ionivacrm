@@ -35,4 +35,7 @@ public interface ILiftdeskSocialPostsClient
 
     /// <summary>DELETE /api/v1/crm/social-posts/{id} — soft delete, frees the slot. Published → 404.</summary>
     Task<LiftdeskEnvelope<object>> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>POST /api/v1/crm/social-posts/{id}/published — Approved → Published (idempotent: an existing stamp is kept).</summary>
+    Task<LiftdeskEnvelope<LiftdeskSocialPost>> MarkPublishedAsync(Guid id, DateTime? publishedAt, CancellationToken cancellationToken = default);
 }

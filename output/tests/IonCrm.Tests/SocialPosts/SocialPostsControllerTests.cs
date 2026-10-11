@@ -1,6 +1,7 @@
 using FluentAssertions;
 using IonCrm.API.Common;
 using IonCrm.API.Controllers;
+using IonCrm.Application.Common.Helpers;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models.ExternalApis;
 using IonCrm.Domain.Entities;

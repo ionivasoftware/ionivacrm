@@ -19,6 +19,7 @@ import {
   SOCIAL_LANGUAGES,
   type SocialPost, type SocialPostStatus, type SocialPostVariant, type SocialPostLanguage,
 } from '@/api/socialPosts';
+import { SocialNav, PublishJobsBlock } from './socialShared';
 
 // ── Sabitler ─────────────────────────────────────────────────────────────────
 
@@ -367,6 +368,8 @@ function SocialPostDetailDialog({ id, onClose }: { id: string; onClose: () => vo
               </div>
             )}
 
+            {(post.status === 'Approved' || post.status === 'Published') && <PublishJobsBlock postId={post.id} />}
+
             {links.length > 0 && (
               <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs space-y-1">
                 <div className="flex items-center gap-1.5 font-medium text-amber-300">
@@ -595,9 +598,12 @@ export function SocialPostsPage() {
             Pzt haber · Çar bilgi · Cum ürün · bayram ve anma takvimden.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} /> Yenile
-        </Button>
+        <div className="flex items-center gap-2">
+          <SocialNav />
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} /> Yenile
+          </Button>
+        </div>
       </div>
 
       {/* Durum sekmeleri + tarih süzgeci */}
