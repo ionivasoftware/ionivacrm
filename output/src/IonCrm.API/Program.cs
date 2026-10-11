@@ -590,6 +590,22 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 WHERE ""IsDeleted"" = false;
         ");
 
+        // ── SocialPostImages (custom images for Liftdesk social-media posts, served by id) ──
+        await RunSafe("SocialPostImages table + index", @"
+            CREATE TABLE IF NOT EXISTS ""SocialPostImages"" (
+                ""Id""          uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""PostId""      uuid         NOT NULL,
+                ""FileName""    varchar(400),
+                ""ContentType"" varchar(100) NOT NULL DEFAULT 'image/png',
+                ""Content""     bytea        NOT NULL,
+                ""CreatedAt""   timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""   timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""   boolean      NOT NULL DEFAULT false
+            );
+            CREATE INDEX IF NOT EXISTS ""ix_socialpostimages_postid""
+                ON ""SocialPostImages"" (""PostId"");
+        ");
+
             Log.Information("Startup bootstrap complete");
         }
         catch (Exception ex)

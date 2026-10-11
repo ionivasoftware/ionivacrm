@@ -74,6 +74,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Liftdesk backup health transitions (infrastructure-wide, no tenant scope).</summary>
     public DbSet<BackupHealthEvent> BackupHealthEvents => Set<BackupHealthEvent>();
 
+    /// <summary>Custom images uploaded for Liftdesk social-media posts (served anonymously by id; no tenant scope).</summary>
+    public DbSet<SocialPostImage> SocialPostImages => Set<SocialPostImage>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -154,6 +157,10 @@ public class ApplicationDbContext : DbContext
             .HasQueryFilter(e => !e.IsDeleted);
 
         modelBuilder.Entity<VendorInvoicePdf>()
+            .HasQueryFilter(e => !e.IsDeleted);
+
+        // SocialPostImage: Liftdesk marketing blob store — infrastructure-wide, soft-delete filter only.
+        modelBuilder.Entity<SocialPostImage>()
             .HasQueryFilter(e => !e.IsDeleted);
 
         // CustomerUsageSnapshot: one immutable row per (customer, month). Tenant-scoped like customer data.

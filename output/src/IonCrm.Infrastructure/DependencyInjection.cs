@@ -68,6 +68,7 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<ICustomerContractRepository, CustomerContractRepository>();
         services.AddScoped<IVendorInvoiceRepository, VendorInvoiceRepository>();
+        services.AddScoped<ISocialPostImageRepository, SocialPostImageRepository>();
 
         // ── Vendor-invoice reconciliation (global, SuperAdmin) ────────────────
         services.AddScoped<IVendorInvoiceService, VendorInvoiceService>();
@@ -317,6 +318,15 @@ public static class DependencyInjection
         // çerezsiz; kişisel veri taşımaz.
         services
             .AddHttpClient<ILiftdeskSiteAnalyticsClient, LiftdeskSiteAnalyticsClient>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(60);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
+
+        // Liftdesk sosyal medya gönderi kuyruğu — onay/düzenleme (yazar), aynı statik anahtar.
+        // Liftdesk'in kendi pazarlama hesapları; tenant kapsamı yok.
+        services
+            .AddHttpClient<ILiftdeskSocialPostsClient, LiftdeskSocialPostsClient>(client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(60);
             })

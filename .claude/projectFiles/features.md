@@ -46,3 +46,11 @@
 ## Admin
 - Kullanıcı yönetimi (CRUD + proje rol atama)
 - Proje yönetimi
+
+## Sosyal Medya (Liftdesk hesapları — FB/IG/X) — 2026-10-11
+- Ajan (GH Actions, Liftdesk deposu) Pzt haber / Çar bilgi / Cum ürün + bayram/anma taslakları üretir (`Pending`); **onay CRM'de**, yayınlama ayrı iş (publisher).
+- Ekran `/admin/social-posts` (SuperAdmin): durum sekmeleri Bekleyen · Onaylı · Reddedilen · Yayınlanan, yayın günü süzgeci, menü rozeti = bekleyen sayısı.
+- Detay: tr / en / en-GB sekmeli; kart önizlemesi (Liftdesk şablon PNG, blob olarak), CardTitle ≤80, Body, BodyShort ≤280 (canlı sayaç, aşımda kayıt engellenir), Hashtags; News'te kaynak linkleri ("onaylamadan önce aç-kontrol et").
+- Aksiyonlar: Onayla (kirli metin varsa önce kaydeder) · Reddet (sebep opsiyonel) · Sil ("yeniden üretilsin" — slot boşalır, ajan yeni taslak yazar) · Onaylıda Geri Al (= reject). Approved/Published düzenlenemez (409).
+- Görsel ezme: dosya CRM'de `SocialPostImages` (bytea, ≤5 MB, tür ilk baytlardan doğrulanır), Liftdesk'e yalnız URL yazılır. `GET /api/v1/social-posts/images/{id}` **anonim** (publisher/platform çeker; GUID tek anahtar, immutable cache). Eski görsel bizimse değiştirme/temizleme/silmede blob kaldırılır. Kök URL: `SocialPosts:PublicApiBaseUrl` yoksa X-Forwarded-Proto + Host.
+- Proxy: `SocialPostsController` → `LiftdeskSocialPostsClient` (statik `Liftdesk:ApiKey`, `LiftdeskEnvelope`); Liftdesk 404/409/400 operatör Türkçesine ve aynı HTTP koduna çevrilir.

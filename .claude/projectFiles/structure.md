@@ -93,6 +93,7 @@ output/
 - `Projects.EmsApiKey` → `text` (nullable, per-project EMS API key override)
 - `Projects.RezervAlApiKey` → `text` (nullable)
 - Tüm entity'ler `BaseEntity`'den türer: `Id`, `CreatedAt`, `UpdatedAt`, `IsDeleted`
+- `SocialPostImages` → sosyal medya özel görselleri (bytea, PostId indeksli; tenant kapsamı yok; satır hard-delete)
 
 ## API Endpoint'leri
 
@@ -148,3 +149,17 @@ output/
 | GET | `/api/v1/projects` | Proje listesi |
 | GET/POST/PUT | `/api/v1/parasut/...` | Paraşüt entegrasyonu |
 | GET | `/health` | Health check |
+
+### Sosyal Medya — `/api/v1/social-posts` (SuperAdmin; Liftdesk `crm/social-posts` proxy)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/` | Liste (`status`, `from`, `to`, `page`, `pageSize`) |
+| GET | `/pending-count` | Menü rozeti — bekleyen taslak sayısı |
+| GET | `/{id}` | Detay (tr → en → en-GB varyantları) |
+| GET | `/{id}/card?lang=` | Şablon kart PNG (Liftdesk üretir) |
+| PUT | `/{id}` | Düzenle (topic, customImageUrl, variants) — yalnız Pending/Rejected |
+| POST | `/{id}/image` | Kendi görselini yükle (multipart `file`, ≤5 MB) → CRM saklar, Liftdesk'e URL |
+| GET | `/images/{imageId}` | **Anonim** görsel servisi (publisher/platform çeker) |
+| POST | `/{id}/approve` | Pending/Rejected → Approved |
+| POST | `/{id}/reject` | Pending/Approved → Rejected (`{reason?}`) |
+| DELETE | `/{id}` | Soft-delete, slot boşalır (Published silinemez) |

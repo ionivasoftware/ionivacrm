@@ -20,11 +20,13 @@ import {
   MessageSquareText,
   MessageCircle,
   Activity,
+  Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useCanAccessFinance } from '@/lib/roles';
 import { useMissingInvoiceCount } from '@/api/vendorInvoices';
+import { usePendingSocialPostCount } from '@/api/socialPosts';
 import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
@@ -40,8 +42,8 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   superAdminOnly?: boolean;
   financeOnly?: boolean;
-  /** When set, this nav item shows a live count badge (e.g. missing invoices). */
-  badgeKey?: 'missingInvoices';
+  /** When set, this nav item shows a live count badge (e.g. missing invoices, pending social posts). */
+  badgeKey?: 'missingInvoices' | 'pendingSocialPosts';
 }
 
 const navItems: NavItem[] = [
@@ -66,6 +68,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Fiyat Yönetimi', href: '/admin/pricing', icon: Tags, superAdminOnly: true },
   { label: 'Yedekleme', href: '/admin/backups', icon: DatabaseBackup, superAdminOnly: true },
   { label: 'Site Kullanımı', href: '/admin/site-analytics', icon: Globe, superAdminOnly: true },
+  { label: 'Sosyal Medya', href: '/admin/social-posts', icon: Megaphone, superAdminOnly: true, badgeKey: 'pendingSocialPosts' },
 ];
 
 export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: SidebarProps) {
@@ -75,9 +78,14 @@ export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: Si
 
   // Live missing-invoice alarm count — for users who can access the invoices screen (SuperAdmin/Accounting).
   const { data: missingInvoices = 0 } = useMissingInvoiceCount(canAccessFinance);
+  // Pending social-media drafts — SuperAdmin only (endpoint is SuperAdmin-restricted). Daily routine: open in the morning and approve.
+  const { data: pendingSocialPosts = 0 } = usePendingSocialPostCount(!!user?.isSuperAdmin);
 
-  const badgeFor = (item: NavItem): number | undefined =>
-    item.badgeKey === 'missingInvoices' && canAccessFinance ? missingInvoices : undefined;
+  const badgeFor = (item: NavItem): number | undefined => {
+    if (item.badgeKey === 'missingInvoices') return canAccessFinance ? missingInvoices : undefined;
+    if (item.badgeKey === 'pendingSocialPosts') return user?.isSuperAdmin ? pendingSocialPosts : undefined;
+    return undefined;
+  };
 
   const filteredNavItems = navItems.filter(
     (item) => !item.financeOnly || canAccessFinance
