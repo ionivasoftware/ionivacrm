@@ -678,7 +678,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 ""Id""             uuid        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
                 ""Provider""       integer     NOT NULL,
                 ""Language""       varchar(8)  NOT NULL DEFAULT 'tr',
-                ""FieldsJson""     jsonb       NOT NULL DEFAULT '{}'::jsonb,
+                ""FieldsJson""     jsonb       NOT NULL DEFAULT '{{}}'::jsonb,
                 ""ProfileImageId"" uuid,
                 ""CoverImageId""   uuid,
                 ""AppliedAt""      timestamp with time zone,
