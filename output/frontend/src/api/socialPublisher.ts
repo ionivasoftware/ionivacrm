@@ -43,6 +43,8 @@ export interface SocialPublisherConfig {
   intervalMinutes: number;
   publisherEnabled: boolean;
   tokenKeyConfigured: boolean;
+  /** 'business' = Facebook Login for Business (config_id), 'classic' = scope tabanlı diyalog. */
+  metaLoginMode: 'business' | 'classic' | string;
   languages: string[];
 }
 

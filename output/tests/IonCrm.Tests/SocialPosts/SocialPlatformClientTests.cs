@@ -142,6 +142,21 @@ public class SocialPlatformClientTests
            .And.Contain("instagram_content_publish").And.Contain("pages_manage_posts");
     }
 
+    [Fact]
+    public void Meta_authorization_url_uses_config_id_without_scope_for_business_login()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Social:Meta:AppId"] = "app-1", ["Social:Meta:AppSecret"] = "sec-1", ["Social:Meta:ConfigId"] = "123456789",
+        }).Build();
+        var client = new MetaGraphClient(new HttpClient(new ScriptedHandler()), config, NullLogger<MetaGraphClient>.Instance);
+
+        var url = client.BuildAuthorizationUrl("https://api/cb", "st4te");
+
+        url.Should().Contain("config_id=123456789").And.Contain("override_default_response_type=true").And.Contain("response_type=code")
+           .And.NotContain("scope=");
+    }
+
     // ── X ───────────────────────────────────────────────────────────────────
 
     [Fact]

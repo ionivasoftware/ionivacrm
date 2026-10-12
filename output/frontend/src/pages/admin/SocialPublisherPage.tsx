@@ -415,6 +415,7 @@ export function SocialPublisherPage() {
               <div><span className="text-muted-foreground">Kontrol sıklığı</span><div className="text-sm font-medium">{config.intervalMinutes} dk</div></div>
               <div><span className="text-muted-foreground">Gecikme tavanı</span><div className="text-sm font-medium">{config.maxLateDays} gün (sonrası bayat, yayınlanmaz)</div></div>
               <div><span className="text-muted-foreground">Publisher</span><div className="text-sm font-medium">{config.publisherEnabled ? 'Açık' : 'Kapalı'}</div></div>
+              <div><span className="text-muted-foreground">Meta giriş modu</span><div className="text-sm font-medium">{config.metaLoginMode === 'business' ? 'Facebook Login for Business (config_id)' : 'Klasik (scope) — Business tipi uygulamada Social__Meta__ConfigId gerekir'}</div></div>
             </div>
             <div className="space-y-1.5 pt-1">
               <CopyField label="Meta redirect URI" value={config.metaRedirectUri} />
@@ -423,7 +424,7 @@ export function SocialPublisherPage() {
             </div>
             <p className="text-[11px] text-muted-foreground">
               Env: <code>Social__Meta__AppId</code>, <code>Social__Meta__AppSecret</code>, <code>Social__X__ClientId</code>, <code>Social__X__ClientSecret</code>, <code>Social__TokenKey</code>,
-              <code> SocialPosts__PublicApiBaseUrl</code>, <code>SocialPublisher__PublishHourLocal</code>, <code>SocialPublisher__MaxLateDays</code>, <code>SocialPublisher__IntervalMinutes</code>. Redirect URI'lar geliştirici konsollarına birebir girilir.
+              <code> Social__Meta__ConfigId</code> (Business tipi Meta uygulaması için), <code>SocialPosts__PublicApiBaseUrl</code>, <code>SocialPublisher__PublishHourLocal</code>, <code>SocialPublisher__MaxLateDays</code>, <code>SocialPublisher__IntervalMinutes</code>. Redirect URI'lar geliştirici konsollarına birebir girilir.
             </p>
             {status?.lastRun && (
               <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-2">

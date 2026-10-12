@@ -14,8 +14,13 @@ namespace IonCrm.Infrastructure.ExternalApis;
 /// </summary>
 public sealed class MetaGraphClient : IMetaGraphClient
 {
-    /// <summary>Permissions the Meta app must have passed App Review for (contract §2).</summary>
-    public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish";
+    /// <summary>
+    /// Permissions used by the classic Facebook Login dialog (scope=). business_management is what lets
+    /// /me/accounts expose instagram_business_account for Business-Manager-owned pages. With Standard
+    /// Access these work for app-role users (our own admins) once the app is Live — no App Review needed
+    /// as long as only role users connect.
+    /// </summary>
+    public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,business_management";
 
     private static readonly TimeSpan ContainerPollDelay = TimeSpan.FromSeconds(2);
     private const int ContainerPollAttempts = 10;
@@ -36,13 +41,26 @@ public sealed class MetaGraphClient : IMetaGraphClient
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(AppId) && !string.IsNullOrWhiteSpace(AppSecret);
 
-    public string BuildAuthorizationUrl(string redirectUri, string state) =>
-        $"https://www.facebook.com/{Version}/dialog/oauth" +
-        $"?client_id={Uri.EscapeDataString(AppId ?? string.Empty)}" +
-        $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
-        $"&state={Uri.EscapeDataString(state)}" +
-        $"&scope={Uri.EscapeDataString(Scopes)}" +
-        "&response_type=code";
+    /// <summary>Facebook Login for Business configuration id (Business-type apps). When set, the dialog uses config_id instead of scope.</summary>
+    public string? ConfigId => _configuration["Social:Meta:ConfigId"] is { Length: > 0 } c ? c.Trim() : null;
+
+    /// <summary>
+    /// Business-type Meta apps must use Facebook Login for Business: the dialog takes config_id (a saved
+    /// permission bundle from the App Dashboard) and MUST NOT send scope; response_type=code with
+    /// override_default_response_type=true. Consumer/None-type apps keep the classic scope= dialog.
+    /// Both return a code that the same /oauth/access_token exchange turns into a user token.
+    /// </summary>
+    public string BuildAuthorizationUrl(string redirectUri, string state)
+    {
+        var url = $"https://www.facebook.com/{Version}/dialog/oauth" +
+                  $"?client_id={Uri.EscapeDataString(AppId ?? string.Empty)}" +
+                  $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+                  $"&state={Uri.EscapeDataString(state)}" +
+                  "&response_type=code";
+        return ConfigId is { } cfg
+            ? url + $"&config_id={Uri.EscapeDataString(cfg)}&override_default_response_type=true"
+            : url + $"&scope={Uri.EscapeDataString(Scopes)}";
+    }
 
     public async Task<MetaTokenResult> ExchangeCodeAsync(string code, string redirectUri, CancellationToken cancellationToken = default)
     {

@@ -71,6 +71,7 @@ public sealed class SocialAccountsController : ApiControllerBase
             IntervalMinutes: _configuration.GetValue("SocialPublisher:IntervalMinutes", 30),
             PublisherEnabled: _configuration.GetValue("SocialPublisher:Enabled", true),
             TokenKeyConfigured: !string.IsNullOrWhiteSpace(_configuration["Social:TokenKey"]),
+            MetaLoginMode: string.IsNullOrWhiteSpace(_configuration["Social:Meta:ConfigId"]) ? "classic" : "business",
             Languages: Languages));
     }
 
@@ -167,7 +168,7 @@ public sealed class SocialAccountsController : ApiControllerBase
         return OkResponse(created.Select(ToDto).ToList());
     }
 
-    private const string MetaGraphClient_Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish";
+    private const string MetaGraphClient_Scopes = IonCrm.Infrastructure.ExternalApis.MetaGraphClient.Scopes;
 
     // ── X ────────────────────────────────────────────────────────────────────
 
@@ -421,7 +422,9 @@ public record SocialAccountDto(
 
 public record SocialPublisherConfigDto(
     bool MetaConfigured, bool XConfigured, string PublicApiBaseUrl, bool PublicApiBaseUrlFromConfig, string MetaRedirectUri, string XRedirectUri,
-    int PublishHourLocal, string TimeZone, int MaxLateDays, int IntervalMinutes, bool PublisherEnabled, bool TokenKeyConfigured, string[] Languages);
+    int PublishHourLocal, string TimeZone, int MaxLateDays, int IntervalMinutes, bool PublisherEnabled, bool TokenKeyConfigured,
+    /// <summary>"business" = Facebook Login for Business (Social:Meta:ConfigId set), "classic" = scope-based dialog.</summary>
+    string MetaLoginMode, string[] Languages);
 
 public record MetaCompleteBody(string State, string PageId, string? Language, bool ConnectFacebook, bool ConnectInstagram, string? Label);
 
