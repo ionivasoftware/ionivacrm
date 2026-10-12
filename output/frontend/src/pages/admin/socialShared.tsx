@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Facebook, Instagram, Twitter, Check, X, Clock, Loader2, AlertTriangle, SkipForward, Megaphone, Send } from 'lucide-react';
+import { Facebook, Instagram, Twitter, Check, X, Clock, Loader2, AlertTriangle, SkipForward, Megaphone, Send, UserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePublishJobs, type SocialPublishJob } from '@/api/socialPublisher';
 
@@ -49,6 +49,9 @@ export function SocialNav() {
       </NavLink>
       <NavLink to="/admin/social-posts/publisher" className={({ isActive }) => cn(item, isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
         <span className="inline-flex items-center gap-1.5"><Send className="h-3.5 w-3.5" /> Yayınlama &amp; Hesaplar</span>
+      </NavLink>
+      <NavLink to="/admin/social-posts/profiles" className={({ isActive }) => cn(item, isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+        <span className="inline-flex items-center gap-1.5"><UserRound className="h-3.5 w-3.5" /> Profiller</span>
       </NavLink>
     </div>
   );

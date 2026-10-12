@@ -94,6 +94,7 @@ output/
 - `Projects.RezervAlApiKey` → `text` (nullable)
 - Tüm entity'ler `BaseEntity`'den türer: `Id`, `CreatedAt`, `UpdatedAt`, `IsDeleted`
 - `SocialPostImages` → sosyal medya özel görselleri (bytea, PostId indeksli; tenant kapsamı yok; satır hard-delete)
+- `SocialProfiles` (`(Provider, Language)` tekil, `FieldsJson` jsonb, görsel id'leri, AppliedAt)
 - `SocialAccounts` (şifreli token, `(Provider, ExternalId)` tekil) · `SocialPublishPosts` (`PostId` tekil, damga) · `SocialPublishJobs` (`(PostId, AccountId)` tekil — mükerrer yayın engeli) · `SocialPostImages.Kind/Language` (Card = publisher'ın sakladığı şablon kart)
 
 ## API Endpoint'leri
@@ -190,3 +191,14 @@ output/
 | POST | `/run` | Bir döngüyü hemen koştur |
 | POST | `/jobs/{id}/retry` | Failed/Blocked/Skipped → Pending |
 | POST | `/jobs/{id}/skip` | Atla (damgayı engellemesin) |
+
+### Sosyal Profiller — `/api/v1/social-profiles` (SuperAdmin)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/?language=tr` | Facebook + Instagram profil alanları (kayıt yoksa varsayılan) |
+| PUT | `/{provider}?language=` | Alanları kaydet (`{fields}`; anahtarlar sabit, sınırlar doğrulanır) |
+| POST | `/{provider}/reset` | Kaydı ve görselleri sil → varsayılan |
+| POST | `/{provider}/images/{profile\|cover}` | Görsel yükle (multipart `file`, ≤5 MB) |
+| DELETE | `/{provider}/images/{slot}` | Görseli kaldır |
+| POST | `/facebook/apply` | Hakkında/açıklama/web/telefon/e-posta + profil fotoğrafını sayfaya bas |
+| POST | `/{provider}/mark-applied` | Elle uyguladım işareti (Instagram) |

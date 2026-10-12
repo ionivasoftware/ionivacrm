@@ -62,3 +62,9 @@
 - Görsel: `customImageUrl` yoksa EMS şablon kartı indirilir ve `SocialPostImages(Kind=Card, Language)` olarak kendi anonim görsel ucumuzdan sunulur (IG görseli public URL'den çeker); X'e bayt yüklenir. Metin EMS'ten geldiği gibi: FB/IG = body + boş satır + hashtags; X = bodyShort aynen.
 - Damga: tüm işler Succeeded/Skipped ve ≥1 Succeeded → `POST {EMS}/crm/social-posts/{id}/published` (idempotent; Liftdesk tarafına eklendi). Pano: durum/uyarılar, yayın günlüğü (platform post id), "Şimdi çalıştır", bloke işte Yeniden dene / Atla; onay ekranı detayında gönderi başına yayın durumu.
 - Env: `Social__Meta__AppId/AppSecret`, `Social__X__ClientId/ClientSecret`, `Social__TokenKey`, `SocialPosts__PublicApiBaseUrl` (zorunlu — IG görsel kökü ve OAuth redirect), `SocialPublisher__PublishHourLocal|MaxLateDays|IntervalMinutes|Enabled|FrontendBaseUrl`.
+
+## Sosyal Profiller (Facebook sayfası + Instagram profil metinleri) — 2026-10-13
+- `/admin/social-posts/profiles`: provider × dil (tr) başına düzenlenebilir profil alanları; varsayılanlar kodda (`SocialProfileDefaults`), kayıt yoksa ekranda varsayılan görünür, "Varsayılana dön" kaydı siler.
+- Facebook: hakkında (≤255), açıklama, web, telefon, e-posta **Pages API ile sayfaya basılır** (`POST /{page-id}`, `pages_manage_metadata`); profil fotoğrafı `POST /{page-id}/picture` (multipart source). Sayfa adı/kullanıcı adı/kategori/CTA/kapak API ile değişmez → "elle" etiketi, kopyala düğmeleri. Kapak API ile ayarlanamıyor.
+- Instagram: profil yazma API'si YOK → kopyala + "Uyguladım" işareti. Bio ≤150, ad ≤64 doğrulanır.
+- Görseller `SocialPostImages` (Kind=ProfilePicture/Cover, PostId=profil id), anonim görsel ucundan servis; operatör indirip platforma yükler.

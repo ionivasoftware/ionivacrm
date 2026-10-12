@@ -37,6 +37,12 @@ public interface IMetaGraphClient
 
     /// <summary>Two-step: POST /{ig-user-id}/media (image_url, caption) → POST /{ig-user-id}/media_publish. Returns the IG media id.</summary>
     Task<string> PublishInstagramImageAsync(string igUserId, string token, string imageUrl, string caption, CancellationToken cancellationToken = default);
+
+    /// <summary>POST /{page-id} with about / description / website / phone / emails — needs pages_manage_metadata.</summary>
+    Task UpdatePageAsync(string pageId, string pageToken, IReadOnlyDictionary<string, string> fields, CancellationToken cancellationToken = default);
+
+    /// <summary>POST /{page-id}/picture (multipart "source") — sets the Page profile picture. Returns the created photo id when given.</summary>
+    Task<string?> SetPagePictureAsync(string pageId, string pageToken, byte[] bytes, string contentType, CancellationToken cancellationToken = default);
 }
 
 /// <summary>X API v2 with OAuth 2.0 PKCE (tweet.read tweet.write users.read media.write offline.access).</summary>

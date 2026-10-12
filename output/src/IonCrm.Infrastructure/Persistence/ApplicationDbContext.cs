@@ -86,6 +86,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Publisher jobs per (post × account) — unique pair, platform never posted twice.</summary>
     public DbSet<SocialPublishJob> SocialPublishJobs => Set<SocialPublishJob>();
 
+    /// <summary>Editable profile copy per (provider, language) for Liftdesk's own social accounts.</summary>
+    public DbSet<SocialProfile> SocialProfiles => Set<SocialProfile>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -176,6 +179,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<SocialAccount>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<SocialPublishPost>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<SocialPublishJob>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<SocialProfile>().HasQueryFilter(e => !e.IsDeleted);
 
         // CustomerUsageSnapshot: one immutable row per (customer, month). Tenant-scoped like customer data.
         modelBuilder.Entity<CustomerUsageSnapshot>(b =>

@@ -673,6 +673,23 @@ app.Lifetime.ApplicationStarted.Register(() =>
             CREATE UNIQUE INDEX IF NOT EXISTS ""ix_socialpublishjobs_post_account"" ON ""SocialPublishJobs"" (""PostId"", ""AccountId"");
             CREATE INDEX IF NOT EXISTS ""ix_socialpublishjobs_status_next"" ON ""SocialPublishJobs"" (""Status"", ""NextAttemptAt"");
         ");
+        await RunSafe("SocialProfiles table + index", @"
+            CREATE TABLE IF NOT EXISTS ""SocialProfiles"" (
+                ""Id""             uuid        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""Provider""       integer     NOT NULL,
+                ""Language""       varchar(8)  NOT NULL DEFAULT 'tr',
+                ""FieldsJson""     jsonb       NOT NULL DEFAULT '{}'::jsonb,
+                ""ProfileImageId"" uuid,
+                ""CoverImageId""   uuid,
+                ""AppliedAt""      timestamp with time zone,
+                ""ApplyError""     text,
+                ""UpdatedBy""      varchar(320),
+                ""CreatedAt""      timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""      timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""      boolean     NOT NULL DEFAULT false
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_socialprofiles_provider_language"" ON ""SocialProfiles"" (""Provider"", ""Language"");
+        ");
         await RunSafe("SocialPostImages Kind/Language columns", @"
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Kind"" varchar(16) NOT NULL DEFAULT 'Custom';
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Language"" varchar(8);

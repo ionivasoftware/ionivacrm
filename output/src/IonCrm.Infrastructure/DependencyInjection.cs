@@ -71,6 +71,7 @@ public static class DependencyInjection
         services.AddScoped<ISocialPostImageRepository, SocialPostImageRepository>();
         services.AddScoped<ISocialAccountRepository, SocialAccountRepository>();
         services.AddScoped<ISocialPublishRepository, SocialPublishRepository>();
+        services.AddScoped<ISocialProfileRepository, SocialProfileRepository>();
         services.AddSingleton<ITokenProtector, AesGcmTokenProtector>();
         services.AddSingleton<ISocialPublisherState, SocialPublisherState>();
         services.AddScoped<ISocialPublishRunner, SocialPublishRunner>();

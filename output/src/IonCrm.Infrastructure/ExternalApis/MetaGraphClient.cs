@@ -20,7 +20,7 @@ public sealed class MetaGraphClient : IMetaGraphClient
     /// Access these work for app-role users (our own admins) once the app is Live — no App Review needed
     /// as long as only role users connect.
     /// </summary>
-    public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,business_management";
+    public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_metadata,instagram_basic,instagram_content_publish,business_management";
 
     private static readonly TimeSpan ContainerPollDelay = TimeSpan.FromSeconds(2);
     private const int ContainerPollAttempts = 10;
@@ -153,6 +153,44 @@ public sealed class MetaGraphClient : IMetaGraphClient
             ["creation_id"] = containerId, ["access_token"] = token,
         }, cancellationToken);
         return Str(published, "id") ?? throw new SocialPublishException("Instagram yayın adımı id döndürmedi.", isPermanent: false);
+    }
+
+    public async Task UpdatePageAsync(string pageId, string pageToken, IReadOnlyDictionary<string, string> fields, CancellationToken cancellationToken = default)
+    {
+        // Pages API field names; "email" becomes the emails[] list. Empty values are skipped (never blank a field by accident).
+        var body = new Dictionary<string, object>();
+        foreach (var (key, value) in fields)
+        {
+            if (string.IsNullOrWhiteSpace(value)) continue;
+            switch (key)
+            {
+                case "about": case "description": case "website": case "phone": body[key] = value.Trim(); break;
+                case "email": body["emails"] = new[] { value.Trim() }; break;
+            }
+        }
+        if (body.Count == 0) return;
+        body["access_token"] = pageToken;
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{GraphBase}/{Uri.EscapeDataString(pageId)}") { Content = System.Net.Http.Json.JsonContent.Create(body) };
+        var json = await SendAsync(request, cancellationToken);
+        if (json.ValueKind == JsonValueKind.Object && json.TryGetProperty("success", out var ok) && ok.ValueKind == JsonValueKind.False)
+            throw new SocialPublishException("Meta sayfa güncellemesini kabul etmedi (success=false).", isPermanent: true);
+    }
+
+    public async Task<string?> SetPagePictureAsync(string pageId, string pageToken, byte[] bytes, string contentType, CancellationToken cancellationToken = default)
+    {
+        var file = new ByteArrayContent(bytes);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(string.IsNullOrWhiteSpace(contentType) ? "image/png" : contentType);
+        var ext = contentType switch { "image/jpeg" => "jpg", "image/webp" => "webp", _ => "png" };
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{GraphBase}/{Uri.EscapeDataString(pageId)}/picture")
+        {
+            Content = new MultipartFormDataContent
+            {
+                { file, "source", $"profile.{ext}" },
+                { new StringContent(pageToken), "access_token" },
+            },
+        };
+        var json = await SendAsync(request, cancellationToken);
+        return Str(json, "id");
     }
 
     // ── Transport ────────────────────────────────────────────────────────────
