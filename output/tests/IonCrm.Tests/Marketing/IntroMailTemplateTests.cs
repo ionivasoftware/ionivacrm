@@ -37,6 +37,24 @@ public class IntroMailTemplateTests
         r.Html.Should().Contain("Katalog ekte.").And.Contain("<br/>");
     }
 
+    private const string TurkishTemplate = """
+        <!-- 1: Asansör bakımından tahsilata kadar tek sistem — LiftDesk -->
+        <html lang="tr"><body><div style="x">Sayın [Ad Soyad],</div><div>Gövde.</div>
+        <div>Saygılarımla,<br/><span>[Ad Soyad]</span></div></body></html>
+        """;
+
+    [Fact]
+    public void Turkish_template_greeting_is_recipient_and_signature_is_sender()
+    {
+        var withContact = IntroMailTemplate.Render(TurkishTemplate, 0, "Yıldız Asansör", "Ahmet Yılmaz", "Ömer Çakmakcı", "o@gmail.com", null);
+        withContact.Html.Should().Contain("Sayın Ahmet Yılmaz,").And.Contain("<span>Ömer Çakmakcı</span>").And.NotContain("[Ad Soyad]");
+        withContact.Subject.Should().Be("Asansör bakımından tahsilata kadar tek sistem — LiftDesk");
+
+        var noContact = IntroMailTemplate.Render(TurkishTemplate, 0, "Yıldız Asansör", null, "Ömer Çakmakcı", "o@gmail.com", "Not.");
+        noContact.Html.Should().Contain("Sayın Yıldız Asansör Yetkilisi,");
+        noContact.Html.IndexOf("Not.", StringComparison.Ordinal).Should().BeGreaterThan(noContact.Html.IndexOf("Yetkilisi,", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Render_without_contact_name_uses_company_and_clamps_subject_index()
     {

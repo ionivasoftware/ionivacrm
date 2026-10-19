@@ -13,7 +13,7 @@ namespace IonCrm.Infrastructure.Services;
 
 /// <summary>
 /// Intro e-mail sender. Materials ship inside the API image from <c>docs/marketing</c> (csproj copies
-/// the folder to <c>marketing/</c> next to the binaries): every <c>intro-email*.html</c> is a template,
+/// the folder to <c>marketing/</c> next to the binaries): every <c>*.html</c> is a template (Turkish first),
 /// every <c>*.pdf</c> is attached. The message goes out through the USER's own Gmail (address + app
 /// password stored encrypted on the user row), so replies land in their inbox and the BCC copy keeps
 /// the thread in their Sent/Inbox for follow-up. Gmail SMTP: smtp.gmail.com:587 STARTTLS.
@@ -59,7 +59,7 @@ public sealed class MarketingMailService : IMarketingMailService
         var attachments = new List<MarketingAttachmentInfo>();
         if (Directory.Exists(folder))
         {
-            foreach (var f in Directory.GetFiles(folder, "intro-email*.html").OrderBy(f => f))
+            foreach (var f in Directory.GetFiles(folder, "*.html").OrderBy(f => f))
             {
                 var name = Path.GetFileName(f);
                 var key = Path.GetFileNameWithoutExtension(f);
@@ -72,6 +72,8 @@ public sealed class MarketingMailService : IMarketingMailService
                 }
                 templates.Add(new MarketingTemplateInfo(key, name, IntroMailTemplate.ExtractSubjects(html), lang));
             }
+            // Müşteriler Türk firmaları: Türkçe şablon varsayılan (listede ilk), diğerleri seçilebilir kalır.
+            templates = templates.OrderByDescending(t => string.Equals(t.Language, "tr", StringComparison.OrdinalIgnoreCase)).ThenBy(t => t.FileName).ToList();
             foreach (var f in Directory.GetFiles(folder, "*.pdf").OrderBy(f => f))
                 attachments.Add(new MarketingAttachmentInfo(Path.GetFileName(f), new FileInfo(f).Length));
         }

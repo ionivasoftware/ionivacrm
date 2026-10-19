@@ -35,8 +35,13 @@ public static partial class IntroMailTemplate
         var subjects = ExtractSubjects(html);
         var subject = subjects.Count == 0 ? "LiftDesk" : subjects[Math.Clamp(subjectIndex, 0, subjects.Count - 1)];
 
-        var greetingName = string.IsNullOrWhiteSpace(contactName) ? companyName : contactName.Trim();
-        var body = html
+        var isTurkish = LangAttr().Match(html) is { Success: true } lm && lm.Groups[1].Value.StartsWith("tr", StringComparison.OrdinalIgnoreCase);
+        // Yetkili adı yoksa: TR'de "Sayın <Firma> Yetkilisi", diğer dillerde firma adı.
+        var greetingName = !string.IsNullOrWhiteSpace(contactName) ? contactName.Trim() : isTurkish ? $"{companyName} Yetkilisi" : companyName;
+        // Türkçe şablon hem selamlamada hem imzada "[Ad Soyad]" kullanır: selamlama sözcüğünden sonra gelen
+        // alıcıdır, kalanlar (imza) gönderendir.
+        var body = GreetingPlaceholder().Replace(html, m => m.Groups[1].Value + Encode(greetingName));
+        body = body
             .Replace("[Name]", Encode(greetingName))
             .Replace("[Ad Soyad]", Encode(senderName))
             .Replace("{{CompanyName}}", Encode(companyName))
@@ -75,4 +80,10 @@ public static partial class IntroMailTemplate
 
     [GeneratedRegex(@"<div[^>]*>\s*(Dear|Sayın|Merhaba|Hello)\b[^<]*,\s*</div>", RegexOptions.IgnoreCase)]
     private static partial Regex GreetingDiv();
+
+    [GeneratedRegex(@"((?:Dear|Sayın|Merhaba|Hello)\s+)\[(?:Ad Soyad|Name)\]", RegexOptions.IgnoreCase)]
+    private static partial Regex GreetingPlaceholder();
+
+    [GeneratedRegex(@"<html[^>]*\blang=""([^""]+)""", RegexOptions.IgnoreCase)]
+    private static partial Regex LangAttr();
 }
