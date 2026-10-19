@@ -18,6 +18,11 @@ public static class ContactHistoryMappings
         Outcome = h.Outcome,
         ContactedAt = h.ContactedAt,
         CreatedByUserId = h.CreatedByUserId,
+        Purpose = h.Purpose,
+        Reached = h.Reached,
+        SatisfactionScore = h.SatisfactionScore,
+        NextContactAt = h.NextContactAt,
+        AppointmentId = h.AppointmentId,
         CreatedByUserName = h.CreatedByUser is not null
             ? $"{h.CreatedByUser.FirstName} {h.CreatedByUser.LastName}".Trim()
             : null,

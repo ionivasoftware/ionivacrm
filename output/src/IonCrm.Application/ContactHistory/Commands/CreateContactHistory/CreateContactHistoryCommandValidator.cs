@@ -26,5 +26,9 @@ public class CreateContactHistoryCommandValidator : AbstractValidator<CreateCont
         RuleFor(c => c.Outcome)
             .MaximumLength(300).WithMessage("Outcome must not exceed 300 characters.")
             .When(c => !string.IsNullOrEmpty(c.Outcome));
+
+        RuleFor(c => c.SatisfactionScore)
+            .InclusiveBetween(1, 5).WithMessage("Satisfaction score must be between 1 and 5.")
+            .When(c => c.SatisfactionScore.HasValue);
     }
 }

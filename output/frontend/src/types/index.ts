@@ -272,6 +272,15 @@ export interface ContactHistory {
   contactedAt: string;
   createdByUserId: string | null;
   createdByUserName: string | null;
+  /** Görüşmenin amacı (yeni/takip/memnuniyet araması…) — CSO planlayıcıyı besler. */
+  purpose?: string | null;
+  /** Müşteriye ulaşıldı mı (false = cevapsız/meşgul). */
+  reached?: boolean | null;
+  /** Memnuniyet araması puanı 1–5. */
+  satisfactionScore?: number | null;
+  /** Söz verilen tekrar arama zamanı — planlayıcı o güne randevu açar. */
+  nextContactAt?: string | null;
+  appointmentId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -283,6 +292,10 @@ export interface CreateContactHistoryRequest {
   content?: string;
   outcome?: string;
   contactedAt: string;
+  purpose?: string | null;
+  reached?: boolean | null;
+  satisfactionScore?: number | null;
+  nextContactAt?: string | null;
 }
 
 // ----- Task -----

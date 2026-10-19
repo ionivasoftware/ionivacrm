@@ -40,6 +40,10 @@ public class UpdateContactHistoryCommandHandler : IRequestHandler<UpdateContactH
         history.Content = request.Content;
         history.Outcome = request.Outcome;
         history.ContactedAt = request.ContactedAt;
+        history.Purpose = request.Purpose;
+        history.Reached = request.Reached;
+        history.SatisfactionScore = request.SatisfactionScore;
+        history.NextContactAt = request.NextContactAt;
 
         await _contactHistoryRepository.UpdateAsync(history, cancellationToken);
 

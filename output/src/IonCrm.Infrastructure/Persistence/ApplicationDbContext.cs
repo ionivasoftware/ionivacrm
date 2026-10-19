@@ -89,6 +89,12 @@ public class ApplicationDbContext : DbContext
     /// <summary>Editable profile copy per (provider, language) for Liftdesk's own social accounts.</summary>
     public DbSet<SocialProfile> SocialProfiles => Set<SocialProfile>();
 
+    /// <summary>Calendar appointments (manual + CSO planner), tenant-scoped like contact history.</summary>
+    public DbSet<Appointment> Appointments => Set<Appointment>();
+
+    /// <summary>CSO planner runs — one per (project, local day).</summary>
+    public DbSet<CallPlanRun> CallPlanRuns => Set<CallPlanRun>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -180,6 +186,16 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<SocialPublishPost>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<SocialPublishJob>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<SocialProfile>().HasQueryFilter(e => !e.IsDeleted);
+
+        // Appointments / CallPlanRuns: tenant-scoped (same rule as ContactHistory).
+        modelBuilder.Entity<Appointment>()
+            .HasQueryFilter(e => !e.IsDeleted &&
+                (_currentUser.IsSuperAdmin ||
+                 _currentUser.ProjectIds.Contains(e.ProjectId)));
+        modelBuilder.Entity<CallPlanRun>()
+            .HasQueryFilter(e => !e.IsDeleted &&
+                (_currentUser.IsSuperAdmin ||
+                 _currentUser.ProjectIds.Contains(e.ProjectId)));
 
         // CustomerUsageSnapshot: one immutable row per (customer, month). Tenant-scoped like customer data.
         modelBuilder.Entity<CustomerUsageSnapshot>(b =>

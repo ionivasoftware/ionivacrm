@@ -75,7 +75,22 @@ const schema = z.object({
   content: z.string(),
   outcome: z.string(),
   contactedAt: z.string().min(1, 'Tarih ve saat gereklidir'),
+  purpose: z.string(),
+  reached: z.boolean(),
+  satisfactionScore: z.number().int().min(1).max(5).nullable(),
+  nextContactAt: z.string(),
 });
+
+const PURPOSE_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: '— belirtilmedi' },
+  { value: 'NewCall', label: 'Yeni arama' },
+  { value: 'FollowUpCall', label: 'Takip araması' },
+  { value: 'SatisfactionCall', label: 'Memnuniyet araması' },
+  { value: 'Meeting', label: 'Toplantı' },
+  { value: 'Training', label: 'Eğitim' },
+  { value: 'Demo', label: 'Demo' },
+  { value: 'Other', label: 'Diğer' },
+];
 
 type FormData = z.infer<typeof schema>;
 
@@ -116,10 +131,16 @@ export function AddContactHistoryDialog({
       content: '',
       outcome: '',
       contactedAt: getLocalDateTimeString(),
+      purpose: '',
+      reached: true,
+      satisfactionScore: null,
+      nextContactAt: '',
     },
   });
 
   const selectedType = watch('type');
+  const selectedPurpose = watch('purpose');
+  const reached = watch('reached');
 
   // Reset when dialog opens with new defaultType
   useEffect(() => {
@@ -130,6 +151,10 @@ export function AddContactHistoryDialog({
         content: '',
         outcome: '',
         contactedAt: getLocalDateTimeString(),
+        purpose: '',
+        reached: true,
+        satisfactionScore: null,
+        nextContactAt: '',
       });
     }
   }, [isOpen, defaultType, reset]);
@@ -148,6 +173,10 @@ export function AddContactHistoryDialog({
         content: data.content || undefined,
         outcome: data.outcome || undefined,
         contactedAt: new Date(data.contactedAt).toISOString(),
+        purpose: data.purpose || null,
+        reached: data.type === 'Call' || data.type === 'WhatsApp' ? data.reached : null,
+        satisfactionScore: data.purpose === 'SatisfactionCall' ? data.satisfactionScore : null,
+        nextContactAt: data.nextContactAt ? new Date(`${data.nextContactAt}T14:00`).toISOString() : null,
       });
       toast({
         title: 'Aktivite eklendi',
@@ -228,6 +257,43 @@ export function AddContactHistoryDialog({
             )}
           </div>
 
+          {/* Amaç + ulaşıldı */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Amaç</Label>
+              <Controller control={control} name="purpose" render={({ field }) => (
+                <select value={field.value} onChange={(e) => field.onChange(e.target.value)} className="w-full h-11 rounded-md border border-input bg-transparent px-2 text-sm">
+                  {PURPOSE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              )} />
+            </div>
+            {(selectedType === 'Call' || selectedType === 'WhatsApp') && (
+              <div className="space-y-1.5">
+                <Label>Ulaşıldı mı?</Label>
+                <Controller control={control} name="reached" render={({ field }) => (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button type="button" onClick={() => field.onChange(true)} className={cn('h-11 rounded-md border text-sm font-medium', field.value ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' : 'border-border text-muted-foreground')}>Görüşüldü</button>
+                    <button type="button" onClick={() => field.onChange(false)} className={cn('h-11 rounded-md border text-sm font-medium', !field.value ? 'border-amber-500/50 bg-amber-500/10 text-amber-300' : 'border-border text-muted-foreground')}>Ulaşılamadı</button>
+                  </div>
+                )} />
+              </div>
+            )}
+          </div>
+
+          {selectedPurpose === 'SatisfactionCall' && reached && (
+            <div className="space-y-1.5">
+              <Label>Memnuniyet puanı (1–5)</Label>
+              <Controller control={control} name="satisfactionScore" render={({ field }) => (
+                <div className="flex gap-1.5">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button key={n} type="button" onClick={() => field.onChange(n)}
+                      className={cn('h-10 w-10 rounded-md border text-sm font-semibold', field.value !== null && n <= (field.value ?? 0) ? 'border-amber-400 bg-amber-400/15 text-amber-300' : 'border-border text-muted-foreground')}>{n}</button>
+                  ))}
+                </div>
+              )} />
+            </div>
+          )}
+
           {/* Subject */}
           <div className="space-y-1.5">
             <Label htmlFor="subject">Konu</Label>
@@ -267,6 +333,13 @@ export function AddContactHistoryDialog({
               {...register('outcome')}
               className="h-11"
             />
+          </div>
+
+          {/* Tekrar arama günü */}
+          <div className="space-y-1.5">
+            <Label htmlFor="nextContactAt">Tekrar arama günü (söz verildiyse)</Label>
+            <Input id="nextContactAt" type="date" {...register('nextContactAt')} className="h-11" />
+            <p className="text-[11px] text-muted-foreground">Dolu ise CSO planı o güne takip randevusu açar.</p>
           </div>
 
           <DialogFooter className="gap-2 pt-2">

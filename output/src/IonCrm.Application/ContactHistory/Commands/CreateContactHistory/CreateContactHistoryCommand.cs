@@ -14,4 +14,9 @@ public record CreateContactHistoryCommand : IRequest<Result<ContactHistoryDto>>
     public string? Content { get; init; }
     public string? Outcome { get; init; }
     public DateTime ContactedAt { get; init; }
+    public AppointmentKind? Purpose { get; init; }
+    public bool? Reached { get; init; }
+    public int? SatisfactionScore { get; init; }
+    public DateTime? NextContactAt { get; init; }
+    public Guid? AppointmentId { get; init; }
 }

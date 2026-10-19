@@ -49,7 +49,12 @@ public class CreateContactHistoryCommandHandler : IRequestHandler<CreateContactH
             Content = request.Content,
             Outcome = request.Outcome,
             ContactedAt = request.ContactedAt,
-            CreatedByUserId = userId
+            CreatedByUserId = userId,
+            Purpose = request.Purpose,
+            Reached = request.Reached,
+            SatisfactionScore = request.SatisfactionScore,
+            NextContactAt = request.NextContactAt,
+            AppointmentId = request.AppointmentId
         };
 
         await _contactHistoryRepository.AddAsync(history, cancellationToken);

@@ -690,6 +690,55 @@ app.Lifetime.ApplicationStarted.Register(() =>
             );
             CREATE UNIQUE INDEX IF NOT EXISTS ""ix_socialprofiles_provider_language"" ON ""SocialProfiles"" (""Provider"", ""Language"");
         ");
+        // ── Görüşme Takvimi: Appointments + CallPlanRuns; ContactHistories planlama parametreleri ──
+        await RunSafe("Appointments table + indexes", @"
+            CREATE TABLE IF NOT EXISTS ""Appointments"" (
+                ""Id""               uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""ProjectId""        uuid         NOT NULL,
+                ""CustomerId""       uuid         NOT NULL,
+                ""Kind""             integer      NOT NULL,
+                ""Source""           integer      NOT NULL DEFAULT 1,
+                ""Status""           integer      NOT NULL DEFAULT 1,
+                ""ScheduledAt""      timestamp with time zone NOT NULL,
+                ""DurationMinutes""  integer      NOT NULL DEFAULT 15,
+                ""Title""            varchar(200),
+                ""Note""             text,
+                ""Reason""           text,
+                ""Score""            integer      NOT NULL DEFAULT 0,
+                ""AssignedUserId""   uuid,
+                ""ContactHistoryId"" uuid,
+                ""CompletedAt""      timestamp with time zone,
+                ""SkipReason""       varchar(300),
+                ""CreatedByUserId""  uuid,
+                ""CreatedAt""        timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""        timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""        boolean      NOT NULL DEFAULT false
+            );
+            CREATE INDEX IF NOT EXISTS ""ix_appointments_project_scheduled"" ON ""Appointments"" (""ProjectId"", ""ScheduledAt"");
+            CREATE INDEX IF NOT EXISTS ""ix_appointments_customer"" ON ""Appointments"" (""CustomerId"");
+        ");
+        await RunSafe("CallPlanRuns table + index", @"
+            CREATE TABLE IF NOT EXISTS ""CallPlanRuns"" (
+                ""Id""           uuid    NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""ProjectId""    uuid    NOT NULL,
+                ""PlanDate""     date    NOT NULL,
+                ""CreatedCount"" integer NOT NULL DEFAULT 0,
+                ""Summary""      text,
+                ""RanAt""        timestamp with time zone NOT NULL DEFAULT now(),
+                ""CreatedAt""    timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""    timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""    boolean NOT NULL DEFAULT false
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_callplanruns_project_date"" ON ""CallPlanRuns"" (""ProjectId"", ""PlanDate"");
+        ");
+        await RunSafe("ContactHistories planning columns", @"
+            ALTER TABLE ""ContactHistories"" ADD COLUMN IF NOT EXISTS ""Purpose"" integer;
+            ALTER TABLE ""ContactHistories"" ADD COLUMN IF NOT EXISTS ""Reached"" boolean;
+            ALTER TABLE ""ContactHistories"" ADD COLUMN IF NOT EXISTS ""SatisfactionScore"" integer;
+            ALTER TABLE ""ContactHistories"" ADD COLUMN IF NOT EXISTS ""NextContactAt"" timestamp with time zone;
+            ALTER TABLE ""ContactHistories"" ADD COLUMN IF NOT EXISTS ""AppointmentId"" uuid;
+            CREATE INDEX IF NOT EXISTS ""ix_contacthistories_nextcontact"" ON ""ContactHistories"" (""ProjectId"", ""NextContactAt"") WHERE ""NextContactAt"" IS NOT NULL;
+        ");
         await RunSafe("SocialPostImages Kind/Language columns", @"
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Kind"" varchar(16) NOT NULL DEFAULT 'Custom';
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Language"" varchar(8);

@@ -14,6 +14,7 @@ const CustomerDetailPage = lazy(() => import('@/pages/customers/CustomerDetailPa
 const PlaceholderPage   = lazy(() => import('@/pages/PlaceholderPage').then(m => ({ default: m.PlaceholderPage })));
 const ContactHistoriesPage = lazy(() => import('@/pages/ContactHistoriesPage').then(m => ({ default: m.ContactHistoriesPage })));
 const PipelinePage      = lazy(() => import('@/pages/PipelinePage').then(m => ({ default: m.PipelinePage })));
+const CallPlanPage      = lazy(() => import('@/pages/CallPlanPage').then(m => ({ default: m.CallPlanPage })));
 const TasksPage         = lazy(() => import('@/pages/TasksPage').then(m => ({ default: m.TasksPage })));
 const UsersAdminPage    = lazy(() => import('@/pages/admin/UsersAdminPage').then(m => ({ default: m.UsersAdminPage })));
 const ProjectsAdminPage = lazy(() => import('@/pages/admin/ProjectsAdminPage').then(m => ({ default: m.ProjectsAdminPage })));
@@ -111,7 +112,8 @@ export default function App() {
               <Route path="/contact-histories" element={<ContactHistoriesPage />} />
 
               {/* Feature routes — placeholder until Sprint 2+ */}
-              <Route path="/pipeline" element={<PipelinePage />} />
+              <Route path="/pipeline" element={<CallPlanPage />} />
+              <Route path="/pipeline/firsatlar" element={<PipelinePage />} />
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/usage-report" element={<UsageReportPage />} />

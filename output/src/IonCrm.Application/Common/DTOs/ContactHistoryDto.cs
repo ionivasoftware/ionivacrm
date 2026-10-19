@@ -15,6 +15,11 @@ public class ContactHistoryDto
     public string? Outcome { get; set; }
     public DateTime ContactedAt { get; set; }
     public Guid? CreatedByUserId { get; set; }
+    public AppointmentKind? Purpose { get; set; }
+    public bool? Reached { get; set; }
+    public int? SatisfactionScore { get; set; }
+    public DateTime? NextContactAt { get; set; }
+    public Guid? AppointmentId { get; set; }
     public string? CreatedByUserName { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
