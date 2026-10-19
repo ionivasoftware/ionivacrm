@@ -94,6 +94,7 @@ output/
 - `Projects.RezervAlApiKey` → `text` (nullable)
 - Tüm entity'ler `BaseEntity`'den türer: `Id`, `CreatedAt`, `UpdatedAt`, `IsDeleted`
 - `SocialPostImages` → sosyal medya özel görselleri (bytea, PostId indeksli; tenant kapsamı yok; satır hard-delete)
+- `Users` + `MailAddress, MailPasswordEncrypted, MailSenderName, MailBccSelf` (Gmail gönderimi)
 - `LeadCandidates` (`Fingerprint` tekil; global) · `LeadAgentRuns` (`RunId` tekil)
 - `Appointments` (tenant; `(ProjectId, ScheduledAt)` indeks) · `CallPlanRuns` (`(ProjectId, PlanDate)` tekil) · `ContactHistories` + `Purpose, Reached, SatisfactionScore, NextContactAt, AppointmentId`
 - `SocialProfiles` (`(Provider, Language)` tekil, `FieldsJson` jsonb, görsel id'leri, AppliedAt)
@@ -237,3 +238,11 @@ output/
 | POST | `/{id}/reject` · `/reject-many` | Reddet (parmak izi kalır) |
 | POST | `/{id}/duplicate` | `{customerId}` elle mükerrer |
 | POST | `/{id}/reopen` | Bekleyene al |
+
+### Pazarlama — `/api/v1/marketing` (oturum)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET/PUT/DELETE | `/mail-settings` | Kullanıcının Gmail adresi + uygulama şifresi (şifreli) + gönderen adı + BCC |
+| POST | `/mail-settings/test` | Kendine test maili |
+| GET | `/materials` | Şablonlar (konu seçenekleri) + ekler |
+| POST | `/customers/{id}/intro-email` | `{templateKey?, subjectIndex?, note?, to?}` → Gmail'den gönder + E-posta kaydı |

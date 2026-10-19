@@ -21,4 +21,9 @@
     <ProjectReference Include="..\IonCrm.Infrastructure\IonCrm.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!-- Pazarlama materyalleri (tanıtım maili şablonu, katalog, fiyat listesi) imaja marketing/ olarak girer. -->
+  <ItemGroup>
+    <Content Include="..\..\docs\marketing\**\*" LinkBase="marketing" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

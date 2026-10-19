@@ -32,6 +32,18 @@ public class User : BaseEntity
     /// <summary>Gets or sets the user's preferred UI theme ("dark" or "light"). Defaults to "dark".</summary>
     public string ThemePreference { get; set; } = "dark";
 
+    /// <summary>Gmail address the user sends marketing mail FROM (intro mail, catalogue). Null = not set up.</summary>
+    public string? MailAddress { get; set; }
+
+    /// <summary>Gmail app password, AES-GCM encrypted (ITokenProtector). Never returned to the client.</summary>
+    public string? MailPasswordEncrypted { get; set; }
+
+    /// <summary>Display name on outgoing mail; defaults to first + last name.</summary>
+    public string? MailSenderName { get; set; }
+
+    /// <summary>BCC the user on every marketing mail so the thread stays in their mailbox for follow-up.</summary>
+    public bool MailBccSelf { get; set; } = true;
+
     /// <summary>Gets the user's full name.</summary>
     public string FullName => $"{FirstName} {LastName}".Trim();
 

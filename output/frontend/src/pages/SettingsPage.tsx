@@ -22,6 +22,7 @@ import {
   useSaveParasutProduct,
 } from '@/api/parasut';
 import { useAdminProjects, useUpdateProject } from '@/api/admin';
+import { MailSettingsCard } from '@/components/settings/MailSettingsCard';
 
 // ── Profile form ──────────────────────────────────────────────────────────────
 
@@ -486,6 +487,9 @@ export function SettingsPage() {
         <h1 className="text-2xl font-bold text-foreground">Ayarlar</h1>
         <p className="text-muted-foreground text-sm mt-1">Profil, şifre ve entegrasyon ayarlarını yönetin.</p>
       </div>
+
+      {/* ── Herkes: kendi Gmail'inden tanıtım maili ── */}
+      <MailSettingsCard />
 
       {/* ── SuperAdmin: Paraşüt + Profil yan yana ── */}
       {user?.isSuperAdmin ? (

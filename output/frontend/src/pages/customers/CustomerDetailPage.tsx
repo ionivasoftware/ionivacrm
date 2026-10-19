@@ -96,6 +96,7 @@ import {
   CONTACT_TYPE_ICONS,
 } from '@/components/customers/AddContactHistoryDialog';
 import { CreateAppointmentDialog } from '@/components/appointments/AppointmentDialogs';
+import { SendIntroEmailDialog } from '@/components/customers/SendIntroEmailDialog';
 import { UpcomingAppointments } from '@/components/appointments/UpcomingAppointments';
 import { TransferLeadModal } from '@/components/customers/TransferLeadModal';
 import { RezervalPushDialog } from '@/components/customers/RezervalPushDialog';
@@ -1567,6 +1568,7 @@ export function CustomerDetailPage() {
   const [showAddContact, setShowAddContact] = useState(false);
   const [addContactType, setAddContactType] = useState<ContactType>('Note');
   const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
+  const [showIntroMailDialog, setShowIntroMailDialog] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [showCreateOpportunity, setShowCreateOpportunity] = useState(false);
 
@@ -1879,6 +1881,10 @@ export function CustomerDetailPage() {
               <span className="sm:hidden">{activeContract ? 'Yenile' : 'Sözleşme'}</span>
             </Button>
           )}
+          <Button variant="outline" onClick={() => setShowIntroMailDialog(true)} className="gap-2 h-10 border-violet-500/40 text-violet-400 hover:bg-violet-500/10 flex-shrink-0" title="Şablon + katalog + fiyat listesi, kendi Gmail'inden">
+            <Mail className="h-4 w-4" />
+            <span className="hidden sm:inline">Tanıtım Maili</span>
+          </Button>
           <Button variant="outline" onClick={() => setShowAppointmentDialog(true)} className="gap-2 h-10 border-sky-500/40 text-sky-400 hover:bg-sky-500/10 flex-shrink-0" title="Görüşme / eğitim / demo randevusu">
             <CalendarPlus className="h-4 w-4" />
             <span className="hidden sm:inline">Randevu</span>
@@ -2876,6 +2882,7 @@ export function CustomerDetailPage() {
         customer={customer}
       />
 
+      <SendIntroEmailDialog open={showIntroMailDialog} onClose={() => setShowIntroMailDialog(false)} customerId={customerId} companyName={customer?.companyName ?? ''} contactName={customer?.contactName} email={customer?.email} />
       <CreateAppointmentDialog open={showAppointmentDialog} onClose={() => setShowAppointmentDialog(false)} customerId={customerId} customerName={customer?.companyName} />
 
       <AddContactHistoryDialog

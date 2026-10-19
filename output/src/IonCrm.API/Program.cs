@@ -328,6 +328,12 @@ app.Lifetime.ApplicationStarted.Register(() =>
         await RunSafe("Users ThemePreference column", @"
             ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""ThemePreference"" text NOT NULL DEFAULT 'dark';
         ");
+        await RunSafe("Users marketing mail columns", @"
+            ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""MailAddress"" varchar(320);
+            ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""MailPasswordEncrypted"" text;
+            ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""MailSenderName"" varchar(120);
+            ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""MailBccSelf"" boolean NOT NULL DEFAULT true;
+        ");
 
         // ── Idempotent column adds (later-sprint additions) ─────────────────────
         await RunSafe("Customers/Projects ADD COLUMN IF NOT EXISTS", @"

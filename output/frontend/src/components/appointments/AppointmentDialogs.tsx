@@ -14,6 +14,7 @@ import {
   type Appointment, type AppointmentKind,
 } from '@/api/appointments';
 import type { ContactType } from '@/types';
+import { useMailSettings, useSendIntroEmail } from '@/api/marketing';
 
 // ── Ortak ────────────────────────────────────────────────────────────────────
 
@@ -214,6 +215,9 @@ export function CompleteAppointmentDialog({ appointment, onClose }: { appointmen
   const [score, setScore] = useState<number | null>(null);
   const [nextContact, setNextContact] = useState('');
   const [reschedule, setReschedule] = useState('');
+  const [sendIntro, setSendIntro] = useState(false);
+  const { data: mailSettings } = useMailSettings();
+  const sendIntroMail = useSendIntroEmail();
   const { data: history } = useContactHistory(appointment?.customerId ?? '');
   const recent = useMemo(() => (history?.items ?? []).slice(0, 3), [history]);
   const isCall = CALL_KINDS.includes((appointment?.kind ?? '') as AppointmentKind);
@@ -222,7 +226,7 @@ export function CompleteAppointmentDialog({ appointment, onClose }: { appointmen
   useEffect(() => {
     if (!appointment) return;
     setType(appointment.kind === 'Meeting' || appointment.kind === 'Demo' || appointment.kind === 'Training' ? 'Meeting' : 'Call');
-    setReached(true); setSubject(''); setContent(''); setOutcome(''); setScore(null); setNextContact(''); setReschedule('');
+    setReached(true); setSubject(''); setContent(''); setOutcome(''); setScore(null); setNextContact(''); setReschedule(''); setSendIntro(false);
   }, [appointment]);
 
   async function submit() {
@@ -241,6 +245,12 @@ export function CompleteAppointmentDialog({ appointment, onClose }: { appointmen
         title: reached ? 'Görüşme kaydedildi' : 'Ulaşılamadı olarak kaydedildi',
         description: r.followUp ? `Takip randevusu: ${new Date(r.followUp.scheduledAt).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : appointment.customerName,
       });
+      if (reached && sendIntro) {
+        try {
+          const m = await sendIntroMail.mutateAsync({ customerId: appointment.customerId });
+          toast({ title: 'Tanıtım maili gönderildi', description: `${m.to} · ${m.subject}` });
+        } catch (err) { toast({ title: 'Tanıtım maili gönderilemedi', description: errorMessage(err, 'Müşteri e-postası ya da Gmail ayarı eksik olabilir.'), variant: 'destructive' }); }
+      }
       onClose();
     } catch (err) { toast({ title: 'Kaydedilemedi', description: errorMessage(err, 'Hata'), variant: 'destructive' }); }
   }
@@ -334,6 +344,13 @@ export function CompleteAppointmentDialog({ appointment, onClose }: { appointmen
                 <div className="space-y-1.5">
                   <Label htmlFor="c-outcome">Sonuç / aksiyon</Label>
                   <Input id="c-outcome" value={outcome} onChange={e => setOutcome(e.target.value)} maxLength={300} placeholder="Ör: teklif gönderilecek" />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={sendIntro} disabled={!mailSettings?.configured} onChange={e => setSendIntro(e.target.checked)} />
+                    Görüşme sonrası tanıtım maili gönder (şablon + katalog + fiyat listesi, kendi Gmail'inden)
+                    {!mailSettings?.configured && <span className="text-[11px] text-amber-400">— Ayarlar'da Gmail bilgisi gerekli</span>}
+                  </label>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="c-next">Tekrar arama günü (söz verildiyse)</Label>

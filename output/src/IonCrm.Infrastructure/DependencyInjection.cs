@@ -74,6 +74,7 @@ public static class DependencyInjection
         services.AddScoped<ISocialProfileRepository, SocialProfileRepository>();
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<ILeadCandidateRepository, LeadCandidateRepository>();
+        services.AddScoped<IMarketingMailService, MarketingMailService>();
         services.AddScoped<ICallPlanService, CallPlanService>();
         services.AddHostedService<CallPlanBackgroundService>();
         services.AddSingleton<ITokenProtector, AesGcmTokenProtector>();
