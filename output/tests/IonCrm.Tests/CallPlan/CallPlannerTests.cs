@@ -59,6 +59,11 @@ public class CallPlannerTests
         silent.Score.Should().BeGreaterThan(renewal.Score - 40);
 
         CallPlanner.ScoreFollowUp(Active("Fresh", daysSinceContact: 5), Today).Should().BeNull("14-day cooldown");
+
+        // A long-dead passive account must not outrank a live customer with a real usage dip.
+        var deadPassive = CallPlanner.ScoreFollowUp(Active("Dead", daysSinceContact: 600, usage: Usage(loginDaysAgo: null, maintenance: 0), status: CustomerStatus.Passive), Today)!.Value;
+        deadPassive.Score.Should().BeLessThan(silent.Score);
+        deadPassive.Reason.Should().StartWith("Pasif").And.NotContain("giriş yok").And.NotContain("· pasif");
         CallPlanner.ScoreFollowUp(Active("Churned long ago", daysSinceContact: 200, expiration: Now.AddDays(-200), status: CustomerStatus.Churned), Today).Should().BeNull();
         CallPlanner.ScoreFollowUp(Active("Churned recently", daysSinceContact: 60, expiration: Now.AddDays(-20), status: CustomerStatus.Churned), Today)!.Value.Reason.Should().Contain("geri kazanım");
     }

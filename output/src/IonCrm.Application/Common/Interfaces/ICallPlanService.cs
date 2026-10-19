@@ -13,6 +13,9 @@ public interface ICallPlanService
     /// <summary>Plans one project. Idempotent per local day unless <paramref name="force"/>; a forced run still only tops up missing slots.</summary>
     Task<CallPlanRunResult> RunForProjectAsync(Guid projectId, bool force, CancellationToken cancellationToken = default);
 
-    /// <summary>Plans every project that has customers.</summary>
+    /// <summary>Plans every project that has customers (or only CallPlan:ProjectIds when set).</summary>
     Task<List<CallPlanRunResult>> RunAllAsync(bool force, CancellationToken cancellationToken = default);
+
+    /// <summary>Drops the planner's own still-Planned appointments in the horizon and plans again (manual appointments untouched).</summary>
+    Task<CallPlanRunResult> RebuildForProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
 }

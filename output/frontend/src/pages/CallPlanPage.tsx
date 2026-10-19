@@ -5,10 +5,11 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
-  useAppointments, useCallPlanStatus, useRunCallPlan, useSkipAppointment, useUpdateAppointment, useDeleteAppointment,
+  useAppointments, useCallPlanStatus, useRunCallPlan, useRebuildCallPlan, useSkipAppointment, useUpdateAppointment, useDeleteAppointment,
   localDay, addDays, startOfWeek, KIND_LABEL, STATUS_LABEL, CALL_KINDS,
   type Appointment, type AppointmentKind, type AppointmentStatus,
 } from '@/api/appointments';
@@ -94,6 +95,8 @@ export function CallPlanPage() {
   const { data: items = [], isLoading, isError, error } = useAppointments({ from: weekStart, to: addDays(weekStart, 6), kind: kindFilter, status: statusFilter });
   const { data: plan } = useCallPlanStatus();
   const run = useRunCallPlan();
+  const rebuild = useRebuildCallPlan();
+  const [rebuildOpen, setRebuildOpen] = useState(false);
   const skip = useSkipAppointment();
   const update = useUpdateAppointment();
   const remove = useDeleteAppointment();
@@ -119,6 +122,13 @@ export function CallPlanPage() {
       const r = await run.mutateAsync();
       toast({ title: r.created > 0 ? `${r.created} randevu planlandı` : 'Plan güncel', description: r.summary });
     } catch (err) { toast({ title: 'Plan çalıştırılamadı', description: errorMessage(err, 'Hata'), variant: 'destructive' }); }
+  }
+  async function onRebuild() {
+    try {
+      const r = await rebuild.mutateAsync();
+      toast({ title: 'Plan yeniden oluşturuldu', description: r.summary });
+      setRebuildOpen(false);
+    } catch (err) { toast({ title: 'Yeniden oluşturulamadı', description: errorMessage(err, 'Hata'), variant: 'destructive' }); }
   }
   async function onSkip(a: Appointment) {
     try { await skip.mutateAsync({ id: a.id }); } catch (err) { toast({ title: 'Olmadı', description: errorMessage(err, 'Hata'), variant: 'destructive' }); }
@@ -149,9 +159,14 @@ export function CallPlanPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => navigate('/pipeline/firsatlar')} title="Eski fırsat panosu"><KanbanSquare className="h-4 w-4" /> Fırsatlar</Button>
           {plan?.canRun && (
-            <Button variant="outline" size="sm" disabled={run.isPending} onClick={onRun} title="Boş kotaları şimdi doldur (önümüzdeki iş günleri)">
-              {run.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />} CSO planını çalıştır
-            </Button>
+            <>
+              <Button variant="outline" size="sm" disabled={run.isPending} onClick={onRun} title="Boş kotaları şimdi doldur (önümüzdeki iş günleri)">
+                {run.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />} CSO planını çalıştır
+              </Button>
+              <Button variant="ghost" size="sm" disabled={rebuild.isPending} onClick={() => setRebuildOpen(true)} title="Ajanın planlı randevularını kaldırıp güncel kurallarla yeniden planla">
+                <RotateCcw className="h-4 w-4" /> Yeniden oluştur
+              </Button>
+            </>
           )}
           <Button size="sm" onClick={() => setCreateFor({})}><CalendarPlus className="h-4 w-4" /> Randevu ekle</Button>
         </div>
@@ -247,6 +262,18 @@ export function CallPlanPage() {
         })}
       </div>
 
+      <Dialog open={rebuildOpen} onOpenChange={(o) => !o && !rebuild.isPending && setRebuildOpen(false)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Plan yeniden oluşturulsun mu?</DialogTitle>
+            <DialogDescription>CSO planının önümüzdeki iş günlerindeki <b>henüz yapılmamış</b> randevuları kaldırılır ve güncel kurallarla yeniden seçilir. Elle açtığın randevular ve kapatılmış kayıtlar korunur.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" disabled={rebuild.isPending} onClick={() => setRebuildOpen(false)}>Vazgeç</Button>
+            <Button size="sm" disabled={rebuild.isPending} onClick={onRebuild}>{rebuild.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} Yeniden oluştur</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <CreateAppointmentDialog open={createFor !== null} onClose={() => setCreateFor(null)} day={createFor?.day} />
       <CompleteAppointmentDialog appointment={completing} onClose={() => setCompleting(null)} />
     </div>

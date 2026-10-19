@@ -208,6 +208,15 @@ export function useCallPlanStatus() {
   });
 }
 
+export function useRebuildCallPlan() {
+  const invalidate = useInvalidate();
+  const projectId = useAuthStore((s) => s.currentProjectId);
+  return useMutation({
+    mutationFn: async () => (await apiClient.post<ApiResponse<CallPlanRunResult>>('/appointments/plan/rebuild', null, { params: { projectId: projectId || undefined } })).data.data,
+    onSuccess: invalidate,
+  });
+}
+
 export function useRunCallPlan() {
   const invalidate = useInvalidate();
   const projectId = useAuthStore((s) => s.currentProjectId);

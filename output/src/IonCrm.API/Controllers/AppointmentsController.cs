@@ -237,6 +237,17 @@ public sealed class AppointmentsController : ApiControllerBase
         return OkResponse(result);
     }
 
+    /// <summary>POST /api/v1/appointments/plan/rebuild?projectId= — ajanın planlı randevularını kaldırıp güncel kurallarla yeniden planlar (elle açılanlara dokunmaz).</summary>
+    [HttpPost("plan/rebuild")]
+    [ProducesResponseType(typeof(ApiResponse<CallPlanRunResult>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> PlanRebuild([FromQuery] Guid? projectId, CancellationToken cancellationToken = default)
+    {
+        var pid = projectId ?? _currentUser.ProjectIds.FirstOrDefault();
+        if (pid == Guid.Empty) return BadRequest(ApiResponse<object>.Fail("Proje seçili değil.", 400));
+        if (!CanRunPlan(pid)) return ForbiddenResponse<object>("Planı yalnız SuperAdmin ya da proje yöneticisi / satış yöneticisi yeniden oluşturabilir.");
+        return OkResponse(await _plan.RebuildForProjectAsync(pid, cancellationToken));
+    }
+
     // ── Yardımcılar ──────────────────────────────────────────────────────────
 
     private bool CanRunPlan(Guid projectId)

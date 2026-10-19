@@ -115,7 +115,7 @@ public static class CallPlanner
         var score = 0; var signals = 0; var parts = new List<string>();
         if (promised) { score += 100; signals++; parts.Add("söz verilen takip"); }
         if (c.Status == CustomerStatus.Demo) { score += 30; signals++; parts.Add("demo sürecinde"); }
-        if (c.Status == CustomerStatus.Passive) { score += 15; signals++; parts.Add("pasif"); }
+        if (c.Status == CustomerStatus.Passive) { score += 15; signals++; } // StatusText zaten "Pasif" der
         if (recentlyChurned) { score += 25; signals++; parts.Add("yakın zamanda ayrıldı — geri kazanım"); }
 
         if (c.ExpirationDate is { } e)
@@ -125,7 +125,9 @@ public static class CallPlanner
             else if (left is > 30 and <= 60) { score += 20; signals++; parts.Add($"süresi {left} gün içinde doluyor"); }
         }
 
-        if (c.Usage is { } u)
+        // Kullanım sinyalleri yalnız yaşayan hesapta anlamlı: pasif ya da ayrılmış müşterinin giriş yapmaması
+        // doğaldır, onu aktif müşterinin gerçek düşüşünün önüne geçirmemeli.
+        if (c.Usage is { } u && c.Status is CustomerStatus.Active or CustomerStatus.Demo)
         {
             var login = DaysSince(u.LastLoginAt, today);
             if (login is null || login > 14) { score += 30; signals++; parts.Add(login is null ? "hiç giriş yok" : $"{login} gün giriş yok"); }
@@ -138,6 +140,7 @@ public static class CallPlanner
             // gerekçesi değildir — o müşteri memnuniyet aramasının adayıdır.
             if (signals == 0) return null;
         }
+        else if (c.Usage is not null && signals == 0) return null;
 
         if (since is null) { score += 20; parts.Add("hiç görüşülmedi"); }
         else if (since > 90) { score += 25; parts.Add($"{since} gün görüşülmedi"); }

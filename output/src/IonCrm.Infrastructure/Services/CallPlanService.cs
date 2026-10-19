@@ -52,6 +52,10 @@ public sealed class CallPlanService : ICallPlanService
     {
         var projectIds = await _db.Customers.IgnoreQueryFilters().Where(c => !c.IsDeleted)
             .Select(c => c.ProjectId).Distinct().ToListAsync(cancellationToken);
+        // CallPlan:ProjectIds (virgüllü GUID) verilmişse yalnız o projeler planlanır — kotalar proje başınadır.
+        var only = (_configuration["CallPlan:ProjectIds"] ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToHashSet();
+        if (only.Count > 0) projectIds = projectIds.Where(only.Contains).ToList();
         var results = new List<CallPlanRunResult>();
         foreach (var pid in projectIds)
         {
@@ -114,6 +118,21 @@ public sealed class CallPlanService : ICallPlanService
 
         _logger.LogInformation("CallPlan: proje {ProjectId} — {Count} randevu oluşturuldu ({Days} iş günü, {Candidates} firma)", projectId, rows.Count, days.Count, candidates.Count);
         return new CallPlanRunResult(projectId, planDate, rows.Count, false, summary);
+    }
+
+    public async Task<CallPlanRunResult> RebuildForProjectAsync(Guid projectId, CancellationToken cancellationToken = default)
+    {
+        var tz = Tz;
+        var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+        var days = CallPlanner.BusinessDays(CallPlanner.StartDay(nowLocal), HorizonDays);
+        var fromUtc = LocalMidnightToUtc(days[0], tz);
+        var toUtc = LocalMidnightToUtc(days[^1].AddDays(1), tz);
+        var removed = await _db.Appointments.IgnoreQueryFilters()
+            .Where(a => a.ProjectId == projectId && !a.IsDeleted && a.Source == AppointmentSource.Agent && a.Status == AppointmentStatus.Planned && a.ScheduledAt >= fromUtc && a.ScheduledAt < toUtc)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsDeleted, true).SetProperty(a => a.UpdatedAt, DateTime.UtcNow), cancellationToken);
+        _logger.LogInformation("CallPlan: proje {ProjectId} — {Removed} planlı ajan randevusu kaldırıldı, yeniden planlanıyor", projectId, removed);
+        var result = await RunForProjectAsync(projectId, force: true, cancellationToken);
+        return result with { Summary = $"{removed} eski planlı randevu kaldırıldı. {result.Summary}" };
     }
 
     /// <summary>Companies of the project with contact recency, promised callbacks and the latest usage snapshot.</summary>
