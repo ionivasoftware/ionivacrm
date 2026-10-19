@@ -217,7 +217,8 @@ output/
 | POST | `/{id}/skip` | Atla (`{reason?}`) |
 | DELETE | `/{id}` | Soft delete |
 | GET | `/plan/status?projectId=` | Kotalar, son koşu, çalıştırma yetkisi |
-| POST | `/plan/run?projectId=&force=` | CSO planını şimdi koştur (SuperAdmin / ProjectAdmin / SalesManager) |
+| POST | `/plan/run?projectId=&force=` | CSO planını şimdi koştur (yalnız SuperAdmin) |
+| POST | `/plan/rebuild?projectId=` | Ajanın planlı randevularını silip yeniden planla (yalnız SuperAdmin) |
 
 ### Lead Ajanı — `/api/v1/lead-agent` (anonim + `X-Agent-Key` = LeadAgent:ApiKey)
 | Method | Path | Açıklama |

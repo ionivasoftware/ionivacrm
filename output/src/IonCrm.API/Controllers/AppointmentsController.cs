@@ -14,8 +14,7 @@ namespace IonCrm.API.Controllers;
 /// <summary>
 /// Görüşme Takvimi: randevular (elle + CSO planı), randevudan görüşme kaydı girme, planlayıcı durumu.
 /// Tenant kapsamı DbContext filtresinden gelir (ContactHistory ile aynı kural). Yetki: oturum açmış
-/// her kullanıcı okur/yazar; planlayıcıyı elle çalıştırmak SuperAdmin ya da projede ProjectAdmin /
-/// SalesManager ister.
+/// her kullanıcı okur/yazar; planlayıcıyı elle çalıştırmak / yeniden oluşturmak yalnız SuperAdmin.
 /// </summary>
 [Route("api/v1/appointments")]
 [Authorize]
@@ -232,7 +231,7 @@ public sealed class AppointmentsController : ApiControllerBase
     {
         var pid = projectId ?? _currentUser.ProjectIds.FirstOrDefault();
         if (pid == Guid.Empty) return BadRequest(ApiResponse<object>.Fail("Proje seçili değil.", 400));
-        if (!CanRunPlan(pid)) return ForbiddenResponse<object>("Planı yalnız SuperAdmin ya da proje yöneticisi / satış yöneticisi çalıştırabilir.");
+        if (!CanRunPlan(pid)) return ForbiddenResponse<object>("Planı yalnız SuperAdmin çalıştırabilir.");
         var result = await _plan.RunForProjectAsync(pid, force, cancellationToken);
         return OkResponse(result);
     }
@@ -244,19 +243,14 @@ public sealed class AppointmentsController : ApiControllerBase
     {
         var pid = projectId ?? _currentUser.ProjectIds.FirstOrDefault();
         if (pid == Guid.Empty) return BadRequest(ApiResponse<object>.Fail("Proje seçili değil.", 400));
-        if (!CanRunPlan(pid)) return ForbiddenResponse<object>("Planı yalnız SuperAdmin ya da proje yöneticisi / satış yöneticisi yeniden oluşturabilir.");
+        if (!CanRunPlan(pid)) return ForbiddenResponse<object>("Planı yalnız SuperAdmin yeniden oluşturabilir.");
         return OkResponse(await _plan.RebuildForProjectAsync(pid, cancellationToken));
     }
 
     // ── Yardımcılar ──────────────────────────────────────────────────────────
 
-    private bool CanRunPlan(Guid projectId)
-    {
-        if (_currentUser.IsSuperAdmin) return true;
-        if (projectId == Guid.Empty || !_currentUser.ProjectIds.Contains(projectId)) return false;
-        var role = _currentUser.GetRoleForProject(projectId);
-        return role is "ProjectAdmin" or "SalesManager";
-    }
+    /// <summary>Planı elle çalıştırma / yeniden oluşturma yalnız SuperAdmin'e açık (kullanıcı kararı 19.10.2026); ekran düğmeleri CanRun ile gizlenir.</summary>
+    private bool CanRunPlan(Guid projectId) => _currentUser.IsSuperAdmin && projectId != Guid.Empty;
 
     private static bool TryDay(string? s, DateOnly fallback, out DateOnly day)
     {
