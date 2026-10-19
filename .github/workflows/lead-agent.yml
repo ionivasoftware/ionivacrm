@@ -1,0 +1,54 @@
+name: Lead Discovery Agent
+
+# Liftdesk lead ajanı — Türkiye'de asansör bakım/montaj firmalarını web'de arar (WebSearch + WebFetch),
+# bulduklarını ION CRM'e ADAY olarak yazar (POST /api/v1/lead-agent/candidates). Müşteri OLUŞTURMAZ:
+# dedupe sunucuda, onay CRM → Lead Adayları ekranında SuperAdmin'de. Haftada bir koşar; her koşuda
+# API'nin verdiği en uzun süredir taranmamış 2 ili tarar (60 günlük rotasyon). Kapsam yalnız TR.
+# Gerekli secrets: CLAUDE_CODE_OAUTH_TOKEN (sosyal/triage ajanlarıyla aynı), CRM_LEAD_AGENT_KEY
+# (Railway'deki LeadAgent__ApiKey ile aynı değer). CRM_API_BASE gizli değil → sabit.
+
+on:
+  schedule:
+    - cron: '0 6 * * 2'   # Salı 06:00 UTC (09:00 TR) — GitHub schedule saatlerce gecikebilir, sorun değil
+  workflow_dispatch:
+    inputs:
+      cities:
+        description: 'Virgülle ayrılmış iller (boş = API rotasyonu)'
+        required: false
+        default: ''
+      cities_per_run:
+        description: 'Rotasyondan kaç il taransın'
+        required: false
+        default: '2'
+      max_per_city:
+        description: 'İl başına en fazla aday'
+        required: false
+        default: '15'
+
+concurrency:
+  group: lead-agent
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run lead discovery agent
+        run: bash tools/lead-agent/run.sh
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CRM_API_BASE: https://ion-crm-api-production.up.railway.app
+          LEAD_AGENT_KEY: ${{ secrets.CRM_LEAD_AGENT_KEY }}
+          CITIES_OVERRIDE: ${{ github.event.inputs.cities || '' }}
+          CITIES_PER_RUN: ${{ github.event.inputs.cities_per_run || '2' }}
+          MAX_PER_CITY: ${{ github.event.inputs.max_per_city || '15' }}

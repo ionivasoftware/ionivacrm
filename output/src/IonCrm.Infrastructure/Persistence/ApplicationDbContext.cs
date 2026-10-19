@@ -95,6 +95,12 @@ public class ApplicationDbContext : DbContext
     /// <summary>CSO planner runs — one per (project, local day).</summary>
     public DbSet<CallPlanRun> CallPlanRuns => Set<CallPlanRun>();
 
+    /// <summary>Lead-agent candidates awaiting SuperAdmin review (global, not tenant-scoped).</summary>
+    public DbSet<LeadCandidate> LeadCandidates => Set<LeadCandidate>();
+
+    /// <summary>Lead-agent runs (GitHub Actions jobs).</summary>
+    public DbSet<LeadAgentRun> LeadAgentRuns => Set<LeadAgentRun>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -196,6 +202,10 @@ public class ApplicationDbContext : DbContext
             .HasQueryFilter(e => !e.IsDeleted &&
                 (_currentUser.IsSuperAdmin ||
                  _currentUser.ProjectIds.Contains(e.ProjectId)));
+
+        // Lead agent: global tables (SuperAdmin screen + API-key ingest), soft-delete only.
+        modelBuilder.Entity<LeadCandidate>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<LeadAgentRun>().HasQueryFilter(e => !e.IsDeleted);
 
         // CustomerUsageSnapshot: one immutable row per (customer, month). Tenant-scoped like customer data.
         modelBuilder.Entity<CustomerUsageSnapshot>(b =>

@@ -739,6 +739,65 @@ app.Lifetime.ApplicationStarted.Register(() =>
             ALTER TABLE ""ContactHistories"" ADD COLUMN IF NOT EXISTS ""AppointmentId"" uuid;
             CREATE INDEX IF NOT EXISTS ""ix_contacthistories_nextcontact"" ON ""ContactHistories"" (""ProjectId"", ""NextContactAt"") WHERE ""NextContactAt"" IS NOT NULL;
         ");
+        // ── Lead ajanı: aday kuyruğu + koşular ──
+        await RunSafe("LeadCandidates table + indexes", @"
+            CREATE TABLE IF NOT EXISTS ""LeadCandidates"" (
+                ""Id""                      uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""ProjectId""               uuid         NOT NULL,
+                ""CompanyName""             varchar(300) NOT NULL,
+                ""NormalizedName""          varchar(300) NOT NULL,
+                ""LegalTitle""              varchar(400),
+                ""Phone""                   varchar(60),
+                ""NormalizedPhone""         varchar(20),
+                ""Email""                   varchar(200),
+                ""Website""                 varchar(500),
+                ""Domain""                  varchar(200),
+                ""Address""                 varchar(600),
+                ""City""                    varchar(80),
+                ""District""                varchar(80),
+                ""TaxNumber""               varchar(30),
+                ""MersisNo""                varchar(30),
+                ""Source""                  varchar(120) NOT NULL DEFAULT 'web',
+                ""SourceUrl""               varchar(1000),
+                ""Snippet""                 text,
+                ""Confidence""              integer      NOT NULL DEFAULT 50,
+                ""Status""                  integer      NOT NULL DEFAULT 1,
+                ""DuplicateOfCustomerId""   uuid,
+                ""PossibleMatchCustomerId"" uuid,
+                ""MatchNotes""              text,
+                ""Fingerprint""             varchar(64)  NOT NULL,
+                ""AgentRunId""              varchar(60),
+                ""SearchCity""              varchar(80),
+                ""ReviewedBy""              varchar(320),
+                ""ReviewedAt""              timestamp with time zone,
+                ""RejectReason""            varchar(500),
+                ""CreatedCustomerId""       uuid,
+                ""CreatedAt""               timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""               timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""               boolean      NOT NULL DEFAULT false
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_leadcandidates_fingerprint"" ON ""LeadCandidates"" (""Fingerprint"");
+            CREATE INDEX IF NOT EXISTS ""ix_leadcandidates_status_created"" ON ""LeadCandidates"" (""Status"", ""CreatedAt"");
+        ");
+        await RunSafe("LeadAgentRuns table + index", @"
+            CREATE TABLE IF NOT EXISTS ""LeadAgentRuns"" (
+                ""Id""         uuid          NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""RunId""      varchar(60)   NOT NULL,
+                ""StartedAt""  timestamp with time zone NOT NULL DEFAULT now(),
+                ""FinishedAt"" timestamp with time zone,
+                ""Cities""     varchar(1000) NOT NULL DEFAULT '',
+                ""Found""      integer NOT NULL DEFAULT 0,
+                ""Created""    integer NOT NULL DEFAULT 0,
+                ""Duplicates"" integer NOT NULL DEFAULT 0,
+                ""Existing""   integer NOT NULL DEFAULT 0,
+                ""Invalid""    integer NOT NULL DEFAULT 0,
+                ""Notes""      text,
+                ""CreatedAt""  timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""  timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""  boolean NOT NULL DEFAULT false
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_leadagentruns_runid"" ON ""LeadAgentRuns"" (""RunId"");
+        ");
         await RunSafe("SocialPostImages Kind/Language columns", @"
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Kind"" varchar(16) NOT NULL DEFAULT 'Custom';
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Language"" varchar(8);

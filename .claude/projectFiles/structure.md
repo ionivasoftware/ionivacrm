@@ -94,6 +94,8 @@ output/
 - `Projects.RezervAlApiKey` → `text` (nullable)
 - Tüm entity'ler `BaseEntity`'den türer: `Id`, `CreatedAt`, `UpdatedAt`, `IsDeleted`
 - `SocialPostImages` → sosyal medya özel görselleri (bytea, PostId indeksli; tenant kapsamı yok; satır hard-delete)
+- `LeadCandidates` (`Fingerprint` tekil; global) · `LeadAgentRuns` (`RunId` tekil)
+- `Appointments` (tenant; `(ProjectId, ScheduledAt)` indeks) · `CallPlanRuns` (`(ProjectId, PlanDate)` tekil) · `ContactHistories` + `Purpose, Reached, SatisfactionScore, NextContactAt, AppointmentId`
 - `SocialProfiles` (`(Provider, Language)` tekil, `FieldsJson` jsonb, görsel id'leri, AppliedAt)
 - `SocialAccounts` (şifreli token, `(Provider, ExternalId)` tekil) · `SocialPublishPosts` (`PostId` tekil, damga) · `SocialPublishJobs` (`(PostId, AccountId)` tekil — mükerrer yayın engeli) · `SocialPostImages.Kind/Language` (Card = publisher'ın sakladığı şablon kart)
 
@@ -202,3 +204,36 @@ output/
 | DELETE | `/{provider}/images/{slot}` | Görseli kaldır |
 | POST | `/facebook/apply` | Hakkında/açıklama/web/telefon/e-posta + profil fotoğrafını sayfaya bas |
 | POST | `/{provider}/mark-applied` | Elle uyguladım işareti (Instagram) |
+
+### Görüşme Takvimi — `/api/v1/appointments` (oturum; tenant filtreli)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/?from=&to=&projectId=&customerId=&assignedUserId=&status=&kind=` | Yerel gün aralığı (≤62 gün) |
+| GET | `/customer/{customerId}` | Müşterinin planlı + son randevuları |
+| POST | `/` | Elle randevu (`customerId, kind, scheduledAt, durationMinutes?, title?, note?`) |
+| PUT | `/{id}` | Düzenle; `status: "Planned"` ile atlanan/ulaşılamayanı geri al |
+| POST | `/{id}/complete` | Görüşme kaydı + kapat (`type, reached, subject?, content?, outcome?, satisfactionScore?, nextContactAt?, rescheduleAt?`) |
+| POST | `/{id}/skip` | Atla (`{reason?}`) |
+| DELETE | `/{id}` | Soft delete |
+| GET | `/plan/status?projectId=` | Kotalar, son koşu, çalıştırma yetkisi |
+| POST | `/plan/run?projectId=&force=` | CSO planını şimdi koştur (SuperAdmin / ProjectAdmin / SalesManager) |
+
+### Lead Ajanı — `/api/v1/lead-agent` (anonim + `X-Agent-Key` = LeadAgent:ApiKey)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/next-cities?count=` | Sıradaki iller (60 günlük rotasyon) |
+| POST | `/runs/start` | `{runId, cities[]}` |
+| POST | `/candidates` | `{runId, city, items[]}` → created / duplicate / exists / invalid |
+| POST | `/runs/{runId}/finish` | `{notes?}` |
+
+### Lead Adayları — `/api/v1/lead-candidates` (SuperAdmin)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/?status=&search=&page=&pageSize=` | Liste |
+| GET | `/meta` | Sayımlar, projeler, varsayılan proje, ajan anahtarı var mı |
+| GET | `/pending-count` | Menü rozeti |
+| GET | `/runs?limit=` | Ajan koşuları |
+| POST | `/{id}/approve` | Lead müşteri oluştur (`projectId?, companyName?, contactName?, phone?, email?, address?, taxNumber?, label?`) |
+| POST | `/{id}/reject` · `/reject-many` | Reddet (parmak izi kalır) |
+| POST | `/{id}/duplicate` | `{customerId}` elle mükerrer |
+| POST | `/{id}/reopen` | Bekleyene al |

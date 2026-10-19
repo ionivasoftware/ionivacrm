@@ -33,6 +33,7 @@ const SupportChatLogsPage = lazy(() => import('@/pages/admin/SupportChatLogsPage
 const SocialPostsPage   = lazy(() => import('@/pages/admin/SocialPostsPage').then(m => ({ default: m.SocialPostsPage })));
 const SocialPublisherPage = lazy(() => import('@/pages/admin/SocialPublisherPage').then(m => ({ default: m.SocialPublisherPage })));
 const SocialProfilesPage = lazy(() => import('@/pages/admin/SocialProfilesPage').then(m => ({ default: m.SocialProfilesPage })));
+const LeadCandidatesPage = lazy(() => import('@/pages/admin/LeadCandidatesPage').then(m => ({ default: m.LeadCandidatesPage })));
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 function PageLoader() {
@@ -222,6 +223,14 @@ export default function App() {
                 element={
                   <ProtectedRoute superAdminOnly>
                     <SocialProfilesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/lead-candidates"
+                element={
+                  <ProtectedRoute superAdminOnly>
+                    <LeadCandidatesPage />
                   </ProtectedRoute>
                 }
               />
