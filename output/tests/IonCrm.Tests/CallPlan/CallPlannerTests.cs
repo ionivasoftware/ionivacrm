@@ -70,8 +70,9 @@ public class CallPlannerTests
         never.Reason.Should().Contain("hiç memnuniyet araması yapılmadı").And.Contain("yoğun kullanım");
 
         CallPlanner.ScoreSatisfaction(Active("Inactive", daysSinceContact: 120, usage: Usage(loginDaysAgo: 40, maintenance: 0)), Today).Should().BeNull("unhealthy → follow-up, not satisfaction");
-        CallPlanner.ScoreSatisfaction(Active("Recent sat", daysSinceContact: 120, usage: Usage(1, 5), lastSatDays: 30), Today).Should().BeNull("90-day repeat window");
-        CallPlanner.ScoreSatisfaction(Active("Just talked", daysSinceContact: 10, usage: Usage(1, 5)), Today).Should().BeNull("30-day cooldown");
+        CallPlanner.ScoreSatisfaction(Active("Recent sat", daysSinceContact: 120, usage: Usage(1, 5), lastSatDays: 150), Today).Should().BeNull("180-day repeat window");
+        CallPlanner.ScoreSatisfaction(Active("Old sat", daysSinceContact: 120, usage: Usage(1, 5), lastSatDays: 200), Today).Should().NotBeNull("past the 180-day window");
+        CallPlanner.ScoreSatisfaction(Active("Just talked", daysSinceContact: 45, usage: Usage(1, 5)), Today).Should().BeNull("60-day cooldown");
         CallPlanner.ScoreSatisfaction(Active("Demo", daysSinceContact: 120, status: CustomerStatus.Demo), Today).Should().BeNull();
     }
 

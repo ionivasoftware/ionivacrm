@@ -50,8 +50,9 @@ public static class CallPlanner
 {
     public const int NewCallCooldownDays = 7;
     public const int FollowUpCooldownDays = 14;
-    public const int SatisfactionCooldownDays = 30;
-    public const int SatisfactionRepeatDays = 90;
+    /// <summary>Memnuniyet araması seyrek olmalı (kullanıcı kararı 19.10.2026): son temastan en az 60 gün, son memnuniyet aramasından en az 180 gün.</summary>
+    public const int SatisfactionCooldownDays = 60;
+    public const int SatisfactionRepeatDays = 180;
 
     // ── Business days ────────────────────────────────────────────────────────
 
@@ -166,7 +167,7 @@ public static class CallPlanner
 
         var score = 0; var parts = new List<string> { "Aktif müşteri" };
         if (sinceSat is null) { score += 30; parts.Add("hiç memnuniyet araması yapılmadı"); }
-        else if (sinceSat > 180) { score += 25; parts.Add($"son memnuniyet araması {sinceSat} gün önce"); }
+        else if (sinceSat > 365) { score += 25; parts.Add($"son memnuniyet araması {sinceSat} gün önce"); }
         else { score += 10; parts.Add($"son memnuniyet araması {sinceSat} gün önce"); }
 
         if (c.ExpirationDate is { } e)
