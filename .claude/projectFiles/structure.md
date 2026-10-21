@@ -269,6 +269,18 @@ output/
 | POST | `/{id}/duplicate` | `{customerId}` elle mükerrer |
 | POST | `/{id}/reopen` | Bekleyene al |
 
+### Site Blog Kuyruğu — `/api/v1/site-blog` (SuperAdmin; Liftdesk `/api/v1/crm/site-blog` proxy)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/locales` | Yerel ayar kayıt defteri (sekme sırası) |
+| GET | `/?status=&locale=&page=&pageSize=` | Konular (varyantlar gövdesiz) |
+| GET | `/pending-count` · `/{postId}` | Rozet · detay (Markdown dâhil) |
+| PUT | `/variants/{id}` | `{title?, description?, slug?, bodyMarkdown?, relatedPageSlug?, publishDate?}` → 400 errors[] (message=SITE_BLOG_VALIDATION) |
+| POST | `/variants/{id}/approve` · `/reject` · `/retire` | Durum geçişleri |
+| POST | `/{postId}/approve-all` · DELETE `/{postId}` | Toplu onay · soft delete (Published/Retired varsa 409) |
+| POST | `/publish` · GET `/publish-status` | Yayın tetiği · durum |
+| GET/POST | `/topic-requests` · DELETE `/topic-requests/{id}` | Konu kuyruğu |
+
 ### Pazarlama — `/api/v1/marketing` (oturum)
 | Method | Path | Açıklama |
 |---|---|---|

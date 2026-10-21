@@ -349,6 +349,14 @@ public static class DependencyInjection
             })
             .AddPolicyHandler(BuildCircuitBreakerPolicy());
 
+        // Liftdesk kurumsal site blog kuyruğu — onay/düzenleme/yayın tetiği/konu kuyruğu, aynı statik anahtar.
+        services
+            .AddHttpClient<ILiftdeskSiteBlogClient, LiftdeskSiteBlogClient>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(60);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
+
         // Sosyal medya publisher platform istemcileri — token'lar CRM DB'sinde şifreli, EMS görmez.
         services.AddHttpClient<IMetaGraphClient, MetaGraphClient>(client => client.Timeout = TimeSpan.FromSeconds(60));
         services.AddHttpClient<IXApiClient, XApiClient>(client => client.Timeout = TimeSpan.FromSeconds(60));

@@ -5,13 +5,14 @@ namespace IonCrm.Application.Common.Models.ExternalApis;
 // Auth: static "Authorization: Bearer {Liftdesk:ApiKey}" (M2M shared key, EMS Railway CRM__APIKEY).
 // All responses use the common envelope; fields are camelCase, dates UTC ISO-8601.
 
-/// <summary>Common EMS response envelope: { success, data, message, errors, statusCode }.</summary>
+/// <summary>Common EMS response envelope: { success, data, message, errors, statusCode, errorCode? }. <c>ErrorCode</c> is set by the site-blog API (SITE_BLOG_*) for flow decisions.</summary>
 public record LiftdeskEnvelope<T>(
     bool Success,
     T? Data,
     string? Message,
     List<string>? Errors,
-    int StatusCode);
+    int StatusCode,
+    string? ErrorCode = null);
 
 /// <summary>Paginated payload inside <see cref="LiftdeskEnvelope{T}"/> for list endpoints.</summary>
 public record LiftdeskPage<T>(
