@@ -804,6 +804,77 @@ app.Lifetime.ApplicationStarted.Register(() =>
             );
             CREATE UNIQUE INDEX IF NOT EXISTS ""ix_leadagentruns_runid"" ON ""LeadAgentRuns"" (""RunId"");
         ");
+        // ── Global lead ajanı (TR dışı) + e-posta outreach dizisi ──
+        await RunSafe("GlobalLeads table + indexes", @"
+            CREATE TABLE IF NOT EXISTS ""GlobalLeads"" (
+                ""Id""                  uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""Country""             varchar(2)   NOT NULL DEFAULT 'GB',
+                ""Region""              varchar(120),
+                ""CompanyName""         varchar(300) NOT NULL,
+                ""NormalizedName""      varchar(300) NOT NULL,
+                ""ContactName""         varchar(200),
+                ""Email""               varchar(200),
+                ""Domain""              varchar(200),
+                ""Phone""               varchar(60),
+                ""NormalizedPhone""     varchar(20),
+                ""Website""             varchar(500),
+                ""Address""             varchar(600),
+                ""City""                varchar(120),
+                ""Source""              varchar(120) NOT NULL DEFAULT 'web',
+                ""SourceUrl""           varchar(1000),
+                ""Snippet""             text,
+                ""Confidence""          integer      NOT NULL DEFAULT 50,
+                ""Status""              integer      NOT NULL DEFAULT 1,
+                ""DuplicateOfLeadId""   uuid,
+                ""PossibleMatchLeadId"" uuid,
+                ""MatchNotes""          text,
+                ""Fingerprint""         varchar(64)  NOT NULL,
+                ""AgentRunId""          varchar(60),
+                ""ReviewedBy""          varchar(320),
+                ""ReviewedAt""          timestamp with time zone,
+                ""RejectReason""        varchar(500),
+                ""OutreachStatus""      integer      NOT NULL DEFAULT 1,
+                ""OutreachStep""        integer      NOT NULL DEFAULT 0,
+                ""NextSendAt""          timestamp with time zone,
+                ""LastSentAt""          timestamp with time zone,
+                ""SentCount""           integer      NOT NULL DEFAULT 0,
+                ""SenderUserId""        uuid,
+                ""ThreadMessageId""     varchar(300),
+                ""UnsubscribeToken""    varchar(64)  NOT NULL,
+                ""RepliedAt""           timestamp with time zone,
+                ""BouncedAt""           timestamp with time zone,
+                ""UnsubscribedAt""      timestamp with time zone,
+                ""LastError""           text,
+                ""Notes""               text,
+                ""CreatedAt""           timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""           timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""           boolean      NOT NULL DEFAULT false
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_globalleads_fingerprint"" ON ""GlobalLeads"" (""Fingerprint"");
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ix_globalleads_unsub"" ON ""GlobalLeads"" (""UnsubscribeToken"");
+            CREATE INDEX IF NOT EXISTS ""ix_globalleads_due"" ON ""GlobalLeads"" (""Status"", ""OutreachStatus"", ""NextSendAt"");
+            CREATE INDEX IF NOT EXISTS ""ix_globalleads_country"" ON ""GlobalLeads"" (""Country"");
+        ");
+        await RunSafe("GlobalLeadEmails table + indexes", @"
+            CREATE TABLE IF NOT EXISTS ""GlobalLeadEmails"" (
+                ""Id""           uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""LeadId""       uuid         NOT NULL,
+                ""Step""         integer      NOT NULL DEFAULT 0,
+                ""TemplateKey""  varchar(120) NOT NULL,
+                ""Subject""      varchar(500) NOT NULL,
+                ""To""           varchar(200) NOT NULL,
+                ""SenderUserId"" uuid         NOT NULL,
+                ""SentAt""       timestamp with time zone NOT NULL DEFAULT now(),
+                ""MessageId""    varchar(300),
+                ""Status""       integer      NOT NULL DEFAULT 1,
+                ""Error""        text,
+                ""CreatedAt""    timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""    timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""    boolean      NOT NULL DEFAULT false
+            );
+            CREATE INDEX IF NOT EXISTS ""ix_globalleademails_lead"" ON ""GlobalLeadEmails"" (""LeadId"");
+            CREATE INDEX IF NOT EXISTS ""ix_globalleademails_sender_sent"" ON ""GlobalLeadEmails"" (""SenderUserId"", ""SentAt"");
+        ");
         await RunSafe("SocialPostImages Kind/Language columns", @"
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Kind"" varchar(16) NOT NULL DEFAULT 'Custom';
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Language"" varchar(8);

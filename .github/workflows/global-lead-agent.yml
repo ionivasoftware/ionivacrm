@@ -1,0 +1,57 @@
+name: Global Lead Discovery Agent
+
+# TR-dışı lead ajanı (varsayılan GB). Bölge bazlı arar (API 90 günlük rotasyon), bulduklarını
+# GlobalLeads tablosuna aday yazar; SuperAdmin onayıyla İngilizce tanıtım + takip e-postaları
+# (marketing/global/sequence.json) onaylayanın Gmail'inden otomatik gider. Secrets TR ajanıyla aynı:
+# CLAUDE_CODE_OAUTH_TOKEN, CRM_LEAD_AGENT_KEY.
+
+on:
+  schedule:
+    - cron: '0 6 * * 4'   # Perşembe 06:00 UTC — TR ajanı Salı; aynı gün çakışmasın
+  workflow_dispatch:
+    inputs:
+      country:
+        description: 'ISO2 ülke (GB, IE)'
+        required: false
+        default: 'GB'
+      regions:
+        description: 'Virgülle ayrılmış bölgeler (boş = API rotasyonu)'
+        required: false
+        default: ''
+      regions_per_run:
+        description: 'Rotasyondan kaç bölge taransın'
+        required: false
+        default: '2'
+      max_per_region:
+        description: 'Bölge başına en fazla aday'
+        required: false
+        default: '15'
+
+concurrency:
+  group: global-lead-agent
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run global lead discovery agent
+        run: bash tools/lead-agent/run-global.sh
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CRM_API_BASE: https://ion-crm-api-production.up.railway.app
+          LEAD_AGENT_KEY: ${{ secrets.CRM_LEAD_AGENT_KEY }}
+          COUNTRY: ${{ github.event.inputs.country || 'GB' }}
+          REGIONS_OVERRIDE: ${{ github.event.inputs.regions || '' }}
+          REGIONS_PER_RUN: ${{ github.event.inputs.regions_per_run || '2' }}
+          MAX_PER_REGION: ${{ github.event.inputs.max_per_region || '15' }}

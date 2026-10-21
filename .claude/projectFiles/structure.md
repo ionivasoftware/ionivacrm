@@ -96,6 +96,7 @@ output/
 - `SocialPostImages` → sosyal medya özel görselleri (bytea, PostId indeksli; tenant kapsamı yok; satır hard-delete)
 - `Users` + `MailAddress, MailPasswordEncrypted, MailSenderName, MailBccSelf` (Gmail gönderimi)
 - `LeadCandidates` (`Fingerprint` tekil; global) · `LeadAgentRuns` (`RunId` tekil)
+- `GlobalLeads` (TR dışı lead'ler; `Fingerprint` ülke-önekli tekil, `UnsubscribeToken` tekil, `(Status, OutreachStatus, NextSendAt)` indeks; global) · `GlobalLeadEmails` (`LeadId`, `(SenderUserId, SentAt)` — günlük limit)
 - `Appointments` (tenant; `(ProjectId, ScheduledAt)` indeks) · `CallPlanRuns` (`(ProjectId, PlanDate)` tekil) · `ContactHistories` + `Purpose, Reached, SatisfactionScore, NextContactAt, AppointmentId`
 - `SocialProfiles` (`(Provider, Language)` tekil, `FieldsJson` jsonb, görsel id'leri, AppliedAt)
 - `SocialAccounts` (şifreli token, `(Provider, ExternalId)` tekil) · `SocialPublishPosts` (`PostId` tekil, damga) · `SocialPublishJobs` (`(PostId, AccountId)` tekil — mükerrer yayın engeli) · `SocialPostImages.Kind/Language` (Card = publisher'ın sakladığı şablon kart)
@@ -227,6 +228,34 @@ output/
 | POST | `/runs/start` | `{runId, cities[]}` |
 | POST | `/candidates` | `{runId, city, items[]}` → created / duplicate / exists / invalid |
 | POST | `/runs/{runId}/finish` | `{notes?}` |
+
+### Global Lead Ajanı — `/api/v1/lead-agent/global` (anonim + `X-Agent-Key`)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/next-regions?country=GB&count=` | Sıradaki bölgeler (90 günlük rotasyon, `GlobalLeadRegions`) |
+| POST | `/runs/start` | `{runId, country, regions[]}` (LeadAgentRuns.Cities = "GB:…") |
+| POST | `/candidates` | `{runId, country, region, items[]}` → created / exists / invalid (GlobalLeads) |
+| POST | `/runs/{runId}/finish` | `{notes?}` |
+
+### Global Lead'ler + Outreach — `/api/v1/global-leads` (SuperAdmin)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/?status=&outreach=&country=&search=&page=&pageSize=` | Liste |
+| GET | `/meta` | Sayımlar (durum/dizi/ülke), dizi tanımı + şablon konuları + ekler, limitler, gönderici hazır mı, son döngü |
+| GET | `/pending-count` · `/runs?limit=` | Menü rozeti · global ajan koşuları |
+| GET | `/{id}` | Lead + gönderici + e-posta geçmişi |
+| PUT | `/{id}` | `{companyName?, contactName?, email?, phone?, website?, city?, notes?}` |
+| POST | `/{id}/approve` · `/approve-many` | `{contactName?, email?, startOutreach=true}` → onay + (gönderen = oturum kullanıcısı) dizi başlat |
+| POST | `/{id}/reject` · `/reject-many` · `/{id}/reopen` | Ret / bekleyene al |
+| POST | `/{id}/outreach/start` | `{restart?}` dizi (yeniden) başlat |
+| POST | `/{id}/outreach/pause` · `/resume` · `/send-now` · `/check-inbox` | Duraklat / sürdür / sıradaki adımı hemen gönder / IMAP yanıt-bounce kontrolü |
+| POST | `/{id}/outreach/stop` | `{reason: replied | unsubscribed | bounced | completed}` |
+| POST | `/outreach/run` | Zamanlayıcı döngüsünü şimdi çalıştır |
+
+### Outreach (public) — `/api/v1/outreach`
+| Method | Path | Açıklama |
+|---|---|---|
+| GET/POST | `/unsubscribe/{token}` | Abonelikten çık (HTML sayfa; `List-Unsubscribe` başlığı da buraya) |
 
 ### Lead Adayları — `/api/v1/lead-candidates` (SuperAdmin)
 | Method | Path | Açıklama |

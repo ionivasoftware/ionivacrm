@@ -71,7 +71,9 @@ public sealed class LeadCandidatesController : ApiControllerBase
     [HttpGet("runs")]
     public async Task<IActionResult> Runs([FromQuery] int limit = 20, CancellationToken cancellationToken = default)
     {
-        var runs = await _repo.ListRunsAsync(Math.Clamp(limit, 1, 100), cancellationToken);
+        var runs = (await _repo.ListRunsAsync(Math.Clamp(limit, 1, 100) * 2, cancellationToken))
+            .Where(r => !(r.Cities.Length >= 3 && r.Cities[2] == ':' && char.IsUpper(r.Cities[0]) && char.IsUpper(r.Cities[1]))) // global ajan koşuları ayrı ekranda
+            .Take(Math.Clamp(limit, 1, 100));
         return OkResponse(runs.Select(r => new { r.RunId, r.StartedAt, r.FinishedAt, r.Cities, r.Found, r.Created, r.Duplicates, r.Existing, r.Invalid, r.Notes }).ToList());
     }
 

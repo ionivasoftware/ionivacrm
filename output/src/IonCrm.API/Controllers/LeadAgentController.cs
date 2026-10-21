@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using IonCrm.API.Common;
 using IonCrm.Application.Features.Leads;
 using IonCrm.Domain.Entities;
@@ -142,22 +140,7 @@ public sealed class LeadAgentController : ApiControllerBase
 
     // ── Yardımcılar ──────────────────────────────────────────────────────────
 
-    private IActionResult? Unauthorized_()
-    {
-        var expected = _configuration["LeadAgent:ApiKey"];
-        if (string.IsNullOrWhiteSpace(expected))
-            return StatusCode(503, ApiResponse<object>.Fail("LeadAgent:ApiKey yapılandırılmamış.", 503));
-        var provided = Request.Headers["X-Agent-Key"].FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(provided))
-        {
-            var auth = Request.Headers.Authorization.FirstOrDefault();
-            if (auth is not null && auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) provided = auth[7..].Trim();
-        }
-        if (string.IsNullOrWhiteSpace(provided) ||
-            !CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(provided), Encoding.UTF8.GetBytes(expected)))
-            return Unauthorized(ApiResponse<object>.Fail("Geçersiz ajan anahtarı.", 401));
-        return null;
-    }
+    private IActionResult? Unauthorized_() => LeadAgentAuth.Check(Request, _configuration);
 
     private static string? Trunc(string? s, int max) => string.IsNullOrWhiteSpace(s) ? null : (s.Trim().Length > max ? s.Trim()[..max] : s.Trim());
 

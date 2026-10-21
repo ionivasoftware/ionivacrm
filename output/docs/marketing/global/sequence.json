@@ -1,0 +1,9 @@
+{
+  "timeZone": "Europe/London",
+  "sendWindow": { "startHour": 9, "endHour": 17, "weekdaysOnly": true },
+  "steps": [
+    { "template": "intro.en-GB.html",      "delayDays": 0, "attachments": true },
+    { "template": "followup-1.en-GB.html", "delayDays": 4 },
+    { "template": "followup-2.en-GB.html", "delayDays": 9 }
+  ]
+}

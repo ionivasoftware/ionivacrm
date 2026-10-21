@@ -101,6 +101,11 @@ public class ApplicationDbContext : DbContext
     /// <summary>Lead-agent runs (GitHub Actions jobs).</summary>
     public DbSet<LeadAgentRun> LeadAgentRuns => Set<LeadAgentRun>();
 
+    /// <summary>Non-TR leads found by the global lead agent + their outreach e-mail log (global, SuperAdmin).</summary>
+    public DbSet<GlobalLead> GlobalLeads => Set<GlobalLead>();
+
+    public DbSet<GlobalLeadEmail> GlobalLeadEmails => Set<GlobalLeadEmail>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -206,6 +211,8 @@ public class ApplicationDbContext : DbContext
         // Lead agent: global tables (SuperAdmin screen + API-key ingest), soft-delete only.
         modelBuilder.Entity<LeadCandidate>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<LeadAgentRun>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<GlobalLead>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<GlobalLeadEmail>().HasQueryFilter(e => !e.IsDeleted);
 
         // CustomerUsageSnapshot: one immutable row per (customer, month). Tenant-scoped like customer data.
         modelBuilder.Entity<CustomerUsageSnapshot>(b =>

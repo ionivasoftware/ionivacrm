@@ -74,6 +74,10 @@ public static class DependencyInjection
         services.AddScoped<ISocialProfileRepository, SocialProfileRepository>();
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<ILeadCandidateRepository, LeadCandidateRepository>();
+        services.AddScoped<IGlobalLeadRepository, GlobalLeadRepository>();
+        services.AddScoped<IOutreachService, OutreachService>();
+        services.AddSingleton<IOutreachState, OutreachState>();
+        services.AddHostedService<OutreachBackgroundService>();
         services.AddScoped<IMarketingMailService, MarketingMailService>();
         services.AddScoped<ICallPlanService, CallPlanService>();
         services.AddHostedService<CallPlanBackgroundService>();

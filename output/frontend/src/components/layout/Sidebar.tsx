@@ -23,6 +23,7 @@ import {
   Activity,
   Megaphone,
   Radar,
+  Earth,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -30,6 +31,7 @@ import { useCanAccessFinance } from '@/lib/roles';
 import { useMissingInvoiceCount } from '@/api/vendorInvoices';
 import { usePendingSocialPostCount } from '@/api/socialPosts';
 import { usePendingLeadCount } from '@/api/leadCandidates';
+import { usePendingGlobalLeadCount } from '@/api/globalLeads';
 import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
@@ -46,7 +48,7 @@ interface NavItem {
   superAdminOnly?: boolean;
   financeOnly?: boolean;
   /** When set, this nav item shows a live count badge (e.g. missing invoices, pending social posts). */
-  badgeKey?: 'missingInvoices' | 'pendingSocialPosts' | 'pendingLeads';
+  badgeKey?: 'missingInvoices' | 'pendingSocialPosts' | 'pendingLeads' | 'pendingGlobalLeads';
 }
 
 const navItems: NavItem[] = [
@@ -73,6 +75,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Site Kullanımı', href: '/admin/site-analytics', icon: Globe, superAdminOnly: true },
   { label: 'Sosyal Medya', href: '/admin/social-posts', icon: Megaphone, superAdminOnly: true, badgeKey: 'pendingSocialPosts' },
   { label: 'Lead Adayları', href: '/admin/lead-candidates', icon: Radar, superAdminOnly: true, badgeKey: 'pendingLeads' },
+  { label: "Global Lead'ler", href: '/admin/global-leads', icon: Earth, superAdminOnly: true, badgeKey: 'pendingGlobalLeads' },
 ];
 
 export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: SidebarProps) {
@@ -85,11 +88,13 @@ export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: Si
   // Pending social-media drafts — SuperAdmin only (endpoint is SuperAdmin-restricted). Daily routine: open in the morning and approve.
   const { data: pendingSocialPosts = 0 } = usePendingSocialPostCount(!!user?.isSuperAdmin);
   const { data: pendingLeads = 0 } = usePendingLeadCount(!!user?.isSuperAdmin);
+  const { data: pendingGlobalLeads = 0 } = usePendingGlobalLeadCount(!!user?.isSuperAdmin);
 
   const badgeFor = (item: NavItem): number | undefined => {
     if (item.badgeKey === 'missingInvoices') return canAccessFinance ? missingInvoices : undefined;
     if (item.badgeKey === 'pendingSocialPosts') return user?.isSuperAdmin ? pendingSocialPosts : undefined;
     if (item.badgeKey === 'pendingLeads') return user?.isSuperAdmin ? pendingLeads : undefined;
+    if (item.badgeKey === 'pendingGlobalLeads') return user?.isSuperAdmin ? pendingGlobalLeads : undefined;
     return undefined;
   };
 

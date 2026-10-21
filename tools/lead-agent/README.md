@@ -24,3 +24,13 @@ Reddedilen adayın parmak izi kalır; aynı firma yeniden önerilmez.
 Yalnız Türkiye, yalnız firmalar (şahıs yok), yalnız herkese açık sayfalardaki kurumsal iletişim bilgisi.
 Google doğrudan kazınmaz; Claude'un WebSearch aracı ve sayfa okuma (WebFetch) kullanılır. İlan/rehber
 sitelerinin kullanım koşullarına uyum operatörün sorumluluğundadır; şüphede o kaynağı prompt'tan çıkar.
+
+## Global ajan (TR dışı) — `run-global.sh` + `prompt.global.md`
+Aynı anahtar, ayrı uçlar: `/api/v1/lead-agent/global/*`. GitHub Actions **Global Lead Discovery Agent**
+(`global-lead-agent.yml`, Perşembe 06:00 UTC + elle; input `country` ISO2 (GB varsayılan), `regions`).
+Bölge rotasyonu sunucuda (`GlobalLeadRegions`, 90 gün): GB için London, Greater Manchester, Birmingham…
+Adaylar **GlobalLeads** tablosuna düşer (Müşteriler'e girmez), ekran CRM → **Global Lead'ler** (SuperAdmin).
+E-posta ya da web zorunlu (outreach e-posta ile); noreply/webmaster adresleri elenir; OEM'ler (Otis, KONE,
+Schindler, TKE, Stannah, Orona) atlanır; kaynaklar LEIA, Yell, Checkatrade, Google, firma siteleri.
+Onaylanan lead'e İngilizce tanıtım + takip dizisi (`output/docs/marketing/global/sequence.json`)
+onaylayan kullanıcının Gmail'inden otomatik gider — ayrıntı için CRM "Dizi & limitler" paneli.
