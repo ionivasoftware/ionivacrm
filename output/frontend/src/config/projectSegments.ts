@@ -6,7 +6,11 @@
  * To add a new segment: just add a string to the relevant array.
  */
 export const PROJECT_SEGMENTS: Record<string, string[]> = {
+  // Proje 2026-10'da EMS → Liftdesk olarak yeniden adlandırıldı; iki ad da aynı listeyi görür.
   EMS: [
+    'Asansör Firması',
+  ],
+  Liftdesk: [
     'Asansör Firması',
   ],
   Rezerval: [
@@ -26,4 +30,10 @@ export function getSegmentsForProject(projectName: string | undefined): string[]
     (k) => k.toLowerCase() === projectName.toLowerCase()
   );
   return key ? PROJECT_SEGMENTS[key] : [];
+}
+
+/** Liftdesk (eski adıyla EMS) projesi mi? Segment + Potansiyel Label alanları yalnız bu projede gösterilir. */
+export function isLiftdeskProjectName(projectName: string | undefined): boolean {
+  const n = projectName?.trim().toLowerCase();
+  return n === 'liftdesk' || n === 'ems';
 }

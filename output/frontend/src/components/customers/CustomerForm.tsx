@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { useCreateCustomer, useUpdateCustomer } from '@/api/customers';
 import { useAuthStore } from '@/stores/authStore';
-import { getSegmentsForProject } from '@/config/projectSegments';
+import { getSegmentsForProject, isLiftdeskProjectName } from '@/config/projectSegments';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { Customer, CustomerLabel, CustomerStatus, UpdateCustomerRequest } from '@/types';
@@ -71,11 +71,11 @@ export function CustomerFormDialog({
   const isEdit = !!customer;
   const isPending = createMutation.isPending || updateMutation.isPending;
 
-  // Show segment + label dropdowns when the active project is the EMS project.
-  // We key off the project NAME (case-insensitive "EMS") so this works for every
-  // role — the previous emsApiKey check required the SuperAdmin-only /projects
-  // endpoint, which left non-admin EMS users (e.g. "EMS Satış Müdürü") with the
-  // section permanently hidden.
+  // Show segment + label dropdowns when the active project is the Liftdesk (ex-EMS) project.
+  // We key off the project NAME so this works for every role — the previous emsApiKey check
+  // required the SuperAdmin-only /projects endpoint, which left non-admin users with the
+  // section permanently hidden. The project was renamed EMS → Liftdesk (2026-10); both names
+  // are accepted so the section never silently disappears again.
   const { currentProjectId, projectNames } = useAuthStore();
 
   const projectName = useMemo(
@@ -84,7 +84,7 @@ export function CustomerFormDialog({
   );
 
   const showEmsFields = useMemo(
-    () => projectName?.toLowerCase() === 'ems',
+    () => isLiftdeskProjectName(projectName),
     [projectName],
   );
 
