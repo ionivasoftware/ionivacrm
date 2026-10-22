@@ -83,31 +83,39 @@
 @layer components {
   /*
    * Mobil "kart tablo": <table class="table-stack"> — 768px altında başlık satırı gizlenir, her <tr> bir
-   * karta, her <td> "etiket: değer" satırına dönüşür. Etiket <td data-label="…">'den gelir; data-label
-   * boşsa yalnız değer basılır. td[data-stack="actions"] düğme satırı, td[data-stack="check"] onay kutusu.
+   * karta dönüşür. Hücre: <td data-label="…"> → sol sütunda etiket, sağda değer (çok parçalı içerik alt
+   * alta). data-stack="primary" başlık (etiketsiz, büyük), "check" onay kutusu (başlıkla aynı satır),
+   * "actions" düğme satırı, data-label="" yalnız değer.
    */
   @media (max-width: 767.98px) {
     .table-stack thead { display: none; }
     .table-stack, .table-stack tbody { display: block; width: 100%; }
     .table-stack tbody tr {
-      display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.25rem 0.75rem;
+      display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.3rem 0.75rem;
       padding: 0.75rem 0.875rem; border-bottom: 1px solid hsl(var(--border) / 0.6);
     }
     .table-stack tbody tr:last-child { border-bottom: 0; }
     .table-stack td, .table-stack th {
-      display: flex; flex: 1 1 100%; min-width: 0; gap: 0.5rem; padding: 0.125rem 0 !important;
+      display: block; flex: 1 1 100%; min-width: 0; padding: 0.1rem 0 !important;
       text-align: left !important; white-space: normal !important; max-width: none !important;
       overflow-wrap: anywhere;
     }
-    .table-stack td[data-label]:not([data-label=""])::before {
-      content: attr(data-label); flex: 0 0 7rem; max-width: 40%; font-size: 11px; line-height: 1.3rem;
-      color: hsl(var(--muted-foreground)); text-transform: uppercase; letter-spacing: 0.02em;
+    .table-stack td[data-label]:not([data-label=""]) {
+      display: grid; grid-template-columns: 6rem minmax(0, 1fr); column-gap: 0.5rem; align-items: start;
     }
-    .table-stack td[data-stack="primary"] { font-weight: 500; font-size: 0.95rem; order: -1; padding-bottom: 0.25rem !important; }
-    .table-stack td[data-stack="check"] { flex: 0 0 auto; order: -2; }
-    .table-stack td[data-stack="actions"] { justify-content: flex-start; flex-wrap: wrap; padding-top: 0.5rem !important; }
-    .table-stack td[data-stack="half"] { flex: 1 1 45%; }
-    .table-stack td .truncate { white-space: normal; overflow: visible; text-overflow: clip; }
+    .table-stack td[data-label]:not([data-label=""])::before {
+      content: attr(data-label); grid-column: 1; grid-row: 1 / span 30; padding-top: 0.15rem;
+      font-size: 10.5px; line-height: 1.1rem; color: hsl(var(--muted-foreground)); text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .table-stack td[data-label]:not([data-label=""]) > * { grid-column: 2; min-width: 0; }
+    .table-stack td[data-label]:empty { display: none; }
+    .table-stack td[data-label][data-stack="primary"] { display: block; flex: 1 1 0; min-width: 55%; order: -1; font-size: 0.95rem; padding-bottom: 0.3rem !important; }
+    .table-stack td[data-label][data-stack="primary"]::before { content: none; }
+    .table-stack td[data-stack="check"] { display: block; flex: 0 0 auto; order: -2; padding-top: 0.2rem !important; }
+    .table-stack td[data-stack="actions"] { display: flex; flex-wrap: wrap; gap: 0.5rem; padding-top: 0.5rem !important; }
+    .table-stack td[data-stack="actions"] > * { margin: 0 !important; }
     .table-stack td[colspan] { display: block; text-align: center !important; padding: 2rem 0.5rem !important; }
+    .table-stack td .truncate { white-space: normal; overflow: visible; text-overflow: clip; }
+    .table-stack td .inline-flex { display: flex; }
   }
 }
