@@ -215,7 +215,7 @@ export function AddContactHistoryDialog({
               control={control}
               name="type"
               render={({ field }) => (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {(Object.keys(CONTACT_TYPE_LABELS) as ContactType[]).map((type) => {
                     const Icon = CONTACT_TYPE_ICONS[type];
                     return (
@@ -271,7 +271,7 @@ export function AddContactHistoryDialog({
               <div className="space-y-1.5">
                 <Label>Ulaşıldı mı?</Label>
                 <Controller control={control} name="reached" render={({ field }) => (
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     <button type="button" onClick={() => field.onChange(true)} className={cn('h-11 rounded-md border text-sm font-medium', field.value ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' : 'border-border text-muted-foreground')}>Görüşüldü</button>
                     <button type="button" onClick={() => field.onChange(false)} className={cn('h-11 rounded-md border text-sm font-medium', !field.value ? 'border-amber-500/50 bg-amber-500/10 text-amber-300' : 'border-border text-muted-foreground')}>Ulaşılamadı</button>
                   </div>

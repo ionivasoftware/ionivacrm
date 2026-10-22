@@ -79,3 +79,35 @@
     @apply bg-muted-foreground;
   }
 }
+
+@layer components {
+  /*
+   * Mobil "kart tablo": <table class="table-stack"> — 768px altında başlık satırı gizlenir, her <tr> bir
+   * karta, her <td> "etiket: değer" satırına dönüşür. Etiket <td data-label="…">'den gelir; data-label
+   * boşsa yalnız değer basılır. td[data-stack="actions"] düğme satırı, td[data-stack="check"] onay kutusu.
+   */
+  @media (max-width: 767.98px) {
+    .table-stack thead { display: none; }
+    .table-stack, .table-stack tbody { display: block; width: 100%; }
+    .table-stack tbody tr {
+      display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.25rem 0.75rem;
+      padding: 0.75rem 0.875rem; border-bottom: 1px solid hsl(var(--border) / 0.6);
+    }
+    .table-stack tbody tr:last-child { border-bottom: 0; }
+    .table-stack td, .table-stack th {
+      display: flex; flex: 1 1 100%; min-width: 0; gap: 0.5rem; padding: 0.125rem 0 !important;
+      text-align: left !important; white-space: normal !important; max-width: none !important;
+      overflow-wrap: anywhere;
+    }
+    .table-stack td[data-label]:not([data-label=""])::before {
+      content: attr(data-label); flex: 0 0 7rem; max-width: 40%; font-size: 11px; line-height: 1.3rem;
+      color: hsl(var(--muted-foreground)); text-transform: uppercase; letter-spacing: 0.02em;
+    }
+    .table-stack td[data-stack="primary"] { font-weight: 500; font-size: 0.95rem; order: -1; padding-bottom: 0.25rem !important; }
+    .table-stack td[data-stack="check"] { flex: 0 0 auto; order: -2; }
+    .table-stack td[data-stack="actions"] { justify-content: flex-start; flex-wrap: wrap; padding-top: 0.5rem !important; }
+    .table-stack td[data-stack="half"] { flex: 1 1 45%; }
+    .table-stack td .truncate { white-space: normal; overflow: visible; text-overflow: clip; }
+    .table-stack td[colspan] { display: block; text-align: center !important; padding: 2rem 0.5rem !important; }
+  }
+}

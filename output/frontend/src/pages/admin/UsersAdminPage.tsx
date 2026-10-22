@@ -62,7 +62,7 @@ function CreateUserDialog({ onClose }: { onClose: () => void }) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>Yeni Kullanıcı</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Ad *</Label>
               <Input {...register('firstName')} className="h-10" />
@@ -149,7 +149,7 @@ function EditUserDialog({ user, onClose }: { user: AdminUser; onClose: () => voi
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>Kullanıcıyı Düzenle</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Ad *</Label>
               <Input {...register('firstName')} className="h-10" />

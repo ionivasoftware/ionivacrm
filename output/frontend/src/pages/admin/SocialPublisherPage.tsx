@@ -50,7 +50,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="text-muted-foreground w-40 shrink-0">{label}</span>
+      <span className="text-muted-foreground w-28 sm:w-40 shrink-0">{label}</span>
       <code className="flex-1 truncate rounded bg-muted/40 px-2 py-1 font-mono text-[11px]" title={value}>{value}</code>
       <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={async () => {
         try { await navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard yoksa sessiz */ }
@@ -458,7 +458,7 @@ export function SocialPublisherPage() {
               <div className="py-10 text-center text-sm text-muted-foreground">Kayıt yok. İşler, onaylı gönderinin yayın günü saati gelince açılır.</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="table-stack w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-muted-foreground border-b border-border">
                       <th className="px-4 py-2.5 font-medium">Yayın günü</th>
@@ -473,17 +473,17 @@ export function SocialPublisherPage() {
                   <tbody>
                     {jobs.map(j => (
                       <tr key={j.id} className="border-b border-border/50 last:border-0 align-top">
-                        <td className="px-4 py-2.5 whitespace-nowrap tabular-nums">{fmtDay(j.scheduledFor)}</td>
-                        <td className="px-4 py-2.5 max-w-[320px]"><div className="truncate" title={j.topic ?? j.postId}>{j.topic ?? j.postId}</div><div className="text-[11px] text-muted-foreground">{j.kind} · {j.language}</div></td>
-                        <td className="px-4 py-2.5"><div className="flex items-center gap-1.5"><ProviderIcon provider={j.provider} className="text-muted-foreground" /><span>{j.accountLabel}</span></div><div className="text-[11px] text-muted-foreground">{j.accountName}</div></td>
-                        <td className="px-4 py-2.5"><JobStatusPill status={j.status} />{j.status === 'Failed' && j.nextAttemptAt && <div className="text-[11px] text-muted-foreground mt-1">sonraki: {fmtDateTime(j.nextAttemptAt)}</div>}</td>
-                        <td className="px-4 py-2.5 tabular-nums">{j.attempts}</td>
-                        <td className="px-4 py-2.5 max-w-[360px] text-xs">
+                        <td data-label="Yayın günü" className="px-4 py-2.5 whitespace-nowrap tabular-nums">{fmtDay(j.scheduledFor)}</td>
+                        <td data-label="Gönderi" data-stack="primary" className="px-4 py-2.5 max-w-[320px]"><div className="truncate" title={j.topic ?? j.postId}>{j.topic ?? j.postId}</div><div className="text-[11px] text-muted-foreground">{j.kind} · {j.language}</div></td>
+                        <td data-label="Hesap" className="px-4 py-2.5"><div className="flex items-center gap-1.5"><ProviderIcon provider={j.provider} className="text-muted-foreground" /><span>{j.accountLabel}</span></div><div className="text-[11px] text-muted-foreground">{j.accountName}</div></td>
+                        <td data-label="Durum" className="px-4 py-2.5"><JobStatusPill status={j.status} />{j.status === 'Failed' && j.nextAttemptAt && <div className="text-[11px] text-muted-foreground mt-1">sonraki: {fmtDateTime(j.nextAttemptAt)}</div>}</td>
+                        <td data-label="Deneme" className="px-4 py-2.5 tabular-nums">{j.attempts}</td>
+                        <td data-label="Sonuç" className="px-4 py-2.5 max-w-[360px] text-xs">
                           {j.status === 'Succeeded'
                             ? <span className="text-muted-foreground">{fmtDateTime(j.finishedAt)} · <span className="font-mono">#{j.platformPostId}</span></span>
                             : j.lastError ? <span className="text-red-400 break-words" title={j.lastError}>{j.lastError}</span> : <span className="text-muted-foreground">—</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                        <td data-stack="actions" data-label="" className="px-4 py-2.5 text-right whitespace-nowrap">
                           {(j.status === 'Failed' || j.status === 'Blocked' || j.status === 'Skipped') && (
                             <Button size="sm" variant="outline" className="mr-1" disabled={retry.isPending} onClick={() => onRetry(j)} title="Hemen yeniden kuyruğa al"><RotateCcw className="h-3.5 w-3.5" /></Button>
                           )}

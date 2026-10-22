@@ -445,7 +445,7 @@ function QuickInvoiceForm({ projectId, contactId, customerName, onSuccess, onErr
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-xs">Açıklama</Label>
           <Input value={description} onChange={e => setDescription(e.target.value)} className="h-8 text-sm" placeholder={`${customerName} faturası`} />
@@ -469,8 +469,8 @@ function QuickInvoiceForm({ projectId, contactId, customerName, onSuccess, onErr
           </Button>
         </div>
         {lines.map((l, i) => (
-          <div key={i} className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 items-center">
-            <Input value={l.description ?? ''} onChange={e => updateLine(i, 'description', e.target.value)} className="h-8 text-xs" placeholder="Ürün/hizmet" />
+          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] sm:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 items-center">
+            <Input value={l.description ?? ''} onChange={e => updateLine(i, 'description', e.target.value)} className="h-8 text-xs col-span-3 sm:col-span-1" placeholder="Ürün/hizmet" />
             <Input type="number" value={l.quantity} onChange={e => updateLine(i, 'quantity', Number(e.target.value))} className="h-8 text-xs" placeholder="Miktar" />
             <Input type="number" value={l.unitPrice} onChange={e => updateLine(i, 'unitPrice', Number(e.target.value))} className="h-8 text-xs" placeholder="Fiyat" />
             <Input type="number" value={l.vatRate} onChange={e => updateLine(i, 'vatRate', Number(e.target.value))} className="h-8 text-xs" placeholder="KDV%" />
@@ -1111,7 +1111,7 @@ function ExtendExpirationDialog({
           </div>
 
           {/* Ay / Yıl — butonlar */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {presets.map(opt => {
               const active = selection.type === 'preset' && selection.durationType === opt.durationType;
               return (
@@ -1201,7 +1201,7 @@ function AddSmsDialog({ open, onOpenChange, companyName, addSms }: AddSmsDialogP
           <p className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{companyName}</span> firmasına SMS kredisi yükleyin.
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {SMS_PRESETS.map(count => (
               <button
                 key={count}
@@ -2489,7 +2489,7 @@ export function CustomerDetailPage() {
 
               {!emsUsersLoading && emsUsersData && emsUsersData.length > 0 && (
                 <div className="rounded-lg border border-border overflow-x-auto">
-                  <table className="w-full text-sm min-w-[640px]">
+                  <table className="table-stack w-full text-sm md:min-w-[640px]">
                     <thead>
                       <tr className="bg-muted/40 border-b border-border">
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">Ad Soyad</th>
@@ -2508,7 +2508,7 @@ export function CustomerDetailPage() {
                             idx === (sortedEmsUsers?.length ?? 0) - 1 && 'border-b-0'
                           )}
                         >
-                          <td className="px-4 py-3 font-medium text-foreground">
+                          <td data-label="Ad Soyad" data-stack="primary" className="px-4 py-3 font-medium text-foreground">
                             <span className="inline-flex items-center gap-1.5">
                               {user.name} {user.surname}
                               {user.isPrimaryAdmin && (
@@ -2527,18 +2527,18 @@ export function CustomerDetailPage() {
                               )}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-muted-foreground">
+                          <td data-label="E-posta" className="px-4 py-3 text-muted-foreground">
                             {user.email || '—'}
                           </td>
-                          <td className="px-4 py-3">
+                          <td data-label="Rol" className="px-4 py-3">
                             <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold bg-blue-500/10 text-blue-400 border-blue-500/30">
                               {emsRoleLabel(user.role)}
                             </span>
                           </td>
-                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                          <td data-label="Kullanıcı Adı" className="px-4 py-3 font-mono text-xs text-muted-foreground">
                             {user.loginName || '—'}
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td data-stack="actions" data-label="" className="px-4 py-3 text-right">
                             <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
                               {/* Parola sütunu kaldırıldı (Liftdesk düz metin saklamıyor); yerine
                                   denetim kayıtlı destek oturumu. Yalnız aktif kullanıcıya. */}
@@ -2589,7 +2589,7 @@ export function CustomerDetailPage() {
             <div className="space-y-4">
               {emsSummaryLoading && (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
                   </div>
                   <Skeleton className="h-48 rounded-lg" />
@@ -2613,7 +2613,7 @@ export function CustomerDetailPage() {
               {!emsSummaryLoading && emsSummaryData && (
                 <>
                   {/* Totals */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="rounded-lg border border-border p-4 text-center">
                       <p className="text-2xl font-bold text-foreground">{emsSummaryData.totals.elevatorCount}</p>
                       <p className="text-xs text-muted-foreground mt-1">Asansör</p>
@@ -2634,7 +2634,7 @@ export function CustomerDetailPage() {
                       <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                         <HardDrive className="h-3.5 w-3.5" /> Belge Depolama
                       </p>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                           <p className="text-xl font-bold text-foreground tabular-nums">
                             {formatBytes(emsSummaryData.storage.assemblyDocumentBytes)}
@@ -2664,7 +2664,7 @@ export function CustomerDetailPage() {
                     <>
                       <p className="text-xs text-muted-foreground">Son 3 ay</p>
                       <div className="rounded-lg border border-border overflow-x-auto">
-                        <table className="w-full text-sm min-w-[360px]">
+                        <table className="w-full text-sm sm:min-w-[360px]">
                           <thead>
                             <tr className="bg-muted/40 border-b border-border">
                               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Dönem</th>

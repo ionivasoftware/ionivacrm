@@ -169,7 +169,7 @@ function ReceiveDialog({ invoice, onClose }: { invoice: VendorInvoice; onClose: 
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>Fatura Girişi — {PROVIDER_LABELS[invoice.provider] ?? invoice.provider}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Alınan Tutar</Label>
               <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="örn. 128.40" />
@@ -268,7 +268,7 @@ function AddDialog({ defaultYear, defaultMonth, onClose }: { defaultYear: number
               {KNOWN_PROVIDERS.map((p) => <option key={p} value={p} />)}
             </datalist>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Yıl</Label>
               <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
@@ -284,7 +284,7 @@ function AddDialog({ defaultYear, defaultMonth, onClose }: { defaultYear: number
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label>Beklenen</Label>
               <Input type="number" step="0.01" value={expected} onChange={(e) => setExpected(e.target.value)} placeholder="—" />
@@ -557,7 +557,7 @@ export function VendorInvoicesPage() {
       <Card className="border-border/50">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="table-stack w-full text-sm">
               <thead>
                 <tr className="border-b border-border/50 bg-muted/30">
                   {['Sağlayıcı', 'Dönem', 'Beklenen', 'Alınan', 'Durum', 'Fatura No', ''].map((h, i) => (
@@ -601,13 +601,13 @@ export function VendorInvoicesPage() {
                     const missing = r.status === 'Missing';
                     return (
                       <tr key={r.id} className={cn('border-b border-border/30 hover:bg-muted/20 transition-colors', missing && 'bg-red-500/5')}>
-                        <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">{PROVIDER_LABELS[r.provider] ?? r.provider}</td>
-                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{MONTHS[r.periodMonth - 1]} {r.periodYear}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">{money(r.expectedAmount, r.currency)}</td>
-                        <td className={cn('px-4 py-3 whitespace-nowrap', mismatch && 'text-orange-400 font-medium')}>{money(r.receivedAmount, r.currency)}</td>
-                        <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">{r.invoiceNumber ?? '—'}</td>
-                        <td className="px-4 py-3">
+                        <td data-label="Sağlayıcı" data-stack="primary" className="px-4 py-3 font-medium text-foreground whitespace-nowrap">{PROVIDER_LABELS[r.provider] ?? r.provider}</td>
+                        <td data-label="Dönem" className="px-4 py-3 text-muted-foreground whitespace-nowrap">{MONTHS[r.periodMonth - 1]} {r.periodYear}</td>
+                        <td data-label="Beklenen" className="px-4 py-3 whitespace-nowrap">{money(r.expectedAmount, r.currency)}</td>
+                        <td data-label="Alınan" className={cn('px-4 py-3 whitespace-nowrap', mismatch && 'text-orange-400 font-medium')}>{money(r.receivedAmount, r.currency)}</td>
+                        <td data-label="Durum" className="px-4 py-3"><StatusBadge status={r.status} /></td>
+                        <td data-label="Fatura No" className="px-4 py-3 text-xs text-muted-foreground">{r.invoiceNumber ?? '—'}</td>
+                        <td data-stack="actions" data-label="" className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1.5">
                             {(r.hasPdf || r.pdfUrl) && (
                               <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-sky-400" onClick={() => openInvoicePdf(r)} title="Fatura PDF'ini aç">

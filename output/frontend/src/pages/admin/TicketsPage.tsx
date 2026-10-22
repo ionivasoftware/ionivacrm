@@ -515,7 +515,7 @@ function CreateTicketDialog({ onClose }: { onClose: () => void }) {
         </DialogHeader>
 
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Tür</label>
               <Select value={type} onValueChange={(v) => setType(v as TicketType)}>

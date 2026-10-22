@@ -187,7 +187,7 @@ export function ContactHistoriesPage() {
           {showFilters && (
             <div className="flex flex-wrap gap-3 pt-3 border-t border-border mt-3">
               <Select value={typeFilter} onValueChange={handleTypeChange}>
-                <SelectTrigger className="h-9 w-44">
+                <SelectTrigger className="h-9 w-full sm:w-44">
                   <SelectValue placeholder="Tür" />
                 </SelectTrigger>
                 <SelectContent>

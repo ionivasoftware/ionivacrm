@@ -142,7 +142,7 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
+          <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] sm:w-80">
             <DropdownMenuLabel className="flex items-center justify-between">
               <span>Son Aktiviteler</span>
               <span className="text-xs font-normal text-muted-foreground">{notifications.length} kayıt</span>

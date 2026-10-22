@@ -294,7 +294,7 @@ export function UsageReportPage() {
         </CardContent></Card>
       ) : (
         <div className="rounded-lg border overflow-x-auto">
-          <Table>
+          <Table className="table-stack">
             <TableHeader>
               <TableRow>
                 <SortHead label="Durum" k="severity" {...{ sortKey, sortAsc, toggleSort }} />
@@ -317,31 +317,31 @@ export function UsageReportPage() {
                 const offers = r.partChangeOfferCount + r.revisionOfferCount + r.assemblyOfferCount;
                 return (
                   <TableRow key={r.customerId}>
-                    <TableCell>
+                    <TableCell data-label="Durum">
                       <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${meta.cls}`}>
                         <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
                         {meta.label}
                       </span>
                     </TableCell>
-                    <TableCell className="font-medium max-w-[220px] truncate" title={r.companyName}>
+                    <TableCell data-label="Firma" data-stack="primary" className="font-medium max-w-[220px] truncate" title={r.companyName}>
                       {r.companyName}
                       {r.status && (
                         <Badge variant="secondary" className="ml-2 text-[10px] align-middle">{r.status}</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{r.elevatorCount}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.maintenanceCount}</TableCell>
-                    <TableCell className={`text-right tabular-nums font-medium ${meta.cls}`}>
+                    <TableCell data-label="Asansör" className="text-right tabular-nums">{r.elevatorCount}</TableCell>
+                    <TableCell data-label="Bakım" className="text-right tabular-nums">{r.maintenanceCount}</TableCell>
+                    <TableCell data-label="Nabız" className={`text-right tabular-nums font-medium ${meta.cls}`}>
                       {r.elevatorCount > 0 ? pulse(r).toFixed(2) : '—'}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{r.faultCount}</TableCell>
-                    <TableCell className="text-right tabular-nums" title={`Parça ${r.partChangeOfferCount} · Revizyon ${r.revisionOfferCount} · Montaj ${r.assemblyOfferCount}`}>
+                    <TableCell data-label="Arıza" className="text-right tabular-nums">{r.faultCount}</TableCell>
+                    <TableCell data-label="Teklif" className="text-right tabular-nums" title={`Parça ${r.partChangeOfferCount} · Revizyon ${r.revisionOfferCount} · Montaj ${r.assemblyOfferCount}`}>
                       {offers || '—'}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                    <TableCell data-label="İş emri" className="text-right tabular-nums text-muted-foreground">
                       {r.workOrderCount || '—'}
                     </TableCell>
-                    <TableCell
+                    <TableCell data-label="Cari-Fatura"
                       className={`text-right tabular-nums ${accountingActivity(r) > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
                       title={`Fatura ${r.invoiceCount} · Tahsilat ${r.collectionCount}${
                         r.accountingMode ? ` · Mod: ${accountingModeLabel(r.accountingMode)}` : ''
@@ -349,10 +349,10 @@ export function UsageReportPage() {
                     >
                       {accountingActivity(r) || '—'}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                    <TableCell data-label="Son giriş" className="text-right tabular-nums text-muted-foreground">
                       {fmtLogin(r.lastLoginAt)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="Paket">
                       {r.planTier ? (
                         <Badge variant="outline" className="text-xs">{r.planTier}</Badge>
                       ) : '—'}

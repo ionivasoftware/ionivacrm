@@ -388,7 +388,7 @@ function SocialPostDetailDialog({ id, onClose }: { id: string; onClose: () => vo
             )}
 
             {/* Dil sekmeleri */}
-            <div className="flex items-center gap-1 border-b border-border">
+            <div className="flex items-center gap-1 border-b border-border overflow-x-auto">
               {SOCIAL_LANGUAGES.map(l => {
                 const has = !!post.variants?.some(v => v.language === l);
                 const changed = changedLanguages.includes(l);
@@ -653,7 +653,7 @@ export function SocialPostsPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="table-stack w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-muted-foreground border-b border-border">
                       <th className="px-4 py-2.5 font-medium">Yayın günü</th>
@@ -670,18 +670,18 @@ export function SocialPostsPage() {
                       return (
                         <tr key={p.id} onClick={() => setSelectedId(p.id)}
                           className="border-b border-border/50 last:border-0 hover:bg-accent/40 cursor-pointer">
-                          <td className="px-4 py-3 whitespace-nowrap tabular-nums">{fmtDay(p.scheduledFor)}</td>
-                          <td className="px-4 py-3">
+                          <td data-label="Yayın günü" className="px-4 py-3 whitespace-nowrap tabular-nums">{fmtDay(p.scheduledFor)}</td>
+                          <td data-label="Tür" className="px-4 py-3">
                             <div className="flex flex-wrap items-center gap-1.5">
                               <KindBadge kind={p.kind} />
                               {p.holidayName && <span className="text-xs text-amber-300">{p.holidayName}</span>}
                             </div>
                           </td>
-                          <td className="px-4 py-3 max-w-[420px]">
+                          <td data-label="Konu" data-stack="primary" className="px-4 py-3 max-w-[420px]">
                             <div className="truncate" title={p.topic}>{p.topic}</div>
                             {p.customImageUrl && <div className="text-[11px] text-muted-foreground">özel görsel</div>}
                           </td>
-                          <td className="px-4 py-3">
+                          <td data-label="Diller" className="px-4 py-3">
                             <div className="flex gap-1">
                               {SOCIAL_LANGUAGES.map(l => (
                                 <span key={l} title={langs.has(l) ? LANG_LABEL[l] : `${LANG_LABEL[l]} — eksik`}
@@ -692,10 +692,10 @@ export function SocialPostsPage() {
                               ))}
                             </div>
                           </td>
-                          <td className="px-4 py-3">
+                          <td data-label="Durum" className="px-4 py-3">
                             <StatusBadge status={p.status} title={p.status === 'Rejected' && p.rejectReason ? p.rejectReason : undefined} />
                           </td>
-                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                          <td data-stack="actions" data-label="" className="px-4 py-3 text-right whitespace-nowrap">
                             {p.status === 'Pending' && (
                               <Button size="sm" variant="outline" className="mr-2" disabled={approve.isPending} onClick={(e) => quickApprove(e, p)}>
                                 <Check className="h-3.5 w-3.5" /> Onayla

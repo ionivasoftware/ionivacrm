@@ -362,7 +362,7 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
           {/* Customer & Title */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Müşteri *</Label>
               <CustomerSelect
@@ -389,7 +389,7 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
           </div>
 
           {/* Dates & Currency */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Fatura Tarihi *</Label>
               <Input type="date" {...form.register('issueDate')} className="h-9" />
@@ -448,7 +448,7 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
 
             <div className="rounded-lg border border-border overflow-hidden">
               {/* Header */}
-              <div className="grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground">
+              <div className="hidden sm:grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground">
                 <span>Açıklama</span>
                 <span>Miktar</span>
                 <span>Birim Fiyat</span>
@@ -458,10 +458,10 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
               </div>
 
               {fields.map((field, idx) => (
-                <div key={field.id} className="grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 px-3 py-2 border-t border-border/50 items-center">
+                <div key={field.id} className="grid grid-cols-2 sm:grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 px-3 py-2 border-t border-border/50 items-center">
                   <Input
                     {...form.register(`lines.${idx}.description`)}
-                    className="h-8 text-sm"
+                    className="h-8 text-sm col-span-2 sm:col-span-1"
                     placeholder="Ürün / hizmet"
                   />
                   <Input
@@ -470,6 +470,7 @@ function CreateInvoiceDialog({ open, onClose }: CreateInvoiceDialogProps) {
                     min="0"
                     {...form.register(`lines.${idx}.quantity`, { valueAsNumber: true })}
                     className="h-8 text-sm"
+                    placeholder="Miktar"
                   />
                   <Input
                     type="number"
@@ -692,7 +693,7 @@ function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
           {/* Customer (read-only) & Title */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Müşteri</Label>
               <div className="flex items-center h-9 w-full rounded-md border border-input bg-muted/40 px-3 py-1 text-sm text-muted-foreground">
@@ -706,7 +707,7 @@ function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
           </div>
 
           {/* Dates & Currency */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Fatura Tarihi *</Label>
               <Input type="date" {...form.register('issueDate')} className="h-9" />
@@ -759,7 +760,7 @@ function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
             </div>
 
             <div className="rounded-lg border border-border overflow-hidden">
-              <div className="grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground">
+              <div className="hidden sm:grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground">
                 <span>Açıklama</span>
                 <span>Miktar</span>
                 <span>Birim Fiyat</span>
@@ -811,10 +812,10 @@ function EditInvoiceDialog({ invoice, onClose }: EditInvoiceDialogProps) {
                     </Select>
                   </div>
 
-                  <div className="grid grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 items-center">
-                    <Input {...form.register(`lines.${idx}.description`)} className="h-8 text-sm" placeholder="Ürün / hizmet" />
-                    <Input type="number" step="0.01" min="0" {...form.register(`lines.${idx}.quantity`, { valueAsNumber: true })} className="h-8 text-sm" />
-                    <Input type="number" step="0.01" min="0" {...form.register(`lines.${idx}.unitPrice`, { valueAsNumber: true })} className="h-8 text-sm" />
+                  <div className="grid grid-cols-2 sm:grid-cols-[2fr_0.8fr_1fr_0.8fr_1.5fr_auto] gap-2 items-center">
+                    <Input {...form.register(`lines.${idx}.description`)} className="h-8 text-sm col-span-2 sm:col-span-1" placeholder="Ürün / hizmet" />
+                    <Input type="number" step="0.01" min="0" {...form.register(`lines.${idx}.quantity`, { valueAsNumber: true })} className="h-8 text-sm" placeholder="Miktar" />
+                    <Input type="number" step="0.01" min="0" {...form.register(`lines.${idx}.unitPrice`, { valueAsNumber: true })} className="h-8 text-sm" placeholder="Birim fiyat" />
                     <Select
                       defaultValue={String(parsedLines[idx]?.vatRate ?? 20)}
                       onValueChange={v => form.setValue(`lines.${idx}.vatRate`, Number(v))}

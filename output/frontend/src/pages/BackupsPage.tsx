@@ -186,7 +186,7 @@ function InfraUsageSection() {
 
           {(data.rows?.length ?? 0) > 0 && (
             <div className="rounded-lg border border-border overflow-x-auto">
-              <table className="w-full text-sm min-w-[760px]">
+              <table className="table-stack w-full text-sm md:min-w-[760px]">
                 <thead>
                   <tr className="bg-muted/40 border-b border-border">
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Ortam</th>
@@ -207,13 +207,13 @@ function InfraUsageSection() {
                         idx === (data.rows?.length ?? 0) - 1 ? 'border-b-0' : ''
                       }`}
                     >
-                      <td className="px-4 py-3 text-muted-foreground">{r.environment}</td>
-                      <td className="px-4 py-3 font-medium text-foreground">{r.service}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.avgVCpu.toFixed(3)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.avgRamGb.toFixed(2)} GB</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.avgDiskGb.toFixed(2)} GB</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.egressGb.toFixed(2)} GB</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-medium text-foreground">
+                      <td data-label="Ortam" className="px-4 py-3 text-muted-foreground">{r.environment}</td>
+                      <td data-label="Servis" data-stack="primary" className="px-4 py-3 font-medium text-foreground">{r.service}</td>
+                      <td data-label="vCPU ort." className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.avgVCpu.toFixed(3)}</td>
+                      <td data-label="RAM ort." className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.avgRamGb.toFixed(2)} GB</td>
+                      <td data-label="Disk ort." className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.avgDiskGb.toFixed(2)} GB</td>
+                      <td data-label="Egress" className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.egressGb.toFixed(2)} GB</td>
+                      <td data-label="Tahmini $" className="px-4 py-3 text-right tabular-nums font-medium text-foreground">
                         {formatUsd(r.estimatedCostUsd)}
                         <span className="block text-[10px] text-muted-foreground font-normal">
                           ay ~{formatUsd(r.estimatedMonthlyUsd)}
@@ -352,7 +352,7 @@ export function BackupsPage() {
 
       {!isLoading && runs.length > 0 && (
         <div className="rounded-lg border border-border overflow-x-auto">
-          <table className="w-full text-sm min-w-[900px]">
+          <table className="table-stack w-full text-sm md:min-w-[900px]">
             <thead>
               <tr className="bg-muted/40 border-b border-border">
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Başlangıç</th>
@@ -373,9 +373,9 @@ export function BackupsPage() {
                     idx === runs.length - 1 ? 'border-b-0' : ''
                   } ${r.status === 'Failed' ? 'bg-red-500/5' : ''}`}
                 >
-                  <td className="px-4 py-3 whitespace-nowrap">{formatUtc(r.startedAt)}</td>
-                  <td className="px-4 py-3">{KIND_TR[r.kind] ?? r.kind}</td>
-                  <td className="px-4 py-3">
+                  <td data-label="Başlangıç" data-stack="primary" className="px-4 py-3 whitespace-nowrap">{formatUtc(r.startedAt)}</td>
+                  <td data-label="Tür" className="px-4 py-3">{KIND_TR[r.kind] ?? r.kind}</td>
+                  <td data-label="Durum" className="px-4 py-3">
                     <StatusBadge status={r.status} />
                     {r.message && (
                       <div className="text-xs text-muted-foreground mt-1 max-w-[280px] truncate" title={r.message}>
@@ -383,15 +383,15 @@ export function BackupsPage() {
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3"><VerifyBadge run={r} /></td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                  <td data-label="Doğrulama" className="px-4 py-3"><VerifyBadge run={r} /></td>
+                  <td data-label="Yedek adı" className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {r.backupName ?? '—'}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                  <td data-label="Süre" className="px-4 py-3 text-right tabular-nums text-muted-foreground">
                     {formatDuration(r.durationSeconds)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">{formatBytes(r.sizeBytes)}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td data-label="Boyut" className="px-4 py-3 text-right tabular-nums">{formatBytes(r.sizeBytes)}</td>
+                  <td data-label="Log" className="px-4 py-3 text-right">
                     {r.runUrl ? (
                       <a
                         href={r.runUrl}

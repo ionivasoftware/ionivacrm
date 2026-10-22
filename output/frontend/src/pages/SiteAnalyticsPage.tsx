@@ -355,18 +355,18 @@ export function SiteAnalyticsPage() {
                 <p className="text-xs text-muted-foreground">Olay yok</p>
               ) : (
                 <div className="max-h-80 overflow-y-auto rounded border border-border/50">
-                  <table className="w-full text-xs">
+                  <table className="table-stack w-full text-xs">
                     <tbody>
                       {events.map((e, i) => (
                         <tr key={`${e.occurredAt}-${i}`} className="border-b border-border/40 last:border-b-0">
-                          <td className="px-2 py-1 whitespace-nowrap text-muted-foreground">{new Date(e.occurredAt).toLocaleTimeString('tr-TR')}</td>
-                          <td className="px-2 py-1"><span className="rounded-full border border-border px-1.5 py-0.5">{EVENT_TR[e.type] ?? e.type}</span></td>
-                          <td className="px-2 py-1 font-mono truncate max-w-[200px]" title={e.path}>{e.path}</td>
-                          <td className="px-2 py-1 text-muted-foreground">{e.country ?? '—'} · {DEVICE_TR[e.device ?? ''] ?? e.device ?? '—'}</td>
-                          <td className="px-2 py-1 text-muted-foreground truncate max-w-[180px]" title={e.label ?? ''}>
+                          <td data-label="" className="px-2 py-1 whitespace-nowrap text-muted-foreground">{new Date(e.occurredAt).toLocaleTimeString('tr-TR')}</td>
+                          <td data-label="" className="px-2 py-1"><span className="rounded-full border border-border px-1.5 py-0.5">{EVENT_TR[e.type] ?? e.type}</span></td>
+                          <td data-label="" className="px-2 py-1 font-mono truncate max-w-[200px]" title={e.path}>{e.path}</td>
+                          <td data-label="" className="px-2 py-1 text-muted-foreground">{e.country ?? '—'} · {DEVICE_TR[e.device ?? ''] ?? e.device ?? '—'}</td>
+                          <td data-label="" className="px-2 py-1 text-muted-foreground truncate max-w-[180px]" title={e.label ?? ''}>
                             {e.label ?? ''}{e.value != null ? ` ${String(e.value)}` : ''}
                           </td>
-                          <td className="px-2 py-1 text-muted-foreground truncate max-w-[140px]">{e.referrer ?? ''}</td>
+                          <td data-label="" className="px-2 py-1 text-muted-foreground truncate max-w-[140px]">{e.referrer ?? ''}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -196,7 +196,7 @@ export function PipelinePage() {
                   type="date"
                   value={filterFrom}
                   onChange={e => setFilterFrom(e.target.value)}
-                  className="h-9 w-40 text-sm"
+                  className="h-9 w-full sm:w-40 text-sm"
                 />
               </div>
               <div className="space-y-1.5">
@@ -205,7 +205,7 @@ export function PipelinePage() {
                   type="date"
                   value={filterTo}
                   onChange={e => setFilterTo(e.target.value)}
-                  className="h-9 w-40 text-sm"
+                  className="h-9 w-full sm:w-40 text-sm"
                 />
               </div>
               {hasCustomFilter && (

@@ -121,7 +121,7 @@ function PlanDialog({ plan, onClose }: { plan: PricingPlan; onClose: () => void 
             <Label>Açıklama</Label>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} className="h-10" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Aylık Fiyat (net ₺) *</Label>
               <Input type="number" min={0} step="0.01" value={priceMonthly} onChange={(e) => setPriceMonthly(e.target.value)} className="h-10" />

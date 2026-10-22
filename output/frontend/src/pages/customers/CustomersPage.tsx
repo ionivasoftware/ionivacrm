@@ -240,7 +240,7 @@ export function CustomersPage() {
               )}
             </div>
             <Select value={sortBy} onValueChange={(v) => patchParams({ sort: v })}>
-              <SelectTrigger className="h-11 w-[180px]">
+              <SelectTrigger className="h-11 w-full sm:w-[180px]">
                 <SelectValue placeholder="Sırala" />
               </SelectTrigger>
               <SelectContent>

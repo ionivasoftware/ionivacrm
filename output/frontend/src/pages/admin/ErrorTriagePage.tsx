@@ -370,7 +370,7 @@ export function ErrorTriagePage() {
               type="date"
               value={fromDate}
               onChange={(e) => changeFromDate(e.target.value)}
-              className="h-8 w-40 text-sm"
+              className="h-8 w-full sm:w-40 text-sm"
             />
             {fromDate && (
               <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => changeFromDate('')}>

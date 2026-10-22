@@ -291,7 +291,7 @@ export function CompleteAppointmentDialog({ appointment, onClose }: { appointmen
         <div className="space-y-4">
           {/* Ulaşıldı mı */}
           {isCall && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button type="button" onClick={() => setReached(true)}
                 className={cn('flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium', reached ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' : 'border-border text-muted-foreground')}>
                 <Check className="h-4 w-4" /> Görüşüldü

@@ -178,9 +178,9 @@ export function SupportChatLogsPage() {
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-muted-foreground whitespace-nowrap">Tarih:</span>
-          <Input type="date" value={startDate} onChange={(e) => changeStart(e.target.value)} className="h-9 w-40 text-sm" />
+          <Input type="date" value={startDate} onChange={(e) => changeStart(e.target.value)} className="h-9 w-full sm:w-40 text-sm" />
           <span className="text-xs text-muted-foreground">–</span>
-          <Input type="date" value={endDate} onChange={(e) => changeEnd(e.target.value)} className="h-9 w-40 text-sm" />
+          <Input type="date" value={endDate} onChange={(e) => changeEnd(e.target.value)} className="h-9 w-full sm:w-40 text-sm" />
         </div>
         {hasFilters && (
           <Button variant="ghost" size="sm" className="h-9" onClick={clearFilters}>

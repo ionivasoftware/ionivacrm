@@ -151,7 +151,7 @@ export function ReportsPage() {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="h-10 w-44"
+                className="h-10 w-full sm:w-44"
               />
             </div>
             <div className="space-y-1.5">
@@ -160,7 +160,7 @@ export function ReportsPage() {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="h-10 w-44"
+                className="h-10 w-full sm:w-44"
               />
             </div>
             <Button onClick={handleApply} className="gap-2 h-10">

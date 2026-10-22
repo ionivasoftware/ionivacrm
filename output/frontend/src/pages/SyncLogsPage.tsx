@@ -162,7 +162,7 @@ export function SyncLogsPage() {
           </div>
 
           <Select value={source || 'all'} onValueChange={v => { setSource(v === 'all' ? '' : v); setPage(1); }}>
-            <SelectTrigger className="w-40 h-8 text-sm">
+            <SelectTrigger className="w-full sm:w-40 h-8 text-sm">
               <SelectValue placeholder="Kaynak" />
             </SelectTrigger>
             <SelectContent>
@@ -174,7 +174,7 @@ export function SyncLogsPage() {
           </Select>
 
           <Select value={status || 'all'} onValueChange={v => { setStatus(v === 'all' ? '' : v); setPage(1); }}>
-            <SelectTrigger className="w-40 h-8 text-sm">
+            <SelectTrigger className="w-full sm:w-40 h-8 text-sm">
               <SelectValue placeholder="Durum" />
             </SelectTrigger>
             <SelectContent>
@@ -192,7 +192,7 @@ export function SyncLogsPage() {
       <Card className="border-border/50">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="table-stack w-full text-sm">
               <thead>
                 <tr className="border-b border-border/50 bg-muted/30">
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Zaman</th>
@@ -223,30 +223,30 @@ export function SyncLogsPage() {
                     )
                   : items.map(log => (
                       <tr key={log.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
-                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                        <td data-label="Zaman" className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                           {formatDate(log.createdAt)}
                         </td>
-                        <td className="px-4 py-3">
+                        <td data-label="Kaynak" className="px-4 py-3">
                           <Badge variant="outline" className="text-xs">
                             {SOURCE_LABELS[log.source] ?? log.source}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3 text-xs">
+                        <td data-label="Veri Tipi" className="px-4 py-3 text-xs">
                           {ENTITY_LABELS[log.entityType] ?? log.entityType}
                         </td>
-                        <td className="px-4 py-3">
+                        <td data-label="Durum" className="px-4 py-3">
                           <StatusBadge status={log.status} />
                         </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                        <td data-label="Tamamlandı" className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                           {formatDate(log.syncedAt)}
                         </td>
-                        <td className="px-4 py-3 text-xs text-center">
+                        <td data-label="Deneme" className="px-4 py-3 text-xs text-center">
                           {log.retryCount > 0
                             ? <span className="text-orange-400 font-medium">{log.retryCount}</span>
                             : <span className="text-muted-foreground">0</span>
                           }
                         </td>
-                        <td className="px-4 py-3 text-xs text-red-400 max-w-xs truncate" title={log.errorMessage ?? ''}>
+                        <td data-label="Hata" className="px-4 py-3 text-xs text-red-400 max-w-xs truncate" title={log.errorMessage ?? ''}>
                           {log.errorMessage ?? '—'}
                         </td>
                       </tr>

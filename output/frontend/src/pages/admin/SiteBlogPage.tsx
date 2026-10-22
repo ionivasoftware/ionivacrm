@@ -438,13 +438,13 @@ function TopicQueuePanel() {
         ))}
       </div>
       {isLoading ? <div className="text-muted-foreground">Yükleniyor…</div> : items.length === 0 ? <div className="text-muted-foreground">Kayıt yok.</div> : (
-        <table className="w-full text-xs">
+        <table className="table-stack w-full text-xs">
           <thead><tr className="text-left text-muted-foreground border-b border-border"><th className="py-1 pr-2">Konu</th><th className="py-1 pr-2">Grup</th><th className="py-1 pr-2">Not</th><th className="py-1 pr-2">Tarih</th><th className="py-1"></th></tr></thead>
           <tbody>{items.map(t => (
             <tr key={t.id} className="border-b border-border/40 last:border-0 align-top">
-              <td className="py-1 pr-2">{t.topic}</td><td className="py-1 pr-2 font-mono">{t.group ?? '—'}</td><td className="py-1 pr-2 text-muted-foreground">{t.note ?? ''}</td>
-              <td className="py-1 pr-2 whitespace-nowrap text-muted-foreground">{fmtDay(t.createdAt)}</td>
-              <td className="py-1 text-right">{t.status === 'Open' && <button type="button" disabled={drop.isPending} onClick={() => onDrop(t.id)} className="text-muted-foreground hover:text-red-400" title="Kuyruktan çıkar"><Trash2 className="h-3.5 w-3.5" /></button>}</td>
+              <td data-label="Konu" data-stack="primary" className="py-1 pr-2">{t.topic}</td><td data-label="Grup" className="py-1 pr-2 font-mono">{t.group ?? '—'}</td><td data-label="Not" className="py-1 pr-2 text-muted-foreground">{t.note ?? ''}</td>
+              <td data-label="Tarih" className="py-1 pr-2 whitespace-nowrap text-muted-foreground">{fmtDay(t.createdAt)}</td>
+              <td data-stack="actions" data-label="" className="py-1 text-right">{t.status === 'Open' && <button type="button" disabled={drop.isPending} onClick={() => onDrop(t.id)} className="text-muted-foreground hover:text-red-400" title="Kuyruktan çıkar"><Trash2 className="h-3.5 w-3.5" /></button>}</td>
             </tr>
           ))}</tbody>
         </table>
@@ -511,17 +511,17 @@ export function SiteBlogPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="table-stack w-full text-sm">
                 <thead><tr className="text-left text-xs text-muted-foreground border-b border-border">
                   <th className="px-3 py-2.5 font-medium">Oluşturma</th><th className="px-3 py-2.5 font-medium">Konu</th><th className="px-3 py-2.5 font-medium">Kaynak</th><th className="px-3 py-2.5 font-medium">Yerel ayarlar</th><th className="px-3 py-2.5 font-medium">Durum</th>
                 </tr></thead>
                 <tbody>{items.map(p => (
                   <tr key={p.id} onClick={() => setSelectedId(p.id)} className="border-b border-border/50 last:border-0 hover:bg-accent/40 cursor-pointer align-top">
-                    <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmtDay(p.createdAt)}</td>
-                    <td className="px-3 py-2.5 max-w-[420px]"><div className="font-medium">{p.topic}</div><div className="text-[11px] text-muted-foreground font-mono truncate">{p.group}{(p.variants ?? []).length ? ` · ${p.variants![0].words} kelime` : ''}</div></td>
-                    <td className="px-3 py-2.5 text-xs"><span className="inline-flex items-center rounded border border-border px-1.5 py-0 text-[11px]">{SOURCE_LABEL[p.source] ?? p.source}</span></td>
-                    <td className="px-3 py-2.5"><LocaleBadges post={p} locales={locales} /></td>
-                    <td className="px-3 py-2.5"><StatusPill status={p.overallStatus} /></td>
+                    <td data-label="Oluşturma" className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmtDay(p.createdAt)}</td>
+                    <td data-stack="primary" data-label="Konu" className="px-3 py-2.5 md:max-w-[420px]"><div className="font-medium">{p.topic}</div><div className="text-[11px] text-muted-foreground font-mono truncate">{p.group}{(p.variants ?? []).length ? ` · ${p.variants![0].words} kelime` : ''}</div></td>
+                    <td data-label="Kaynak" className="px-3 py-2.5 text-xs"><span className="inline-flex items-center rounded border border-border px-1.5 py-0 text-[11px]">{SOURCE_LABEL[p.source] ?? p.source}</span></td>
+                    <td data-label="Yerel ayarlar" className="px-3 py-2.5"><LocaleBadges post={p} locales={locales} /></td>
+                    <td data-label="Durum" className="px-3 py-2.5"><StatusPill status={p.overallStatus} /></td>
                   </tr>
                 ))}</tbody>
               </table>

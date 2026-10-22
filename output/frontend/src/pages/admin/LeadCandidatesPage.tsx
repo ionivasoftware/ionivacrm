@@ -184,7 +184,7 @@ function CandidateDialog({ candidate, projects, defaultProjectId, onClose }: { c
           <div className="flex gap-2">
             {pending && (
               <div className="flex items-center gap-2">
-                <Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Ret sebebi (opsiyonel)" className="h-9 w-56" maxLength={500} />
+                <Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Ret sebebi (opsiyonel)" className="h-9 w-full sm:w-56" maxLength={500} />
                 <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onReject}><X className="h-4 w-4" /> Reddet</Button>
               </div>
             )}
@@ -252,14 +252,14 @@ export function LeadCandidatesPage() {
         <Card><CardContent className="p-3">
           <div className="text-xs font-semibold text-foreground mb-2 inline-flex items-center gap-1.5"><Bot className="h-3.5 w-3.5" /> Son koşular</div>
           {runs.length === 0 ? <div className="text-xs text-muted-foreground">Henüz koşu yok. GitHub → Actions → Lead Discovery Agent → Run workflow.</div> : (
-            <table className="w-full text-xs">
+            <table className="table-stack w-full text-xs">
               <thead><tr className="text-left text-muted-foreground border-b border-border"><th className="py-1 pr-2">Koşu</th><th className="py-1 pr-2">İller</th><th className="py-1 pr-2 text-right">Bulunan</th><th className="py-1 pr-2 text-right">Yeni</th><th className="py-1 pr-2 text-right">Mükerrer</th><th className="py-1 pr-2 text-right">Önceden</th><th className="py-1 text-right">Geçersiz</th></tr></thead>
               <tbody>{runs.map(r => (
                 <tr key={r.runId} className="border-b border-border/40 last:border-0">
-                  <td className="py-1 pr-2 whitespace-nowrap">{fmt(r.startedAt)}{!r.finishedAt && <span className="ml-1 text-amber-400">(sürüyor)</span>}</td>
-                  <td className="py-1 pr-2">{r.cities}</td>
-                  <td className="py-1 pr-2 text-right tabular-nums">{r.found}</td><td className="py-1 pr-2 text-right tabular-nums text-emerald-400">{r.created}</td>
-                  <td className="py-1 pr-2 text-right tabular-nums">{r.duplicates}</td><td className="py-1 pr-2 text-right tabular-nums">{r.existing}</td><td className="py-1 text-right tabular-nums">{r.invalid}</td>
+                  <td data-label="Koşu" data-stack="primary" className="py-1 pr-2 whitespace-nowrap">{fmt(r.startedAt)}{!r.finishedAt && <span className="ml-1 text-amber-400">(sürüyor)</span>}</td>
+                  <td data-label="İller" className="py-1 pr-2">{r.cities}</td>
+                  <td data-label="Bulunan" className="py-1 pr-2 text-right tabular-nums">{r.found}</td><td data-label="Yeni" className="py-1 pr-2 text-right tabular-nums text-emerald-400">{r.created}</td>
+                  <td data-label="Mükerrer" className="py-1 pr-2 text-right tabular-nums">{r.duplicates}</td><td data-label="Önceden" className="py-1 pr-2 text-right tabular-nums">{r.existing}</td><td data-label="Geçersiz" className="py-1 text-right tabular-nums">{r.invalid}</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -274,9 +274,9 @@ export function LeadCandidatesPage() {
             {t.label}{meta && <span className={cn('rounded-full px-1.5 text-[11px]', status === t.value ? 'bg-primary-foreground/20' : 'bg-muted')}>{meta.counts[t.key]}</span>}
           </button>
         ))}
-        <div className="relative ml-auto">
+        <div className="relative w-full sm:w-auto sm:ml-auto">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Firma / il / telefon" className="pl-8 h-9 w-64" />
+          <Input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Firma / il / telefon" className="pl-8 h-9 w-full sm:w-64" />
         </div>
         {status === 'Pending' && checked.size > 0 && (
           <Button variant="outline" size="sm" disabled={rejectMany.isPending} onClick={onRejectChecked}><X className="h-4 w-4" /> Seçili {checked.size} adayı reddet</Button>
@@ -295,21 +295,21 @@ export function LeadCandidatesPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="table-stack w-full text-sm">
                 <thead><tr className="text-left text-xs text-muted-foreground border-b border-border">
                   {status === 'Pending' && <th className="px-3 py-2.5"><input type="checkbox" checked={allChecked} onChange={toggleAll} /></th>}
                   <th className="px-3 py-2.5 font-medium">Firma</th><th className="px-3 py-2.5 font-medium">İletişim</th><th className="px-3 py-2.5 font-medium">İl / ilçe</th><th className="px-3 py-2.5 font-medium">Kaynak</th><th className="px-3 py-2.5 font-medium">Güven</th><th className="px-3 py-2.5 font-medium">Not</th><th className="px-3 py-2.5 font-medium">Bulundu</th>
                 </tr></thead>
                 <tbody>{items.map(c => (
                   <tr key={c.id} onClick={() => setSelected(c)} className="border-b border-border/50 last:border-0 hover:bg-accent/40 cursor-pointer align-top">
-                    {status === 'Pending' && <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}><input type="checkbox" checked={checked.has(c.id)} onChange={() => toggle(c.id)} /></td>}
-                    <td className="px-3 py-2.5 max-w-[280px]"><div className="font-medium truncate" title={c.companyName}>{c.companyName}</div>{c.legalTitle && <div className="text-[11px] text-muted-foreground truncate">{c.legalTitle}</div>}</td>
-                    <td className="px-3 py-2.5 text-xs text-muted-foreground space-y-0.5">{c.phone && <div className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> {c.phone}</div>}{c.website && <div className="inline-flex items-center gap-1 truncate max-w-[220px]"><Globe className="h-3 w-3" /> {c.website.replace(/^https?:\/\/(www\.)?/, '')}</div>}</td>
-                    <td className="px-3 py-2.5 text-xs">{[c.district, c.city ?? c.searchCity].filter(Boolean).join(' / ')}</td>
-                    <td className="px-3 py-2.5 text-xs">{c.sourceUrl ? <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 text-primary hover:underline"><ExternalLink className="h-3 w-3" /> {c.source}</a> : c.source}</td>
-                    <td className="px-3 py-2.5"><ConfidenceBar value={c.confidence} /></td>
-                    <td className="px-3 py-2.5 text-xs max-w-[260px]">{c.matchNotes ? <span className={cn('inline-flex items-start gap-1', c.status === 'Duplicate' ? 'text-slate-300' : 'text-amber-300')} title={c.matchNotes}><AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" /><span className="truncate">{c.matchNotes}</span></span> : c.rejectReason ? <span className="text-muted-foreground truncate">{c.rejectReason}</span> : null}</td>
-                    <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{new Date(c.createdAt).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}</td>
+                    {status === 'Pending' && <td data-stack="check" data-label="" className="px-3 py-2.5" onClick={e => e.stopPropagation()}><input type="checkbox" checked={checked.has(c.id)} onChange={() => toggle(c.id)} /></td>}
+                    <td data-stack="primary" data-label="Firma" className="px-3 py-2.5 md:max-w-[280px]"><div className="font-medium truncate" title={c.companyName}>{c.companyName}</div>{c.legalTitle && <div className="text-[11px] text-muted-foreground truncate">{c.legalTitle}</div>}</td>
+                    <td data-label="İletişim" className="px-3 py-2.5 text-xs text-muted-foreground space-y-0.5">{c.phone && <div className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> {c.phone}</div>}{c.website && <div className="inline-flex items-center gap-1 truncate max-w-[220px]"><Globe className="h-3 w-3" /> {c.website.replace(/^https?:\/\/(www\.)?/, '')}</div>}</td>
+                    <td data-label="İl / ilçe" className="px-3 py-2.5 text-xs">{[c.district, c.city ?? c.searchCity].filter(Boolean).join(' / ')}</td>
+                    <td data-label="Kaynak" className="px-3 py-2.5 text-xs">{c.sourceUrl ? <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 text-primary hover:underline"><ExternalLink className="h-3 w-3" /> {c.source}</a> : c.source}</td>
+                    <td data-label="Güven" className="px-3 py-2.5"><ConfidenceBar value={c.confidence} /></td>
+                    <td data-label="Not" className="px-3 py-2.5 text-xs md:max-w-[260px]">{c.matchNotes ? <span className={cn('inline-flex items-start gap-1', c.status === 'Duplicate' ? 'text-slate-300' : 'text-amber-300')} title={c.matchNotes}><AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" /><span className="truncate">{c.matchNotes}</span></span> : c.rejectReason ? <span className="text-muted-foreground truncate">{c.rejectReason}</span> : null}</td>
+                    <td data-label="Bulundu" className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{new Date(c.createdAt).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}</td>
                   </tr>
                 ))}</tbody>
               </table>
