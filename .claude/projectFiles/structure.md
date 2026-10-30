@@ -96,6 +96,7 @@ output/
 - `SocialPostImages` → sosyal medya özel görselleri (bytea, PostId indeksli; tenant kapsamı yok; satır hard-delete)
 - `Users` + `MailAddress, MailPasswordEncrypted, MailSenderName, MailBccSelf` (Gmail gönderimi)
 - `LeadCandidates` (`Fingerprint` tekil; global) · `LeadAgentRuns` (`RunId` tekil)
+- `Customers` + `Country` (ISO2, Liftdesk feed) · `MarketingOptOut` · `CustomerLifecycleMails` (`(CustomerId, Step)` indeks — demo yaşam döngüsü gönderim kaydı)
 - `GlobalLeads` (TR dışı lead'ler; `Fingerprint` ülke-önekli tekil, `UnsubscribeToken` tekil, `(Status, OutreachStatus, NextSendAt)` indeks; global) · `GlobalLeadEmails` (`LeadId`, `(SenderUserId, SentAt)` — günlük limit)
 - `Appointments` (tenant; `(ProjectId, ScheduledAt)` indeks) · `CallPlanRuns` (`(ProjectId, PlanDate)` tekil) · `ContactHistories` + `Purpose, Reached, SatisfactionScore, NextContactAt, AppointmentId`
 - `SocialProfiles` (`(Provider, Language)` tekil, `FieldsJson` jsonb, görsel id'leri, AppliedAt)
@@ -256,6 +257,14 @@ output/
 | Method | Path | Açıklama |
 |---|---|---|
 | GET/POST | `/unsubscribe/{token}` | Abonelikten çık (HTML sayfa; `List-Unsubscribe` başlığı da buraya) |
+| GET/POST | `/unsubscribe/customer/{customerId}/{token}` | Demo yaşam döngüsü e-postaları için müşteri opt-out (HMAC token) |
+
+### Demo E-postaları — `/api/v1/lifecycle-mails` (SuperAdmin)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/status` · `/candidates` | Ayar/SMTP/diller/sayımlar/son döngü · sıradakiler (adım, pencere, atlanma sebebi) |
+| GET | `/?step=&page=&pageSize=` · `/preview?customerId=&step=` | Gönderim geçmişi · şablon render'ı |
+| POST | `/customers/{id}/send` `{step, force?}` · `/run` | Şimdi gönder (aynı adım ikinci kez gitmez) · döngüyü çalıştır |
 
 ### Lead Adayları — `/api/v1/lead-candidates` (SuperAdmin)
 | Method | Path | Açıklama |
