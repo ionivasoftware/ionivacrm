@@ -21,7 +21,9 @@ public record EmsCrmCustomer(
     string? Segment,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    DateTime? ExpirationDate);
+    DateTime? ExpirationDate,
+    /// <summary>ISO 3166-1 alpha-2 signup country (Liftdesk ≥ 2026-10-31); null from older feeds.</summary>
+    string? CountryCode = null);
 
 // ── EMS extend expiration ─────────────────────────────────────────────────────
 

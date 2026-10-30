@@ -36,6 +36,7 @@ const SocialProfilesPage = lazy(() => import('@/pages/admin/SocialProfilesPage')
 const LeadCandidatesPage = lazy(() => import('@/pages/admin/LeadCandidatesPage').then(m => ({ default: m.LeadCandidatesPage })));
 const GlobalLeadsPage   = lazy(() => import('@/pages/admin/GlobalLeadsPage').then(m => ({ default: m.GlobalLeadsPage })));
 const SiteBlogPage      = lazy(() => import('@/pages/admin/SiteBlogPage').then(m => ({ default: m.SiteBlogPage })));
+const LifecycleMailsPage = lazy(() => import('@/pages/admin/LifecycleMailsPage').then(m => ({ default: m.LifecycleMailsPage })));
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 function PageLoader() {
@@ -249,6 +250,14 @@ export default function App() {
                 element={
                   <ProtectedRoute superAdminOnly>
                     <SiteBlogPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/lifecycle-mails"
+                element={
+                  <ProtectedRoute superAdminOnly>
+                    <LifecycleMailsPage />
                   </ProtectedRoute>
                 }
               />

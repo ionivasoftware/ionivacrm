@@ -1,6 +1,9 @@
 using System.Net;
+using IonCrm.Application.Features.Lifecycle;
 using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
+using IonCrm.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,9 +15,33 @@ namespace IonCrm.API.Controllers;
 public sealed class OutreachController : ControllerBase
 {
     private readonly IGlobalLeadRepository _repo;
+    private readonly ApplicationDbContext _db;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<OutreachController> _logger;
 
-    public OutreachController(IGlobalLeadRepository repo, ILogger<OutreachController> logger) { _repo = repo; _logger = logger; }
+    public OutreachController(IGlobalLeadRepository repo, ApplicationDbContext db, IConfiguration configuration, ILogger<OutreachController> logger)
+    {
+        _repo = repo; _db = db; _configuration = configuration; _logger = logger;
+    }
+
+    /// <summary>Demo yaşam döngüsü e-postalarının abonelikten çıkma bağlantısı (müşteri id + HMAC token).</summary>
+    [HttpGet("unsubscribe/customer/{customerId:guid}/{token}")]
+    [HttpPost("unsubscribe/customer/{customerId:guid}/{token}")]
+    public async Task<IActionResult> UnsubscribeCustomer(Guid customerId, string token, CancellationToken cancellationToken = default)
+    {
+        var secret = _configuration["Social:TokenKey"] is { Length: > 0 } k ? k : _configuration["JwtSettings:Secret"] ?? "ion-crm";
+        if (string.IsNullOrWhiteSpace(token) || !DemoLifecyclePlanner.VerifyUnsubscribeToken(customerId, secret, token.Trim()))
+            return Page("Invalid link", "This unsubscribe link is not valid.", 400);
+        var c = await _db.Customers.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == customerId && !x.IsDeleted, cancellationToken);
+        if (c is null) return Page("Invalid link", "This unsubscribe link is not valid.", 404);
+        if (!c.MarketingOptOut)
+        {
+            c.MarketingOptOut = true; c.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Lifecycle unsubscribe: {Company} ({Email})", c.CompanyName, c.Email);
+        }
+        return Page("You're unsubscribed", $"{WebUtility.HtmlEncode(c.Email ?? "This address")} will not receive further onboarding or marketing e-mails. Service notifications from your LiftDesk account are not affected.", 200);
+    }
 
     [HttpGet("unsubscribe/{token}")]
     [HttpPost("unsubscribe/{token}")]

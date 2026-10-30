@@ -78,6 +78,9 @@ public static class DependencyInjection
         services.AddScoped<IOutreachService, OutreachService>();
         services.AddSingleton<IOutreachState, OutreachState>();
         services.AddHostedService<OutreachBackgroundService>();
+        services.AddScoped<IDemoLifecycleService, DemoLifecycleService>();
+        services.AddSingleton<IDemoLifecycleState, DemoLifecycleState>();
+        services.AddHostedService<DemoLifecycleBackgroundService>();
         services.AddScoped<IMarketingMailService, MarketingMailService>();
         services.AddScoped<ICallPlanService, CallPlanService>();
         services.AddHostedService<CallPlanBackgroundService>();

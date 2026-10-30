@@ -122,6 +122,13 @@ public sealed class SaasSyncJob
     /// </list>
     /// Boundary (today == ExpirationDate) is treated as expired (strict inequality: bugün &lt; ExpirationDate).
     /// </summary>
+    /// <summary>ISO2 upper-case or null (feed may send null/garbage for old tenants).</summary>
+    internal static string? NormalizeCountry(string? raw)
+    {
+        var c = raw?.Trim().ToUpperInvariant();
+        return c is { Length: 2 } && c.All(char.IsLetter) ? c : null;
+    }
+
     private static CustomerStatus ComputeStatusFromExpiration(DateTime? expirationDate, DateTime createdOn)
     {
         if (!expirationDate.HasValue)
@@ -338,6 +345,8 @@ public sealed class SaasSyncJob
                 if (existing.ExpirationDate != expDate)       { existing.ExpirationDate = expDate;       changed = true; }
                 if (existing.Status         != newStatus)     { existing.Status         = newStatus;     changed = true; }
                 if (existing.CreatedAt      != createdAt)     { existing.CreatedAt      = createdAt;     changed = true; }
+                var country = NormalizeCountry(src.CountryCode);
+                if (country is not null && existing.Country != country) { existing.Country = country; changed = true; }
                 if (changed)
                 {
                     existing.UpdatedAt = DateTime.UtcNow;
@@ -359,6 +368,7 @@ public sealed class SaasSyncJob
                     Segment        = src.Segment,
                     ExpirationDate = expDate,
                     Status         = newStatus,
+                    Country        = NormalizeCountry(src.CountryCode),
                     CreatedAt      = createdAt,
                     UpdatedAt      = DateTime.UtcNow
                 });

@@ -106,6 +106,9 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<GlobalLeadEmail> GlobalLeadEmails => Set<GlobalLeadEmail>();
 
+    /// <summary>Demo lifecycle e-mails (welcome / check-in / trial ended) per customer and step.</summary>
+    public DbSet<CustomerLifecycleMail> CustomerLifecycleMails => Set<CustomerLifecycleMail>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -213,6 +216,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<LeadAgentRun>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<GlobalLead>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<GlobalLeadEmail>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<CustomerLifecycleMail>().HasQueryFilter(e => !e.IsDeleted);
 
         // CustomerUsageSnapshot: one immutable row per (customer, month). Tenant-scoped like customer data.
         modelBuilder.Entity<CustomerUsageSnapshot>(b =>

@@ -98,6 +98,12 @@ public class Customer : BaseEntity
     /// </summary>
     public bool IsInternal { get; set; }
 
+    /// <summary>ISO 3166-1 alpha-2 signup country from the Liftdesk feed (null for sources that do not send it). Drives the demo lifecycle e-mails' language and time zone.</summary>
+    public string? Country { get; set; }
+
+    /// <summary>Customer clicked the unsubscribe link of a lifecycle e-mail — no further marketing-type mails.</summary>
+    public bool MarketingOptOut { get; set; }
+
     // Navigation properties
     /// <summary>Gets or sets the project (tenant).</summary>
     public Project Project { get; set; } = null!;

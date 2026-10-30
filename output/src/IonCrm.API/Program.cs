@@ -875,6 +875,32 @@ app.Lifetime.ApplicationStarted.Register(() =>
             CREATE INDEX IF NOT EXISTS ""ix_globalleademails_lead"" ON ""GlobalLeadEmails"" (""LeadId"");
             CREATE INDEX IF NOT EXISTS ""ix_globalleademails_sender_sent"" ON ""GlobalLeadEmails"" (""SenderUserId"", ""SentAt"");
         ");
+        // ── Demo yaşam döngüsü e-postaları (TR dışı deneme hesapları) ──
+        await RunSafe("Customers Country/MarketingOptOut columns", @"
+            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""Country""         varchar(2);
+            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""MarketingOptOut"" boolean NOT NULL DEFAULT false;
+            CREATE INDEX IF NOT EXISTS ""ix_customers_country"" ON ""Customers"" (""Country"") WHERE ""Country"" IS NOT NULL;
+        ");
+        await RunSafe("CustomerLifecycleMails table + indexes", @"
+            CREATE TABLE IF NOT EXISTS ""CustomerLifecycleMails"" (
+                ""Id""          uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""CustomerId""  uuid         NOT NULL,
+                ""Step""        integer      NOT NULL,
+                ""Language""    varchar(8)   NOT NULL DEFAULT 'en',
+                ""To""          varchar(200) NOT NULL,
+                ""Subject""     varchar(500) NOT NULL,
+                ""SentAt""      timestamp with time zone NOT NULL DEFAULT now(),
+                ""MessageId""   varchar(300),
+                ""Status""      integer      NOT NULL DEFAULT 1,
+                ""Error""       text,
+                ""TriggeredBy"" varchar(320) NOT NULL DEFAULT 'auto',
+                ""CreatedAt""   timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""   timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""   boolean      NOT NULL DEFAULT false
+            );
+            CREATE INDEX IF NOT EXISTS ""ix_lifecyclemails_customer_step"" ON ""CustomerLifecycleMails"" (""CustomerId"", ""Step"");
+            CREATE INDEX IF NOT EXISTS ""ix_lifecyclemails_sent"" ON ""CustomerLifecycleMails"" (""SentAt"");
+        ");
         await RunSafe("SocialPostImages Kind/Language columns", @"
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Kind"" varchar(16) NOT NULL DEFAULT 'Custom';
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Language"" varchar(8);

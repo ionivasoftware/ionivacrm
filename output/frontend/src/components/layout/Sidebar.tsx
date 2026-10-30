@@ -25,6 +25,7 @@ import {
   Radar,
   Earth,
   Newspaper,
+  MailCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -79,6 +80,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Blog', href: '/admin/site-blog', icon: Newspaper, superAdminOnly: true, badgeKey: 'pendingBlog' },
   { label: 'Lead Adayları', href: '/admin/lead-candidates', icon: Radar, superAdminOnly: true, badgeKey: 'pendingLeads' },
   { label: "Global Lead'ler", href: '/admin/global-leads', icon: Earth, superAdminOnly: true, badgeKey: 'pendingGlobalLeads' },
+  { label: 'Demo E-postaları', href: '/admin/lifecycle-mails', icon: MailCheck, superAdminOnly: true },
 ];
 
 export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: SidebarProps) {
