@@ -140,3 +140,36 @@ public class LifecycleTemplateTests
         foreach (var s in Enum.GetValues<LifecycleStep>()) LifecycleTemplate.FileFor(s).Should().EndWith(".html");
     }
 }
+
+public class LifecycleTemplateFilesTests
+{
+    private static string? Folder()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var i = 0; i < 10 && dir is not null; i++, dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, "docs", "marketing", "lifecycle");
+            if (Directory.Exists(candidate)) return candidate;
+        }
+        return null;
+    }
+
+    [Fact]
+    public void Every_language_folder_has_all_three_steps_and_renders_without_leftover_placeholders()
+    {
+        var folder = Folder();
+        folder.Should().NotBeNull("docs/marketing/lifecycle must exist in the repo");
+        var langs = Directory.GetDirectories(folder!).Select(Path.GetFileName).ToList();
+        langs.Should().Contain(new[] { "en", "de", "fr", "nl", "es", "it", "pt" });
+        var now = new DateTime(2026, 11, 5, 10, 0, 0, DateTimeKind.Utc);
+        foreach (var lang in langs)
+            foreach (var step in Enum.GetValues<LifecycleStep>())
+            {
+                var path = Path.Combine(folder!, lang!, LifecycleTemplate.FileFor(step));
+                File.Exists(path).Should().BeTrue($"{lang}/{LifecycleTemplate.FileFor(step)}");
+                var r = LifecycleTemplate.Render(File.ReadAllText(path), "Apex Lifts", "Jane", now.AddDays(4), lang == "en" ? "GB" : lang.ToUpperInvariant(), "https://portal.liftdesk.app", "support@liftdesk.app", "https://u/x", now);
+                r.Subject.Should().NotBeNullOrWhiteSpace().And.NotContain("{{");
+                r.Html.Should().NotContain("{{").And.NotContain("[Name]").And.NotContain("<!-- 1:").And.Contain("https://u/x").And.Contain("Jane");
+            }
+    }
+}
