@@ -88,8 +88,8 @@ public sealed class GlobalLeadRepository : IGlobalLeadRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public Task<int> CountSentSinceAsync(Guid senderUserId, DateTime sinceUtc, CancellationToken cancellationToken = default) =>
-        Emails.CountAsync(e => e.SenderUserId == senderUserId && e.Status == OutreachEmailStatus.Sent && e.SentAt >= sinceUtc, cancellationToken);
+    public Task<int> CountSentSinceAsync(Guid? senderUserId, DateTime sinceUtc, CancellationToken cancellationToken = default) =>
+        Emails.CountAsync(e => (senderUserId == null || e.SenderUserId == senderUserId) && e.Status == OutreachEmailStatus.Sent && e.SentAt >= sinceUtc, cancellationToken);
 
     public async Task<HashSet<string>> RecentlyScannedRegionsAsync(string country, DateTime sinceUtc, CancellationToken cancellationToken = default)
     {

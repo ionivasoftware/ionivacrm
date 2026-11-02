@@ -7,10 +7,19 @@ public record OutreachRunSummary(DateTime StartedAt, DateTime FinishedAt, int Du
 
 public record InboxCheck(bool Replied, bool Bounced, string? Detail);
 
-/// <summary>Runs the e-mail outreach sequence for approved global leads through the sender user's Gmail.</summary>
+/// <summary>The company mailbox the sequence goes out from; <see cref="InboxCheck"/> = its IMAP side is known, so replies/bounces are detected.</summary>
+public record OutreachSender(string Address, string Source, bool InboxCheck);
+
+/// <summary>
+/// Runs the e-mail outreach sequence for approved global leads. Sender: the shared company mailbox when configured
+/// (<c>Outreach:Smtp:*</c> → <c>EmailCollector:Imap:*</c> → <c>Notifications:Smtp:*</c>), otherwise the approving user's own Gmail.
+/// </summary>
 public interface IOutreachService
 {
     SequenceDefinition GetSequence();
+
+    /// <summary>Shared company mailbox, or null when every approver sends from their own Gmail.</summary>
+    OutreachSender? SharedSender { get; }
 
     /// <summary>Materials folder content for the screen: step templates (with subjects) and attachments.</summary>
     (List<(string Template, int DelayDays, bool Attachments, List<string> Subjects, bool Exists)> Steps, List<string> Attachments, string Folder) GetMaterials();

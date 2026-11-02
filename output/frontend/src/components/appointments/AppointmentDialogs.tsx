@@ -353,9 +353,9 @@ export function CompleteAppointmentDialog({ appointment, onClose }: { appointmen
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={sendIntro} disabled={!mailSettings?.configured} onChange={e => setSendIntro(e.target.checked)} />
-                    Görüşme sonrası tanıtım maili gönder (şablon + katalog + fiyat listesi, kendi Gmail'inden)
-                    {!mailSettings?.configured && <span className="text-[11px] text-amber-400">— Ayarlar'da Gmail bilgisi gerekli</span>}
+                    <input type="checkbox" checked={sendIntro} disabled={!(mailSettings?.configured || mailSettings?.sharedSender)} onChange={e => setSendIntro(e.target.checked)} />
+                    Görüşme sonrası tanıtım maili gönder (şablon + katalog + fiyat listesi{mailSettings?.sharedSender ? ', ortak kutudan senin adınla' : ', kendi Gmail\'inden'})
+                    {!(mailSettings?.configured || mailSettings?.sharedSender) && <span className="text-[11px] text-amber-400">— Ayarlar'da Gmail bilgisi gerekli</span>}
                   </label>
                 </div>
                 <div className="space-y-1.5">

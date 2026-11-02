@@ -62,7 +62,8 @@ export interface GlobalLeadMeta {
     attachments: string[]; folder: string;
   };
   limits: { dailyCapPerSender: number; enabled: boolean; intervalMinutes: number };
-  sender: { ready: boolean; address: string | null; name: string | null };
+  /** shared = ortak firma kutusu (EmailCollector IMAP bilgileri); değilse onaylayanın kendi Gmail'i */
+  sender: { ready: boolean; address: string | null; name: string | null; shared: boolean; source: string | null; inboxCheck: boolean };
   agentKeyConfigured: boolean;
   lastRun: OutreachRunSummary | null;
 }

@@ -13,8 +13,9 @@ using Microsoft.EntityFrameworkCore;
 namespace IonCrm.API.Controllers;
 
 /// <summary>
-/// Global lead queue + outreach (SuperAdmin). Approve → the approving user's Gmail becomes the sender and
-/// the sequence (intro + follow-ups from marketing/global/sequence.json) is scheduled into the send window.
+/// Global lead queue + outreach (SuperAdmin). Approve → the sequence (intro + follow-ups from marketing/global/sequence.json)
+/// is scheduled into the send window; it goes out from the shared company mailbox when one is configured (signed with the
+/// approving user's name), otherwise from the approving user's own Gmail.
 /// Replies/bounces (IMAP) and unsubscribes stop a sequence; pause/resume/stop/send-now are manual controls.
 /// </summary>
 [Route("api/v1/global-leads")]
@@ -57,7 +58,8 @@ public sealed class GlobalLeadsController : ApiControllerBase
         var (steps, attachments, folder) = _outreach.GetMaterials();
         var def = _outreach.GetSequence();
         var me = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == _currentUser.UserId, cancellationToken);
-        var senderReady = me is not null && !string.IsNullOrWhiteSpace(me.MailAddress) && !string.IsNullOrWhiteSpace(me.MailPasswordEncrypted);
+        var shared = _outreach.SharedSender;
+        var senderReady = shared is not null || (me is not null && !string.IsNullOrWhiteSpace(me.MailAddress) && !string.IsNullOrWhiteSpace(me.MailPasswordEncrypted));
         return OkResponse(new
         {
             counts = new
@@ -80,7 +82,11 @@ public sealed class GlobalLeadsController : ApiControllerBase
                 enabled = _configuration.GetValue("Outreach:Enabled", true),
                 intervalMinutes = Math.Clamp(_configuration.GetValue("Outreach:IntervalMinutes", 10), 2, 240),
             },
-            sender = new { ready = senderReady, address = me?.MailAddress, name = me is null ? null : (string.IsNullOrWhiteSpace(me.MailSenderName) ? me.FullName : me.MailSenderName) },
+            sender = new
+            {
+                ready = senderReady, address = shared?.Address ?? me?.MailAddress, name = me is null ? null : (string.IsNullOrWhiteSpace(me.MailSenderName) ? me.FullName : me.MailSenderName),
+                shared = shared is not null, source = shared?.Source, inboxCheck = shared?.InboxCheck ?? senderReady,
+            },
             agentKeyConfigured = !string.IsNullOrWhiteSpace(_configuration["LeadAgent:ApiKey"]),
             lastRun = _state.LastRun,
         });
@@ -169,8 +175,9 @@ public sealed class GlobalLeadsController : ApiControllerBase
         {
             if (!GlobalLeadNormalizer.IsUsableEmail(l.Email)) return "Outreach için geçerli bir e-posta adresi gerekli (önce düzenleyin ya da outreach'siz onaylayın).";
             var me = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == _currentUser.UserId, cancellationToken);
-            if (me is null || string.IsNullOrWhiteSpace(me.MailAddress) || string.IsNullOrWhiteSpace(me.MailPasswordEncrypted))
-                return "Gmail ayarlarınız eksik (Ayarlar → E-posta Gönderimi). Mailler sizin hesabınızdan gider.";
+            if (me is null) return "Oturum kullanıcısı bulunamadı.";
+            if (_outreach.SharedSender is null && (string.IsNullOrWhiteSpace(me.MailAddress) || string.IsNullOrWhiteSpace(me.MailPasswordEncrypted)))
+                return "Gönderici yok: ortak posta kutusu tanımlı değil ve Gmail ayarlarınız eksik (Ayarlar → E-posta Gönderimi).";
             if (l.OutreachStatus == OutreachStatus.Unsubscribed) return "Bu lead abonelikten çıkmış; outreach başlatılamaz.";
             l.SenderUserId = me.Id; l.OutreachStatus = OutreachStatus.Active; l.OutreachStep = 0; l.LastError = null;
             if (string.IsNullOrWhiteSpace(l.UnsubscribeToken)) l.UnsubscribeToken = OutreachSequence.NewUnsubscribeToken();
@@ -231,7 +238,9 @@ public sealed class GlobalLeadsController : ApiControllerBase
         if (l.OutreachStatus == OutreachStatus.Active) return StatusCode(409, ApiResponse<object>.Fail("Dizi zaten aktif.", 409));
         if (!GlobalLeadNormalizer.IsUsableEmail(l.Email)) return BadRequest(ApiResponse<object>.Fail("Geçerli e-posta adresi yok.", 400));
         var me = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == _currentUser.UserId, cancellationToken);
-        if (me is null || string.IsNullOrWhiteSpace(me.MailAddress) || string.IsNullOrWhiteSpace(me.MailPasswordEncrypted)) return BadRequest(ApiResponse<object>.Fail("Gmail ayarlarınız eksik (Ayarlar → E-posta Gönderimi).", 400));
+        if (me is null) return BadRequest(ApiResponse<object>.Fail("Oturum kullanıcısı bulunamadı.", 400));
+        if (_outreach.SharedSender is null && (string.IsNullOrWhiteSpace(me.MailAddress) || string.IsNullOrWhiteSpace(me.MailPasswordEncrypted)))
+            return BadRequest(ApiResponse<object>.Fail("Gönderici yok: ortak posta kutusu tanımlı değil ve Gmail ayarlarınız eksik (Ayarlar → E-posta Gönderimi).", 400));
         l.SenderUserId = me.Id; l.OutreachStatus = OutreachStatus.Active; l.LastError = null;
         if (body?.Restart == true) { l.OutreachStep = 0; l.ThreadMessageId = null; }
         l.NextSendAt = OutreachSequence.NextSendTime(DateTime.UtcNow, _outreach.GetSequence());

@@ -2,15 +2,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { ApiResponse } from '@/types';
 
-// ── Kullanıcının Gmail'i ile tanıtım maili ────────────────────────────────────
+// ── Tanıtım maili: ortak firma kutusu (EmailCollector IMAP bilgileri) tanımlıysa oradan, yoksa kullanıcının Gmail'i ──
 
-export interface MailSettings { address: string | null; senderName: string | null; bccSelf: boolean; hasPassword: boolean; configured: boolean }
+export interface MailSettings {
+  address: string | null; senderName: string | null; bccSelf: boolean; hasPassword: boolean;
+  /** Kişisel Gmail ayarı tam mı */
+  configured: boolean;
+  /** Ortak firma kutusu adresi (sunucu env) — doluysa tanıtım mailleri buradan, gönderen adı kullanıcı, Reply-To kullanıcının adresi */
+  sharedSender: string | null;
+}
 
 export interface MarketingTemplate { key: string; fileName: string; subjects: string[]; language: string | null }
 export interface MarketingAttachment { fileName: string; sizeBytes: number }
 export interface MarketingMaterials { templates: MarketingTemplate[]; attachments: MarketingAttachment[] }
 
-export interface MailSendResult { success: boolean; message: string; to: string | null; subject: string | null; attachments: string[] | null }
+export interface MailSendResult { success: boolean; message: string; to: string | null; subject: string | null; attachments: string[] | null; from: string | null }
 
 const KEY = ['marketing'] as const;
 

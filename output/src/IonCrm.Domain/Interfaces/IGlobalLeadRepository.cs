@@ -35,8 +35,8 @@ public interface IGlobalLeadRepository
 
     Task AddEmailAsync(GlobalLeadEmail email, CancellationToken cancellationToken = default);
 
-    /// <summary>Successfully sent e-mails by this sender since <paramref name="sinceUtc"/> (daily cap).</summary>
-    Task<int> CountSentSinceAsync(Guid senderUserId, DateTime sinceUtc, CancellationToken cancellationToken = default);
+    /// <summary>Successfully sent e-mails since <paramref name="sinceUtc"/> (daily cap) — by this sender, or by everyone when <paramref name="senderUserId"/> is null (shared mailbox).</summary>
+    Task<int> CountSentSinceAsync(Guid? senderUserId, DateTime sinceUtc, CancellationToken cancellationToken = default);
 
     /// <summary>Regions scanned (per country) by agent runs started after <paramref name="sinceUtc"/>.</summary>
     Task<HashSet<string>> RecentlyScannedRegionsAsync(string country, DateTime sinceUtc, CancellationToken cancellationToken = default);

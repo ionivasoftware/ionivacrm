@@ -1,5 +1,6 @@
 using IonCrm.Application.Common.Helpers;
 using IonCrm.Application.Common.Interfaces;
+using IonCrm.Application.Common.Mail;
 using IonCrm.Application.Features.Marketing;
 using IonCrm.Application.Features.Outreach;
 using IonCrm.Domain.Entities;
@@ -19,11 +20,13 @@ using MimeKit.Utils;
 namespace IonCrm.Infrastructure.Services;
 
 /// <summary>
-/// Global outreach: intro + timed follow-ups to approved non-TR leads, sent from the approving user's
-/// Gmail (so replies land in that inbox), follow-ups threaded under the intro. Materials live in
-/// <c>marketing/global</c> (sequence.json + templates + optional PDFs). Before every follow-up the
-/// sender's inbox is checked over IMAP for a reply or a bounce; either stops the sequence. Daily cap per
-/// sender and a weekday send window keep the Gmail account out of spam trouble.
+/// Global outreach: intro + timed follow-ups to approved non-TR leads, follow-ups threaded under the intro.
+/// Sender: the shared company mailbox when configured (<see cref="SmtpAccountResolver"/>, prefix <c>Outreach:Smtp</c>;
+/// in practice the support mailbox from <c>EmailCollector:Imap:*</c>) — the mail carries the approving user's name,
+/// replies go to that mailbox and its IMAP side is checked before every follow-up for a reply or a bounce. Without a
+/// shared mailbox the approving user's own Gmail is used as before. Materials live in <c>marketing/global</c>
+/// (sequence.json + templates + optional PDFs). Daily cap (per mailbox when shared, else per sender) and a weekday
+/// send window keep the account out of spam trouble.
 /// Config: Outreach:DailyCapPerSender (40) · Outreach:MinGapSeconds (60) · Outreach:MaxPerCycle (25) · Outreach:Enabled.
 /// </summary>
 public sealed class OutreachService : IOutreachService
@@ -42,6 +45,16 @@ public sealed class OutreachService : IOutreachService
     {
         _db = db; _leads = leads; _protector = protector; _configuration = configuration; _state = state; _logger = logger;
     }
+
+    // ── Sender ───────────────────────────────────────────────────────────────
+
+    private SmtpAccount? Shared => SmtpAccountResolver.Resolve(k => _configuration[k], "Outreach:Smtp");
+
+    public OutreachSender? SharedSender => Shared is { } s ? new OutreachSender(s.From, s.Source, s.HasImap) : null;
+
+    private static bool HasPersonalMailbox(User user) => !string.IsNullOrWhiteSpace(user.MailAddress) && !string.IsNullOrWhiteSpace(user.MailPasswordEncrypted);
+
+    private static string SenderName(User user) => string.IsNullOrWhiteSpace(user.MailSenderName) ? user.FullName : user.MailSenderName.Trim();
 
     // ── Materials ────────────────────────────────────────────────────────────
 
@@ -95,15 +108,18 @@ public sealed class OutreachService : IOutreachService
         if (lead.SenderUserId is null) return await FailAsync(lead, "Gönderici kullanıcı atanmamış.");
 
         var user = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == lead.SenderUserId && !u.IsDeleted, cancellationToken);
-        if (user is null || string.IsNullOrWhiteSpace(user.MailAddress) || string.IsNullOrWhiteSpace(user.MailPasswordEncrypted))
-            return await FailAsync(lead, "Gönderici kullanıcının Gmail ayarı eksik (Ayarlar → E-posta Gönderimi).");
+        if (user is null) return await FailAsync(lead, "Gönderici kullanıcı bulunamadı.");
+        var shared = Shared;
+        if (shared is null && !HasPersonalMailbox(user))
+            return await FailAsync(lead, "Gönderici yok: ortak posta kutusu tanımlı değil (EmailCollector__Imap__* ya da Outreach__Smtp__*) ve kullanıcının Gmail ayarı eksik (Ayarlar → E-posta Gönderimi).");
+        var fromAddress = shared?.From ?? user.MailAddress!;
 
         var stepDef = def.Steps[step];
         var path = Path.Combine(Folder, stepDef.Template);
         if (!File.Exists(path)) return await FailAsync(lead, $"Şablon bulunamadı: {stepDef.Template}");
         var html = await File.ReadAllTextAsync(path, cancellationToken);
-        var senderName = string.IsNullOrWhiteSpace(user.MailSenderName) ? $"{user.FirstName} {user.LastName}".Trim() : user.MailSenderName.Trim();
-        var rendered = IntroMailTemplate.Render(html, 0, lead.CompanyName, lead.ContactName, senderName, user.MailAddress, null);
+        var senderName = SenderName(user);
+        var rendered = IntroMailTemplate.Render(html, 0, lead.CompanyName, lead.ContactName, senderName, fromAddress, null);
 
         if (string.IsNullOrWhiteSpace(lead.UnsubscribeToken)) lead.UnsubscribeToken = OutreachSequence.NewUnsubscribeToken();
         var baseUrl = SocialPostImageLinks.ResolvePublicApiBaseUrl(k => _configuration[k]) ?? "https://ion-crm-api-production.up.railway.app";
@@ -114,13 +130,14 @@ public sealed class OutreachService : IOutreachService
         var subject = IntroMailTemplate.ExtractSubjects(html).Count > 0 ? rendered.Subject
             : intro is not null ? (intro.Subject.StartsWith("Re:", StringComparison.OrdinalIgnoreCase) ? intro.Subject : $"Re: {intro.Subject}") : rendered.Subject;
 
+        // Replies must land where the inbox check looks: the shared mailbox itself, or the user's Gmail.
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(senderName, user.MailAddress));
+        message.From.Add(new MailboxAddress(senderName, fromAddress));
         message.To.Add(to);
-        if (user.MailBccSelf) message.Bcc.Add(new MailboxAddress(senderName, user.MailAddress));
-        message.ReplyTo.Add(new MailboxAddress(senderName, user.MailAddress));
+        if (shared is null && user.MailBccSelf) message.Bcc.Add(new MailboxAddress(senderName, fromAddress));
+        message.ReplyTo.Add(new MailboxAddress(senderName, fromAddress));
         message.Subject = subject;
-        message.MessageId = MimeUtils.GenerateMessageId(user.MailAddress.Split('@').Last());
+        message.MessageId = MimeUtils.GenerateMessageId(fromAddress.Split('@').Last());
         if (step > 0 && !string.IsNullOrWhiteSpace(lead.ThreadMessageId))
         {
             message.InReplyTo = lead.ThreadMessageId;
@@ -137,12 +154,13 @@ public sealed class OutreachService : IOutreachService
         var log = new GlobalLeadEmail { LeadId = lead.Id, Step = step, TemplateKey = stepDef.Template, Subject = subject, To = lead.Email!, SenderUserId = user.Id };
         try
         {
-            await GmailSmtp.SendAsync(user.MailAddress, _protector.Unprotect(user.MailPasswordEncrypted), message, SendTimeout, cancellationToken);
+            if (shared is not null) await SmtpDelivery.SendAsync(shared, message, SendTimeout, cancellationToken);
+            else await GmailSmtp.SendAsync(user.MailAddress!, _protector.Unprotect(user.MailPasswordEncrypted!), message, SendTimeout, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
-            var reason = GmailSmtp.Explain(ex);
+            var reason = shared is not null ? SmtpDelivery.Explain(ex, shared) : GmailSmtp.Explain(ex);
             log.Status = OutreachEmailStatus.Failed; log.Error = reason; log.SentAt = DateTime.UtcNow;
             await _leads.AddEmailAsync(log, cancellationToken);
             _logger.LogWarning(ex, "Outreach gönderimi başarısız: lead {LeadId} adım {Step}", lead.Id, step);
@@ -158,7 +176,7 @@ public sealed class OutreachService : IOutreachService
         if (lead.OutreachStep >= def.Steps.Count) { lead.OutreachStatus = OutreachStatus.Completed; lead.NextSendAt = null; }
         else { lead.OutreachStatus = OutreachStatus.Active; lead.NextSendAt = OutreachSequence.ScheduleStep(lead.OutreachStep, log.SentAt, def); }
         await _leads.UpdateAsync(lead, cancellationToken);
-        _logger.LogInformation("Outreach gönderildi: {Company} ({Country}) adım {Step}/{Total} ← {Sender}", lead.CompanyName, lead.Country, step + 1, def.Steps.Count, user.MailAddress);
+        _logger.LogInformation("Outreach gönderildi: {Company} ({Country}) adım {Step}/{Total} ← {Sender} ({Source})", lead.CompanyName, lead.Country, step + 1, def.Steps.Count, fromAddress, shared?.Source ?? "Gmail");
         return null;
 
         async Task<string> FailAsync(GlobalLead l, string reason, bool retryLater = false)
@@ -176,16 +194,28 @@ public sealed class OutreachService : IOutreachService
     public async Task<InboxCheck> CheckInboxAsync(GlobalLead lead, CancellationToken cancellationToken = default)
     {
         if (lead.SenderUserId is null || string.IsNullOrWhiteSpace(lead.Email) || lead.LastSentAt is null) return new(false, false, null);
-        var user = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == lead.SenderUserId && !u.IsDeleted, cancellationToken);
-        if (user is null || string.IsNullOrWhiteSpace(user.MailAddress) || string.IsNullOrWhiteSpace(user.MailPasswordEncrypted)) return new(false, false, null);
+
+        // Which inbox received the replies: the shared mailbox (IMAP side of the same account) or the sender's Gmail.
+        string imapHost, imapUser, imapPassword; int imapPort; var checkRevocation = true;
+        if (Shared is { } shared)
+        {
+            if (!shared.HasImap) return new(false, false, null);
+            imapHost = shared.ImapHost!; imapPort = shared.ImapPort; imapUser = shared.Username!; imapPassword = shared.Password ?? string.Empty; checkRevocation = shared.CheckCertificateRevocation;
+        }
+        else
+        {
+            var user = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == lead.SenderUserId && !u.IsDeleted, cancellationToken);
+            if (user is null || !HasPersonalMailbox(user)) return new(false, false, null);
+            imapHost = GmailSmtp.ImapHost; imapPort = GmailSmtp.ImapPort; imapUser = user.MailAddress!; imapPassword = _protector.Unprotect(user.MailPasswordEncrypted!);
+        }
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(ImapTimeout);
         try
         {
-            using var imap = new ImapClient { Timeout = (int)ImapTimeout.TotalMilliseconds };
-            await imap.ConnectAsync(GmailSmtp.ImapHost, GmailSmtp.ImapPort, SecureSocketOptions.SslOnConnect, timeoutCts.Token);
-            await imap.AuthenticateAsync(user.MailAddress, _protector.Unprotect(user.MailPasswordEncrypted), timeoutCts.Token);
+            using var imap = new ImapClient { Timeout = (int)ImapTimeout.TotalMilliseconds, CheckCertificateRevocation = checkRevocation };
+            await imap.ConnectAsync(imapHost, imapPort, SecureSocketOptions.SslOnConnect, timeoutCts.Token);
+            await imap.AuthenticateAsync(imapUser, imapPassword, timeoutCts.Token);
             var inbox = imap.Inbox;
             await inbox.OpenAsync(FolderAccess.ReadOnly, timeoutCts.Token);
             var since = lead.LastSentAt.Value.AddDays(-1);
@@ -214,7 +244,7 @@ public sealed class OutreachService : IOutreachService
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Outreach IMAP kontrolü yapılamadı ({Sender})", user.MailAddress);
+            _logger.LogWarning(ex, "Outreach IMAP kontrolü yapılamadı ({Mailbox})", imapUser);
             return new(false, false, $"IMAP: {ex.Message}");
         }
     }
@@ -235,6 +265,8 @@ public sealed class OutreachService : IOutreachService
             var now = DateTime.UtcNow;
             var list = await _leads.GetDueAsync(now, maxPerCycle, cancellationToken);
             due = list.Count;
+            // Shared mailbox: one daily bucket for everyone (key Guid.Empty); personal Gmail: one per sender.
+            var sharedMailbox = Shared is not null;
             var sentBySender = new Dictionary<Guid, int>();
             var dayStart = now.Date;
 
@@ -245,9 +277,10 @@ public sealed class OutreachService : IOutreachService
                 var windowed = OutreachSequence.NextSendTime(now, def);
                 if (windowed > now.AddMinutes(1)) { lead.NextSendAt = windowed; await _leads.UpdateAsync(lead, cancellationToken); deferred++; continue; }
 
-                if (lead.SenderUserId is { } sid)
+                var bucket = sharedMailbox ? Guid.Empty : lead.SenderUserId;
+                if (bucket is { } key)
                 {
-                    if (!sentBySender.TryGetValue(sid, out var count)) { count = await _leads.CountSentSinceAsync(sid, dayStart, cancellationToken); sentBySender[sid] = count; }
+                    if (!sentBySender.TryGetValue(key, out var count)) { count = await _leads.CountSentSinceAsync(sharedMailbox ? null : key, dayStart, cancellationToken); sentBySender[key] = count; }
                     if (count >= cap) { lead.NextSendAt = OutreachSequence.NextSendTime(dayStart.AddDays(1), def); await _leads.UpdateAsync(lead, cancellationToken); deferred++; continue; }
                 }
 
@@ -259,7 +292,7 @@ public sealed class OutreachService : IOutreachService
                 }
 
                 var error = await SendNextStepAsync(lead, cancellationToken);
-                if (error is null) { sent++; if (lead.SenderUserId is { } s2) sentBySender[s2] = sentBySender.GetValueOrDefault(s2) + 1; }
+                if (error is null) { sent++; if (bucket is { } b2) sentBySender[b2] = sentBySender.GetValueOrDefault(b2) + 1; }
                 else { failed++; notes.Add($"{lead.CompanyName}: {error}"); }
 
                 try { await Task.Delay(gap, cancellationToken); } catch (OperationCanceledException) { break; }

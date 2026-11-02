@@ -1,11 +1,10 @@
 using IonCrm.Application.Common.Helpers;
 using IonCrm.Application.Common.Interfaces;
+using IonCrm.Application.Common.Mail;
 using IonCrm.Application.Features.Lifecycle;
 using IonCrm.Domain.Entities;
 using IonCrm.Domain.Enums;
 using IonCrm.Infrastructure.Persistence;
-using MailKit.Net.Smtp;
-using MailKit.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -19,7 +18,7 @@ namespace IonCrm.Infrastructure.Services;
 /// welcome (right after signup), check-in (mid-trial), trial-ended reminder (expired without purchase).
 /// Rules live in <see cref="DemoLifecyclePlanner"/>; templates in <c>marketing/lifecycle/{lang}/</c>
 /// (language from the customer's country, "en" fallback). Each send is logged in CustomerLifecycleMails
-/// (one per customer+step) and on the customer's timeline (E-posta). SMTP account: <see cref="LifecycleSmtpResolver"/>
+/// (one per customer+step) and on the customer's timeline (E-posta). SMTP account: <see cref="SmtpAccountResolver"/>
 /// (<c>LifecycleMail:Smtp:*</c> → support mailbox from <c>EmailCollector:Imap:*</c> → <c>Notifications:Smtp:*</c>).
 /// Config: LifecycleMail:Enabled, CheckInAfterDays (3),
 /// TrialEndedAfterDays (1), MaxAgeDays (14), SendHourStart (8), SendHourEnd (20), ExcludeCountries ("TR"),
@@ -53,7 +52,7 @@ public sealed class DemoLifecycleService : IDemoLifecycleService
 
     private const string SmtpMissing = "SMTP ayarı yok (LifecycleMail__Smtp__Host/Username/Password/From, ya da destek kutusu için EmailCollector__Imap__Host/Username/Password).";
 
-    private LifecycleSmtp? Smtp => LifecycleSmtpResolver.Resolve(key => _configuration[key]);
+    private SmtpAccount? Smtp => SmtpAccountResolver.Resolve(key => _configuration[key], "LifecycleMail:Smtp");
     private string? FromAddress => Smtp?.From;
     private string FromName => _configuration["LifecycleMail:Smtp:FromName"] ?? _configuration["LifecycleMail:FromName"] ?? "LiftDesk";
     private bool SmtpConfigured => Smtp is not null;
@@ -184,7 +183,7 @@ public sealed class DemoLifecycleService : IDemoLifecycleService
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
-            var reason = DeliveryError(ex);
+            var reason = SmtpDelivery.Explain(ex, smtp);
             log.Status = LifecycleMailStatus.Failed; log.Error = reason;
             _db.CustomerLifecycleMails.Add(log);
             await _db.SaveChangesAsync(cancellationToken);
@@ -233,13 +232,13 @@ public sealed class DemoLifecycleService : IDemoLifecycleService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Lifecycle deneme e-postası başarısız: {Step} [{Lang}] → {To} ({Source})", step, lang, address.Address, smtp.Source);
-            return Fail(DeliveryError(ex));
+            return Fail(SmtpDelivery.Explain(ex, smtp));
         }
         _logger.LogInformation("Lifecycle deneme e-postası gönderildi: {Step} [{Lang}] → {To} ({Source}, {By})", step, lang, address.Address, smtp.Source, triggeredBy);
         return new LifecycleTestResult(null, address.Address, lang, message.Subject, smtp.From, smtp.Source);
     }
 
-    private MimeMessage BuildMessage(LifecycleSmtp smtp, MailboxAddress to, LifecycleTemplate.Rendered rendered, string unsubscribeUrl)
+    private MimeMessage BuildMessage(SmtpAccount smtp, MailboxAddress to, LifecycleTemplate.Rendered rendered, string unsubscribeUrl)
     {
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(FromName, smtp.From));
@@ -252,19 +251,8 @@ public sealed class DemoLifecycleService : IDemoLifecycleService
         return message;
     }
 
-    private static async Task DeliverAsync(LifecycleSmtp smtp, MimeMessage message, CancellationToken cancellationToken)
-    {
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(SendTimeout);
-        using var client = new SmtpClient { Timeout = (int)SendTimeout.TotalMilliseconds, CheckCertificateRevocation = smtp.CheckCertificateRevocation };
-        await client.ConnectAsync(smtp.Host, smtp.Port, smtp.UseSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls, timeoutCts.Token);
-        if (!string.IsNullOrWhiteSpace(smtp.Username)) await client.AuthenticateAsync(smtp.Username, smtp.Password ?? string.Empty, timeoutCts.Token);
-        await client.SendAsync(message, timeoutCts.Token);
-        await client.DisconnectAsync(true, timeoutCts.Token);
-    }
-
-    private static string DeliveryError(Exception ex) =>
-        ex is AuthenticationException ? "SMTP kullanıcı adı/şifre reddedildi." : $"Gönderilemedi: {ex.Message}";
+    private static Task DeliverAsync(SmtpAccount smtp, MimeMessage message, CancellationToken cancellationToken) =>
+        SmtpDelivery.SendAsync(smtp, message, SendTimeout, cancellationToken);
 
     private static string StepLabel(LifecycleStep step) => step switch
     {

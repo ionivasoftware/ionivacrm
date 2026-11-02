@@ -199,7 +199,7 @@ function LeadDialog({ leadId, meta, onClose }: { leadId: string; meta: GlobalLea
             </div>
             <div className="flex flex-wrap gap-2">
               {(o === 'NotStarted' || o === 'Completed' || o === 'Bounced' || o === 'Replied') && (
-                <Button type="button" size="sm" variant="outline" disabled={busy || !meta.sender.ready || !lead.email} onClick={() => run('start', o !== 'NotStarted')} title={!meta.sender.ready ? 'Gmail ayarlarınız eksik' : undefined}>
+                <Button type="button" size="sm" variant="outline" disabled={busy || !meta.sender.ready || !lead.email} onClick={() => run('start', o !== 'NotStarted')} title={!meta.sender.ready ? 'Gönderici yok: ortak kutu tanımlı değil, Gmail ayarınız eksik' : undefined}>
                   <Play className="h-4 w-4" /> {o === 'NotStarted' ? 'Diziyi başlat' : 'Yeniden başlat'}
                 </Button>
               )}
@@ -261,7 +261,7 @@ function LeadDialog({ leadId, meta, onClose }: { leadId: string; meta: GlobalLea
         )}
         {pending && startOutreach && !meta.sender.ready && (
           <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200 flex items-start gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>Mailler sizin Gmail hesabınızdan gider; önce <button type="button" className="underline" onClick={() => navigate('/settings')}>Ayarlar → E-posta Gönderimi</button> bölümünü doldurun.</span>
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>Ortak firma kutusu tanımlı değil; mailler sizin Gmail hesabınızdan gider — önce <button type="button" className="underline" onClick={() => navigate('/settings')}>Ayarlar → E-posta Gönderimi</button> bölümünü doldurun.</span>
           </div>
         )}
 
@@ -342,7 +342,7 @@ export function GlobalLeadsPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><Globe className="h-6 w-6" /> Global Lead'ler</h1>
-          <p className="text-sm text-muted-foreground mt-1">Türkiye dışı asansör firmaları (şimdilik Birleşik Krallık). Global ajan haftada bir bölge bölge tarar; bulduğu firma buraya düşer, Müşteriler'e girmez. Onayladığınız lead'e İngilizce tanıtım maili sizin Gmail'inizden gider, takip mailleri belirlenen günlerde otomatik devam eder; yanıt, bounce ya da abonelikten çıkma diziyi durdurur.</p>
+          <p className="text-sm text-muted-foreground mt-1">Türkiye dışı asansör firmaları (şimdilik Birleşik Krallık). Global ajan haftada bir bölge bölge tarar; bulduğu firma buraya düşer, Müşteriler'e girmez. Onayladığınız lead'e İngilizce tanıtım maili ortak firma kutusundan sizin adınızla gider (ortak kutu tanımlı değilse kendi Gmail'inizden), takip mailleri belirlenen günlerde otomatik devam eder; yanıt, bounce ya da abonelikten çıkma diziyi durdurur.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowSequence(v => !v)}><Settings2 className="h-4 w-4" /> Dizi & limitler</Button>
@@ -353,7 +353,7 @@ export function GlobalLeadsPage() {
 
       {meta && !meta.sender.ready && (
         <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> <span>Outreach mailleri onaylayan kullanıcının Gmail hesabından gider. Sizin Gmail ayarınız yok — <button type="button" className="underline" onClick={() => navigate('/settings')}>Ayarlar → E-posta Gönderimi</button>.</span>
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> <span>Gönderici yok: ortak firma kutusu tanımlı değil (Railway <code>EmailCollector__Imap__*</code> ya da <code>Outreach__Smtp__*</code>) ve sizin Gmail ayarınız yok — <button type="button" className="underline" onClick={() => navigate('/settings')}>Ayarlar → E-posta Gönderimi</button>.</span>
         </div>
       )}
       {meta && !meta.agentKeyConfigured && (
@@ -369,9 +369,9 @@ export function GlobalLeadsPage() {
         <Card><CardContent className="p-3 space-y-3 text-xs">
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-muted-foreground">
             <span><Clock className="inline h-3.5 w-3.5 mr-1" />Pencere: hafta içi {meta.sequence.startHour}:00–{meta.sequence.endHour}:00 ({meta.sequence.timeZone})</span>
-            <span>Günlük limit: gönderici başına {meta.limits.dailyCapPerSender}</span>
+            <span>Günlük limit: {meta.sender.shared ? 'ortak kutu toplam' : 'gönderici başına'} {meta.limits.dailyCapPerSender}</span>
             <span>Zamanlayıcı: her {meta.limits.intervalMinutes} dk</span>
-            <span>Gönderen: {meta.sender.ready ? `${meta.sender.name} <${meta.sender.address}>` : '—'}</span>
+            <span>Gönderen: {meta.sender.ready ? `${meta.sender.name} <${meta.sender.address}>` : '—'}{meta.sender.shared ? ` · ortak kutu${meta.sender.inboxCheck ? ', yanıt/bounce kontrolü açık' : ', yanıt kontrolü yok'}` : meta.sender.ready ? ' · kendi Gmail’iniz' : ''}</span>
           </div>
           <table className="table-stack w-full text-xs">
             <thead><tr className="text-left text-muted-foreground border-b border-border"><th className="py-1 pr-2">Adım</th><th className="py-1 pr-2">Şablon</th><th className="py-1 pr-2">Zaman</th><th className="py-1 pr-2">Konu</th><th className="py-1">Ek</th></tr></thead>
@@ -435,7 +435,7 @@ export function GlobalLeadsPage() {
         </div>
         {status === 'Pending' && checked.size > 0 && (
           <>
-            <Button size="sm" disabled={approveMany.isPending || !meta?.sender.ready} onClick={onApproveChecked} title={!meta?.sender.ready ? 'Gmail ayarlarınız eksik' : undefined}><Check className="h-4 w-4" /> Seçili {checked.size} lead'i onayla + mail</Button>
+            <Button size="sm" disabled={approveMany.isPending || !meta?.sender.ready} onClick={onApproveChecked} title={!meta?.sender.ready ? 'Gönderici yok: ortak kutu tanımlı değil, Gmail ayarınız eksik' : undefined}><Check className="h-4 w-4" /> Seçili {checked.size} lead'i onayla + mail</Button>
             <Button variant="outline" size="sm" disabled={rejectMany.isPending} onClick={onRejectChecked}><X className="h-4 w-4" /> Reddet</Button>
           </>
         )}

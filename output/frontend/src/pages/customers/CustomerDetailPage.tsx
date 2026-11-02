@@ -1881,7 +1881,7 @@ export function CustomerDetailPage() {
               <span className="sm:hidden">{activeContract ? 'Yenile' : 'Sözleşme'}</span>
             </Button>
           )}
-          <Button variant="outline" onClick={() => setShowIntroMailDialog(true)} className="gap-2 h-10 border-violet-500/40 text-violet-400 hover:bg-violet-500/10 flex-shrink-0" title="Şablon + katalog + fiyat listesi, kendi Gmail'inden">
+          <Button variant="outline" onClick={() => setShowIntroMailDialog(true)} className="gap-2 h-10 border-violet-500/40 text-violet-400 hover:bg-violet-500/10 flex-shrink-0" title="Şablon + katalog + fiyat listesi">
             <Mail className="h-4 w-4" />
             <span className="hidden sm:inline">Tanıtım Maili</span>
           </Button>

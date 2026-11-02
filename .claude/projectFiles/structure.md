@@ -242,11 +242,11 @@ output/
 | Method | Path | Açıklama |
 |---|---|---|
 | GET | `/?status=&outreach=&country=&search=&page=&pageSize=` | Liste |
-| GET | `/meta` | Sayımlar (durum/dizi/ülke), dizi tanımı + şablon konuları + ekler, limitler, gönderici hazır mı, son döngü |
+| GET | `/meta` | Sayımlar (durum/dizi/ülke), dizi tanımı + şablon konuları + ekler, limitler, gönderici (`shared` = ortak kutu, `source`, `inboxCheck`), son döngü |
 | GET | `/pending-count` · `/runs?limit=` | Menü rozeti · global ajan koşuları |
 | GET | `/{id}` | Lead + gönderici + e-posta geçmişi |
 | PUT | `/{id}` | `{companyName?, contactName?, email?, phone?, website?, city?, notes?}` |
-| POST | `/{id}/approve` · `/approve-many` | `{contactName?, email?, startOutreach=true}` → onay + (gönderen = oturum kullanıcısı) dizi başlat |
+| POST | `/{id}/approve` · `/approve-many` | `{contactName?, email?, startOutreach=true}` → onay + dizi başlat (ortak kutudan oturum kullanıcısının adıyla; ortak kutu yoksa kullanıcının Gmail'i) |
 | POST | `/{id}/reject` · `/reject-many` · `/{id}/reopen` | Ret / bekleyene al |
 | POST | `/{id}/outreach/start` | `{restart?}` dizi (yeniden) başlat |
 | POST | `/{id}/outreach/pause` · `/resume` · `/send-now` · `/check-inbox` | Duraklat / sürdür / sıradaki adımı hemen gönder / IMAP yanıt-bounce kontrolü |
@@ -294,10 +294,10 @@ output/
 ### Pazarlama — `/api/v1/marketing` (oturum)
 | Method | Path | Açıklama |
 |---|---|---|
-| GET/PUT/DELETE | `/mail-settings` | Kullanıcının Gmail adresi + uygulama şifresi (şifreli) + gönderen adı + BCC |
+| GET/PUT/DELETE | `/mail-settings` | Kullanıcının Gmail adresi + uygulama şifresi (şifreli) + gönderen adı + BCC; `sharedSender` = ortak kutu adresi (varsa) |
 | POST | `/mail-settings/test` | Kendine test maili |
 | GET | `/materials` | Şablonlar (konu seçenekleri) + ekler |
-| POST | `/customers/{id}/intro-email` | `{templateKey?, subjectIndex?, note?, to?}` → Gmail'den gönder + E-posta kaydı |
+| POST | `/customers/{id}/intro-email` | `{templateKey?, subjectIndex?, note?, to?}` → ortak kutudan (Reply-To kullanıcı) ya da Gmail'den gönder + E-posta kaydı |
 
 ### Rakip Firmalar — `/api/v1/competitors` (oturum; tenant filtresi)
 | Method | Path | Açıklama |
