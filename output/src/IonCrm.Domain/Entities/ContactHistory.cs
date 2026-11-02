@@ -51,6 +51,12 @@ public class ContactHistory : BaseEntity
     /// <summary>The appointment this contact completed, when logged from the calendar.</summary>
     public Guid? AppointmentId { get; set; }
 
+    /// <summary>Customer said they work with another vendor ("farklı firma ile çalışıyor").</summary>
+    public bool UsesCompetitor { get; set; }
+
+    /// <summary>Which vendor — optional even when <see cref="UsesCompetitor"/> is true (name not known).</summary>
+    public Guid? CompetitorId { get; set; }
+
     /// <summary>
     /// Gets or sets the legacy ID from the old crm.bak database.
     /// Used for idempotent migration.
@@ -66,4 +72,7 @@ public class ContactHistory : BaseEntity
 
     /// <summary>Gets or sets the user who created this record.</summary>
     public User? CreatedByUser { get; set; }
+
+    /// <summary>The competitor named in this contact, if any.</summary>
+    public Competitor? Competitor { get; set; }
 }

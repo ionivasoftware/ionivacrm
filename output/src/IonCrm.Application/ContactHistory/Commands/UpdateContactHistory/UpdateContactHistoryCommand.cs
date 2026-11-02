@@ -18,4 +18,7 @@ public record UpdateContactHistoryCommand : IRequest<Result<ContactHistoryDto>>
     public bool? Reached { get; init; }
     public int? SatisfactionScore { get; init; }
     public DateTime? NextContactAt { get; init; }
+    /// <summary>Müşteri farklı bir firma ile çalışıyor; <see cref="CompetitorId"/> hangi firma (opsiyonel).</summary>
+    public bool? UsesCompetitor { get; init; }
+    public Guid? CompetitorId { get; init; }
 }

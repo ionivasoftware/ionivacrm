@@ -54,10 +54,16 @@ public class CreateContactHistoryCommandHandler : IRequestHandler<CreateContactH
             Reached = request.Reached,
             SatisfactionScore = request.SatisfactionScore,
             NextContactAt = request.NextContactAt,
-            AppointmentId = request.AppointmentId
+            AppointmentId = request.AppointmentId,
+            UsesCompetitor = request.UsesCompetitor ?? false,
+            CompetitorId = request.UsesCompetitor == true ? request.CompetitorId : null,
         };
 
         await _contactHistoryRepository.AddAsync(history, cancellationToken);
+
+        // Son görüşmede "farklı firma ile çalışıyor" dendiyse müşteri kartına yansıt (isim verilmediyse eskisini koru).
+        if (CompetitorMirror.Apply(customer, history))
+            await _customerRepository.UpdateAsync(customer, cancellationToken);
 
         _logger.LogInformation("ContactHistory {Id} created for customer {CustomerId}", history.Id, history.CustomerId);
 

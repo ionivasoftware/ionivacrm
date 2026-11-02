@@ -297,3 +297,14 @@ output/
 | POST | `/mail-settings/test` | Kendine test maili |
 | GET | `/materials` | Şablonlar (konu seçenekleri) + ekler |
 | POST | `/customers/{id}/intro-email` | `{templateKey?, subjectIndex?, note?, to?}` → Gmail'den gönder + E-posta kaydı |
+
+### Rakip Firmalar — `/api/v1/competitors` (oturum; tenant filtresi)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/?projectId=&search=` | Proje rakipleri, ada göre; `customerCount` (kaç müşteri bu firmayla çalışıyor) |
+| POST | `/` | `{projectId, name, website?, notes?}` → 201; aynı ad (harf duyarsız) varsa mevcut kayıt 200 |
+| PUT | `/{id}` | Ad/web/not (ad çakışması 409) |
+| DELETE | `/{id}` | Soft delete; müşteri + görüşme kayıtlarındaki `competitorId` boşa düşer |
+
+Görüşme kaydı alanları (`POST/PUT /customers/{id}/contact-histories`, `POST /appointments/{id}/complete`): `usesCompetitor?: bool`, `competitorId?: guid`. `usesCompetitor=true` olan kayıt `Customers.UsesCompetitor/CompetitorId`'ye yansır (`CompetitorMirror`); DTO'larda `competitorName`.
+

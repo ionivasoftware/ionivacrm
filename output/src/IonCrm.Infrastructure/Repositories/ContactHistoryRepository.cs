@@ -18,6 +18,7 @@ public class ContactHistoryRepository : GenericRepository<ContactHistory>, ICont
         CancellationToken cancellationToken = default)
         => await DbSet
             .Include(h => h.CreatedByUser)
+            .Include(h => h.Competitor)
             .Where(h => h.CustomerId == customerId)
             .OrderByDescending(h => h.ContactedAt)
             .AsNoTracking()
@@ -35,6 +36,7 @@ public class ContactHistoryRepository : GenericRepository<ContactHistory>, ICont
     {
         var query = DbSet
             .Include(h => h.CreatedByUser)
+            .Include(h => h.Competitor)
             .Where(h => h.CustomerId == customerId);
 
         if (type.HasValue)
@@ -72,6 +74,7 @@ public class ContactHistoryRepository : GenericRepository<ContactHistory>, ICont
         // Global query filter already restricts to user's accessible projects (tenant isolation).
         var query = DbSet
             .Include(h => h.CreatedByUser)
+            .Include(h => h.Competitor)
             .Include(h => h.Customer)
             .AsNoTracking()
             .AsQueryable();

@@ -109,6 +109,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Demo lifecycle e-mails (welcome / check-in / trial ended) per customer and step.</summary>
     public DbSet<CustomerLifecycleMail> CustomerLifecycleMails => Set<CustomerLifecycleMail>();
 
+    /// <summary>Rival vendors named in contact records — tenant-scoped.</summary>
+    public DbSet<Competitor> Competitors => Set<Competitor>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -217,6 +220,12 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<GlobalLead>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<GlobalLeadEmail>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<CustomerLifecycleMail>().HasQueryFilter(e => !e.IsDeleted);
+
+        // Competitors: tenant-scoped like customers.
+        modelBuilder.Entity<Competitor>()
+            .HasQueryFilter(e => !e.IsDeleted &&
+                (_currentUser.IsSuperAdmin ||
+                 _currentUser.ProjectIds.Contains(e.ProjectId)));
 
         // CustomerUsageSnapshot: one immutable row per (customer, month). Tenant-scoped like customer data.
         modelBuilder.Entity<CustomerUsageSnapshot>(b =>

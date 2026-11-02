@@ -12,15 +12,18 @@ namespace IonCrm.Application.ContactHistory.Commands.UpdateContactHistory;
 public class UpdateContactHistoryCommandHandler : IRequestHandler<UpdateContactHistoryCommand, Result<ContactHistoryDto>>
 {
     private readonly IContactHistoryRepository _contactHistoryRepository;
+    private readonly ICustomerRepository _customerRepository;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<UpdateContactHistoryCommandHandler> _logger;
 
     public UpdateContactHistoryCommandHandler(
         IContactHistoryRepository contactHistoryRepository,
+        ICustomerRepository customerRepository,
         ICurrentUserService currentUser,
         ILogger<UpdateContactHistoryCommandHandler> logger)
     {
         _contactHistoryRepository = contactHistoryRepository;
+        _customerRepository = customerRepository;
         _currentUser = currentUser;
         _logger = logger;
     }
@@ -44,8 +47,17 @@ public class UpdateContactHistoryCommandHandler : IRequestHandler<UpdateContactH
         history.Reached = request.Reached;
         history.SatisfactionScore = request.SatisfactionScore;
         history.NextContactAt = request.NextContactAt;
+        history.UsesCompetitor = request.UsesCompetitor ?? false;
+        history.CompetitorId = history.UsesCompetitor ? request.CompetitorId : null;
 
         await _contactHistoryRepository.UpdateAsync(history, cancellationToken);
+
+        if (history.UsesCompetitor)
+        {
+            var customer = await _customerRepository.GetByIdAsync(history.CustomerId, cancellationToken);
+            if (customer is not null && CompetitorMirror.Apply(customer, history))
+                await _customerRepository.UpdateAsync(customer, cancellationToken);
+        }
 
         _logger.LogInformation("ContactHistory {Id} updated", history.Id);
 

@@ -905,6 +905,24 @@ app.Lifetime.ApplicationStarted.Register(() =>
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Kind"" varchar(16) NOT NULL DEFAULT 'Custom';
             ALTER TABLE ""SocialPostImages"" ADD COLUMN IF NOT EXISTS ""Language"" varchar(8);
         ");
+        await RunSafe("Competitors table + ContactHistories/Customers competitor columns", @"
+            CREATE TABLE IF NOT EXISTS ""Competitors"" (
+                ""Id""        uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""ProjectId"" uuid         NOT NULL REFERENCES ""Projects""(""Id"") ON DELETE RESTRICT,
+                ""Name""      varchar(200) NOT NULL,
+                ""Website""   varchar(300),
+                ""Notes""     varchar(2000),
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt"" timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted"" boolean      NOT NULL DEFAULT false
+            );
+            CREATE INDEX IF NOT EXISTS ""ix_competitors_project_name"" ON ""Competitors"" (""ProjectId"", ""Name"");
+            ALTER TABLE ""ContactHistories"" ADD COLUMN IF NOT EXISTS ""UsesCompetitor"" boolean NOT NULL DEFAULT false;
+            ALTER TABLE ""ContactHistories"" ADD COLUMN IF NOT EXISTS ""CompetitorId"" uuid REFERENCES ""Competitors""(""Id"") ON DELETE SET NULL;
+            CREATE INDEX IF NOT EXISTS ""ix_contacthistories_competitor"" ON ""ContactHistories"" (""CompetitorId"") WHERE ""CompetitorId"" IS NOT NULL;
+            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""UsesCompetitor"" boolean NOT NULL DEFAULT false;
+            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""CompetitorId"" uuid REFERENCES ""Competitors""(""Id"") ON DELETE SET NULL;
+        ");
 
             Log.Information("Startup bootstrap complete");
         }

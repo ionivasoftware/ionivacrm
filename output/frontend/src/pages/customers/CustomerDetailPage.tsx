@@ -1922,6 +1922,11 @@ export function CustomerDetailPage() {
                   </h1>
                   <CustomerStatusBadge status={customer.status} />
                   {customer.label && <CustomerLabelBadge label={customer.label} />}
+                  {customer.usesCompetitor && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[11px] font-semibold text-rose-300" title="Son görüşmede farklı bir firma ile çalıştığı söylendi">
+                      <Building2 className="h-3 w-3" /> Rakip: {customer.competitorName ?? 'belirtilmedi'}
+                    </span>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   {customer.segment && (
@@ -2257,6 +2262,11 @@ export function CustomerDetailPage() {
                                 <div className="flex items-start gap-2 text-sm p-2 rounded-md bg-muted/40 border border-border/50">
                                   <Target className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
                                   <span className="text-foreground">{entry.outcome}</span>
+                                </div>
+                              )}
+                              {entry.usesCompetitor && (
+                                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium text-rose-300">
+                                  <Building2 className="h-3 w-3" /> Farklı firma ile çalışıyor{entry.competitorName ? `: ${entry.competitorName}` : ''}
                                 </div>
                               )}
                               <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
@@ -2889,6 +2899,7 @@ export function CustomerDetailPage() {
         isOpen={showAddContact}
         onClose={() => setShowAddContact(false)}
         customerId={customerId}
+        projectId={customer?.projectId}
         defaultType={addContactType}
       />
 

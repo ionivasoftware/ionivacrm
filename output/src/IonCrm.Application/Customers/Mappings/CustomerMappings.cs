@@ -34,6 +34,9 @@ public static class CustomerMappings
         EInvoiceAddress = c.EInvoiceAddress,
         MonthlyLicenseFee = c.MonthlyLicenseFee,
         IsInternal = c.IsInternal,
+        UsesCompetitor = c.UsesCompetitor,
+        CompetitorId = c.CompetitorId,
+        CompetitorName = c.Competitor?.Name,
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt
     };

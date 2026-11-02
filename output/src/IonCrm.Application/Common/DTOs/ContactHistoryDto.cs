@@ -20,6 +20,10 @@ public class ContactHistoryDto
     public int? SatisfactionScore { get; set; }
     public DateTime? NextContactAt { get; set; }
     public Guid? AppointmentId { get; set; }
+    /// <summary>Müşteri farklı bir firma ile çalışıyor dedi.</summary>
+    public bool UsesCompetitor { get; set; }
+    public Guid? CompetitorId { get; set; }
+    public string? CompetitorName { get; set; }
     public string? CreatedByUserName { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

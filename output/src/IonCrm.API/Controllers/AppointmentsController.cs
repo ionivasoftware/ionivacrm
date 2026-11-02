@@ -1,6 +1,7 @@
 using System.Globalization;
 using IonCrm.API.Common;
 using IonCrm.Application.Common.Interfaces;
+using IonCrm.Application.ContactHistory;
 using IonCrm.Application.Features.CallPlan;
 using IonCrm.Application.Features.SocialPublishing;
 using IonCrm.Domain.Entities;
@@ -147,8 +148,16 @@ public sealed class AppointmentsController : ApiControllerBase
             ContactedAt = body.ContactedAt?.ToUniversalTime() ?? now, CreatedByUserId = userId,
             Purpose = row.Kind, Reached = body.Reached, SatisfactionScore = row.Kind == AppointmentKind.SatisfactionCall || body.SatisfactionScore is not null ? body.SatisfactionScore : null,
             NextContactAt = body.NextContactAt?.ToUniversalTime(), AppointmentId = row.Id,
+            UsesCompetitor = body.UsesCompetitor ?? false, CompetitorId = body.UsesCompetitor == true ? body.CompetitorId : null,
         };
         await _contacts.AddAsync(contact, cancellationToken);
+
+        // "Farklı firma ile çalışıyor" → müşteri kartına yansıt.
+        if (contact.UsesCompetitor)
+        {
+            var customer = await _customers.GetByIdAsync(row.CustomerId, cancellationToken);
+            if (customer is not null && CompetitorMirror.Apply(customer, contact)) await _customers.UpdateAsync(customer, cancellationToken);
+        }
 
         row.Status = body.Reached ? AppointmentStatus.Completed : AppointmentStatus.NoAnswer;
         row.CompletedAt = now; row.ContactHistoryId = contact.Id;
@@ -287,7 +296,8 @@ public record CreateAppointmentBody(Guid CustomerId, string Kind, DateTime Sched
 public record UpdateAppointmentBody(string? Kind, DateTime? ScheduledAt, int? DurationMinutes, string? Title, string? Note, Guid? AssignedUserId, string? Status);
 
 /// <summary>Görüşme kaydı + kapanış. reached=false iken rescheduleAt yeni randevu açar; nextContactAt söz verilen takibi açar.</summary>
-public record CompleteAppointmentBody(string Type, string? Subject, string? Content, string? Outcome, bool Reached, int? SatisfactionScore, DateTime? NextContactAt, DateTime? RescheduleAt, DateTime? ContactedAt);
+public record CompleteAppointmentBody(string Type, string? Subject, string? Content, string? Outcome, bool Reached, int? SatisfactionScore, DateTime? NextContactAt, DateTime? RescheduleAt, DateTime? ContactedAt,
+    bool? UsesCompetitor = null, Guid? CompetitorId = null);
 
 public record CompleteAppointmentResult(AppointmentDto Appointment, Guid ContactHistoryId, AppointmentDto? FollowUp);
 

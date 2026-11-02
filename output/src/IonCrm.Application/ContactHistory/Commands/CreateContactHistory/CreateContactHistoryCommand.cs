@@ -19,4 +19,7 @@ public record CreateContactHistoryCommand : IRequest<Result<ContactHistoryDto>>
     public int? SatisfactionScore { get; init; }
     public DateTime? NextContactAt { get; init; }
     public Guid? AppointmentId { get; init; }
+    /// <summary>Müşteri farklı bir firma ile çalışıyor; <see cref="CompetitorId"/> hangi firma (opsiyonel).</summary>
+    public bool? UsesCompetitor { get; init; }
+    public Guid? CompetitorId { get; init; }
 }

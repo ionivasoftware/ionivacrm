@@ -23,6 +23,7 @@ public class ContactHistoryConfiguration : IEntityTypeConfiguration<ContactHisto
 
         builder.HasIndex(h => new { h.ProjectId, h.ContactedAt });
         builder.HasIndex(h => h.LegacyId);
+        builder.HasIndex(h => h.CompetitorId);
 
         // Navigation: ContactHistory → Project (many-to-one, no reverse nav on Project)
         builder.HasOne(h => h.Project)
@@ -34,6 +35,13 @@ public class ContactHistoryConfiguration : IEntityTypeConfiguration<ContactHisto
         builder.HasOne(h => h.CreatedByUser)
             .WithMany()
             .HasForeignKey(h => h.CreatedByUserId)
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
+
+        // Navigation: ContactHistory → Competitor (optional; deleting a competitor clears the reference)
+        builder.HasOne(h => h.Competitor)
+            .WithMany()
+            .HasForeignKey(h => h.CompetitorId)
             .OnDelete(DeleteBehavior.SetNull)
             .IsRequired(false);
     }

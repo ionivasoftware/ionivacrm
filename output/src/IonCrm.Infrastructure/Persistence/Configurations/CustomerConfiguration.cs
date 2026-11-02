@@ -58,5 +58,12 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
             .HasForeignKey(c => c.AssignedUserId)
             .OnDelete(DeleteBehavior.SetNull)
             .IsRequired(false);
+
+        // Current competitor (mirrored from the latest contact record); optional.
+        builder.HasOne(c => c.Competitor)
+            .WithMany()
+            .HasForeignKey(c => c.CompetitorId)
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
     }
 }

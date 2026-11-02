@@ -172,6 +172,8 @@ export function useCreateContactHistory() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['contactHistory', variables.customerId] });
+      queryClient.invalidateQueries({ queryKey: ['customer', variables.customerId] }); // rakip bilgisi karta yansır
+      queryClient.invalidateQueries({ queryKey: ['competitors'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });

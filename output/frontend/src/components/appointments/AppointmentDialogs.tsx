@@ -15,6 +15,7 @@ import {
 } from '@/api/appointments';
 import type { ContactType } from '@/types';
 import { useMailSettings, useSendIntroEmail } from '@/api/marketing';
+import { CompetitorPicker, type CompetitorChoice } from '@/components/competitors/CompetitorPicker';
 
 // ── Ortak ────────────────────────────────────────────────────────────────────
 
@@ -216,6 +217,7 @@ export function CompleteAppointmentDialog({ appointment, onClose }: { appointmen
   const [nextContact, setNextContact] = useState('');
   const [reschedule, setReschedule] = useState('');
   const [sendIntro, setSendIntro] = useState(false);
+  const [competitor, setCompetitor] = useState<CompetitorChoice>({ usesCompetitor: false, competitorId: null });
   const { data: mailSettings } = useMailSettings();
   const sendIntroMail = useSendIntroEmail();
   const { data: history } = useContactHistory(appointment?.customerId ?? '');
@@ -227,6 +229,7 @@ export function CompleteAppointmentDialog({ appointment, onClose }: { appointmen
     if (!appointment) return;
     setType(appointment.kind === 'Meeting' || appointment.kind === 'Demo' || appointment.kind === 'Training' ? 'Meeting' : 'Call');
     setReached(true); setSubject(''); setContent(''); setOutcome(''); setScore(null); setNextContact(''); setReschedule(''); setSendIntro(false);
+    setCompetitor({ usesCompetitor: false, competitorId: null });
   }, [appointment]);
 
   async function submit() {
@@ -240,6 +243,8 @@ export function CompleteAppointmentDialog({ appointment, onClose }: { appointmen
         satisfactionScore: isSatisfaction || score !== null ? score : null,
         nextContactAt: reached && nextContact ? new Date(`${nextContact}T14:00`).toISOString() : null,
         rescheduleAt: !reached && reschedule ? new Date(reschedule).toISOString() : null,
+        usesCompetitor: reached && competitor.usesCompetitor,
+        competitorId: reached && competitor.usesCompetitor ? competitor.competitorId : null,
       });
       toast({
         title: reached ? 'Görüşme kaydedildi' : 'Ulaşılamadı olarak kaydedildi',
@@ -282,7 +287,7 @@ export function CompleteAppointmentDialog({ appointment, onClose }: { appointmen
             <div className="font-medium text-foreground">Son görüşmeler</div>
             {recent.map(h => (
               <div key={h.id} className="text-muted-foreground truncate">
-                {new Date(h.contactedAt).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: '2-digit' })} · {h.subject ?? h.type}{h.outcome ? ` → ${h.outcome}` : ''}
+                {new Date(h.contactedAt).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: '2-digit' })} · {h.subject ?? h.type}{h.outcome ? ` → ${h.outcome}` : ''}{h.usesCompetitor ? ` · rakip: ${h.competitorName ?? 'belirtilmedi'}` : ''}
               </div>
             ))}
           </div>
@@ -340,6 +345,7 @@ export function CompleteAppointmentDialog({ appointment, onClose }: { appointmen
                 <Label htmlFor="c-content">Görüşme notu</Label>
                 <Textarea id="c-content" rows={4} value={content} onChange={e => setContent(e.target.value)} maxLength={4000} placeholder="Ne konuşuldu, müşteri ne dedi, hangi ihtiyaçlar çıktı…" />
               </div>
+              <CompetitorPicker projectId={a.projectId} value={competitor} onChange={setCompetitor} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="c-outcome">Sonuç / aksiyon</Label>

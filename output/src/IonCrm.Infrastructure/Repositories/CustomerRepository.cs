@@ -138,8 +138,11 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
     {
         return await DbSet
             .Include(c => c.AssignedUser)
+            .Include(c => c.Competitor)
             .Include(c => c.ContactHistories.Where(h => !h.IsDeleted))
                 .ThenInclude(h => h.CreatedByUser)
+            .Include(c => c.ContactHistories.Where(h => !h.IsDeleted))
+                .ThenInclude(h => h.Competitor)
             .Include(c => c.Tasks.Where(t => !t.IsDeleted))
                 .ThenInclude(t => t.AssignedUser)
             .AsNoTracking()

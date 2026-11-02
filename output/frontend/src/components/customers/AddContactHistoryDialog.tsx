@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreateContactHistory } from '@/api/customers';
+import { CompetitorPicker } from '@/components/competitors/CompetitorPicker';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { ContactType } from '@/types';
@@ -79,6 +80,8 @@ const schema = z.object({
   reached: z.boolean(),
   satisfactionScore: z.number().int().min(1).max(5).nullable(),
   nextContactAt: z.string(),
+  usesCompetitor: z.boolean(),
+  competitorId: z.string().nullable(),
 });
 
 const PURPOSE_OPTIONS: { value: string; label: string }[] = [
@@ -100,6 +103,8 @@ interface AddContactHistoryDialogProps {
   isOpen: boolean;
   onClose: () => void;
   customerId: string;
+  /** Rakip firma listesi bu projeye göre gelir; verilmezse rakip alanı gösterilmez. */
+  projectId?: string;
   defaultType?: ContactType;
   onSuccess?: () => void;
 }
@@ -110,6 +115,7 @@ export function AddContactHistoryDialog({
   isOpen,
   onClose,
   customerId,
+  projectId,
   defaultType = 'Note',
   onSuccess,
 }: AddContactHistoryDialogProps) {
@@ -135,6 +141,8 @@ export function AddContactHistoryDialog({
       reached: true,
       satisfactionScore: null,
       nextContactAt: '',
+      usesCompetitor: false,
+      competitorId: null,
     },
   });
 
@@ -155,6 +163,8 @@ export function AddContactHistoryDialog({
         reached: true,
         satisfactionScore: null,
         nextContactAt: '',
+        usesCompetitor: false,
+        competitorId: null,
       });
     }
   }, [isOpen, defaultType, reset]);
@@ -177,6 +187,8 @@ export function AddContactHistoryDialog({
         reached: data.type === 'Call' || data.type === 'WhatsApp' ? data.reached : null,
         satisfactionScore: data.purpose === 'SatisfactionCall' ? data.satisfactionScore : null,
         nextContactAt: data.nextContactAt ? new Date(`${data.nextContactAt}T14:00`).toISOString() : null,
+        usesCompetitor: data.usesCompetitor,
+        competitorId: data.usesCompetitor ? data.competitorId : null,
       });
       toast({
         title: 'Aktivite eklendi',
@@ -334,6 +346,19 @@ export function AddContactHistoryDialog({
               className="h-11"
             />
           </div>
+
+          {/* Rakip firma */}
+          {projectId && (
+            <Controller control={control} name="usesCompetitor" render={({ field }) => (
+              <Controller control={control} name="competitorId" render={({ field: cf }) => (
+                <CompetitorPicker
+                  projectId={projectId}
+                  value={{ usesCompetitor: field.value, competitorId: cf.value }}
+                  onChange={(v) => { field.onChange(v.usesCompetitor); cf.onChange(v.competitorId); }}
+                />
+              )} />
+            )} />
+          )}
 
           {/* Tekrar arama günü */}
           <div className="space-y-1.5">

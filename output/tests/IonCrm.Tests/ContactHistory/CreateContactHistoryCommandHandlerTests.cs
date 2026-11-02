@@ -60,6 +60,39 @@ public class CreateContactHistoryCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_UsesCompetitor_MirrorsFlagAndCompetitorToCustomer()
+    {
+        var customer = new Customer { Id = _customerId, ProjectId = _projectId, CompanyName = "Test" };
+        var competitorId = Guid.NewGuid();
+        _customerRepoMock.Setup(r => r.GetByIdAsync(_customerId, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
+        _currentUserMock.Setup(u => u.IsSuperAdmin).Returns(true);
+        _currentUserMock.Setup(u => u.UserId).Returns(Guid.NewGuid());
+        _historyRepoMock.Setup(r => r.AddAsync(It.IsAny<Domain.Entities.ContactHistory>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Domain.Entities.ContactHistory h, CancellationToken _) => h);
+
+        var result = await CreateHandler().Handle(new CreateContactHistoryCommand
+        {
+            CustomerId = _customerId, Type = ContactType.Call, ContactedAt = DateTime.UtcNow.AddHours(-1), Reached = true,
+            UsesCompetitor = true, CompetitorId = competitorId,
+        }, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.UsesCompetitor.Should().BeTrue();
+        result.Value.CompetitorId.Should().Be(competitorId);
+        customer.UsesCompetitor.Should().BeTrue();
+        customer.CompetitorId.Should().Be(competitorId);
+        _customerRepoMock.Verify(r => r.UpdateAsync(customer, It.IsAny<CancellationToken>()), Times.Once);
+
+        // A later record that names no vendor keeps the known one; one without the flag changes nothing.
+        _customerRepoMock.Invocations.Clear();
+        await CreateHandler().Handle(new CreateContactHistoryCommand { CustomerId = _customerId, Type = ContactType.Call, ContactedAt = DateTime.UtcNow, UsesCompetitor = true }, CancellationToken.None);
+        customer.CompetitorId.Should().Be(competitorId);
+        _customerRepoMock.Verify(r => r.UpdateAsync(It.IsAny<Customer>(), It.IsAny<CancellationToken>()), Times.Never);
+        await CreateHandler().Handle(new CreateContactHistoryCommand { CustomerId = _customerId, Type = ContactType.Call, ContactedAt = DateTime.UtcNow, CompetitorId = Guid.NewGuid() }, CancellationToken.None);
+        customer.CompetitorId.Should().Be(competitorId, "competitorId without the flag is ignored");
+    }
+
+    [Fact]
     public async Task Handle_CustomerNotFound_ReturnsFailure()
     {
         // Arrange

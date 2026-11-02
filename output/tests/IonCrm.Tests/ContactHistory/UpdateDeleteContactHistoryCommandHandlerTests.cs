@@ -18,12 +18,13 @@ namespace IonCrm.Tests.ContactHistory;
 public class UpdateDeleteContactHistoryCommandHandlerTests
 {
     private readonly Mock<IContactHistoryRepository> _repoMock = new();
+    private readonly Mock<ICustomerRepository> _customerRepoMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly Mock<ILogger<UpdateContactHistoryCommandHandler>> _updateLoggerMock = new();
     private readonly Mock<ILogger<DeleteContactHistoryCommandHandler>> _deleteLoggerMock = new();
 
     private UpdateContactHistoryCommandHandler CreateUpdateHandler() => new(
-        _repoMock.Object, _currentUserMock.Object, _updateLoggerMock.Object);
+        _repoMock.Object, _customerRepoMock.Object, _currentUserMock.Object, _updateLoggerMock.Object);
 
     private DeleteContactHistoryCommandHandler CreateDeleteHandler() => new(
         _repoMock.Object, _currentUserMock.Object, _deleteLoggerMock.Object);

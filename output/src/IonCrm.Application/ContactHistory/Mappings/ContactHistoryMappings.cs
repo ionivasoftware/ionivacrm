@@ -23,6 +23,9 @@ public static class ContactHistoryMappings
         SatisfactionScore = h.SatisfactionScore,
         NextContactAt = h.NextContactAt,
         AppointmentId = h.AppointmentId,
+        UsesCompetitor = h.UsesCompetitor,
+        CompetitorId = h.CompetitorId,
+        CompetitorName = h.Competitor?.Name,
         CreatedByUserName = h.CreatedByUser is not null
             ? $"{h.CreatedByUser.FirstName} {h.CreatedByUser.LastName}".Trim()
             : null,

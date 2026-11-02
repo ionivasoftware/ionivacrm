@@ -38,6 +38,10 @@ public class CustomerDto
 
     /// <summary>Dahili/test firması — müşteri metriklerinden hariç.</summary>
     public bool IsInternal { get; set; }
+    /// <summary>Son görüşmede "farklı firma ile çalışıyor" dendi; <see cref="CompetitorName"/> hangi firma.</summary>
+    public bool UsesCompetitor { get; set; }
+    public Guid? CompetitorId { get; set; }
+    public string? CompetitorName { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     /// <summary>

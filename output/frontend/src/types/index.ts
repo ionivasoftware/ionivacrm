@@ -218,6 +218,10 @@ export interface Customer {
   lastActivityDate: string | null;
   /** Dahili/test firması (ör. IONIVA) — pano ve kullanım raporu sayımlarından hariç. */
   isInternal: boolean;
+  /** Son görüşmede "farklı firma ile çalışıyor" dendi (görüşme kaydından yansır). */
+  usesCompetitor?: boolean;
+  competitorId?: string | null;
+  competitorName?: string | null;
 }
 
 export interface CreateCustomerRequest {
@@ -281,6 +285,10 @@ export interface ContactHistory {
   /** Söz verilen tekrar arama zamanı — planlayıcı o güne randevu açar. */
   nextContactAt?: string | null;
   appointmentId?: string | null;
+  /** Müşteri farklı bir firma (rakip) ile çalışıyor dedi. */
+  usesCompetitor?: boolean;
+  competitorId?: string | null;
+  competitorName?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -296,6 +304,9 @@ export interface CreateContactHistoryRequest {
   reached?: boolean | null;
   satisfactionScore?: number | null;
   nextContactAt?: string | null;
+  /** Farklı bir firma ile çalışıyor; competitorId hangi firma (opsiyonel). */
+  usesCompetitor?: boolean;
+  competitorId?: string | null;
 }
 
 // ----- Task -----

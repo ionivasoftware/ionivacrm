@@ -104,12 +104,21 @@ public class Customer : BaseEntity
     /// <summary>Customer clicked the unsubscribe link of a lifecycle e-mail — no further marketing-type mails.</summary>
     public bool MarketingOptOut { get; set; }
 
+    /// <summary>Latest contact record said the company works with another vendor. Mirrored from ContactHistory.</summary>
+    public bool UsesCompetitor { get; set; }
+
+    /// <summary>The vendor named most recently (null when "another vendor" was reported without a name).</summary>
+    public Guid? CompetitorId { get; set; }
+
     // Navigation properties
     /// <summary>Gets or sets the project (tenant).</summary>
     public Project Project { get; set; } = null!;
 
     /// <summary>Gets or sets the assigned sales representative.</summary>
     public User? AssignedUser { get; set; }
+
+    /// <summary>Current competitor the company works with, if reported.</summary>
+    public Competitor? Competitor { get; set; }
 
     /// <summary>Gets or sets all contact history records for this customer.</summary>
     public ICollection<ContactHistory> ContactHistories { get; set; } = new List<ContactHistory>();

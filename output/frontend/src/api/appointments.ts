@@ -87,6 +87,8 @@ function useInvalidate() {
   return () => {
     qc.invalidateQueries({ queryKey: [...KEY] });
     qc.invalidateQueries({ queryKey: ['contactHistory'] });
+    qc.invalidateQueries({ queryKey: ['customer'] }); // görüşme kaydındaki rakip bilgisi müşteri kartına yansır
+    qc.invalidateQueries({ queryKey: ['competitors'] });
     qc.invalidateQueries({ queryKey: ['dashboard'] });
   };
 }
@@ -168,6 +170,9 @@ export interface CompleteAppointmentInput {
   /** Ulaşılamadı ise yeniden planlama zamanı (UTC ISO). */
   rescheduleAt?: string | null;
   contactedAt?: string;
+  /** Müşteri farklı bir firma ile çalışıyor; competitorId hangi firma (opsiyonel). */
+  usesCompetitor?: boolean;
+  competitorId?: string | null;
 }
 
 export interface CompleteAppointmentResult { appointment: Appointment; contactHistoryId: string; followUp: Appointment | null }
