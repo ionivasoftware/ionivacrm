@@ -923,6 +923,36 @@ app.Lifetime.ApplicationStarted.Register(() =>
             ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""UsesCompetitor"" boolean NOT NULL DEFAULT false;
             ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""CompetitorId"" uuid REFERENCES ""Competitors""(""Id"") ON DELETE SET NULL;
         ");
+        await RunSafe("SupportAccessRequests table + indexes", @"
+            CREATE TABLE IF NOT EXISTS ""SupportAccessRequests"" (
+                ""Id""                uuid         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                ""CustomerId""        uuid         NOT NULL,
+                ""ProjectId""         uuid         NOT NULL,
+                ""EmsUserId""         varchar(100) NOT NULL,
+                ""EmsUserName""       varchar(200),
+                ""To""                varchar(200) NOT NULL,
+                ""Reason""            varchar(500) NOT NULL,
+                ""Token""             varchar(64)  NOT NULL,
+                ""RequestedByUserId"" uuid         NOT NULL,
+                ""RequestedBy""       varchar(320) NOT NULL,
+                ""RequestedByName""   varchar(200) NOT NULL DEFAULT '',
+                ""ValidHours""        integer      NOT NULL DEFAULT 2,
+                ""Status""            integer      NOT NULL DEFAULT 1,
+                ""RequestedAt""       timestamp with time zone NOT NULL DEFAULT now(),
+                ""LinkExpiresAt""     timestamp with time zone NOT NULL,
+                ""RespondedAt""       timestamp with time zone,
+                ""ExpiresAt""         timestamp with time zone,
+                ""FirstUsedAt""       timestamp with time zone,
+                ""UseCount""          integer      NOT NULL DEFAULT 0,
+                ""MessageId""         varchar(300),
+                ""SendError""         varchar(1000),
+                ""CreatedAt""         timestamp with time zone NOT NULL DEFAULT now(),
+                ""UpdatedAt""         timestamp with time zone NOT NULL DEFAULT now(),
+                ""IsDeleted""         boolean      NOT NULL DEFAULT false
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ""ux_supportaccess_token"" ON ""SupportAccessRequests"" (""Token"");
+            CREATE INDEX IF NOT EXISTS ""ix_supportaccess_customer_user"" ON ""SupportAccessRequests"" (""CustomerId"", ""EmsUserId"", ""RequestedAt"");
+        ");
 
             Log.Information("Startup bootstrap complete");
         }

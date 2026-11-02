@@ -8,10 +8,12 @@ namespace IonCrm.Application.Customers.Commands.CreateEmsImpersonation;
 /// ve Liftdesk tarafında denetim kayıtlı bir giriş bağlantısı alır (docs/crm-impersonation-api.md).
 /// <c>agent</c> istemciden ALINMAZ — handler oturum açmış operatörün e-postasını koyar.
 /// </summary>
+/// <param name="AccessRequestId">Customer consent to log in under (optional). When given it must be approved and inside its window; the login is counted on it.</param>
 public record CreateEmsImpersonationCommand(
     Guid CustomerId,
     string UserId,
-    string Reason)
+    string Reason,
+    Guid? AccessRequestId = null)
     : IRequest<Result<EmsImpersonationDto>>;
 
 /// <summary>

@@ -112,6 +112,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>Rival vendors named in contact records — tenant-scoped.</summary>
     public DbSet<Competitor> Competitors => Set<Competitor>();
 
+    /// <summary>Customer consent requests for support logins ("Hesaba Gir" with permission) — tenant-scoped.</summary>
+    public DbSet<SupportAccessRequest> SupportAccessRequests => Set<SupportAccessRequest>();
+
     // ── Model configuration ───────────────────────────────────────────────────
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -223,6 +226,12 @@ public class ApplicationDbContext : DbContext
 
         // Competitors: tenant-scoped like customers.
         modelBuilder.Entity<Competitor>()
+            .HasQueryFilter(e => !e.IsDeleted &&
+                (_currentUser.IsSuperAdmin ||
+                 _currentUser.ProjectIds.Contains(e.ProjectId)));
+
+        // SupportAccessRequests: tenant-scoped; the public answer page reads by token with IgnoreQueryFilters.
+        modelBuilder.Entity<SupportAccessRequest>()
             .HasQueryFilter(e => !e.IsDeleted &&
                 (_currentUser.IsSuperAdmin ||
                  _currentUser.ProjectIds.Contains(e.ProjectId)));

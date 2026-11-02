@@ -259,6 +259,15 @@ output/
 | GET/POST | `/unsubscribe/{token}` | Abonelikten çık (HTML sayfa; `List-Unsubscribe` başlığı da buraya) |
 | GET/POST | `/unsubscribe/customer/{customerId}/{token}` | Demo yaşam döngüsü e-postaları için müşteri opt-out (HMAC token) |
 
+### Destek Erişimi İzni — `/api/v1/customers/{id}/ems-users/{userId}/access-requests` (oturum) · `/api/v1/support-access` (public)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/customers/{id}/ems-users/{userId}/access-requests` | Yürürlükteki onay, bekleyen istek, son 5 istek, gönderici kutusu, müşteri e-postası |
+| POST | `/customers/{id}/ems-users/{userId}/access-requests` | `{to, reason, validHours?, emsUserName?}` → izin e-postası (ortak kutu, Reply-To operatör) |
+| POST | `/customers/{id}/ems-users/{userId}/impersonation` | `{reason, accessRequestId?}` — izin verildiyse onaylı + süresi içinde olmalı |
+| GET | `/support-access/{token}` | Public inceleme sayfası (TR/EN) |
+| POST | `/support-access/{token}/approve` · `/decline` | Müşterinin yanıtı → Approved (+validHours) / Declined |
+
 ### Demo E-postaları — `/api/v1/lifecycle-mails` (SuperAdmin)
 | Method | Path | Açıklama |
 |---|---|---|

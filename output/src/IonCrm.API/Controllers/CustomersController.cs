@@ -15,6 +15,7 @@ using IonCrm.Application.Customers.Commands.UpdateCustomer;
 using IonCrm.Application.Customers.Commands.UpdateCustomerChecklist;
 using IonCrm.Application.Customers.Commands.UpdateCustomerPlan;
 using IonCrm.Application.Customers.Commands.UpdateCustomerRezervalSettings;
+using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models.ExternalApis;
 using IonCrm.Application.Customers.Queries.GetActiveContractByCustomerId;
 using IonCrm.Application.Customers.Queries.GetCustomerById;
@@ -206,6 +207,7 @@ public class CustomersController : ApiControllerBase
     /// "Hesaba Gir": seçilen Liftdesk kullanıcısı için tek kullanımlık (2 dk) destek giriş bağlantısı
     /// alır. API anahtarı ve operatör kimliği (agent) sunucuda kalır; bağlantı tarayıcıda yeni sekmede
     /// açılır, hiçbir yerde loglanmaz/saklanmaz. Her çağrı Liftdesk'te ayrı bir denetim oturumudur.
+    /// <c>accessRequestId</c> verilirse müşteri izni onaylı ve süresi içinde olmalıdır.
     /// </summary>
     [HttpPost("{id:guid}/ems-users/{userId}/impersonation")]
     public async Task<IActionResult> CreateEmsImpersonation(
@@ -215,7 +217,31 @@ public class CustomersController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var result = await Mediator.Send(
-            new CreateEmsImpersonationCommand(id, userId, body?.Reason ?? string.Empty), cancellationToken);
+            new CreateEmsImpersonationCommand(id, userId, body?.Reason ?? string.Empty, body?.AccessRequestId), cancellationToken);
+        return ResultToResponse(result);
+    }
+
+    /// <summary>
+    /// GET /api/v1/customers/{id}/ems-users/{userId}/access-requests — müşteri izni durumu: yürürlükteki onay,
+    /// bekleyen istek, son istekler, gönderici kutusu, müşteri e-postası.
+    /// </summary>
+    [HttpGet("{id:guid}/ems-users/{userId}/access-requests")]
+    public async Task<IActionResult> GetSupportAccess(Guid id, string userId, CancellationToken cancellationToken = default)
+    {
+        var service = HttpContext.RequestServices.GetRequiredService<ISupportAccessService>();
+        return OkResponse(await service.GetAsync(id, userId, cancellationToken));
+    }
+
+    /// <summary>
+    /// POST /api/v1/customers/{id}/ems-users/{userId}/access-requests — {to, reason, validHours?, emsUserName?}:
+    /// müşteriye izin isteği e-postası gönderir (ortak destek kutusundan, Reply-To operatör). Müşteri bağlantıdaki
+    /// sayfada onaylarsa <c>validHours</c> (varsayılan 2) saat boyunca "Hesaba Gir" açılır.
+    /// </summary>
+    [HttpPost("{id:guid}/ems-users/{userId}/access-requests")]
+    public async Task<IActionResult> RequestSupportAccess(Guid id, string userId, [FromBody] RequestSupportAccessBody body, CancellationToken cancellationToken = default)
+    {
+        var service = HttpContext.RequestServices.GetRequiredService<ISupportAccessService>();
+        var result = await service.RequestAsync(id, userId, body?.EmsUserName, body?.To ?? string.Empty, body?.Reason ?? string.Empty, body?.ValidHours, cancellationToken);
         return ResultToResponse(result);
     }
 
@@ -578,8 +604,11 @@ public record AddCustomerSmsRequest(int Count);
 public record SetPrimaryEmsUserRequest(string UserId);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/ems-users/{userId}/impersonation.
-/// Yalnız gerekçe — <c>agent</c> sunucuda oturum açmış operatörden alınır.</summary>
-public record CreateEmsImpersonationRequest(string Reason);
+/// Yalnız gerekçe (+ isteğe bağlı müşteri izni) — <c>agent</c> sunucuda oturum açmış operatörden alınır.</summary>
+public record CreateEmsImpersonationRequest(string Reason, Guid? AccessRequestId = null);
+
+/// <summary>Request body for POST /api/v1/customers/{id}/ems-users/{userId}/access-requests.</summary>
+public record RequestSupportAccessBody(string? To, string? Reason, int? ValidHours, string? EmsUserName);
 
 /// <summary>Request body for PUT /api/v1/customers/{id}/checklists/{kind} — the FULL new checklist.</summary>
 public record UpdateChecklistRequest(List<LiftdeskChecklistHeaderInput> Headers);

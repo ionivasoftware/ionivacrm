@@ -20,6 +20,7 @@ public sealed class CreateEmsImpersonationCommandHandler
     private readonly IProjectRepository _projectRepository;
     private readonly ISaasAClient _saasAClient;
     private readonly ICurrentUserService _currentUser;
+    private readonly ISupportAccessService _supportAccess;
     private readonly ILogger<CreateEmsImpersonationCommandHandler> _logger;
 
     public CreateEmsImpersonationCommandHandler(
@@ -27,12 +28,14 @@ public sealed class CreateEmsImpersonationCommandHandler
         IProjectRepository projectRepository,
         ISaasAClient saasAClient,
         ICurrentUserService currentUser,
+        ISupportAccessService supportAccess,
         ILogger<CreateEmsImpersonationCommandHandler> logger)
     {
         _customerRepository = customerRepository;
         _projectRepository  = projectRepository;
         _saasAClient        = saasAClient;
         _currentUser        = currentUser;
+        _supportAccess      = supportAccess;
         _logger             = logger;
     }
 
@@ -63,6 +66,13 @@ public sealed class CreateEmsImpersonationCommandHandler
 
         if (!_currentUser.IsSuperAdmin && !_currentUser.ProjectIds.Contains(customer.ProjectId))
             return Result<EmsImpersonationDto>.Failure("Bu müşteriye erişim yetkiniz yok.");
+
+        // Müşteri izniyle giriş: izin isteği onaylı ve süresi içinde olmalı — istemcinin işareti sunucuda doğrulanır.
+        if (request.AccessRequestId is { } consentId)
+        {
+            var why = await _supportAccess.ValidateForLoginAsync(consentId, customer.Id, request.UserId, cancellationToken);
+            if (why is not null) return Result<EmsImpersonationDto>.Failure(why);
+        }
 
         var project = await _projectRepository.GetByIdAsync(customer.ProjectId, cancellationToken);
         if (!SaasCustomerResolver.TryResolve(customer, project,
@@ -116,8 +126,9 @@ public sealed class CreateEmsImpersonationCommandHandler
         // CRM tarafı denetim satırı — bağlantı YOK, gerekçe YOK (ikisi de Liftdesk'in denetim
         // kaydında; bağlantı gizli değer, gerekçe oraya ait). Yalnız kim/kime/ne zaman.
         _logger.LogInformation(
-            "Impersonation issued: agent {Agent} -> customer {CustomerId} (company {EmsId}, user {UserId}), expires {ExpiresAt:u}.",
-            agent, customer.Id, emsCompanyId, request.UserId, ems.ExpiresAt);
+            "Impersonation issued: agent {Agent} -> customer {CustomerId} (company {EmsId}, user {UserId}), expires {ExpiresAt:u}, consent {Consent}.",
+            agent, customer.Id, emsCompanyId, request.UserId, ems.ExpiresAt, request.AccessRequestId?.ToString() ?? "none");
+        if (request.AccessRequestId is { } used) await _supportAccess.MarkUsedAsync(used, cancellationToken);
 
         return Result<EmsImpersonationDto>.Success(new EmsImpersonationDto(ems.LoginUrl, ems.ExpiresAt));
     }

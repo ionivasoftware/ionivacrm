@@ -445,13 +445,54 @@ export interface EmsImpersonationResult {
  */
 export function useCreateEmsImpersonation(customerId: string) {
   return useMutation({
-    mutationFn: async (body: { userId: string; reason: string }) => {
+    mutationFn: async (body: { userId: string; reason: string; accessRequestId?: string | null }) => {
       const response = await apiClient.post<ApiResponse<EmsImpersonationResult>>(
         `/customers/${customerId}/ems-users/${encodeURIComponent(body.userId)}/impersonation`,
-        { reason: body.reason }
+        { reason: body.reason, accessRequestId: body.accessRequestId ?? null }
       );
       return response.data.data;
     },
+  });
+}
+
+// ── Destek erişimi izni (müşteriden onay) ────────────────────────────────────
+
+export interface SupportAccessRequest {
+  id: string; customerId: string; emsUserId: string; emsUserName: string | null; to: string; reason: string;
+  status: 'Pending' | 'Approved' | 'Declined' | 'Cancelled' | string;
+  requestedBy: string; requestedByName: string; requestedAt: string; linkExpiresAt: string; respondedAt: string | null; expiresAt: string | null;
+  validHours: number; active: boolean; pending: boolean; useCount: number; sendError: string | null;
+}
+
+export interface SupportAccessOverview {
+  /** Yürürlükteki onay (süresi dolmamış) */
+  active: SupportAccessRequest | null;
+  /** Yanıt bekleyen istek */
+  pendingRequest: SupportAccessRequest | null;
+  recent: SupportAccessRequest[];
+  senderAddress: string | null;
+  customerEmail: string | null;
+}
+
+/** İzin durumu; yanıt beklenirken 15 sn'de bir yenilenir (müşteri onaylayınca düğme açılır). */
+export function useSupportAccess(customerId: string, userId: string | null) {
+  return useQuery({
+    queryKey: ['supportAccess', customerId, userId],
+    queryFn: async () => (await apiClient.get<ApiResponse<SupportAccessOverview>>(`/customers/${customerId}/ems-users/${encodeURIComponent(userId ?? '')}/access-requests`)).data.data,
+    enabled: !!customerId && !!userId,
+    refetchInterval: (q) => (q.state.data?.pendingRequest ? 15_000 : false),
+    staleTime: 10_000,
+    retry: 1,
+  });
+}
+
+export function useRequestSupportAccess(customerId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { userId: string; to: string; reason: string; validHours: number; emsUserName?: string }) =>
+      (await apiClient.post<ApiResponse<SupportAccessRequest>>(`/customers/${customerId}/ems-users/${encodeURIComponent(body.userId)}/access-requests`,
+        { to: body.to, reason: body.reason, validHours: body.validHours, emsUserName: body.emsUserName })).data.data,
+    onSuccess: (_r, v) => { qc.invalidateQueries({ queryKey: ['supportAccess', customerId, v.userId] }); qc.invalidateQueries({ queryKey: ['contactHistory', customerId] }); },
   });
 }
 

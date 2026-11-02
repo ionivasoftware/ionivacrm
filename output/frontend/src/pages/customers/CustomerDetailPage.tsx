@@ -81,6 +81,8 @@ import {
   useCustomerPlan,
   useSetPrimaryEmsUser,
   useCreateEmsImpersonation,
+  useSupportAccess,
+  useRequestSupportAccess,
   useCustomerEmsSummary,
   useCustomerRezervalSummary,
   useUpdateCustomer,
@@ -1420,35 +1422,73 @@ function InternalFlagToggle({ customer }: { customer: CustomerType }) {
 interface ImpersonationDialogProps {
   target: EmsUser | null;
   onOpenChange: (open: boolean) => void;
+  customerId: string;
   companyName: string;
+  customerEmail: string | null | undefined;
   impersonate: ReturnType<typeof useCreateEmsImpersonation>;
 }
 
 const REASON_MIN = 10;
 const REASON_MAX = 500;
+const CONSENT_HOURS = [1, 2, 4, 8] as const;
+const CONSENT_STATUS_LABEL: Record<string, string> = { Pending: 'Yanıt bekleniyor', Approved: 'İzin verildi', Declined: 'Reddedildi', Cancelled: 'Yenisiyle değişti' };
+
+const fmtClock = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 
 /**
  * Gerekçe penceresi + yeni sekmede giriş. İki güvenlik kuralı sözleşmeden:
  *  - Dönen bağlantı GİZLİ değerdir: loglanmaz, saklanmaz, metin olarak gösterilmez.
  *  - Bağlantı yeni sekmede, opener bağı koparılarak açılır.
  *
+ * Müşteri izni: "Önce müşteriden izin iste" işaretliyse (varsayılan) önce izin e-postası gider; müşteri
+ * bağlantıdaki sayfada onaylayınca burada "Yeni sekmede gir" açılır ve seçilen süre (2 saat vb.) boyunca
+ * geçerli kalır. Sunucu da izni doğrular (accessRequestId). İşaret kaldırılırsa eski akış (izinsiz giriş).
+ *
  * Sekme, API çağrısından ÖNCE ve kullanıcı tıklamasının içinde senkron açılır: tarayıcılar
  * await sonrası window.open'ı pop-up sayıp engeller. Engellenirse API hiç çağrılmaz — boşa
  * (kullanılmayacak) bir denetim oturumu açılmasın.
  */
-function ImpersonationDialog({ target, onOpenChange, companyName, impersonate }: ImpersonationDialogProps) {
+function ImpersonationDialog({ target, onOpenChange, customerId, companyName, customerEmail, impersonate }: ImpersonationDialogProps) {
   const { toast } = useToast();
   const [reason, setReason] = useState('');
+  const [askConsent, setAskConsent] = useState(true);
+  const [hours, setHours] = useState<number>(2);
+  const [to, setTo] = useState('');
+  const { data: consent, isLoading: consentLoading } = useSupportAccess(customerId, target?.userId ?? null);
+  const request = useRequestSupportAccess(customerId);
   const trimmed = reason.trim();
   const valid = trimmed.length >= REASON_MIN && trimmed.length <= REASON_MAX;
+  const active = consent?.active ?? null;
+  const pending = consent?.pendingRequest ?? null;
+  const defaultTo = target?.email || consent?.customerEmail || customerEmail || '';
+  const toValue = to || defaultTo;
+  const toValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toValue.trim());
+  // Onay varken gerekçe boşsa istekteki gerekçeyle devam et (aynı iş).
+  const effectiveReason = trimmed.length > 0 ? trimmed : (active?.reason ?? '');
+  const effectiveValid = effectiveReason.length >= REASON_MIN && effectiveReason.length <= REASON_MAX;
+  const canEnter = !askConsent || !!active;
 
   function close() {
     onOpenChange(false);
-    setReason('');
+    setReason(''); setTo(''); setHours(2); setAskConsent(true);
+  }
+
+  async function handleRequest() {
+    if (!target || !valid || !toValid) return;
+    try {
+      const r = await request.mutateAsync({ userId: target.userId, to: toValue.trim(), reason: trimmed, validHours: hours, emsUserName: fullName(target) });
+      toast({ title: 'İzin isteği gönderildi', description: `${r.to} · müşteri onaylayınca ${r.validHours} saat boyunca girebilirsiniz. Bu pencere açıkken durum kendiliğinden yenilenir.` });
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { errors?: string[]; message?: string } } })?.response?.data?.errors?.[0] ??
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'İzin isteği gönderilemedi.';
+      toast({ title: 'Gönderilemedi', description: msg, variant: 'destructive' });
+    }
   }
 
   async function handleConfirm() {
-    if (!target || !valid) return;
+    if (!target || !effectiveValid || !canEnter) return;
 
     // Tıklama bağlamında senkron aç; opener bağını kopar (noopener eşdeğeri — 'noopener'
     // parametresi referansı null döndürdüğü için sonradan yönlendirilemezdi).
@@ -1469,7 +1509,7 @@ function ImpersonationDialog({ target, onOpenChange, companyName, impersonate }:
     } catch { /* about:blank yazılamazsa önemli değil */ }
 
     try {
-      const result = await impersonate.mutateAsync({ userId: target.userId, reason: trimmed });
+      const result = await impersonate.mutateAsync({ userId: target.userId, reason: effectiveReason, accessRequestId: active?.id ?? null });
       tab.location.href = result.loginUrl;
       const mins = Math.max(1, Math.round((new Date(result.expiresAt).getTime() - Date.now()) / 60000));
       toast({
@@ -1486,6 +1526,8 @@ function ImpersonationDialog({ target, onOpenChange, companyName, impersonate }:
       toast({ title: 'Hesaba girilemedi', description: msg, variant: 'destructive' });
     }
   }
+
+  const showRequestForm = askConsent && !active && !pending;
 
   return (
     <Dialog open={!!target} onOpenChange={v => { if (!v) close(); }}>
@@ -1514,28 +1556,92 @@ function ImpersonationDialog({ target, onOpenChange, companyName, impersonate }:
               rows={3}
               value={reason}
               onChange={e => setReason(e.target.value)}
-              placeholder="Örn: Bakım listesi boş görünüyor, ekran kontrolü"
+              placeholder={active ? `Boş bırakılırsa istekteki gerekçe kullanılır: ${active.reason}` : 'Örn: Bakım listesi boş görünüyor, ekran kontrolü'}
               maxLength={REASON_MAX + 50}
               autoFocus
             />
-            <p className={cn('text-xs', valid ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-500')}>
-              {trimmed.length}/{REASON_MAX} · en az {REASON_MIN} karakter
+            <p className={cn('text-xs', valid || (active && trimmed.length === 0) ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-500')}>
+              {trimmed.length}/{REASON_MAX} · en az {REASON_MIN} karakter{active && trimmed.length === 0 ? ' · istekteki gerekçe kullanılacak' : ''}
             </p>
+          </div>
+
+          {/* Müşteri izni */}
+          <div className="rounded-md border border-border p-3 space-y-2">
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-0.5" checked={askConsent} onChange={e => setAskConsent(e.target.checked)} />
+              <span>
+                <span className="font-medium text-foreground">Önce müşteriden izin iste</span>
+                <span className="block text-xs text-muted-foreground">Müşteriye e-posta gider ("Hesabınıza destek erişimiyle girip … yapacağım, uygun mu?"); onaylayınca seçilen süre boyunca girebilirsiniz. DPA'daki erişim taahhüdüyle uyumlu yol.</span>
+              </span>
+            </label>
+
+            {consentLoading && target && <div className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> İzin durumu alınıyor…</div>}
+
+            {active && (
+              <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300">
+                <span className="font-medium">Müşteri izin verdi</span> · {fmtClock(active.respondedAt)} · <span className="font-medium">{fmtClock(active.expiresAt)}</span>'e kadar geçerli ({active.validHours} saat)
+                {active.useCount > 0 ? ` · ${active.useCount} oturum açıldı` : ''}
+                <div className="text-muted-foreground mt-0.5">İsteyen: {active.requestedByName} · alıcı {active.to}</div>
+              </div>
+            )}
+
+            {!active && pending && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200 space-y-1">
+                <div><span className="font-medium">İzin isteği gönderildi</span> · {fmtClock(pending.requestedAt)} → {pending.to} · {pending.validHours} saat için</div>
+                <div className="text-muted-foreground">Müşteri onaylayınca burada "Yeni sekmede gir" açılır (15 sn'de bir kontrol edilir). Bağlantı {fmtClock(pending.linkExpiresAt)}'e kadar geçerli.</div>
+                <button type="button" className="underline" disabled={request.isPending || !valid} onClick={handleRequest} title={!valid ? 'Yeniden göndermek için gerekçe yazın' : undefined}>Yeniden gönder{!valid ? ' (gerekçe gerekli)' : ''}</button>
+              </div>
+            )}
+
+            {showRequestForm && target && (
+              <div className="space-y-2">
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground" htmlFor="imp-to">İzin e-postası alıcısı</label>
+                    <Input id="imp-to" type="email" value={toValue} onChange={e => setTo(e.target.value)} placeholder="musteri@firma.com" className="h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Geçerlilik</label>
+                    <div className="flex gap-1">
+                      {CONSENT_HOURS.map(h => <button key={h} type="button" onClick={() => setHours(h)} className={cn('rounded-full border px-2.5 py-1 text-xs', hours === h ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground')}>{h} sa</button>)}
+                    </div>
+                  </div>
+                </div>
+                {consent?.senderAddress ? <div className="text-[11px] text-muted-foreground">Gönderen: {consent.senderAddress} · yanıtlar size döner</div>
+                  : <div className="text-[11px] text-amber-400">Gönderici posta kutusu tanımlı değil — izin e-postası gönderilemez.</div>}
+              </div>
+            )}
+
+            {consent && consent.recent.length > 0 && (
+              <details className="text-[11px] text-muted-foreground">
+                <summary className="cursor-pointer">Son istekler ({consent.recent.length})</summary>
+                <ul className="mt-1 space-y-0.5">
+                  {consent.recent.map(r => <li key={r.id}>{fmtClock(r.requestedAt)} · {r.requestedByName} → {r.to} · {CONSENT_STATUS_LABEL[r.status] ?? r.status}{r.status === 'Approved' && r.expiresAt ? ` (${fmtClock(r.expiresAt)}'e kadar${r.active ? '' : ', doldu'})` : ''}</li>)}
+                </ul>
+              </details>
+            )}
           </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={close}>Vazgeç</Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={!target || !valid || impersonate.isPending}
-            className="bg-blue-500 hover:bg-blue-600 text-white"
-          >
-            {impersonate.isPending ? (
-              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Açılıyor…</>
-            ) : (
-              <><LogIn className="h-4 w-4 mr-1.5" />Yeni sekmede gir</>
-            )}
-          </Button>
+          {showRequestForm ? (
+            <Button onClick={handleRequest} disabled={!target || !valid || !toValid || request.isPending || !consent?.senderAddress} className="bg-blue-500 hover:bg-blue-600 text-white">
+              {request.isPending ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Gönderiliyor…</> : <><Send className="h-4 w-4 mr-1.5" />İzin iste</>}
+            </Button>
+          ) : (
+            <Button
+              onClick={handleConfirm}
+              disabled={!target || !effectiveValid || !canEnter || impersonate.isPending}
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+              title={!canEnter ? 'Müşteri izni bekleniyor' : undefined}
+            >
+              {impersonate.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Açılıyor…</>
+              ) : (
+                <><LogIn className="h-4 w-4 mr-1.5" />{active ? 'Yeni sekmede gir (izinli)' : askConsent ? 'İzin bekleniyor' : 'Yeni sekmede gir'}</>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -2874,7 +2980,9 @@ export function CustomerDetailPage() {
       <ImpersonationDialog
         target={impersonateTarget}
         onOpenChange={(open) => { if (!open) setImpersonateTarget(null); }}
+        customerId={customerId}
         companyName={customer?.companyName ?? ''}
+        customerEmail={customer?.email}
         impersonate={impersonate}
       />
 

@@ -82,6 +82,7 @@ public static class DependencyInjection
         services.AddSingleton<IDemoLifecycleState, DemoLifecycleState>();
         services.AddHostedService<DemoLifecycleBackgroundService>();
         services.AddScoped<IMarketingMailService, MarketingMailService>();
+        services.AddScoped<ISupportAccessService, SupportAccessService>();
         services.AddScoped<ICallPlanService, CallPlanService>();
         services.AddHostedService<CallPlanBackgroundService>();
         services.AddSingleton<ITokenProtector, AesGcmTokenProtector>();
