@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
+import { countryName } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -48,8 +49,6 @@ const OUTREACH_STYLE: Record<string, string> = {
 };
 const OUTREACH_FILTERS: OutreachStatus[] = ['Active', 'Replied', 'Completed', 'Paused', 'Failed', 'Bounced', 'Unsubscribed', 'NotStarted'];
 
-const COUNTRY_NAME: Record<string, string> = { GB: 'Birleşik Krallık', IE: 'İrlanda', DE: 'Almanya', FR: 'Fransa', NL: 'Hollanda', ES: 'İspanya', IT: 'İtalya', US: 'ABD' };
-const countryName = (c: string) => COUNTRY_NAME[c] ?? c;
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response) {

@@ -6,6 +6,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { Card, CardContent } from '@/components/ui/card';
+import { countryName } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
 import {
   useSiteOverview, useSiteEvents, useSiteSilenceProbe, fillDaily, todayUtc, addDaysUtc,
@@ -151,8 +152,9 @@ export function SiteAnalyticsPage() {
           <option value="en">/en/</option>
           <option value="uk">/uk/</option>
         </select>
-        <input value={country} onChange={e => setCountry(e.target.value)} placeholder="Ülke (GB)" maxLength={2}
+        <input value={country} onChange={e => setCountry(e.target.value)} placeholder="Ülke (GB)" maxLength={2} title="ISO ülke kodu, ör. GB, DE"
           className={`h-9 w-24 rounded-md border bg-transparent px-2 text-sm uppercase ${countryValid ? 'border-input' : 'border-destructive'}`} />
+        {filters.country && countryValid && <span className="text-xs text-muted-foreground self-center">{countryName(filters.country)}</span>}
       </div>
 
       {silent && (
@@ -285,7 +287,7 @@ export function SiteAnalyticsPage() {
                   <tbody>
                     {(data.countries ?? []).slice(0, 15).map(c => (
                       <tr key={c.country} className="border-t border-border/40">
-                        <td className="py-1 font-medium">{c.country === 'unknown' ? 'Bilinmiyor' : c.country}</td>
+                        <td className="py-1 font-medium" title={c.country}>{countryName(c.country)}</td>
                         <td className="py-1 text-right tabular-nums">{c.pageViews.toLocaleString('tr-TR')}</td>
                         <td className="py-1 text-right tabular-nums text-muted-foreground">{c.visitors.toLocaleString('tr-TR')}</td>
                         <td className="py-1 text-right tabular-nums">{c.signupStarts}</td>
@@ -362,7 +364,7 @@ export function SiteAnalyticsPage() {
                           <td data-label="" className="px-2 py-1 whitespace-nowrap text-muted-foreground">{new Date(e.occurredAt).toLocaleTimeString('tr-TR')}</td>
                           <td data-label="" className="px-2 py-1"><span className="rounded-full border border-border px-1.5 py-0.5">{EVENT_TR[e.type] ?? e.type}</span></td>
                           <td data-label="" className="px-2 py-1 font-mono truncate max-w-[200px]" title={e.path}>{e.path}</td>
-                          <td data-label="" className="px-2 py-1 text-muted-foreground">{e.country ?? '—'} · {DEVICE_TR[e.device ?? ''] ?? e.device ?? '—'}</td>
+                          <td data-label="" className="px-2 py-1 text-muted-foreground" title={e.country ?? ''}>{countryName(e.country)} · {DEVICE_TR[e.device ?? ''] ?? e.device ?? '—'}</td>
                           <td data-label="" className="px-2 py-1 text-muted-foreground truncate max-w-[180px]" title={e.label ?? ''}>
                             {e.label ?? ''}{e.value != null ? ` ${String(e.value)}` : ''}
                           </td>
