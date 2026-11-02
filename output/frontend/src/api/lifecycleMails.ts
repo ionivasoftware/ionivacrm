@@ -13,7 +13,9 @@ export interface LifecycleOptions { checkInAfterDays: number; trialEndedAfterDay
 export interface LifecycleRunSummary { startedAt: string; finishedAt: string; candidates: number; sent: number; failed: number; deferred: number; notes: string[] }
 
 export interface LifecycleStatus {
-  enabled: boolean; smtpConfigured: boolean; from: string | null; folder: string | null; languages: string[];
+  enabled: boolean; smtpConfigured: boolean; from: string | null;
+  /** Hangi ayar bloğundan: 'LifecycleMail' | 'EmailCollector' (destek kutusu) | 'Notifications' */
+  smtpSource: string | null; folder: string | null; languages: string[];
   options: LifecycleOptions; sentByStep: Record<string, number>; lastRun: LifecycleRunSummary | null;
 }
 
@@ -28,6 +30,8 @@ export interface LifecycleMailRow {
 }
 
 export interface LifecycleMailPage { items: LifecycleMailRow[]; totalCount: number; page: number; pageSize: number }
+
+export interface LifecycleTestResult { error: string | null; to: string; language: string; subject: string | null; from: string | null; smtpSource: string | null }
 
 const KEY = ['lifecycle-mails'] as const;
 
@@ -66,6 +70,14 @@ export function useSendLifecycleMail() {
     mutationFn: async ({ customerId, step, force }: { customerId: string; step: LifecycleStep; force?: boolean }) =>
       (await apiClient.post<ApiResponse<{ sent: boolean }>>(`/lifecycle-mails/customers/${customerId}/send`, { step, force: force ?? false })).data.data,
     onSuccess: invalidate,
+  });
+}
+
+/** Şablonu örnek verilerle verilen adrese gönderir ("[TEST]" konu). Müşteri kaydı tutulmaz — SMTP ve şablon kontrolü. */
+export function useSendLifecycleTest() {
+  return useMutation({
+    mutationFn: async ({ to, step, language }: { to: string; step: LifecycleStep; language?: string }) =>
+      (await apiClient.post<ApiResponse<LifecycleTestResult>>('/lifecycle-mails/test', { to, step, language })).data.data,
   });
 }
 

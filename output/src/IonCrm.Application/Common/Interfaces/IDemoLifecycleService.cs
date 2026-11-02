@@ -7,7 +7,10 @@ public record LifecycleRunSummary(DateTime StartedAt, DateTime FinishedAt, int C
 
 public record LifecycleCandidate(Guid CustomerId, string CompanyName, string? Email, string? Country, string Language, CustomerStatus Status, DateTime CreatedAt, DateTime? ExpirationDate, LifecycleStep? DueStep, string? SkipReason, List<LifecycleStep> SentSteps, bool InWindow);
 
-public record LifecycleStatus(bool Enabled, bool SmtpConfigured, string? From, string? Folder, List<string> Languages, LifecycleOptions Options, Dictionary<string, int> SentByStep, LifecycleRunSummary? LastRun);
+public record LifecycleStatus(bool Enabled, bool SmtpConfigured, string? From, string? SmtpSource, string? Folder, List<string> Languages, LifecycleOptions Options, Dictionary<string, int> SentByStep, LifecycleRunSummary? LastRun);
+
+/// <summary>Outcome of a test send: <see cref="Error"/> null = delivered to the SMTP server.</summary>
+public record LifecycleTestResult(string? Error, string To, string Language, string? Subject, string? From, string? SmtpSource);
 
 /// <summary>Demo lifecycle e-mails for non-TR Liftdesk trial accounts (welcome → check-in → trial ended), sent from the company support mailbox.</summary>
 public interface IDemoLifecycleService
@@ -24,6 +27,12 @@ public interface IDemoLifecycleService
 
     /// <summary>Sends one step now. <paramref name="force"/> ignores eligibility/window but never re-sends a step already sent. Returns null on success, else the error.</summary>
     Task<string?> SendAsync(Guid customerId, LifecycleStep step, bool force, string triggeredBy, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends one step to an arbitrary address with sample data ("[TEST]" subject) — SMTP and template check.
+    /// Nothing is logged against a customer. <paramref name="language"/> = template folder (default "en").
+    /// </summary>
+    Task<LifecycleTestResult> SendTestAsync(string to, LifecycleStep step, string? language, string triggeredBy, CancellationToken cancellationToken = default);
 
     /// <summary>One scheduler cycle.</summary>
     Task<LifecycleRunSummary> RunDueAsync(CancellationToken cancellationToken = default);

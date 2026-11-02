@@ -73,9 +73,20 @@ public sealed class LifecycleMailsController : ApiControllerBase
         return err is null ? OkResponse(new { sent = true }) : BadRequest(ApiResponse<object>.Fail(err, 400));
     }
 
+    /// <summary>POST /api/v1/lifecycle-mails/test — {to, step, language?}: şablonu örnek verilerle verilen adrese gönder ("[TEST]" konu; SMTP + şablon kontrolü, müşteri kaydı tutulmaz).</summary>
+    [HttpPost("test")]
+    public async Task<IActionResult> Test([FromBody] TestLifecycleBody body, CancellationToken cancellationToken = default)
+    {
+        if (!Enum.TryParse(body.Step, true, out LifecycleStep st)) return BadRequest(ApiResponse<object>.Fail("step Welcome | CheckIn | TrialEnded olmalı.", 400));
+        var r = await _service.SendTestAsync(body.To ?? string.Empty, st, body.Language, _currentUser.Email ?? "manual", cancellationToken);
+        return r.Error is null ? OkResponse(r) : BadRequest(ApiResponse<object>.Fail(r.Error, 400));
+    }
+
     /// <summary>POST /api/v1/lifecycle-mails/run — zamanlayıcı döngüsünü şimdi çalıştır.</summary>
     [HttpPost("run")]
     public async Task<IActionResult> Run(CancellationToken cancellationToken = default) => OkResponse(await _service.RunDueAsync(cancellationToken));
 }
 
 public record SendLifecycleBody(string Step, bool? Force);
+
+public record TestLifecycleBody(string? To, string Step, string? Language);

@@ -19,8 +19,9 @@ namespace IonCrm.Infrastructure.Services;
 /// welcome (right after signup), check-in (mid-trial), trial-ended reminder (expired without purchase).
 /// Rules live in <see cref="DemoLifecyclePlanner"/>; templates in <c>marketing/lifecycle/{lang}/</c>
 /// (language from the customer's country, "en" fallback). Each send is logged in CustomerLifecycleMails
-/// (one per customer+step) and on the customer's timeline (E-posta). SMTP: <c>LifecycleMail:Smtp:*</c>,
-/// falling back to <c>Notifications:Smtp:*</c>. Config: LifecycleMail:Enabled, CheckInAfterDays (3),
+/// (one per customer+step) and on the customer's timeline (E-posta). SMTP account: <see cref="LifecycleSmtpResolver"/>
+/// (<c>LifecycleMail:Smtp:*</c> → support mailbox from <c>EmailCollector:Imap:*</c> → <c>Notifications:Smtp:*</c>).
+/// Config: LifecycleMail:Enabled, CheckInAfterDays (3),
 /// TrialEndedAfterDays (1), MaxAgeDays (14), SendHourStart (8), SendHourEnd (20), ExcludeCountries ("TR"),
 /// PortalUrl, SupportEmail, Folder.
 /// </summary>
@@ -50,15 +51,12 @@ public sealed class DemoLifecycleService : IDemoLifecycleService
 
     // ── SMTP (support mailbox) ───────────────────────────────────────────────
 
-    private string? Cfg(string key) => _configuration[$"LifecycleMail:Smtp:{key}"] is { Length: > 0 } v ? v : _configuration[$"Notifications:Smtp:{key}"];
-    private string? SmtpHost => Cfg("Host");
-    private string? SmtpUser => Cfg("Username");
-    private string? SmtpPassword => Cfg("Password");
-    private int SmtpPort => int.TryParse(Cfg("Port"), out var p) ? p : 587;
-    private bool SmtpSsl => bool.TryParse(Cfg("UseSsl"), out var b) && b;
-    private string? FromAddress => Cfg("From") ?? SmtpUser;
+    private const string SmtpMissing = "SMTP ayarı yok (LifecycleMail__Smtp__Host/Username/Password/From, ya da destek kutusu için EmailCollector__Imap__Host/Username/Password).";
+
+    private LifecycleSmtp? Smtp => LifecycleSmtpResolver.Resolve(key => _configuration[key]);
+    private string? FromAddress => Smtp?.From;
     private string FromName => _configuration["LifecycleMail:Smtp:FromName"] ?? _configuration["LifecycleMail:FromName"] ?? "LiftDesk";
-    private bool SmtpConfigured => !string.IsNullOrWhiteSpace(SmtpHost) && !string.IsNullOrWhiteSpace(FromAddress);
+    private bool SmtpConfigured => Smtp is not null;
     private string SupportEmail => _configuration["LifecycleMail:SupportEmail"] ?? FromAddress ?? "support@liftdesk.app";
     private string PortalUrl => (_configuration["LifecycleMail:PortalUrl"] ?? "https://portal.liftdesk.app").TrimEnd('/');
 
@@ -116,7 +114,7 @@ public sealed class DemoLifecycleService : IDemoLifecycleService
     {
         var counts = await _db.CustomerLifecycleMails.IgnoreQueryFilters().Where(m => !m.IsDeleted && m.Status == LifecycleMailStatus.Sent)
             .GroupBy(m => m.Step).Select(g => new { g.Key, C = g.Count() }).ToListAsync(cancellationToken);
-        return new LifecycleStatus(Enabled, SmtpConfigured, FromAddress, Folder, Languages, Options,
+        return new LifecycleStatus(Enabled, SmtpConfigured, FromAddress, Smtp?.Source, Folder, Languages, Options,
             Enum.GetValues<LifecycleStep>().ToDictionary(s => s.ToString(), s => counts.FirstOrDefault(x => x.Key == s)?.C ?? 0), _state.LastRun);
     }
 
@@ -170,37 +168,23 @@ public sealed class DemoLifecycleService : IDemoLifecycleService
             if (DemoLifecyclePlanner.NextStep(lc, sentSteps, DateTime.UtcNow, o) != step) return "Bu adım şu an sırada değil (zorla göndermek için force).";
         }
         if (string.IsNullOrWhiteSpace(c.Email) || !MailboxAddress.TryParse(c.Email, out var to)) return "Müşterinin geçerli e-posta adresi yok.";
-        if (!SmtpConfigured) return "SMTP ayarı yok (LifecycleMail__Smtp__Host/Username/Password/From).";
+        if (Smtp is not { } smtp) return SmtpMissing;
 
         var lang = ResolveLanguage(c.Country, step);
         var path = Path.Combine(Folder, lang, LifecycleTemplate.FileFor(step));
         if (!File.Exists(path)) return $"Şablon yok: lifecycle/{lang}/{LifecycleTemplate.FileFor(step)}";
         var rendered = LifecycleTemplate.Render(await File.ReadAllTextAsync(path, cancellationToken), c.CompanyName, c.ContactName, c.ExpirationDate, c.Country, PortalUrl, SupportEmail, UnsubscribeUrl(c.Id), DateTime.UtcNow);
-
-        var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(FromName, FromAddress));
-        message.To.Add(to);
-        message.ReplyTo.Add(new MailboxAddress(FromName, SupportEmail));
-        message.Subject = rendered.Subject;
-        message.MessageId = MimeUtils.GenerateMessageId(FromAddress!.Split('@').Last());
-        message.Headers.Add("List-Unsubscribe", $"<{UnsubscribeUrl(c.Id)}>");
-        message.Body = new BodyBuilder { HtmlBody = rendered.Html }.ToMessageBody();
+        var message = BuildMessage(smtp, to, rendered, UnsubscribeUrl(c.Id));
 
         var log = new CustomerLifecycleMail { CustomerId = c.Id, Step = step, Language = lang, To = c.Email!, Subject = rendered.Subject, TriggeredBy = triggeredBy, SentAt = DateTime.UtcNow };
         try
         {
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(SendTimeout);
-            using var client = new SmtpClient { Timeout = (int)SendTimeout.TotalMilliseconds };
-            await client.ConnectAsync(SmtpHost, SmtpPort, SmtpSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls, timeoutCts.Token);
-            if (!string.IsNullOrWhiteSpace(SmtpUser)) await client.AuthenticateAsync(SmtpUser, SmtpPassword ?? string.Empty, timeoutCts.Token);
-            await client.SendAsync(message, timeoutCts.Token);
-            await client.DisconnectAsync(true, timeoutCts.Token);
+            await DeliverAsync(smtp, message, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
-            var reason = ex is AuthenticationException ? "SMTP kullanıcı adı/şifre reddedildi." : $"Gönderilemedi: {ex.Message}";
+            var reason = DeliveryError(ex);
             log.Status = LifecycleMailStatus.Failed; log.Error = reason;
             _db.CustomerLifecycleMails.Add(log);
             await _db.SaveChangesAsync(cancellationToken);
@@ -221,6 +205,66 @@ public sealed class DemoLifecycleService : IDemoLifecycleService
         _logger.LogInformation("Lifecycle mail gönderildi: {Customer} ({Country}) {Step} [{Lang}] → {To}", c.CompanyName, c.Country, step, lang, c.Email);
         return null;
     }
+
+    public async Task<LifecycleTestResult> SendTestAsync(string to, LifecycleStep step, string? language, string triggeredBy, CancellationToken cancellationToken = default)
+    {
+        var smtp = Smtp;
+        var lang = string.IsNullOrWhiteSpace(language) ? "en" : language.Trim().ToLowerInvariant();
+        LifecycleTestResult Fail(string error) => new(error, to, lang, null, smtp?.From, smtp?.Source);
+
+        if (string.IsNullOrWhiteSpace(to) || !MailboxAddress.TryParse(to.Trim(), out var address) || !address.Address.Contains('@')) return Fail("Geçerli bir e-posta adresi girin.");
+        if (!TemplateExists(lang, step)) return Fail($"Şablon yok: lifecycle/{lang}/{LifecycleTemplate.FileFor(step)}");
+        if (smtp is null) return Fail(SmtpMissing);
+
+        // Sample data: a believable company on the language's home market; trial end placed where the step expects it.
+        var now = DateTime.UtcNow;
+        var country = DemoLifecyclePlanner.SampleCountryFor(lang);
+        DateTime trialEnd = step switch { LifecycleStep.Welcome => now.AddDays(7), LifecycleStep.CheckIn => now.AddDays(4), _ => now.AddDays(-1) };
+        var unsubscribe = UnsubscribeUrl(Guid.Empty); // real-shaped link that resolves to "invalid link" — nothing to opt out
+        var html = await File.ReadAllTextAsync(Path.Combine(Folder, lang, LifecycleTemplate.FileFor(step)), cancellationToken);
+        var rendered = LifecycleTemplate.Render(html, "Apex Lifts Ltd", "Jane Carter", trialEnd, country, PortalUrl, SupportEmail, unsubscribe, now);
+        var message = BuildMessage(smtp, address, rendered with { Subject = "[TEST] " + rendered.Subject }, unsubscribe);
+
+        try
+        {
+            await DeliverAsync(smtp, message, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Lifecycle deneme e-postası başarısız: {Step} [{Lang}] → {To} ({Source})", step, lang, address.Address, smtp.Source);
+            return Fail(DeliveryError(ex));
+        }
+        _logger.LogInformation("Lifecycle deneme e-postası gönderildi: {Step} [{Lang}] → {To} ({Source}, {By})", step, lang, address.Address, smtp.Source, triggeredBy);
+        return new LifecycleTestResult(null, address.Address, lang, message.Subject, smtp.From, smtp.Source);
+    }
+
+    private MimeMessage BuildMessage(LifecycleSmtp smtp, MailboxAddress to, LifecycleTemplate.Rendered rendered, string unsubscribeUrl)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(FromName, smtp.From));
+        message.To.Add(to);
+        message.ReplyTo.Add(new MailboxAddress(FromName, SupportEmail));
+        message.Subject = rendered.Subject;
+        message.MessageId = MimeUtils.GenerateMessageId(smtp.From.Split('@').Last());
+        message.Headers.Add("List-Unsubscribe", $"<{unsubscribeUrl}>");
+        message.Body = new BodyBuilder { HtmlBody = rendered.Html }.ToMessageBody();
+        return message;
+    }
+
+    private static async Task DeliverAsync(LifecycleSmtp smtp, MimeMessage message, CancellationToken cancellationToken)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(SendTimeout);
+        using var client = new SmtpClient { Timeout = (int)SendTimeout.TotalMilliseconds, CheckCertificateRevocation = smtp.CheckCertificateRevocation };
+        await client.ConnectAsync(smtp.Host, smtp.Port, smtp.UseSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls, timeoutCts.Token);
+        if (!string.IsNullOrWhiteSpace(smtp.Username)) await client.AuthenticateAsync(smtp.Username, smtp.Password ?? string.Empty, timeoutCts.Token);
+        await client.SendAsync(message, timeoutCts.Token);
+        await client.DisconnectAsync(true, timeoutCts.Token);
+    }
+
+    private static string DeliveryError(Exception ex) =>
+        ex is AuthenticationException ? "SMTP kullanıcı adı/şifre reddedildi." : $"Gönderilemedi: {ex.Message}";
 
     private static string StepLabel(LifecycleStep step) => step switch
     {

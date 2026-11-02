@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { MailCheck, Send, Loader2, AlertTriangle, Check, X, Eye, Clock, Info, Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MailCheck, Send, Loader2, AlertTriangle, Check, X, Eye, Clock, Info, Play, ChevronLeft, ChevronRight, FlaskConical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/stores/authStore';
 import {
-  useLifecycleStatus, useLifecycleCandidates, useLifecycleMails, useLifecyclePreview, useSendLifecycleMail, useRunLifecycleCycle,
+  useLifecycleStatus, useLifecycleCandidates, useLifecycleMails, useLifecyclePreview, useSendLifecycleMail, useRunLifecycleCycle, useSendLifecycleTest,
   type LifecycleStep, type LifecycleCandidate,
 } from '@/api/lifecycleMails';
 
@@ -19,6 +22,11 @@ const STEP_STYLE: Record<string, string> = {
 };
 const STEPS: LifecycleStep[] = ['Welcome', 'CheckIn', 'TrialEnded'];
 const STATUS_LABEL: Record<string, string> = { Demo: 'Demo', Passive: 'Pasif (deneme bitti)', Active: 'Aktif', Lead: 'Lead', Churned: 'Churn' };
+const SMTP_SOURCE_LABEL: Record<string, string> = {
+  LifecycleMail: 'LifecycleMail__Smtp ayarı',
+  EmailCollector: 'destek posta kutusu (EmailCollector IMAP bilgileri, SMTP türetildi)',
+  Notifications: 'bildirim SMTP\'si (Notifications__Smtp — destek kutusu tanımlı değil)',
+};
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response) {
@@ -49,6 +57,52 @@ function PreviewDialog({ customerId, step, companyName, onClose }: { customerId:
   );
 }
 
+function TestMailDialog({ languages, onClose }: { languages: string[]; onClose: () => void }) {
+  const { toast } = useToast();
+  const myEmail = useAuthStore((s) => s.user?.email ?? '');
+  const [to, setTo] = useState(myEmail);
+  const [step, setStep] = useState<LifecycleStep>('Welcome');
+  const [language, setLanguage] = useState(languages.includes('en') ? 'en' : (languages[0] ?? 'en'));
+  const [last, setLast] = useState<string | null>(null);
+  const test = useSendLifecycleTest();
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim());
+
+  async function onSend() {
+    try {
+      const r = await test.mutateAsync({ to: to.trim(), step, language });
+      setLast(`${STEP_LABEL[step]} [${r.language}] → ${r.to} · gönderen ${r.from ?? '—'}`);
+      toast({ title: 'Deneme e-postası gönderildi', description: r.subject ?? '' });
+    } catch (err) { toast({ title: 'Gönderilemedi', description: errorMessage(err, 'Hata'), variant: 'destructive' }); }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><FlaskConical className="h-4 w-4" /> Deneme e-postası</DialogTitle>
+          <DialogDescription>Seçilen adım örnek verilerle (Apex Lifts Ltd, Jane Carter) verilen adrese gider; konu "[TEST]" ile başlar. Müşteri kaydı tutulmaz — SMTP ve şablon kontrolü için.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1"><Label>Alıcı</Label><Input type="email" value={to} onChange={e => setTo(e.target.value)} placeholder="ad@firma.com" /></div>
+          <div className="space-y-1">
+            <Label>Adım</Label>
+            <div className="flex flex-wrap gap-1.5">{STEPS.map(s => <button key={s} type="button" onClick={() => setStep(s)} className={cn('rounded-full border px-2.5 py-0.5 text-xs', step === s ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground')}>{STEP_LABEL[s]}</button>)}</div>
+          </div>
+          <div className="space-y-1">
+            <Label>Dil</Label>
+            <div className="flex flex-wrap gap-1.5">{(languages.length ? languages : ['en']).map(l => <button key={l} type="button" onClick={() => setLanguage(l)} className={cn('rounded-full border px-2.5 py-0.5 text-xs uppercase', language === l ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground')}>{l}</button>)}</div>
+          </div>
+          {last && <div className="text-xs text-emerald-400 flex items-center gap-1"><Check className="h-3 w-3" /> {last}</div>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={onClose}>Kapat</Button>
+          <Button size="sm" disabled={!valid || test.isPending} onClick={onSend}>{test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Gönder</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function LifecycleMailsPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -61,6 +115,7 @@ export function LifecycleMailsPage() {
   const run = useRunLifecycleCycle();
   const [preview, setPreview] = useState<{ customerId: string; step: LifecycleStep; companyName: string } | null>(null);
   const [confirmSend, setConfirmSend] = useState<{ c: LifecycleCandidate; step: LifecycleStep; force: boolean } | null>(null);
+  const [testOpen, setTestOpen] = useState(false);
   const totalPages = log ? Math.max(1, Math.ceil(log.totalCount / log.pageSize)) : 1;
 
   async function onRun() {
@@ -83,12 +138,15 @@ export function LifecycleMailsPage() {
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><MailCheck className="h-6 w-6" /> Demo E-postaları</h1>
           <p className="text-sm text-muted-foreground mt-1">Türkiye dışında açılan Liftdesk deneme hesaplarına üç otomatik e-posta: kayıt sonrası hoş geldin, deneme ortasında "nasıl gidiyor", deneme bitip satın alınmadıysa hatırlatma. Dil müşterinin ülkesinden seçilir, gönderen firma destek posta kutusudur. Her adım bir müşteriye yalnız bir kez gider; her gönderim müşteri zaman çizelgesine de yazılır.</p>
         </div>
-        <Button variant="outline" size="sm" disabled={run.isPending} onClick={onRun}><Play className="h-4 w-4" /> Döngüyü şimdi çalıştır</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => setTestOpen(true)} disabled={!!st && !st.smtpConfigured} title="Şablonu örnek verilerle kendinize gönderin"><FlaskConical className="h-4 w-4" /> Deneme e-postası</Button>
+          <Button variant="outline" size="sm" disabled={run.isPending} onClick={onRun}><Play className="h-4 w-4" /> Döngüyü şimdi çalıştır</Button>
+        </div>
       </div>
 
       {st && !st.smtpConfigured && (
         <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> <span>SMTP tanımlı değil — Railway'de <code>LifecycleMail__Smtp__Host</code>, <code>__Port</code>, <code>__Username</code>, <code>__Password</code>, <code>__From</code> (destek posta kutusu), isteğe bağlı <code>__UseSsl</code>, <code>LifecycleMail__SupportEmail</code>. Tanımlanana kadar hiçbir şey gönderilmez.</span>
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> <span>SMTP tanımlı değil — gönderen hesap sırayla <code>LifecycleMail__Smtp__Host/Username/Password/From</code>, yoksa destek kutusunun <code>EmailCollector__Imap__Host/Username/Password</code> bilgileri (SMTP sunucusu IMAP'ten türetilir), yoksa <code>Notifications__Smtp__*</code>. İsteğe bağlı <code>LifecycleMail__SupportEmail</code>. Tanımlanana kadar hiçbir şey gönderilmez.</span>
         </div>
       )}
       {st && !st.enabled && <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/5 px-3 py-2 text-xs text-red-200"><AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> <span>Otomatik gönderim kapalı (<code>LifecycleMail__Enabled=false</code>).</span></div>}
@@ -98,6 +156,7 @@ export function LifecycleMailsPage() {
           <Card><CardContent className="p-3 text-xs space-y-1">
             <div className="text-muted-foreground">Gönderen</div>
             <div className="font-medium text-foreground break-all">{st.from ?? '—'}</div>
+            {st.smtpSource && <div className={cn('text-[11px]', st.smtpSource === 'Notifications' ? 'text-amber-300' : 'text-muted-foreground')}>Kaynak: {SMTP_SOURCE_LABEL[st.smtpSource] ?? st.smtpSource}</div>}
             <div className="text-muted-foreground">Şablon dilleri: {st.languages.length ? st.languages.join(', ') : '—'} · ülke dili yoksa en</div>
           </CardContent></Card>
           <Card><CardContent className="p-3 text-xs space-y-1">
@@ -197,6 +256,7 @@ export function LifecycleMailsPage() {
       )}
 
       {preview && <PreviewDialog customerId={preview.customerId} step={preview.step} companyName={preview.companyName} onClose={() => setPreview(null)} />}
+      {testOpen && <TestMailDialog languages={st?.languages ?? []} onClose={() => setTestOpen(false)} />}
       {confirmSend && (
         <Dialog open onOpenChange={(o) => !o && setConfirmSend(null)}>
           <DialogContent className="sm:max-w-md">

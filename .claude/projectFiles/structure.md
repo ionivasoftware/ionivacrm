@@ -265,6 +265,7 @@ output/
 | GET | `/status` · `/candidates` | Ayar/SMTP/diller/sayımlar/son döngü · sıradakiler (adım, pencere, atlanma sebebi) |
 | GET | `/?step=&page=&pageSize=` · `/preview?customerId=&step=` | Gönderim geçmişi · şablon render'ı |
 | POST | `/customers/{id}/send` `{step, force?}` · `/run` | Şimdi gönder (aynı adım ikinci kez gitmez) · döngüyü çalıştır |
+| POST | `/test` `{to, step, language?}` | Şablonu örnek verilerle verilen adrese gönder ("[TEST]" konu, kayıt tutulmaz) — SMTP/şablon kontrolü |
 
 ### Lead Adayları — `/api/v1/lead-candidates` (SuperAdmin)
 | Method | Path | Açıklama |

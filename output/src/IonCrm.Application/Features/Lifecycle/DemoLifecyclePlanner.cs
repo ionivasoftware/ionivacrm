@@ -56,6 +56,12 @@ public static class DemoLifecyclePlanner
     public static string LanguageFor(string? country) =>
         country is { Length: 2 } && LanguageByCountry.TryGetValue(country, out var l) ? l : "en";
 
+    /// <summary>A representative country for a template language (sample data / test sends): en→GB, de→DE, …</summary>
+    public static string SampleCountryFor(string? language) => (language ?? "en").ToLowerInvariant() switch
+    {
+        "de" => "DE", "fr" => "FR", "nl" => "NL", "es" => "ES", "it" => "IT", "pt" => "PT", "tr" => "TR", _ => "GB",
+    };
+
     /// <summary>Picks the language whose template folder exists: country language → "en".</summary>
     public static string ResolveLanguage(string? country, Func<string, bool> templateExists)
     {
