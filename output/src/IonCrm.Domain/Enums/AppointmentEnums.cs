@@ -6,13 +6,13 @@ namespace IonCrm.Domain.Enums;
 /// </summary>
 public enum AppointmentKind
 {
-    /// <summary>Yeni arama — first/next outreach to a Lead.</summary>
+    /// <summary>Yeni arama — first phone conversation: never-reached lead/demo, passive company, recent churn (win-back).</summary>
     NewCall = 1,
 
-    /// <summary>Takip araması — existing customer follow-up (usage, renewal, promised callback).</summary>
+    /// <summary>Takip araması — continuing a conversation with a lead/demo that was reached before; also every promised callback.</summary>
     FollowUpCall = 2,
 
-    /// <summary>Memnuniyet araması — relationship call to a healthy, long-untouched customer.</summary>
+    /// <summary>Memnuniyet araması — the only planned call to an Active customer (healthy: rare courtesy call; at risk: usage dip / renewal).</summary>
     SatisfactionCall = 3,
 
     Meeting = 4,

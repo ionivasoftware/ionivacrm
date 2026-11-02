@@ -17,6 +17,11 @@ public record UsageSignal(
     int SnapshotMonth);
 
 /// <summary>Everything the planner knows about one company. Built by the data source, scored here.</summary>
+/// <remarks>
+/// <see cref="LastContactAt"/> and <see cref="ContactCount"/> cover real conversations only (call / meeting /
+/// visit / WhatsApp — not e-mails, not internal notes). <see cref="LastContactAt"/> is the last attempt of any
+/// outcome (drives cooldowns); <see cref="ContactCount"/> counts attempts where the customer was reached.
+/// </remarks>
 public record PlanCandidate(
     Guid CustomerId,
     string CompanyName,
@@ -31,7 +36,11 @@ public record PlanCandidate(
     DateTime? ExpirationDate,
     bool IsInternal,
     Guid? AssignedUserId,
-    UsageSignal? Usage);
+    UsageSignal? Usage)
+{
+    /// <summary>At least one conversation actually took place (reached).</summary>
+    public bool WasReached => ContactCount > 0;
+}
 
 public record CallPlanQuotas(int NewCalls = 5, int FollowUps = 5, int Satisfaction = 2);
 
@@ -41,10 +50,18 @@ public record CallPlanSlots(int NewCallHour = 10, int FollowUpHour = 14, int Sat
 public record PlannedCall(Guid CustomerId, AppointmentKind Kind, DateOnly Day, TimeOnly Time, int Score, string Reason, Guid? AssignedUserId);
 
 /// <summary>
-/// The CSO planner — pure rules, no I/O, unit-tested. Per business day it fills three quotas
-/// (new / follow-up / satisfaction) from ranked candidates; a company appears at most once in the
-/// horizon; promised callbacks (NextContactAt) are honoured on their day even above quota. Every
-/// pick carries a Turkish reason so the operator sees why this company, today.
+/// The CSO planner — pure rules, no I/O, unit-tested. Per business day it fills three quotas from ranked
+/// candidates; a company appears at most once in the horizon; promised callbacks (NextContactAt) are honoured
+/// on their day even above quota. Every pick carries a Turkish reason so the operator sees why this company, today.
+/// <para>Pools (user decision 02.11.2026):</para>
+/// <list type="bullet">
+/// <item><b>Yeni arama</b> — leads (and demo accounts) never reached by phone, passive companies (expired trial /
+/// dormant) and customers churned in the last 90 days (win-back).</item>
+/// <item><b>Takip araması</b> — leads / demo accounts that were reached before: the conversation continues.</item>
+/// <item><b>Memnuniyet araması</b> — the only planned call to an Active customer. Risk signals (no login, no
+/// maintenance entries, renewal within 60 days) are scored here with a short cooldown; healthy customers are
+/// called rarely (60 days since any contact, 180 days since the last satisfaction call).</item>
+/// </list>
 /// </summary>
 public static class CallPlanner
 {
@@ -53,6 +70,10 @@ public static class CallPlanner
     /// <summary>Memnuniyet araması seyrek olmalı (kullanıcı kararı 19.10.2026): son temastan en az 60 gün, son memnuniyet aramasından en az 180 gün.</summary>
     public const int SatisfactionCooldownDays = 60;
     public const int SatisfactionRepeatDays = 180;
+    /// <summary>Ayrılmış müşteri bu kadar gün içinde geri kazanım için yeni arama havuzuna girer.</summary>
+    public const int WinBackDays = 90;
+    /// <summary>Pasif firmada denemenin bitişi bu kadar gün içindeyse sıcak sayılır.</summary>
+    public const int FreshExpiryDays = 30;
 
     // ── Business days ────────────────────────────────────────────────────────
 
@@ -75,108 +96,136 @@ public static class CallPlanner
 
     // ── Scoring ──────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Yeni arama: hiç ulaşılmamış Lead/Demo, pasif firmalar ve son 90 günde ayrılmış müşteriler. Aktif müşteri
+    /// ve daha önce görüşülmüş lead buraya girmez.
+    /// </summary>
     public static (int Score, string Reason)? ScoreNewCall(PlanCandidate c, DateOnly today, DateOnly horizonEnd)
     {
-        if (c.IsInternal || c.Status != CustomerStatus.Lead) return null;
+        if (c.IsInternal) return null;
+        var recentlyChurned = RecentlyChurned(c, today);
+        var eligible = c.Status switch
+        {
+            CustomerStatus.Lead or CustomerStatus.Demo => !c.WasReached,
+            CustomerStatus.Passive => true,
+            CustomerStatus.Churned => recentlyChurned,
+            _ => false,
+        };
+        if (!eligible) return null;
+
         var since = DaysSince(c.LastContactAt, today);
         if (since is < NewCallCooldownDays) return null;
         if (c.NextContactAt is { } next && DateOnly.FromDateTime(next) > horizonEnd) return null; // "sonra arayın" dedi
 
-        var parts = new List<string> { "Lead" };
-        var score = c.Label switch
-        {
-            CustomerLabel.YuksekPotansiyel => 40, CustomerLabel.Potansiyel => 30, CustomerLabel.Notr => 15,
-            CustomerLabel.Vasat => 5, CustomerLabel.Kotu => 0, _ => 12,
-        };
+        var parts = new List<string> { StatusText(c.Status) };
+        var score = LabelScore(c.Label);
         if (c.Label is { } l) parts.Add(LabelText(l));
 
         if (since is null) { score += 30; parts.Add("hiç görüşülmedi"); }
+        else if (!c.WasReached) { score += 20; parts.Add($"ulaşılamadı, son deneme {since} gün önce"); }
         else if (since > 60) { score += 25; parts.Add($"{since} gün görüşülmedi"); }
         else if (since > 30) { score += 20; parts.Add($"{since} gün görüşülmedi"); }
         else if (since > 14) { score += 10; parts.Add($"{since} gün görüşülmedi"); }
 
+        if (c.Status == CustomerStatus.Demo) { score += 30; parts.Add("demo sürecinde"); score += ExpiryScore(c, today, parts); }
+        if (c.Status == CustomerStatus.Passive)
+        {
+            score += 15; // StatusText zaten "Pasif" der
+            if (c.ExpirationDate is { } e)
+            {
+                var ago = today.DayNumber - DateOnly.FromDateTime(e).DayNumber;
+                if (ago is >= 0 and <= FreshExpiryDays) { score += 20; parts.Add($"denemesi {ago} gün önce bitti"); }
+            }
+        }
+        if (recentlyChurned) { score += 25; parts.Add("yakın zamanda ayrıldı — geri kazanım"); }
+
         var age = today.DayNumber - DateOnly.FromDateTime(c.CreatedAt).DayNumber;
-        if (age <= 14) { score += 20; parts.Add("yeni kayıt"); }
+        if (age <= 14 && c.Status is CustomerStatus.Lead or CustomerStatus.Demo) { score += 20; parts.Add("yeni kayıt"); }
         if (c.Label == CustomerLabel.Kotu && c.ContactCount >= 5) { score -= 30; parts.Add("çok denendi"); }
 
         return (score, string.Join(" · ", parts));
     }
 
+    /// <summary>
+    /// Takip araması: daha önce ulaşılmış Lead/Demo kayıtları — görüşme devam ediyor. Aktif müşteri memnuniyet
+    /// aramasından, pasif/ayrılmış firma yeni aramadan yakalanır; buraya girmezler.
+    /// </summary>
     public static (int Score, string Reason)? ScoreFollowUp(PlanCandidate c, DateOnly today)
     {
         if (c.IsInternal) return null;
-        var recentlyChurned = c.Status == CustomerStatus.Churned && c.ExpirationDate is { } exp && (today.DayNumber - DateOnly.FromDateTime(exp).DayNumber) <= 90;
-        if (c.Status is not (CustomerStatus.Active or CustomerStatus.Demo or CustomerStatus.Passive) && !recentlyChurned) return null;
+        if (c.Status is not (CustomerStatus.Lead or CustomerStatus.Demo)) return null;
+        if (!c.WasReached) return null; // hiç görüşülmemiş → yeni arama
 
         var since = DaysSince(c.LastContactAt, today);
         var promised = c.NextContactAt is { } n && DateOnly.FromDateTime(n) <= today;
         if (since is < FollowUpCooldownDays && !promised) return null;
 
-        var score = 0; var signals = 0; var parts = new List<string>();
-        if (promised) { score += 100; signals++; parts.Add("söz verilen takip"); }
-        if (c.Status == CustomerStatus.Demo) { score += 30; signals++; parts.Add("demo sürecinde"); }
-        if (c.Status == CustomerStatus.Passive) { score += 15; signals++; } // StatusText zaten "Pasif" der
-        if (recentlyChurned) { score += 25; signals++; parts.Add("yakın zamanda ayrıldı — geri kazanım"); }
+        var parts = new List<string>();
+        var score = LabelScore(c.Label);
+        if (c.Label is { } l) parts.Add(LabelText(l));
+        if (promised) { score += 100; parts.Add("söz verilen takip"); }
+        if (c.Status == CustomerStatus.Demo) { score += 30; parts.Add("demo sürecinde"); }
+        score += ExpiryScore(c, today, parts);
 
-        if (c.ExpirationDate is { } e)
-        {
-            var left = DateOnly.FromDateTime(e).DayNumber - today.DayNumber;
-            if (left is >= 0 and <= 30) { score += 40; signals++; parts.Add($"süresi {left} gün içinde doluyor"); }
-            else if (left is > 30 and <= 60) { score += 20; signals++; parts.Add($"süresi {left} gün içinde doluyor"); }
-        }
-
-        // Kullanım sinyalleri yalnız yaşayan hesapta anlamlı: pasif ya da ayrılmış müşterinin giriş yapmaması
-        // doğaldır, onu aktif müşterinin gerçek düşüşünün önüne geçirmemeli.
-        if (c.Usage is { } u && c.Status is CustomerStatus.Active or CustomerStatus.Demo)
+        if (c.Status == CustomerStatus.Demo && c.Usage is { } u)
         {
             var login = DaysSince(u.LastLoginAt, today);
-            if (login is null || login > 14) { score += 30; signals++; parts.Add(login is null ? "hiç giriş yok" : $"{login} gün giriş yok"); }
-            if (u.MaintenanceCount == 0 && u.ElevatorCount > 0) { score += 25; signals++; parts.Add("bu ay bakım girişi yok"); }
+            if (login is null || login > 7) { score += 25; parts.Add(login is null ? "hiç giriş yok" : $"{login} gün giriş yok"); }
             if (u.PlanStatus is { } ps && (ps.Contains("Trial", StringComparison.OrdinalIgnoreCase) || ps.Contains("Demo", StringComparison.OrdinalIgnoreCase)))
-            { score += 15; signals++; parts.Add("deneme planı"); }
-            if (signals > 0 && u.FaultCount + u.WorkOrderCount == 0) { score += 10; parts.Add("arıza/iş emri yok"); }
-
-            // Kullanım verisi olan ve sağlıklı görünen hesapta yalnız "uzun süredir görüşülmedi" bir takip
-            // gerekçesi değildir — o müşteri memnuniyet aramasının adayıdır.
-            if (signals == 0) return null;
+            { score += 15; parts.Add("deneme planı"); }
         }
-        else if (c.Usage is not null && signals == 0) return null;
 
-        if (since is null) { score += 20; parts.Add("hiç görüşülmedi"); }
-        else if (since > 90) { score += 25; parts.Add($"{since} gün görüşülmedi"); }
+        if (since > 90) { score += 25; parts.Add($"{since} gün görüşülmedi"); }
         else if (since > 45) { score += 15; parts.Add($"{since} gün görüşülmedi"); }
         else if (since > 30) { score += 5; parts.Add($"{since} gün görüşülmedi"); }
+        parts.Add(c.ContactCount == 1 ? "1 görüşme yapıldı" : $"{c.ContactCount} görüşme yapıldı");
+        if (c.Label == CustomerLabel.Kotu && c.ContactCount >= 5) { score -= 30; parts.Add("çok denendi"); }
 
         if (score <= 0) return null;
         parts.Insert(0, StatusText(c.Status));
         return (score, string.Join(" · ", parts));
     }
 
+    /// <summary>
+    /// Memnuniyet araması: aktif müşterinin tek planlı araması. Düşüş/yenileme sinyali varsa 14 gün bekleme ile
+    /// (riskli müşteri burada yakalanır); sinyal yoksa seyrek — 60 gün temas yok, 180 gün memnuniyet araması yok.
+    /// </summary>
     public static (int Score, string Reason)? ScoreSatisfaction(PlanCandidate c, DateOnly today)
     {
         if (c.IsInternal || c.Status != CustomerStatus.Active) return null;
         var since = DaysSince(c.LastContactAt, today);
-        if (since is < SatisfactionCooldownDays) return null;
         var sinceSat = DaysSince(c.LastSatisfactionCallAt, today);
-        if (sinceSat is < SatisfactionRepeatDays) return null;
 
-        // Healthy usage only — an inactive account is a follow-up, not a satisfaction call.
+        var risk = new List<string>();
+        var riskScore = 0;
         if (c.Usage is { } u)
         {
             var login = DaysSince(u.LastLoginAt, today);
-            var healthy = (login is <= 14) || u.MaintenanceCount > 0;
-            if (!healthy) return null;
+            if (login is null || login > 14) { riskScore += 30; risk.Add(login is null ? "hiç giriş yok" : $"{login} gün giriş yok"); }
+            if (u.MaintenanceCount == 0 && u.ElevatorCount > 0) { riskScore += 25; risk.Add("bu ay bakım girişi yok"); }
+            if (risk.Count > 0 && u.FaultCount + u.WorkOrderCount == 0) { riskScore += 10; risk.Add("arıza/iş emri yok"); }
+        }
+        riskScore += ExpiryScore(c, today, risk);
+        var atRisk = risk.Count > 0;
+
+        if (atRisk) { if (since is < FollowUpCooldownDays) return null; }
+        else
+        {
+            if (since is < SatisfactionCooldownDays) return null;
+            if (sinceSat is < SatisfactionRepeatDays) return null;
         }
 
-        var score = 0; var parts = new List<string> { "Aktif müşteri" };
+        var score = riskScore;
+        var parts = new List<string> { "Aktif müşteri" };
+        parts.AddRange(risk);
         if (sinceSat is null) { score += 30; parts.Add("hiç memnuniyet araması yapılmadı"); }
         else if (sinceSat > 365) { score += 25; parts.Add($"son memnuniyet araması {sinceSat} gün önce"); }
         else { score += 10; parts.Add($"son memnuniyet araması {sinceSat} gün önce"); }
 
-        if (c.ExpirationDate is { } e)
+        if (!atRisk && c.ExpirationDate is { } e)
         {
             var left = DateOnly.FromDateTime(e).DayNumber - today.DayNumber;
-            if (left is >= 60 and <= 150) { score += 15; parts.Add("yenileme yaklaşıyor"); }
+            if (left is > 60 and <= 150) { score += 15; parts.Add("yenileme yaklaşıyor"); }
         }
         if (today.DayNumber - DateOnly.FromDateTime(c.CreatedAt).DayNumber > 90) score += 10;
         if (c.Usage is { MaintenanceCount: >= 10 }) { score += 10; parts.Add("yoğun kullanım"); }
@@ -211,7 +260,8 @@ public static class CallPlanner
 
         foreach (var day in days)
         {
-            // 1) Promised callbacks due on (or before, for the first day) this day — above quota.
+            // 1) Promised callbacks due on (or before, for the first day) this day — above quota. A promise follows a
+            //    conversation, so it is always a follow-up call whatever the company's status.
             var promisedToday = candidates
                 .Where(c => !used.Contains(c.CustomerId) && !c.IsInternal && c.NextContactAt is { } n &&
                             (DateOnly.FromDateTime(n) == day || (day == days[0] && DateOnly.FromDateTime(n) < day)))
@@ -219,10 +269,8 @@ public static class CallPlanner
             var followCount = existingPerDayKind.GetValueOrDefault((day, AppointmentKind.FollowUpCall));
             foreach (var c in promisedToday)
             {
-                var kind = c.Status == CustomerStatus.Lead ? AppointmentKind.NewCall : AppointmentKind.FollowUpCall;
-                var idx = kind == AppointmentKind.FollowUpCall ? followCount++ : existingPerDayKind.GetValueOrDefault((day, AppointmentKind.NewCall));
-                result.Add(new PlannedCall(c.CustomerId, kind, day, SlotTime(kind, idx, slots), 1000,
-                    $"Söz verilen takip ({c.NextContactAt:dd.MM.yyyy})", c.AssignedUserId));
+                result.Add(new PlannedCall(c.CustomerId, AppointmentKind.FollowUpCall, day, SlotTime(AppointmentKind.FollowUpCall, followCount++, slots), 1000,
+                    $"Söz verilen takip ({c.NextContactAt:dd.MM.yyyy}) · {StatusText(c.Status)}", c.AssignedUserId));
                 used.Add(c.CustomerId);
             }
 
@@ -261,6 +309,8 @@ public static class CallPlanner
         return new TimeOnly(minutes / 60, minutes % 60);
     }
 
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
     private static List<(PlanCandidate C, int Score, string Reason)> Rank(
         IReadOnlyList<PlanCandidate> candidates, Func<PlanCandidate, (int Score, string Reason)?> scorer) =>
         candidates.Select(c => (c, s: scorer(c))).Where(x => x.s is not null)
@@ -270,6 +320,25 @@ public static class CallPlanner
 
     private static int? DaysSince(DateTime? at, DateOnly today) =>
         at is { } d ? today.DayNumber - DateOnly.FromDateTime(d).DayNumber : null;
+
+    private static bool RecentlyChurned(PlanCandidate c, DateOnly today) =>
+        c.Status == CustomerStatus.Churned && c.ExpirationDate is { } exp && (today.DayNumber - DateOnly.FromDateTime(exp).DayNumber) is >= 0 and <= WinBackDays;
+
+    /// <summary>Süre dolumu yaklaşıyorsa puan ekler ve gerekçeyi yazar (≤30 gün: +40, ≤60 gün: +20).</summary>
+    private static int ExpiryScore(PlanCandidate c, DateOnly today, List<string> parts)
+    {
+        if (c.ExpirationDate is not { } e) return 0;
+        var left = DateOnly.FromDateTime(e).DayNumber - today.DayNumber;
+        if (left is >= 0 and <= 30) { parts.Add($"süresi {left} gün içinde doluyor"); return 40; }
+        if (left is > 30 and <= 60) { parts.Add($"süresi {left} gün içinde doluyor"); return 20; }
+        return 0;
+    }
+
+    private static int LabelScore(CustomerLabel? label) => label switch
+    {
+        CustomerLabel.YuksekPotansiyel => 40, CustomerLabel.Potansiyel => 30, CustomerLabel.Notr => 15,
+        CustomerLabel.Vasat => 5, CustomerLabel.Kotu => 0, _ => 12,
+    };
 
     public static string LabelText(CustomerLabel l) => l switch
     {

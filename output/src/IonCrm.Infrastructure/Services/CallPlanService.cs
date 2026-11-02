@@ -143,15 +143,19 @@ public sealed class CallPlanService : ICallPlanService
             .Select(c => new { c.Id, c.CompanyName, c.Status, c.Label, c.CreatedAt, c.ExpirationDate, c.IsInternal, c.AssignedUserId })
             .ToListAsync(ct);
 
+        // Yalnız gerçek görüşmeler sayılır: telefon, toplantı, ziyaret, WhatsApp. E-posta (tanıtım/yaşam döngüsü
+        // mailleri) ve iç notlar (lead ajanı "buldu" notu, fırsat aşaması) bir "arama kaydı" değildir — aksi halde
+        // ajanın bulduğu lead daha aranmadan "görüşülmüş" sayılır. Last = son deneme (bekleme süreleri için),
+        // Count = ulaşılan görüşme sayısı (yeni arama / takip ayrımı için).
         var contactAgg = await _db.ContactHistories.IgnoreQueryFilters()
-            .Where(h => h.ProjectId == projectId && !h.IsDeleted)
+            .Where(h => h.ProjectId == projectId && !h.IsDeleted && h.Type != ContactType.Email && h.Type != ContactType.Note)
             .GroupBy(h => h.CustomerId)
             .Select(g => new
             {
                 CustomerId = g.Key,
                 Last = g.Max(h => h.ContactedAt),
-                Count = g.Count(),
-                LastSat = g.Where(h => h.Purpose == AppointmentKind.SatisfactionCall).Max(h => (DateTime?)h.ContactedAt),
+                Count = g.Count(h => h.Reached != false),
+                LastSat = g.Where(h => h.Purpose == AppointmentKind.SatisfactionCall && h.Reached != false).Max(h => (DateTime?)h.ContactedAt),
             })
             .ToDictionaryAsync(x => x.CustomerId, ct);
 
