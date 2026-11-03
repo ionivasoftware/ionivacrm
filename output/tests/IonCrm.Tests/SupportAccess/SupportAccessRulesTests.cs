@@ -71,13 +71,35 @@ public class SupportAccessRulesTests
         SupportAccessRules.WhyCannotLogin(r, CustomerId, "u-2", Now).Should().Be("İzin isteği bu müşteri/kullanıcıya ait değil.");
     }
 
-    [Theory] [InlineData(null, "tr")] [InlineData("TR", "tr")] [InlineData("tr", "tr")] [InlineData("GB", "en")] [InlineData("DE", "en")]
-    public void Language_is_turkish_at_home_and_english_abroad(string? country, string lang) => SupportAccessRules.LanguageFor(country).Should().Be(lang);
+    [Theory]
+    [InlineData(null, null, null, null, "tr", SupportAccessRules.SourceDefault)]
+    [InlineData("en", null, null, null, "en", SupportAccessRules.SourceFirm)]
+    [InlineData("tr", "MT", "+356 2122 3344", null, "tr", SupportAccessRules.SourceFirm)]   // firm language beats country and phone
+    [InlineData("de-DE", null, null, null, "en", SupportAccessRules.SourceFirm)]            // no German mail yet → English
+    [InlineData(null, "MT", null, null, "en", SupportAccessRules.SourceCountry)]
+    [InlineData(null, "tr", "+356 2122 3344", null, "tr", SupportAccessRules.SourceCountry)]
+    [InlineData(null, null, "+356 2122 3344", null, "en", SupportAccessRules.SourcePhone)]
+    [InlineData(null, null, "+90 555 111 22 33", null, "tr", SupportAccessRules.SourcePhone)]
+    [InlineData(null, null, "0090 555 111 22 33", null, "tr", SupportAccessRules.SourcePhone)]
+    [InlineData(null, null, "0555 111 22 33", null, "tr", SupportAccessRules.SourceDefault)]  // national format says nothing
+    [InlineData(null, null, "+1", null, "tr", SupportAccessRules.SourceDefault)]              // too short to trust
+    [InlineData("en", "MT", "+356 2122 3344", "tr", "tr", SupportAccessRules.SourceOperator)] // operator's pick wins
+    [InlineData(null, null, null, "EN-gb", "en", SupportAccessRules.SourceOperator)]
+    [InlineData(null, null, null, "fr", "tr", SupportAccessRules.SourceDefault)]              // unknown pick ignored
+    public void Mail_language_prefers_operator_then_firm_language_then_country_then_phone(string? firm, string? country, string? phone, string? requested, string lang, string source)
+    {
+        var choice = SupportAccessRules.ResolveLanguage(firm, country, phone, requested);
+        choice.Language.Should().Be(lang);
+        choice.Source.Should().Be(source);
+    }
+
+    [Theory] [InlineData("tr", "tr")] [InlineData("EN", "en")] [InlineData("en-GB", "en")] [InlineData("de", null)] [InlineData("", null)] [InlineData(null, null)]
+    public void Only_mail_languages_normalize(string? value, string? expected) => SupportAccessRules.NormalizeMailLanguage(value).Should().Be(expected);
 }
 
 public class SupportAccessMailTests
 {
-    private static SupportAccessMail.Context Ctx(string lang) => new(lang, "Apex <Lifts> Ltd", "Jane", "Jane Carter", "Ömer Çakmakcı", "omer@ioniva.com", "Bakım listesi boş görünüyor, ekran kontrolü", 2, "https://crm/api/v1/support-access/tok");
+    private static SupportAccessMail.Context Ctx(string lang) => new(lang, "Apex <Lifts> Ltd", "Jane", "Jane Carter", "support@ioniva.com", "Bakım listesi boş görünüyor, ekran kontrolü", 2, "https://crm/api/v1/support-access/tok");
 
     [Fact]
     public void Request_mail_is_turkish_or_english_escapes_html_and_links_only_to_the_review_page()
@@ -88,7 +110,18 @@ public class SupportAccessMailTests
             .And.NotContain("/approve").And.NotContain("{{");
         var en = SupportAccessMail.RenderRequest(Ctx("en"));
         en.Subject.Should().StartWith("Permission request for LiftDesk support access");
-        en.Html.Should().Contain("Dear Jane").And.Contain("2 hours").And.Contain("omer@ioniva.com");
+        en.Html.Should().Contain("Dear Jane").And.Contain("2 hours").And.Contain("support@ioniva.com").And.Contain("The LiftDesk support team is asking");
+    }
+
+    [Fact]
+    public void Customer_facing_content_names_only_the_support_team()
+    {
+        // The operator's identity stays in the CRM (request row + timeline); the mail and pages speak for the team.
+        var tr = SupportAccessMail.RenderRequest(Ctx("tr")).Html;
+        tr.Should().Contain("LiftDesk destek ekibi").And.Contain("support@ioniva.com").And.NotContain("Ömer").And.NotContain("omer@");
+        var page = SupportAccessMail.RenderReviewPage(Ctx("en"), "https://crm/x/approve", "https://crm/x/decline");
+        page.Should().Contain("The LiftDesk support team is asking").And.Contain("support@ioniva.com").And.NotContain("Ömer");
+        SupportAccessMail.RenderResultPage("en", "Permission granted", "Thank you.", "support@ioniva.com").Should().Contain("LiftDesk Support by IONIVA").And.Contain("support@ioniva.com");
     }
 
     [Fact]

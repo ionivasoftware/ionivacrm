@@ -462,6 +462,8 @@ export interface SupportAccessRequest {
   status: 'Pending' | 'Approved' | 'Declined' | 'Cancelled' | string;
   requestedBy: string; requestedByName: string; requestedAt: string; linkExpiresAt: string; respondedAt: string | null; expiresAt: string | null;
   validHours: number; active: boolean; pending: boolean; useCount: number; sendError: string | null;
+  /** E-postanın yazıldığı dil ('tr' | 'en'); eski kayıtlarda null */
+  language: string | null;
 }
 
 export interface SupportAccessOverview {
@@ -472,6 +474,10 @@ export interface SupportAccessOverview {
   recent: SupportAccessRequest[];
   senderAddress: string | null;
   customerEmail: string | null;
+  /** Yeni isteğin yazılacağı dil: firmanın Liftdesk dili → ülke → telefon öneki → 'tr' */
+  mailLanguage: 'tr' | 'en' | string;
+  /** Dilin kaynağı: 'firma dili' | 'ülke' | 'telefon' | 'varsayılan' */
+  mailLanguageSource: string;
 }
 
 /** İzin durumu; yanıt beklenirken 15 sn'de bir yenilenir (müşteri onaylayınca düğme açılır). */
@@ -489,9 +495,9 @@ export function useSupportAccess(customerId: string, userId: string | null) {
 export function useRequestSupportAccess(customerId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { userId: string; to: string; reason: string; validHours: number; emsUserName?: string }) =>
+    mutationFn: async (body: { userId: string; to: string; reason: string; validHours: number; emsUserName?: string; language?: string | null }) =>
       (await apiClient.post<ApiResponse<SupportAccessRequest>>(`/customers/${customerId}/ems-users/${encodeURIComponent(body.userId)}/access-requests`,
-        { to: body.to, reason: body.reason, validHours: body.validHours, emsUserName: body.emsUserName })).data.data,
+        { to: body.to, reason: body.reason, validHours: body.validHours, emsUserName: body.emsUserName, language: body.language ?? null })).data.data,
     onSuccess: (_r, v) => { qc.invalidateQueries({ queryKey: ['supportAccess', customerId, v.userId] }); qc.invalidateQueries({ queryKey: ['contactHistory', customerId] }); },
   });
 }

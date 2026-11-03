@@ -19,6 +19,7 @@ public sealed class SupportAccessRequestConfiguration : IEntityTypeConfiguration
         builder.Property(r => r.RequestedByName).IsRequired().HasMaxLength(200);
         builder.Property(r => r.MessageId).HasMaxLength(300);
         builder.Property(r => r.SendError).HasMaxLength(1000);
+        builder.Property(r => r.Language).HasMaxLength(8);
         builder.HasIndex(r => r.Token).IsUnique();
         builder.HasIndex(r => new { r.CustomerId, r.EmsUserId, r.RequestedAt });
     }

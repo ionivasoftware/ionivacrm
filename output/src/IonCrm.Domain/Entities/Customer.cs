@@ -101,6 +101,9 @@ public class Customer : BaseEntity
     /// <summary>ISO 3166-1 alpha-2 signup country from the Liftdesk feed (null for sources that do not send it). Drives the demo lifecycle e-mails' language and time zone.</summary>
     public string? Country { get; set; }
 
+    /// <summary>The firm's UI language in Liftdesk ("tr", "en" …) from the feed; null when the source does not send it. Customer-facing transactional mails (support-access consent) are written in it, falling back to <see cref="Country"/>.</summary>
+    public string? Language { get; set; }
+
     /// <summary>Customer clicked the unsubscribe link of a lifecycle e-mail — no further marketing-type mails.</summary>
     public bool MarketingOptOut { get; set; }
 

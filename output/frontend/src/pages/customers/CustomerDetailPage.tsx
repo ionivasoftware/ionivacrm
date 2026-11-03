@@ -1432,6 +1432,8 @@ const REASON_MIN = 10;
 const REASON_MAX = 500;
 const CONSENT_HOURS = [1, 2, 4, 8] as const;
 const CONSENT_STATUS_LABEL: Record<string, string> = { Pending: 'Yanıt bekleniyor', Approved: 'İzin verildi', Declined: 'Reddedildi', Cancelled: 'Yenisiyle değişti' };
+const MAIL_LANGUAGES = [{ code: 'tr', label: 'Türkçe' }, { code: 'en', label: 'English' }] as const;
+const MAIL_LANGUAGE_SOURCE: Record<string, string> = { 'firma dili': 'firmanın Liftdesk dili', 'ülke': 'firmanın ülkesi', 'telefon': 'telefon ülke kodu', 'varsayılan': 'bilgi yok, varsayılan' };
 
 const fmtClock = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 
@@ -1443,6 +1445,8 @@ const fmtClock = (iso: string | null | undefined) => iso ? new Date(iso).toLocal
  * Müşteri izni: "Önce müşteriden izin iste" işaretliyse (varsayılan) önce izin e-postası gider; müşteri
  * bağlantıdaki sayfada onaylayınca burada "Yeni sekmede gir" açılır ve seçilen süre (2 saat vb.) boyunca
  * geçerli kalır. Sunucu da izni doğrular (accessRequestId). İşaret kaldırılırsa eski akış (izinsiz giriş).
+ * E-posta firmanın kendi dilinde gider (sunucu türetir: Liftdesk dili → ülke → telefon; burada değiştirilebilir)
+ * ve destek ekibi adına yazılır — operatörün adı/adresi müşteriye gitmez.
  *
  * Sekme, API çağrısından ÖNCE ve kullanıcı tıklamasının içinde senkron açılır: tarayıcılar
  * await sonrası window.open'ı pop-up sayıp engeller. Engellenirse API hiç çağrılmaz — boşa
@@ -1454,6 +1458,7 @@ function ImpersonationDialog({ target, onOpenChange, customerId, companyName, cu
   const [askConsent, setAskConsent] = useState(true);
   const [hours, setHours] = useState<number>(2);
   const [to, setTo] = useState('');
+  const [langPick, setLangPick] = useState<string | null>(null);
   const { data: consent, isLoading: consentLoading } = useSupportAccess(customerId, target?.userId ?? null);
   const request = useRequestSupportAccess(customerId);
   const trimmed = reason.trim();
@@ -1467,17 +1472,18 @@ function ImpersonationDialog({ target, onOpenChange, customerId, companyName, cu
   const effectiveReason = trimmed.length > 0 ? trimmed : (active?.reason ?? '');
   const effectiveValid = effectiveReason.length >= REASON_MIN && effectiveReason.length <= REASON_MAX;
   const canEnter = !askConsent || !!active;
+  const mailLang = langPick ?? consent?.mailLanguage ?? 'tr';
 
   function close() {
     onOpenChange(false);
-    setReason(''); setTo(''); setHours(2); setAskConsent(true);
+    setReason(''); setTo(''); setHours(2); setAskConsent(true); setLangPick(null);
   }
 
   async function handleRequest() {
     if (!target || !valid || !toValid) return;
     try {
-      const r = await request.mutateAsync({ userId: target.userId, to: toValue.trim(), reason: trimmed, validHours: hours, emsUserName: fullName(target) });
-      toast({ title: 'İzin isteği gönderildi', description: `${r.to} · müşteri onaylayınca ${r.validHours} saat boyunca girebilirsiniz. Bu pencere açıkken durum kendiliğinden yenilenir.` });
+      const r = await request.mutateAsync({ userId: target.userId, to: toValue.trim(), reason: trimmed, validHours: hours, emsUserName: fullName(target), language: mailLang });
+      toast({ title: 'İzin isteği gönderildi', description: `${r.to} · ${r.language === 'en' ? 'İngilizce' : 'Türkçe'} · müşteri onaylayınca ${r.validHours} saat boyunca girebilirsiniz. Bu pencere açıkken durum kendiliğinden yenilenir.` });
     } catch (err) {
       const msg =
         (err as { response?: { data?: { errors?: string[]; message?: string } } })?.response?.data?.errors?.[0] ??
@@ -1556,7 +1562,7 @@ function ImpersonationDialog({ target, onOpenChange, customerId, companyName, cu
               rows={3}
               value={reason}
               onChange={e => setReason(e.target.value)}
-              placeholder={active ? `Boş bırakılırsa istekteki gerekçe kullanılır: ${active.reason}` : 'Örn: Bakım listesi boş görünüyor, ekran kontrolü'}
+              placeholder={active ? `Boş bırakılırsa istekteki gerekçe kullanılır: ${active.reason}` : mailLang === 'en' && askConsent && !pending ? 'e.g. Maintenance list looks empty, checking the screen' : 'Örn: Bakım listesi boş görünüyor, ekran kontrolü'}
               maxLength={REASON_MAX + 50}
               autoFocus
             />
@@ -1571,7 +1577,7 @@ function ImpersonationDialog({ target, onOpenChange, customerId, companyName, cu
               <input type="checkbox" className="mt-0.5" checked={askConsent} onChange={e => setAskConsent(e.target.checked)} />
               <span>
                 <span className="font-medium text-foreground">Önce müşteriden izin iste</span>
-                <span className="block text-xs text-muted-foreground">Müşteriye e-posta gider ("Hesabınıza destek erişimiyle girip … yapacağım, uygun mu?"); onaylayınca seçilen süre boyunca girebilirsiniz. DPA'daki erişim taahhüdüyle uyumlu yol.</span>
+                <span className="block text-xs text-muted-foreground">Müşteriye destek ekibi adına e-posta gider ("Hesabınıza destek erişimiyle girip … yapacağım, uygun mu?"; adınız/adresiniz mailde yer almaz); onaylayınca seçilen süre boyunca girebilirsiniz. DPA'daki erişim taahhüdüyle uyumlu yol.</span>
               </span>
             </label>
 
@@ -1587,7 +1593,7 @@ function ImpersonationDialog({ target, onOpenChange, customerId, companyName, cu
 
             {!active && pending && (
               <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200 space-y-1">
-                <div><span className="font-medium">İzin isteği gönderildi</span> · {fmtClock(pending.requestedAt)} → {pending.to} · {pending.validHours} saat için</div>
+                <div><span className="font-medium">İzin isteği gönderildi</span> · {fmtClock(pending.requestedAt)} → {pending.to} · {pending.validHours} saat için{pending.language ? ` · ${pending.language === 'en' ? 'İngilizce' : 'Türkçe'}` : ''}</div>
                 <div className="text-muted-foreground">Müşteri onaylayınca burada "Yeni sekmede gir" açılır (15 sn'de bir kontrol edilir). Bağlantı {fmtClock(pending.linkExpiresAt)}'e kadar geçerli.</div>
                 <button type="button" className="underline" disabled={request.isPending || !valid} onClick={handleRequest} title={!valid ? 'Yeniden göndermek için gerekçe yazın' : undefined}>Yeniden gönder{!valid ? ' (gerekçe gerekli)' : ''}</button>
               </div>
@@ -1607,7 +1613,19 @@ function ImpersonationDialog({ target, onOpenChange, customerId, companyName, cu
                     </div>
                   </div>
                 </div>
-                {consent?.senderAddress ? <div className="text-[11px] text-muted-foreground">Gönderen: {consent.senderAddress} · yanıtlar size döner</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">E-posta dili</span>
+                  <div className="flex gap-1">
+                    {MAIL_LANGUAGES.map(l => <button key={l.code} type="button" onClick={() => setLangPick(l.code)} className={cn('rounded-full border px-2.5 py-1 text-xs', mailLang === l.code ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground')}>{l.label}</button>)}
+                  </div>
+                  {consent && (
+                    <span className="text-[11px] text-muted-foreground">
+                      {langPick && langPick !== consent.mailLanguage ? 'elle seçildi' : `kaynak: ${MAIL_LANGUAGE_SOURCE[consent.mailLanguageSource] ?? consent.mailLanguageSource}`}
+                    </span>
+                  )}
+                </div>
+                {mailLang === 'en' && <div className="text-[11px] text-amber-400">Gerekçe e-postada aynen yer alır — İngilizce yazın.</div>}
+                {consent?.senderAddress ? <div className="text-[11px] text-muted-foreground">Gönderen: {consent.senderAddress} (destek ekibi adına) · yanıtlar destek kutusuna düşer</div>
                   : <div className="text-[11px] text-amber-400">Gönderici posta kutusu tanımlı değil — izin e-postası gönderilemez.</div>}
               </div>
             )}
@@ -1616,7 +1634,7 @@ function ImpersonationDialog({ target, onOpenChange, customerId, companyName, cu
               <details className="text-[11px] text-muted-foreground">
                 <summary className="cursor-pointer">Son istekler ({consent.recent.length})</summary>
                 <ul className="mt-1 space-y-0.5">
-                  {consent.recent.map(r => <li key={r.id}>{fmtClock(r.requestedAt)} · {r.requestedByName} → {r.to} · {CONSENT_STATUS_LABEL[r.status] ?? r.status}{r.status === 'Approved' && r.expiresAt ? ` (${fmtClock(r.expiresAt)}'e kadar${r.active ? '' : ', doldu'})` : ''}</li>)}
+                  {consent.recent.map(r => <li key={r.id}>{fmtClock(r.requestedAt)} · {r.requestedByName} → {r.to}{r.language ? ` · ${r.language.toUpperCase()}` : ''} · {CONSENT_STATUS_LABEL[r.status] ?? r.status}{r.status === 'Approved' && r.expiresAt ? ` (${fmtClock(r.expiresAt)}'e kadar${r.active ? '' : ', doldu'})` : ''}</li>)}
                 </ul>
               </details>
             )}

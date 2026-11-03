@@ -65,7 +65,63 @@ public static class SupportAccessRules
         return true;
     }
 
-    /// <summary>"tr" for Turkey / unknown country, otherwise "en".</summary>
-    public static string LanguageFor(string? country) =>
-        string.IsNullOrWhiteSpace(country) || country.Equals("TR", StringComparison.OrdinalIgnoreCase) ? "tr" : "en";
+    // ── Mail language ────────────────────────────────────────────────────────
+
+    public const string DefaultLanguage = "tr";
+
+    /// <summary>Languages the consent mail and the public pages exist in.</summary>
+    public static readonly IReadOnlyList<string> MailLanguages = new[] { "tr", "en" };
+
+    /// <summary>Where the chosen language came from (shown in the dialog, written to the timeline).</summary>
+    public const string SourceOperator = "seçim";
+    public const string SourceFirm = "firma dili";
+    public const string SourceCountry = "ülke";
+    public const string SourcePhone = "telefon";
+    public const string SourceDefault = "varsayılan";
+
+    public sealed record LanguageChoice(string Language, string Source);
+
+    /// <summary>"tr" / "en" for a known mail language ("EN-gb", " tr " accepted), otherwise null.</summary>
+    public static string? NormalizeMailLanguage(string? value)
+    {
+        var primary = PrimarySubtag(value);
+        return primary is not null && MailLanguages.Contains(primary) ? primary : null;
+    }
+
+    /// <summary>
+    /// The language the customer is written to: the operator's explicit pick, else the firm's own Liftdesk language
+    /// (feed <c>language</c>), else its signup country, else an international phone prefix, else Turkish. Only Turkish
+    /// firms get the Turkish mail; every other language/country gets English (no further translations yet).
+    /// </summary>
+    public static LanguageChoice ResolveLanguage(string? firmLanguage, string? country, string? phone, string? requested = null)
+    {
+        if (NormalizeMailLanguage(requested) is { } picked) return new(picked, SourceOperator);
+        if (PrimarySubtag(firmLanguage) is { } firm) return new(firm == "tr" ? "tr" : "en", SourceFirm);
+        var c = country?.Trim().ToUpperInvariant();
+        if (c is { Length: 2 } && c.All(char.IsLetter)) return new(c == "TR" ? "tr" : "en", SourceCountry);
+        if (CallingCode(phone) is { } cc) return new(cc == "90" ? "tr" : "en", SourcePhone);
+        return new(DefaultLanguage, SourceDefault);
+    }
+
+    /// <summary>"en-GB" / "TR" / " tr_TR " → "en" / "tr"; anything that is not a 2–3 letter language code → null.</summary>
+    private static string? PrimarySubtag(string? value)
+    {
+        var primary = value?.Trim().ToLowerInvariant().Split('-', '_')[0];
+        return primary is { Length: 2 or 3 } && primary.All(ch => ch is >= 'a' and <= 'z') ? primary : null;
+    }
+
+    /// <summary>
+    /// Country calling code when the number is written internationally ("+356 2122 3344" → "356", "0090 555…" → "90");
+    /// null for national formats ("0555 …") which say nothing about the country. Only 1–3 digit codes are told apart
+    /// well enough for the tr/en decision: anything not starting with 90 counts as abroad.
+    /// </summary>
+    private static string? CallingCode(string? phone)
+    {
+        var p = phone?.Trim();
+        if (string.IsNullOrEmpty(p)) return null;
+        var digits = new string(p.Where(char.IsDigit).ToArray());
+        var intl = p.StartsWith('+') ? digits : p.StartsWith("00", StringComparison.Ordinal) ? digits[2..] : null;
+        if (intl is null || intl.Length < 8) return null;
+        return intl.StartsWith("90", StringComparison.Ordinal) ? "90" : intl[..Math.Min(3, intl.Length)];
+    }
 }

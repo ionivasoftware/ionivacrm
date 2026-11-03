@@ -129,6 +129,13 @@ public sealed class SaasSyncJob
         return c is { Length: 2 } && c.All(char.IsLetter) ? c : null;
     }
 
+    /// <summary>"en-GB" / "TR" / " tr_TR " → primary subtag "en" / "tr"; anything that is not a 2–3 letter language code → null.</summary>
+    internal static string? NormalizeLanguage(string? raw)
+    {
+        var primary = raw?.Trim().ToLowerInvariant().Split('-', '_')[0];
+        return primary is { Length: 2 or 3 } && primary.All(c => c is >= 'a' and <= 'z') ? primary : null;
+    }
+
     private static CustomerStatus ComputeStatusFromExpiration(DateTime? expirationDate, DateTime createdOn)
     {
         if (!expirationDate.HasValue)
@@ -347,6 +354,8 @@ public sealed class SaasSyncJob
                 if (existing.CreatedAt      != createdAt)     { existing.CreatedAt      = createdAt;     changed = true; }
                 var country = NormalizeCountry(src.CountryCode);
                 if (country is not null && existing.Country != country) { existing.Country = country; changed = true; }
+                var language = NormalizeLanguage(src.Language);
+                if (language is not null && existing.Language != language) { existing.Language = language; changed = true; }
                 if (changed)
                 {
                     existing.UpdatedAt = DateTime.UtcNow;
@@ -369,6 +378,7 @@ public sealed class SaasSyncJob
                     ExpirationDate = expDate,
                     Status         = newStatus,
                     Country        = NormalizeCountry(src.CountryCode),
+                    Language       = NormalizeLanguage(src.Language),
                     CreatedAt      = createdAt,
                     UpdatedAt      = DateTime.UtcNow
                 });

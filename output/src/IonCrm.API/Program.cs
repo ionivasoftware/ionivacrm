@@ -879,6 +879,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
         await RunSafe("Customers Country/MarketingOptOut columns", @"
             ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""Country""         varchar(2);
             ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""MarketingOptOut"" boolean NOT NULL DEFAULT false;
+            ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""Language""        varchar(8);
             CREATE INDEX IF NOT EXISTS ""ix_customers_country"" ON ""Customers"" (""Country"") WHERE ""Country"" IS NOT NULL;
         ");
         await RunSafe("CustomerLifecycleMails table + indexes", @"
@@ -946,10 +947,12 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 ""UseCount""          integer      NOT NULL DEFAULT 0,
                 ""MessageId""         varchar(300),
                 ""SendError""         varchar(1000),
+                ""Language""          varchar(8),
                 ""CreatedAt""         timestamp with time zone NOT NULL DEFAULT now(),
                 ""UpdatedAt""         timestamp with time zone NOT NULL DEFAULT now(),
                 ""IsDeleted""         boolean      NOT NULL DEFAULT false
             );
+            ALTER TABLE ""SupportAccessRequests"" ADD COLUMN IF NOT EXISTS ""Language"" varchar(8);
             CREATE UNIQUE INDEX IF NOT EXISTS ""ux_supportaccess_token"" ON ""SupportAccessRequests"" (""Token"");
             CREATE INDEX IF NOT EXISTS ""ix_supportaccess_customer_user"" ON ""SupportAccessRequests"" (""CustomerId"", ""EmsUserId"", ""RequestedAt"");
         ");

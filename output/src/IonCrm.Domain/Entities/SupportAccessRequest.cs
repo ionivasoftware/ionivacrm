@@ -37,6 +37,9 @@ public class SupportAccessRequest : BaseEntity
     /// <summary>How long an approval stays valid, counted from the customer's answer.</summary>
     public int ValidHours { get; set; } = 2;
 
+    /// <summary>Language the request mail was written in ("tr" / "en"); the public answer pages reuse it. Null on rows from before the column existed.</summary>
+    public string? Language { get; set; }
+
     public SupportAccessStatus Status { get; set; } = SupportAccessStatus.Pending;
 
     public DateTime RequestedAt { get; set; } = DateTime.UtcNow;

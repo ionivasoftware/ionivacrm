@@ -262,10 +262,10 @@ output/
 ### Destek Erişimi İzni — `/api/v1/customers/{id}/ems-users/{userId}/access-requests` (oturum) · `/api/v1/support-access` (public)
 | Method | Path | Açıklama |
 |---|---|---|
-| GET | `/customers/{id}/ems-users/{userId}/access-requests` | Yürürlükteki onay, bekleyen istek, son 5 istek, gönderici kutusu, müşteri e-postası |
-| POST | `/customers/{id}/ems-users/{userId}/access-requests` | `{to, reason, validHours?, emsUserName?}` → izin e-postası (ortak kutu, Reply-To operatör) |
+| GET | `/customers/{id}/ems-users/{userId}/access-requests` | Yürürlükteki onay, bekleyen istek, son 5 istek, gönderici kutusu, müşteri e-postası, `mailLanguage` (tr/en) + `mailLanguageSource` (firma dili / ülke / telefon / varsayılan) |
+| POST | `/customers/{id}/ems-users/{userId}/access-requests` | `{to, reason, validHours?, emsUserName?, language?}` → izin e-postası (ortak kutu, destek ekibi adına; operatör adı/adresi mailde yok, Reply-To yok). Dil: `language` → firmanın Liftdesk dili → ülke → telefon öneki → tr; isteğe yazılır |
 | POST | `/customers/{id}/ems-users/{userId}/impersonation` | `{reason, accessRequestId?}` — izin verildiyse onaylı + süresi içinde olmalı |
-| GET | `/support-access/{token}` | Public inceleme sayfası (TR/EN) |
+| GET | `/support-access/{token}` | Public inceleme sayfası (isteğin dili; eski kayıtta müşteriden türetilir) |
 | POST | `/support-access/{token}/approve` · `/decline` | Müşterinin yanıtı → Approved (+validHours) / Declined |
 
 ### Demo E-postaları — `/api/v1/lifecycle-mails` (SuperAdmin)

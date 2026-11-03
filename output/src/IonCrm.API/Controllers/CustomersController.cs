@@ -233,15 +233,16 @@ public class CustomersController : ApiControllerBase
     }
 
     /// <summary>
-    /// POST /api/v1/customers/{id}/ems-users/{userId}/access-requests — {to, reason, validHours?, emsUserName?}:
-    /// müşteriye izin isteği e-postası gönderir (ortak destek kutusundan, Reply-To operatör). Müşteri bağlantıdaki
-    /// sayfada onaylarsa <c>validHours</c> (varsayılan 2) saat boyunca "Hesaba Gir" açılır.
+    /// POST /api/v1/customers/{id}/ems-users/{userId}/access-requests — {to, reason, validHours?, emsUserName?, language?}:
+    /// müşteriye izin isteği e-postası gönderir (ortak destek kutusundan, destek ekibi adına — operatör adı/adresi mailde yok).
+    /// Dil: <c>language</c> ("tr"/"en") verilirse o; yoksa firmanın Liftdesk dili → ülke → telefon öneki → Türkçe.
+    /// Müşteri bağlantıdaki sayfada onaylarsa <c>validHours</c> (varsayılan 2) saat boyunca "Hesaba Gir" açılır.
     /// </summary>
     [HttpPost("{id:guid}/ems-users/{userId}/access-requests")]
     public async Task<IActionResult> RequestSupportAccess(Guid id, string userId, [FromBody] RequestSupportAccessBody body, CancellationToken cancellationToken = default)
     {
         var service = HttpContext.RequestServices.GetRequiredService<ISupportAccessService>();
-        var result = await service.RequestAsync(id, userId, body?.EmsUserName, body?.To ?? string.Empty, body?.Reason ?? string.Empty, body?.ValidHours, cancellationToken);
+        var result = await service.RequestAsync(id, userId, body?.EmsUserName, body?.To ?? string.Empty, body?.Reason ?? string.Empty, body?.ValidHours, body?.Language, cancellationToken);
         return ResultToResponse(result);
     }
 
@@ -608,7 +609,7 @@ public record SetPrimaryEmsUserRequest(string UserId);
 public record CreateEmsImpersonationRequest(string Reason, Guid? AccessRequestId = null);
 
 /// <summary>Request body for POST /api/v1/customers/{id}/ems-users/{userId}/access-requests.</summary>
-public record RequestSupportAccessBody(string? To, string? Reason, int? ValidHours, string? EmsUserName);
+public record RequestSupportAccessBody(string? To, string? Reason, int? ValidHours, string? EmsUserName, string? Language = null);
 
 /// <summary>Request body for PUT /api/v1/customers/{id}/checklists/{kind} — the FULL new checklist.</summary>
 public record UpdateChecklistRequest(List<LiftdeskChecklistHeaderInput> Headers);

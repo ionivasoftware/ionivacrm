@@ -26,6 +26,8 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.TaxNumber).HasMaxLength(50);
         builder.Property(c => c.TaxUnit).HasMaxLength(200);
         builder.Property(c => c.LegacyId).HasMaxLength(100);
+        builder.Property(c => c.Country).HasMaxLength(2);
+        builder.Property(c => c.Language).HasMaxLength(8);
 
         builder.Property(c => c.Status).IsRequired();
 

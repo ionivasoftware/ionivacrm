@@ -23,7 +23,9 @@ public record EmsCrmCustomer(
     DateTime UpdatedAt,
     DateTime? ExpirationDate,
     /// <summary>ISO 3166-1 alpha-2 signup country (Liftdesk ≥ 2026-10-31); null from older feeds.</summary>
-    string? CountryCode = null);
+    string? CountryCode = null,
+    /// <summary>The firm's UI language in Liftdesk (<c>CompanySettings.DefaultLanguage</c>: "tr", "en" …; Liftdesk ≥ 2026-11-03); null from older feeds or when the firm has no settings row. Customer-facing transactional mails (support-access consent) are written in it.</summary>
+    string? Language = null);
 
 // ── EMS extend expiration ─────────────────────────────────────────────────────
 
