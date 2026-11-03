@@ -21,7 +21,7 @@ function fmtSize(bytes: number): string { return bytes >= 1_000_000 ? `${(bytes 
 
 interface Props { open: boolean; onClose: () => void; customerId: string; companyName: string; contactName?: string | null; email?: string | null }
 
-/** "Tanıtım Maili": şablon + katalog + fiyat listesi; ortak firma kutusundan (gönderen adı kullanıcı, yanıtlar kullanıcıya) ya da kullanıcının Gmail'inden; zaman çizelgesine E-posta kaydı düşer. */
+/** "Tanıtım Maili": şablon + katalog + fiyat listesi, kullanıcının Gmail'inden (Ayarlar → E-posta Gönderimi), kendine BCC; zaman çizelgesine E-posta kaydı düşer. */
 export function SendIntroEmailDialog({ open, onClose, customerId, companyName, contactName, email }: Props) {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -41,7 +41,7 @@ export function SendIntroEmailDialog({ open, onClose, customerId, companyName, c
     if (!to.trim()) { toast({ title: 'Alıcı e-posta gerekli', variant: 'destructive' }); return; }
     try {
       const r = await send.mutateAsync({ customerId, templateKey: template?.key, subjectIndex, note: note.trim() || undefined, to: to.trim() !== (email ?? '') ? to.trim() : undefined });
-      toast({ title: 'Tanıtım maili gönderildi', description: `${r.to} · ${r.subject}${r.from ? ` · gönderen ${r.from}` : ''}${settings?.bccSelf ? ' · kopya sana düştü' : ''}` });
+      toast({ title: 'Tanıtım maili gönderildi', description: `${r.to} · ${r.subject}${settings?.bccSelf ? ' · kopya sana düştü' : ''}` });
       onClose();
     } catch (err) { toast({ title: 'Gönderilemedi', description: errorMessage(err, 'Hata'), variant: 'destructive' }); }
   }
@@ -51,17 +51,17 @@ export function SendIntroEmailDialog({ open, onClose, customerId, companyName, c
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> Tanıtım maili gönder</DialogTitle>
-          <DialogDescription>{companyName}{contactName ? ` · ${contactName}` : ''} — şablon metni, katalog ve fiyat listesi {settings?.sharedSender ? 'ortak firma kutusundan senin adınla gider; yanıtlar sana düşer' : 'senin Gmail adresinden gider'}.</DialogDescription>
+          <DialogDescription>{companyName}{contactName ? ` · ${contactName}` : ''} — şablon metni, katalog ve fiyat listesi senin Gmail adresinden gider.</DialogDescription>
         </DialogHeader>
 
-        {settings && !settings.configured && !settings.sharedSender ? (
+        {settings && !settings.configured ? (
           <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-200 flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
             <span>Önce Ayarlar'da Gmail adresini ve uygulama şifresini kaydet. <button type="button" className="underline inline-flex items-center gap-1" onClick={() => { onClose(); navigate('/settings'); }}><Settings className="h-3 w-3" /> Ayarlara git</button></span>
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="text-xs text-muted-foreground">Gönderen: <b className="text-foreground">{settings?.sharedSender ?? settings?.address}</b>{settings?.sharedSender ? ' (ortak kutu, senin adınla)' : ''}{settings?.bccSelf ? ' · kendine BCC' : ''}</div>
+            <div className="text-xs text-muted-foreground">Gönderen: <b className="text-foreground">{settings?.address}</b>{settings?.bccSelf ? ' · kendine BCC' : ''}</div>
             <div className="space-y-1.5">
               <Label htmlFor="intro-to">Alıcı</Label>
               <Input id="intro-to" type="email" value={to} onChange={e => setTo(e.target.value)} placeholder="musteri@firma.com" className="h-10" />
@@ -96,7 +96,7 @@ export function SendIntroEmailDialog({ open, onClose, customerId, companyName, c
 
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" disabled={send.isPending} onClick={onClose}>İptal</Button>
-          <Button type="button" disabled={send.isPending || !(settings?.configured || settings?.sharedSender) || !to.trim()} onClick={submit}>
+          <Button type="button" disabled={send.isPending || !settings?.configured || !to.trim()} onClick={submit}>
             {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Gönder
           </Button>
         </DialogFooter>

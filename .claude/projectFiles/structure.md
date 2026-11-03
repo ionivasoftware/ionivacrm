@@ -303,10 +303,10 @@ output/
 ### Pazarlama — `/api/v1/marketing` (oturum)
 | Method | Path | Açıklama |
 |---|---|---|
-| GET/PUT/DELETE | `/mail-settings` | Kullanıcının Gmail adresi + uygulama şifresi (şifreli) + gönderen adı + BCC; `sharedSender` = ortak kutu adresi (varsa) |
+| GET/PUT/DELETE | `/mail-settings` | Kullanıcının Gmail adresi + uygulama şifresi (şifreli) + gönderen adı + BCC (tanıtım maili yalnız bu hesaptan) |
 | POST | `/mail-settings/test` | Kendine test maili |
 | GET | `/materials` | Şablonlar (konu seçenekleri) + ekler |
-| POST | `/customers/{id}/intro-email` | `{templateKey?, subjectIndex?, note?, to?}` → ortak kutudan (Reply-To kullanıcı) ya da Gmail'den gönder + E-posta kaydı |
+| POST | `/customers/{id}/intro-email` | `{templateKey?, subjectIndex?, note?, to?}` → kullanıcının Gmail'inden gönder (kendine BCC) + E-posta kaydı; ortak kutu kullanılmaz |
 
 ### Rakip Firmalar — `/api/v1/competitors` (oturum; tenant filtresi)
 | Method | Path | Açıklama |

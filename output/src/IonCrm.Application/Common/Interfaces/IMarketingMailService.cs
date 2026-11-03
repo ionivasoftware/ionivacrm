@@ -9,16 +9,13 @@ public record MarketingMaterials(List<MarketingTemplateInfo> Templates, List<Mar
 public record MailSendResult(bool Success, string Message, string? To = null, string? Subject = null, List<string>? Attachments = null, string? From = null);
 
 /// <summary>
-/// Sends the Liftdesk intro e-mail (template + catalogue + price list from docs/marketing). Sender: the shared company
-/// mailbox when configured (<c>Marketing:Smtp:*</c> → <c>EmailCollector:Imap:*</c> → <c>Notifications:Smtp:*</c>) with the
-/// user's name and Reply-To = the user's own address, otherwise the user's own Gmail.
+/// Sends the Liftdesk intro e-mail (template + catalogue + price list from docs/marketing) through the user's own mailbox
+/// from Ayarlar → E-posta Gönderimi (Gmail address + app password). The intro mail is a personal, operator-triggered mail,
+/// so it deliberately does not use the shared support mailbox that the automatic mails (demo lifecycle, outreach) go out from.
 /// </summary>
 public interface IMarketingMailService
 {
     MarketingMaterials GetMaterials();
-
-    /// <summary>Address of the shared company mailbox, or null when each user sends from their own Gmail.</summary>
-    string? SharedSenderAddress { get; }
 
     /// <summary>Sends to the customer's e-mail (or <paramref name="toOverride"/>), BCC to the user when enabled; logs nothing itself.</summary>
     Task<MailSendResult> SendIntroAsync(Guid userId, Guid customerId, string? templateKey, int subjectIndex, string? note, string? toOverride, CancellationToken cancellationToken = default);

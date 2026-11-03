@@ -27,7 +27,7 @@ public sealed record SmtpAccount(string Source, string Host, int Port, bool UseS
 /// <summary>
 /// Picks the company account a feature's mail goes out from. Order:
 /// <list type="number">
-/// <item><c>{overridePrefix}:*</c> (e.g. <c>LifecycleMail:Smtp</c>, <c>Outreach:Smtp</c>, <c>Marketing:Smtp</c>) when its Host is set — explicit, wins outright.</item>
+/// <item><c>{overridePrefix}:*</c> (e.g. <c>LifecycleMail:Smtp</c>, <c>Outreach:Smtp</c>, <c>SupportAccess:Smtp</c>) when its Host is set — explicit, wins outright.</item>
 /// <item><c>EmailCollector:Imap:*</c> — the support mailbox the invoice collector already reads; its IMAP host is mapped to the
 /// provider's SMTP host (imap.gmail.com → smtp.gmail.com), 587/STARTTLS, same user/password, From = user, IMAP kept for inbox checks.</item>
 /// <item><c>Notifications:Smtp:*</c> — the ops alert account, last resort (no IMAP).</item>

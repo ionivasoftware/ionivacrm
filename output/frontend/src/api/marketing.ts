@@ -2,14 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { ApiResponse } from '@/types';
 
-// ── Tanıtım maili: ortak firma kutusu (EmailCollector IMAP bilgileri) tanımlıysa oradan, yoksa kullanıcının Gmail'i ──
+// ── Kullanıcının Gmail'i ile tanıtım maili (Ayarlar → E-posta Gönderimi). Ortak destek kutusu yalnız otomatik mailler için. ──
 
 export interface MailSettings {
   address: string | null; senderName: string | null; bccSelf: boolean; hasPassword: boolean;
-  /** Kişisel Gmail ayarı tam mı */
+  /** Gmail adresi + uygulama şifresi kayıtlı mı */
   configured: boolean;
-  /** Ortak firma kutusu adresi (sunucu env) — doluysa tanıtım mailleri buradan, gönderen adı kullanıcı, Reply-To kullanıcının adresi */
-  sharedSender: string | null;
 }
 
 export interface MarketingTemplate { key: string; fileName: string; subjects: string[]; language: string | null }

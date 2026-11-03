@@ -9,9 +9,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace IonCrm.API.Controllers;
 
 /// <summary>
-/// Tanıtım maili (docs/marketing şablonu + katalog + fiyat listesi): ortak firma posta kutusu tanımlıysa oradan
-/// (gönderen adı kullanıcı, Reply-To + BCC kullanıcının adresi), yoksa kullanıcının kendi Gmail'inden (adres +
-/// uygulama şifresi, şifreli saklanır). Her gönderim müşteri zaman çizelgesine E-posta kaydı olarak düşer.
+/// Kullanıcının kendi Gmail'i ile gönderim: ayarlar (adres + uygulama şifresi, şifreli saklanır) ve müşteriye
+/// tanıtım maili (docs/marketing şablonu + katalog + fiyat listesi, kendine BCC). Tanıtım maili kişiseldir; ortak destek
+/// kutusu yalnız otomatik mailler (demo yaşam döngüsü, outreach) için. Her gönderim müşteri zaman çizelgesine E-posta kaydı olarak düşer.
 /// </summary>
 [Route("api/v1/marketing")]
 [Authorize]
@@ -33,14 +33,14 @@ public sealed class MarketingController : ApiControllerBase
 
     // ── Kullanıcı e-posta ayarları ───────────────────────────────────────────
 
-    /// <summary>GET /api/v1/marketing/mail-settings — adres, gönderen adı, BCC, şifre kayıtlı mı (şifre dönmez), ortak kutu adresi (varsa).</summary>
+    /// <summary>GET /api/v1/marketing/mail-settings — adres, gönderen adı, BCC, şifre kayıtlı mı (şifre dönmez).</summary>
     [HttpGet("mail-settings")]
     public async Task<IActionResult> GetMailSettings(CancellationToken cancellationToken = default)
     {
         var user = await _users.GetByIdAsync(_currentUser.UserId, cancellationToken);
         if (user is null) return NotFound(ApiResponse<object>.Fail("Kullanıcı bulunamadı.", 404));
         return OkResponse(new MailSettingsDto(user.MailAddress, user.MailSenderName, user.MailBccSelf, !string.IsNullOrWhiteSpace(user.MailPasswordEncrypted),
-            !string.IsNullOrWhiteSpace(user.MailAddress) && !string.IsNullOrWhiteSpace(user.MailPasswordEncrypted), _mail.SharedSenderAddress));
+            !string.IsNullOrWhiteSpace(user.MailAddress) && !string.IsNullOrWhiteSpace(user.MailPasswordEncrypted)));
     }
 
     /// <summary>PUT /api/v1/marketing/mail-settings — {address, password?, senderName?, bccSelf}. Şifre boşsa mevcut korunur.</summary>
@@ -64,7 +64,7 @@ public sealed class MarketingController : ApiControllerBase
         if (!string.IsNullOrEmpty(password)) user.MailPasswordEncrypted = _protector.Protect(password.Replace(" ", string.Empty));
         await _users.UpdateAsync(user, cancellationToken);
         _logger.LogInformation("Kullanıcı e-posta gönderim ayarı güncellendi: {UserId} ({Address})", user.Id, address);
-        return OkResponse(new MailSettingsDto(user.MailAddress, user.MailSenderName, user.MailBccSelf, true, true, _mail.SharedSenderAddress));
+        return OkResponse(new MailSettingsDto(user.MailAddress, user.MailSenderName, user.MailBccSelf, true, true));
     }
 
     /// <summary>DELETE /api/v1/marketing/mail-settings — adres ve şifreyi sil.</summary>
@@ -75,7 +75,7 @@ public sealed class MarketingController : ApiControllerBase
         if (user is null) return NotFound(ApiResponse<object>.Fail("Kullanıcı bulunamadı.", 404));
         user.MailAddress = null; user.MailPasswordEncrypted = null; user.MailSenderName = null;
         await _users.UpdateAsync(user, cancellationToken);
-        return OkResponse(new MailSettingsDto(null, null, user.MailBccSelf, false, false, _mail.SharedSenderAddress));
+        return OkResponse(new MailSettingsDto(null, null, user.MailBccSelf, false, false));
     }
 
     /// <summary>POST /api/v1/marketing/mail-settings/test — kendine test maili.</summary>
@@ -128,7 +128,7 @@ public sealed class MarketingController : ApiControllerBase
     }
 }
 
-public record MailSettingsDto(string? Address, string? SenderName, bool BccSelf, bool HasPassword, bool Configured, string? SharedSender = null);
+public record MailSettingsDto(string? Address, string? SenderName, bool BccSelf, bool HasPassword, bool Configured);
 
 public record SaveMailSettingsBody(string? Address, string? Password, string? SenderName, bool BccSelf = true, bool AllowNonGmail = false);
 

@@ -16,7 +16,7 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-/** Ayarlar → "E-posta Gönderimi": ortak firma kutusu tanımlıysa tanıtım maili oradan (gönderen adı kullanıcı, yanıtlar kullanıcıya); kişisel Gmail yalnız ortak kutu yokken. */
+/** Ayarlar → "E-posta Gönderimi (Gmail)": tanıtım maili kullanıcının kendi Gmail'inden çıkar. Otomatik mailler (demo, outreach) ortak destek kutusundan gider, bu ayardan bağımsız. */
 export function MailSettingsCard() {
   const { toast } = useToast();
   const { data, isLoading } = useMailSettings();
@@ -56,26 +56,17 @@ export function MailSettingsCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base"><Mail className="h-4 w-4" /> E-posta Gönderimi</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base"><Mail className="h-4 w-4" /> E-posta Gönderimi (Gmail)</CardTitle>
         <CardDescription>
-          {data?.sharedSender
-            ? <>Tanıtım maili (şablon + katalog + fiyat listesi) müşteriye <b>ortak firma kutusundan</b> gider; gönderen adı senin adın, yanıtlar ve BCC kopyası senin adresine düşer. Aşağıdaki Gmail ayarı isteğe bağlıdır ve yalnız ortak kutu tanımlı değilken kullanılır.</>
-            : <>Tanıtım maili (şablon + katalog + fiyat listesi) müşteriye <b>senin Gmail adresinden</b> gider; takip için kendine BCC düşer. Normal şifre değil, Google <b>Uygulama Şifresi</b> gerekir.</>}
+          Tanıtım maili (şablon + katalog + fiyat listesi) müşteriye <b>senin Gmail adresinden</b> gider; takip için kendine BCC düşer. Normal şifre değil, Google <b>Uygulama Şifresi</b> gerekir. Otomatik mailler (demo e-postaları, global outreach) bu ayardan bağımsız olarak ortak destek kutusundan çıkar.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? <div className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Yükleniyor…</div> : (
           <>
-            {data?.sharedSender && (
-              <div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
-                <CheckCircle className="h-4 w-4" /><span>Ortak kutu hazır: <b>{data.sharedSender}</b> — tanıtım mailleri buradan gider{data.bccSelf ? ', kopyası sana düşer' : ''}.</span>
-              </div>
-            )}
-            <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${data?.configured ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : data?.sharedSender ? 'border-border bg-muted/30 text-muted-foreground' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
+            <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${data?.configured ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
               {data?.configured ? <CheckCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-              {data?.configured
-                ? <span>Kişisel Gmail hazır: <b>{data.address}</b>{data.bccSelf ? ' · kendine BCC açık' : ''}{data.sharedSender ? ' · ortak kutu varken kullanılmaz' : ''}</span>
-                : data?.sharedSender ? <span>Kişisel Gmail ayarlanmadı — gerekmiyor, ortak kutu kullanılıyor.</span> : <span>Henüz ayarlanmadı — tanıtım maili gönderilemez.</span>}
+              {data?.configured ? <span>Hazır: <b>{data.address}</b>{data.bccSelf ? ' · kendine BCC açık' : ''}</span> : <span>Henüz ayarlanmadı — tanıtım maili gönderilemez.</span>}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
