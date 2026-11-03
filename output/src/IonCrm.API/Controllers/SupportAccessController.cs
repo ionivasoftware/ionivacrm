@@ -10,8 +10,10 @@ namespace IonCrm.API.Controllers;
 /// Public answer pages for support-access consent (link in the request e-mail). No session; token-only. GET shows the
 /// request and two buttons; the answer itself is a POST so that mail scanners following the link cannot approve.
 /// Pages are in the language the mail was sent in (stored on the request) and name only the support team — never the operator.
+/// Reachable under the short <c>/consent/{token}</c> alias (what the mail links to, also on a custom domain) and the old API path.
 /// </summary>
 [Route("api/v1/support-access")]
+[Route(SupportAccessLinks.ShortRoute)]
 [AllowAnonymous]
 public sealed class SupportAccessController : ControllerBase
 {
@@ -22,6 +24,14 @@ public sealed class SupportAccessController : ControllerBase
 
     /// <summary>Support mailbox shown on the pages (the address the mail came from); null when none is configured.</summary>
     private string? SupportEmail => SmtpAccountResolver.Resolve(k => _configuration[k], "SupportAccess:Smtp")?.From;
+
+    /// <summary>
+    /// Absolute root of the answer forms: the configured public root, else the origin the proxy saw. Never Request.Scheme alone —
+    /// behind Railway it is "http", the edge 301s http→https and the browser turns the POST into a GET.
+    /// </summary>
+    private string ReviewUrl(string token) => SupportAccessLinks.ReviewUrl(
+        SupportAccessLinks.RequestOrigin(SupportAccessLinks.ResolvePublicBaseUrl(k => _configuration[k]), Request.Headers["X-Forwarded-Proto"].FirstOrDefault(), Request.Scheme, Request.Host.Value),
+        token);
 
     /// <summary>The language the request mail went out in; older rows without it fall back to the customer-derived language.</summary>
     private static string LanguageOf(Domain.Entities.SupportAccessRequest r, Domain.Entities.Customer customer) =>
@@ -36,7 +46,7 @@ public sealed class SupportAccessController : ControllerBase
         if (SupportAccessRules.WhyCannotRespond(r, DateTime.UtcNow) is { } why)
             return Html(SupportAccessMail.RenderResultPage(lang, lang == "tr" ? "Bu bağlantı artık geçerli değil" : "This link is no longer valid", lang == "tr" ? why : Translate(why), SupportEmail), 410);
         var ctx = new SupportAccessMail.Context(lang, customer.CompanyName, customer.ContactName, r.EmsUserName, SupportEmail ?? string.Empty, r.Reason, r.ValidHours, string.Empty);
-        var baseUrl = $"{Request.Scheme}://{Request.Host}/api/v1/support-access/{Uri.EscapeDataString(token)}";
+        var baseUrl = ReviewUrl(token);
         return Html(SupportAccessMail.RenderReviewPage(ctx, baseUrl + "/approve", baseUrl + "/decline"), 200);
     }
 

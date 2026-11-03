@@ -37,9 +37,10 @@ public sealed class SupportAccessService : ISupportAccessService
 
     private SmtpAccount? Smtp => SmtpAccountResolver.Resolve(k => _configuration[k], "SupportAccess:Smtp");
 
-    private string PublicBaseUrl => SocialPostImageLinks.ResolvePublicApiBaseUrl(k => _configuration[k]) ?? "https://ion-crm-api-production.up.railway.app";
+    // Own public root (SupportAccess:PublicBaseUrl — e.g. a liftdesk.app subdomain) before the API's shared one; short /consent/{token} path.
+    private string PublicBaseUrl => SupportAccessLinks.ResolvePublicBaseUrl(k => _configuration[k]) ?? "https://ion-crm-api-production.up.railway.app";
 
-    private string ReviewUrl(string token) => $"{PublicBaseUrl}/api/v1/support-access/{token}";
+    private string ReviewUrl(string token) => SupportAccessLinks.ReviewUrl(PublicBaseUrl, token);
 
     private static SupportAccessRequestDto ToDto(SupportAccessRequest r, DateTime now) => new(
         r.Id, r.CustomerId, r.EmsUserId, r.EmsUserName, r.To, r.Reason, r.Status.ToString(), r.RequestedBy, r.RequestedByName, r.RequestedAt, r.LinkExpiresAt,

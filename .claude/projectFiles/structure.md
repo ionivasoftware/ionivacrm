@@ -259,14 +259,14 @@ output/
 | GET/POST | `/unsubscribe/{token}` | Abonelikten çık (HTML sayfa; `List-Unsubscribe` başlığı da buraya) |
 | GET/POST | `/unsubscribe/customer/{customerId}/{token}` | Demo yaşam döngüsü e-postaları için müşteri opt-out (HMAC token) |
 
-### Destek Erişimi İzni — `/api/v1/customers/{id}/ems-users/{userId}/access-requests` (oturum) · `/api/v1/support-access` (public)
+### Destek Erişimi İzni — `/api/v1/customers/{id}/ems-users/{userId}/access-requests` (oturum) · `/consent` = `/api/v1/support-access` (public, köksüz kısa yol; mail bağlantısı `SupportAccess__PublicBaseUrl` kökünden)
 | Method | Path | Açıklama |
 |---|---|---|
 | GET | `/customers/{id}/ems-users/{userId}/access-requests` | Yürürlükteki onay, bekleyen istek, son 5 istek, gönderici kutusu, müşteri e-postası, `mailLanguage` (tr/en) + `mailLanguageSource` (firma dili / ülke / telefon / varsayılan) |
 | POST | `/customers/{id}/ems-users/{userId}/access-requests` | `{to, reason, validHours?, emsUserName?, language?}` → izin e-postası (ortak kutu, destek ekibi adına; operatör adı/adresi mailde yok, Reply-To yok). Dil: `language` → firmanın Liftdesk dili → ülke → telefon öneki → tr; isteğe yazılır |
 | POST | `/customers/{id}/ems-users/{userId}/impersonation` | `{reason, accessRequestId?}` — izin verildiyse onaylı + süresi içinde olmalı |
-| GET | `/support-access/{token}` | Public inceleme sayfası (isteğin dili; eski kayıtta müşteriden türetilir) |
-| POST | `/support-access/{token}/approve` · `/decline` | Müşterinin yanıtı → Approved (+validHours) / Declined |
+| GET | `/consent/{token}` (= `/api/v1/support-access/{token}`) | Public inceleme sayfası (isteğin dili; eski kayıtta müşteriden türetilir) |
+| POST | `/consent/{token}/approve` · `/decline` | Müşterinin yanıtı → Approved (+validHours) / Declined; form action kökü yapılandırılan public kök ya da `X-Forwarded-Proto` + Host (Request.Scheme değil) |
 
 ### Demo E-postaları — `/api/v1/lifecycle-mails` (SuperAdmin)
 | Method | Path | Açıklama |
