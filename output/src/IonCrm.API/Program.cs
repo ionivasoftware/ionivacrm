@@ -419,6 +419,25 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 WHERE ""ProjectId"" IS NULL AND ""IsDeleted"" = false;
         ");
 
+        // Paraşüt yetki kodu + PKCE akışı (04–05.11.2026 duyurusu; parola akışı ~05.12.2026'da kapanır).
+        // İki akış yan yana: AuthFlow 1 = Password (mevcut satırlar), 2 = OAuth2. Parola/istemci kolonları kesim gününe kadar kalır.
+        await RunSafe("ParasutConnections OAuth2 columns", @"
+            ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""AuthFlow""              integer NOT NULL DEFAULT 1;
+            ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""CompanyName""           varchar(300);
+            ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""RefreshTokenExpiresAt"" timestamp with time zone;
+            ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""NeedsReconnect""        boolean NOT NULL DEFAULT false;
+            ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""ReconnectAlertedAt""    timestamp with time zone;
+            ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""ConnectedAt""           timestamp with time zone;
+            ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""ConnectedByUserId""     uuid;
+            ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""OAuthStateHash""        varchar(64);
+            ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""OAuthStateExpiresAt""   timestamp with time zone;
+            ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""OAuthStateUserId""      uuid;
+            ALTER TABLE ""ParasutConnections"" ADD COLUMN IF NOT EXISTS ""OAuthCodeVerifier""     text;
+            CREATE INDEX IF NOT EXISTS ""ix_parasutconnections_oauthstatehash""
+                ON ""ParasutConnections"" (""OAuthStateHash"")
+                WHERE ""OAuthStateHash"" IS NOT NULL;
+        ");
+
         // Idempotent fallback: create Invoices table if EF migration hasn't run yet.
         await RunSafe("Invoices table + indexes", @"
             CREATE TABLE IF NOT EXISTS ""Invoices"" (

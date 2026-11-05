@@ -13,6 +13,7 @@ public sealed class SyncContactToParasutCommandHandler
 {
     private readonly IParasutClient _parasutClient;
     private readonly IParasutConnectionRepository _connectionRepository;
+    private readonly ITokenProtector _tokenProtector;
     private readonly ICustomerRepository _customerRepository;
     private readonly ILogger<SyncContactToParasutCommandHandler> _logger;
 
@@ -20,11 +21,13 @@ public sealed class SyncContactToParasutCommandHandler
     public SyncContactToParasutCommandHandler(
         IParasutClient parasutClient,
         IParasutConnectionRepository connectionRepository,
+        ITokenProtector tokenProtector,
         ICustomerRepository customerRepository,
         ILogger<SyncContactToParasutCommandHandler> logger)
     {
         _parasutClient = parasutClient;
         _connectionRepository = connectionRepository;
+        _tokenProtector = tokenProtector;
         _customerRepository = customerRepository;
         _logger = logger;
     }
@@ -39,7 +42,7 @@ public sealed class SyncContactToParasutCommandHandler
             request.ProjectId, cancellationToken);
 
         var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
-            connection, _parasutClient, _connectionRepository, _logger, cancellationToken);
+            connection, _parasutClient, _connectionRepository, _tokenProtector, _logger, cancellationToken);
         if (conn is null)
             return Result<SyncContactToParasutDto>.Failure(tokenError!);
 

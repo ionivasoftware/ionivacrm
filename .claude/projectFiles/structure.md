@@ -154,7 +154,12 @@ output/
 | GET | `/api/v1/users` | Kullanıcı listesi |
 | POST | `/api/v1/users` | Kullanıcı oluştur |
 | GET | `/api/v1/projects` | Proje listesi |
-| GET/POST/PUT | `/api/v1/parasut/...` | Paraşüt entegrasyonu |
+| GET/POST/PUT | `/api/v1/parasut/...` | Paraşüt entegrasyonu (cari, fatura, ürün) |
+| POST | `/api/v1/parasut/connect/oauth` | (SuperAdmin) Yetki kodu + PKCE akışını başlatır → `{authorizationUrl, stateExpiresAt}`; tarayıcı Paraşüt girişine gider |
+| GET | `/api/v1/parasut/callback?code&state[&error]` | **Anonim** geri dönüş (Paraşüt uygulamasına kayıtlı adres, prod'da değiştirilemez): state özeti doğrulanır, kod takası, `/v4/me` ile firma → `{App__FrontendUrl}/settings?parasut=connected|error&reason=…` |
+| GET | `/api/v1/parasut/status` | `isConnected, companyId, companyName, username, tokenExpiresAt, usesOAuth, needsReconnect, canConnectWithOAuth, refreshTokenExpiresAt, connectedAt, lastError` |
+| POST | `/api/v1/parasut/connect` | (SuperAdmin) ESKİ parola akışı — Paraşüt ~05.12.2026'da kapatıyor |
+| DELETE | `/api/v1/parasut/disconnect` | (SuperAdmin) Bağlantıyı kes; yeni akışta önce Keycloak `/revoke` |
 | GET | `/health` | Health check |
 
 ### Sosyal Medya — `/api/v1/social-posts` (SuperAdmin; Liftdesk `crm/social-posts` proxy)

@@ -27,6 +27,7 @@ public class CreateInvoiceCommandHandlerTests
         _customerRepoMock.Object,
         _parasutClientMock.Object,
         _connectionRepoMock.Object,
+        new IonCrm.Infrastructure.Services.AesGcmTokenProtector("test-key"),
         _currentUserMock.Object,
         _loggerMock.Object);
 

@@ -58,6 +58,16 @@ public class ParasutConnectionRepository : IParasutConnectionRepository
     }
 
     /// <inheritdoc />
+    public async Task<ParasutConnection?> GetByOAuthStateHashAsync(
+        string stateHash,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.ParasutConnections
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(c => c.OAuthStateHash == stateHash && !c.IsDeleted, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<ParasutConnection> AddAsync(
         ParasutConnection connection,
         CancellationToken cancellationToken = default)

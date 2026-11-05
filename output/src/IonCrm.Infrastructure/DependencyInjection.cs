@@ -1,6 +1,7 @@
 using Hangfire;
 using Hangfire.PostgreSql;
 using IonCrm.Application.Common.Interfaces;
+using IonCrm.Application.Features.Parasut;
 using IonCrm.Application.Features.VendorInvoices;
 using IonCrm.Application.Features.VendorInvoices.CostProviders;
 using IonCrm.Application.Features.VendorInvoices.EmailCollector;
@@ -235,6 +236,14 @@ public static class DependencyInjection
 
     private static void RegisterParasutClient(IServiceCollection services)
     {
+        // New authorisation flow (authorization code + PKCE on Keycloak): one config object, read lazily so Railway
+        // variables added later are picked up on the next deploy without code changes.
+        services.AddSingleton(sp =>
+        {
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            return new ParasutOAuthSettings(key => configuration[key]);
+        });
+
         // ParasutClient manages its own base URL per-call (token endpoint vs company endpoints)
         // so we register it with a plain HttpClient and no fixed base address.
         services

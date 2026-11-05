@@ -25,16 +25,19 @@ public sealed class ParasutService : IParasutService
 {
     private readonly IParasutConnectionRepository _connectionRepository;
     private readonly IParasutClient _parasutClient;
+    private readonly ITokenProtector _tokenProtector;
     private readonly ILogger<ParasutService> _logger;
 
     /// <summary>Initialises a new instance of <see cref="ParasutService"/>.</summary>
     public ParasutService(
         IParasutConnectionRepository connectionRepository,
         IParasutClient parasutClient,
+        ITokenProtector tokenProtector,
         ILogger<ParasutService> logger)
     {
         _connectionRepository = connectionRepository;
         _parasutClient = parasutClient;
+        _tokenProtector = tokenProtector;
         _logger = logger;
     }
 
@@ -52,6 +55,7 @@ public sealed class ParasutService : IParasutService
             stored,
             _parasutClient,
             _connectionRepository,
+            _tokenProtector,
             _logger,
             cancellationToken);
     }

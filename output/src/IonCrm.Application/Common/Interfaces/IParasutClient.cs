@@ -14,7 +14,27 @@ namespace IonCrm.Application.Common.Interfaces;
 /// </summary>
 public interface IParasutClient
 {
-    // ── OAuth ─────────────────────────────────────────────────────────────────
+    // ── OAuth 2.0 authorization code + PKCE (Keycloak; Paraşüt's new model) ───
+
+    /// <summary>The new flow is configured on this server (client id + redirect URI).</summary>
+    bool OAuth2Available { get; }
+
+    /// <summary>Paraşüt login URL: response_type=code, scope=openid, S256 challenge, kc_idp_hint=parasut.</summary>
+    string BuildAuthorizationUrl(string state, string codeChallenge);
+
+    /// <summary><c>grant_type=authorization_code</c> + code_verifier + redirect_uri. Throws <c>ParasutTokenRejectedException</c> on 400/401/403.</summary>
+    Task<ParasutTokenResponse> ExchangeCodeAsync(string code, string codeVerifier, CancellationToken cancellationToken = default);
+
+    /// <summary><c>grant_type=refresh_token</c> WITHOUT redirect_uri; the response carries a rotated refresh token.</summary>
+    Task<ParasutTokenResponse> RefreshOAuth2TokenAsync(string refreshToken, CancellationToken cancellationToken = default);
+
+    /// <summary>Revokes the refresh token at Keycloak so the firm's "Uygulama Entegrasyonları" list shows no leftover. Best effort.</summary>
+    Task<bool> RevokeOAuth2TokenAsync(string refreshToken, CancellationToken cancellationToken = default);
+
+    /// <summary><c>GET /v4/me?include=companies</c> — the companies the authorising user can act for.</summary>
+    Task<ParasutMeResponse> GetMeAsync(string accessToken, CancellationToken cancellationToken = default);
+
+    // ── OAuth (legacy password grant — until cut-over) ────────────────────────
 
     /// <summary>Obtains an access token using OAuth 2.0 password grant.</summary>
     Task<ParasutTokenResponse> GetTokenAsync(

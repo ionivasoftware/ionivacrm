@@ -20,6 +20,7 @@ public sealed class TransferInvoiceToParasutCommandHandler
     private readonly ICustomerRepository _customerRepository;
     private readonly IParasutClient _parasutClient;
     private readonly IParasutConnectionRepository _connectionRepository;
+    private readonly ITokenProtector _tokenProtector;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<TransferInvoiceToParasutCommandHandler> _logger;
 
@@ -28,6 +29,7 @@ public sealed class TransferInvoiceToParasutCommandHandler
         ICustomerRepository customerRepository,
         IParasutClient parasutClient,
         IParasutConnectionRepository connectionRepository,
+        ITokenProtector tokenProtector,
         ICurrentUserService currentUser,
         ILogger<TransferInvoiceToParasutCommandHandler> logger)
     {
@@ -35,6 +37,7 @@ public sealed class TransferInvoiceToParasutCommandHandler
         _customerRepository = customerRepository;
         _parasutClient = parasutClient;
         _connectionRepository = connectionRepository;
+        _tokenProtector = tokenProtector;
         _currentUser = currentUser;
         _logger = logger;
     }
@@ -61,7 +64,7 @@ public sealed class TransferInvoiceToParasutCommandHandler
             invoice.ProjectId, cancellationToken);
 
         var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
-            connection, _parasutClient, _connectionRepository, _logger, cancellationToken);
+            connection, _parasutClient, _connectionRepository, _tokenProtector, _logger, cancellationToken);
         if (conn is null)
             return Result<InvoiceDto>.Failure(tokenError ?? "Paraşüt bağlantısı bulunamadı.");
 

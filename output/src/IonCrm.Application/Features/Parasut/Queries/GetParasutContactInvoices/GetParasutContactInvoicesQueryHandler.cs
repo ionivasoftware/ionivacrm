@@ -13,16 +13,19 @@ public sealed class GetParasutContactInvoicesQueryHandler
 {
     private readonly IParasutClient _parasutClient;
     private readonly IParasutConnectionRepository _connectionRepository;
+    private readonly ITokenProtector _tokenProtector;
     private readonly ILogger<GetParasutContactInvoicesQueryHandler> _logger;
 
     /// <summary>Initialises a new instance of <see cref="GetParasutContactInvoicesQueryHandler"/>.</summary>
     public GetParasutContactInvoicesQueryHandler(
         IParasutClient parasutClient,
         IParasutConnectionRepository connectionRepository,
+        ITokenProtector tokenProtector,
         ILogger<GetParasutContactInvoicesQueryHandler> logger)
     {
         _parasutClient = parasutClient;
         _connectionRepository = connectionRepository;
+        _tokenProtector = tokenProtector;
         _logger = logger;
     }
 
@@ -35,7 +38,7 @@ public sealed class GetParasutContactInvoicesQueryHandler
             request.ProjectId, cancellationToken);
 
         var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
-            connection, _parasutClient, _connectionRepository, _logger, cancellationToken);
+            connection, _parasutClient, _connectionRepository, _tokenProtector, _logger, cancellationToken);
         if (conn is null)
             return Result<GetParasutInvoicesDto>.Failure(tokenError!);
 

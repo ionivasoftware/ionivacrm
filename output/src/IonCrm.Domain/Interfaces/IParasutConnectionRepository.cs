@@ -43,6 +43,12 @@ public interface IParasutConnectionRepository
     /// </summary>
     Task<List<ParasutConnection>> GetAllAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Finds the (not deleted) connection holding a pending authorisation with this state hash. Bypasses query filters —
+    /// the callback arrives from Paraşüt's redirect without a session.
+    /// </summary>
+    Task<ParasutConnection?> GetByOAuthStateHashAsync(string stateHash, CancellationToken cancellationToken = default);
+
     /// <summary>Persists a new Paraşüt connection.</summary>
     Task<ParasutConnection> AddAsync(ParasutConnection connection, CancellationToken cancellationToken = default);
 

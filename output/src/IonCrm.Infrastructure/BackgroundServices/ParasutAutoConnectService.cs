@@ -1,6 +1,10 @@
+using IonCrm.Application.Common.Helpers;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Features.Parasut;
+using IonCrm.Domain.Entities;
+using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -18,25 +22,24 @@ namespace IonCrm.Infrastructure.BackgroundServices;
 ///      refreshes/re-authenticates all expired tokens (fire-and-forget so the Railway
 ///      health-check is not blocked).
 ///   2. Periodically (every 30 minutes) — checks all connections and refreshes any
-///      that have expired since the last cycle. This prevents the first user API call
-///      from triggering a slow re-auth round-trip.
+///      that have expired since the last cycle. On the new flow this also keeps the
+///      30-day refresh-token window rolling: every refresh resets it.
 ///
 /// Promotion rules (one-time, idempotent):
 ///   • Global connection exists           → no-op
 ///   • No global, no project-specific     → no-op (manual setup mode)
 ///   • No global, project-specific exists → take the most recently updated one and
 ///                                           set its ProjectId to null (promote to global).
-///                                           This handles the migration of users who
-///                                           configured Paraşüt before the global-connection
-///                                           feature shipped.
 ///
-/// For each <c>ParasutConnection</c> with an expired token, the service attempts:
-///   1. Silent refresh via the stored refresh_token (if present)
-///   2. Full re-authentication via the stored username + password
+/// Per expired <c>ParasutConnection</c> the service asks <see cref="ParasutTokenHelper"/>:
+///   • legacy rows: refresh_token grant, then password grant with the stored credentials;
+///   • new-flow rows: refresh_token grant only — there is no password. A rejected refresh
+///     marks the row <c>NeedsReconnect</c> and it is never retried here.
 ///
-/// Failure tracking: on each failed attempt, <c>ReconnectAttempts</c> is incremented and
-/// <c>LastError</c> is stored on the entity. On success, both are cleared and
-/// <c>LastConnectedAt</c> is set.
+/// Silence is not success: when a connection is dead (new flow rejected, or a legacy row
+/// hit the retry limit) ONE alert mail goes out through <see cref="INotificationEmailSender"/>
+/// (ops recipients) and <c>ReconnectAlertedAt</c> is stamped so it is not repeated. A
+/// successful connection clears the stamp.
 ///
 /// IMPORTANT: Uses <c>IParasutConnectionRepository.GetAllAsync()</c> which calls
 /// <c>IgnoreQueryFilters()</c> — no HTTP context is available, so the EF tenant filter
@@ -51,8 +54,8 @@ public sealed class ParasutAutoConnectService : BackgroundService
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(30);
 
     /// <summary>
-    /// Maximum consecutive failures before we stop retrying a specific connection.
-    /// After this limit, the user must manually reconnect from the UI.
+    /// Maximum consecutive failures before we stop retrying a specific legacy connection.
+    /// After this limit, the user must manually reconnect from the UI — and is told so by mail.
     /// </summary>
     private const int MaxReconnectAttempts = 10;
 
@@ -86,8 +89,11 @@ public sealed class ParasutAutoConnectService : BackgroundService
         try
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
-            var connectionRepo  = scope.ServiceProvider.GetRequiredService<IParasutConnectionRepository>();
-            var parasutClient   = scope.ServiceProvider.GetRequiredService<IParasutClient>();
+            var connectionRepo = scope.ServiceProvider.GetRequiredService<IParasutConnectionRepository>();
+            var parasutClient  = scope.ServiceProvider.GetRequiredService<IParasutClient>();
+            var tokenProtector = scope.ServiceProvider.GetRequiredService<ITokenProtector>();
+            var mail           = scope.ServiceProvider.GetRequiredService<INotificationEmailSender>();
+            var configuration  = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
             // Promote any pre-existing project-specific connection to global BEFORE the
             // refresh loop, so the freshly-promoted connection is picked up by the
@@ -127,19 +133,37 @@ public sealed class ParasutAutoConnectService : BackgroundService
                     continue;
                 }
 
-                // Skip connections that exceeded the max retry limit
+                // Dead new-flow connection: never retried (repeated 401s can get the client blocked) — but never silent either.
+                if (connection.NeedsReconnect)
+                {
+                    await AlertOnceAsync(connection, connectionRepo, mail, configuration, cancellationToken);
+                    skipped++;
+                    continue;
+                }
+
+                // New-flow row whose authorisation was started but never completed (or a cleared row): nothing to refresh yet.
+                if (connection.AuthFlow == ParasutAuthFlow.OAuth2 && string.IsNullOrWhiteSpace(connection.RefreshToken))
+                {
+                    _logger.LogDebug("ParasutAutoConnect: {ConnTarget} awaits authorisation (no refresh token yet) — skipping.", connTarget);
+                    skipped++;
+                    continue;
+                }
+
+                // Skip connections that exceeded the max retry limit — and make sure somebody knows.
                 if (connection.ReconnectAttempts >= MaxReconnectAttempts)
                 {
                     _logger.LogWarning(
                         "ParasutAutoConnect: {ConnTarget} exceeded max reconnect attempts ({Attempts}/{Max}). " +
                         "Last error: {Error}. Manual reconnect required.",
                         connTarget, connection.ReconnectAttempts, MaxReconnectAttempts, connection.LastError);
+                    await AlertOnceAsync(connection, connectionRepo, mail, configuration, cancellationToken);
                     skipped++;
                     continue;
                 }
 
-                // Skip connections that have no credentials stored (cannot re-auth)
-                if (string.IsNullOrWhiteSpace(connection.Username) &&
+                // Legacy rows that have no credentials stored (cannot re-auth)
+                if (connection.AuthFlow == ParasutAuthFlow.Password &&
+                    string.IsNullOrWhiteSpace(connection.Username) &&
                     string.IsNullOrWhiteSpace(connection.RefreshToken))
                 {
                     _logger.LogWarning(
@@ -150,26 +174,29 @@ public sealed class ParasutAutoConnectService : BackgroundService
                 }
 
                 _logger.LogInformation(
-                    "ParasutAutoConnect: token expired for {ConnTarget} (attempt {Attempt}). Attempting refresh/re-auth...",
-                    connTarget, connection.ReconnectAttempts + 1);
+                    "ParasutAutoConnect: token expired for {ConnTarget} (attempt {Attempt}, flow {Flow}). Attempting refresh...",
+                    connTarget, connection.ReconnectAttempts + 1, connection.AuthFlow);
 
                 var (refreshedConn, error) = await ParasutTokenHelper.EnsureValidTokenAsync(
                     connection,
                     parasutClient,
                     connectionRepo,
+                    tokenProtector,
                     _logger,
                     cancellationToken);
 
                 if (refreshedConn is not null)
                 {
                     _logger.LogInformation(
-                        "ParasutAutoConnect: {ConnTarget} reconnected. Token valid until {Expiry:u}.",
-                        connTarget, refreshedConn.TokenExpiresAt);
+                        "ParasutAutoConnect: {ConnTarget} reconnected. Token valid until {Expiry:u}; refresh token until {RefreshExpiry:u}.",
+                        connTarget, refreshedConn.TokenExpiresAt, refreshedConn.RefreshTokenExpiresAt);
                     refreshed++;
+                    continue;
                 }
-                else
+
+                // The helper already persisted a NeedsReconnect verdict; transient failures are counted here.
+                if (!connection.NeedsReconnect)
                 {
-                    // Track failure on the entity and persist
                     ParasutTokenHelper.MarkReconnectFailure(connection, error ?? "Unknown error");
                     try
                     {
@@ -181,12 +208,15 @@ public sealed class ParasutAutoConnectService : BackgroundService
                             "ParasutAutoConnect: failed to persist reconnect failure for {ConnTarget}. {Inner}",
                             connTarget, ex.InnerException?.Message);
                     }
-
-                    _logger.LogWarning(
-                        "ParasutAutoConnect: {ConnTarget} auto-connect failed (attempt {Attempt}/{Max}) — {Error}",
-                        connTarget, connection.ReconnectAttempts, MaxReconnectAttempts, error);
-                    failed++;
                 }
+
+                _logger.LogWarning(
+                    "ParasutAutoConnect: {ConnTarget} auto-connect failed (attempt {Attempt}/{Max}) — {Error}",
+                    connTarget, connection.ReconnectAttempts, MaxReconnectAttempts, error);
+                failed++;
+
+                if (connection.NeedsReconnect || connection.ReconnectAttempts >= MaxReconnectAttempts)
+                    await AlertOnceAsync(connection, connectionRepo, mail, configuration, cancellationToken);
             }
 
             _logger.LogInformation(
@@ -204,6 +234,45 @@ public sealed class ParasutAutoConnectService : BackgroundService
             _logger.LogError(ex,
                 "ParasutAutoConnect: unexpected error during token refresh cycle.");
         }
+    }
+
+    /// <summary>
+    /// "The integration is dead and needs a human" — said once per outage, by mail to the ops recipients
+    /// (<c>Notifications:Recipients</c>). The stamp is cleared when the connection comes back, so the next outage alerts again.
+    /// Without a configured sender the fact is logged as an error and stamped anyway, so a half-hourly loop does not spam.
+    /// </summary>
+    private async Task AlertOnceAsync(
+        ParasutConnection connection,
+        IParasutConnectionRepository connectionRepo,
+        INotificationEmailSender mail,
+        IConfiguration configuration,
+        CancellationToken cancellationToken)
+    {
+        if (connection.ReconnectAlertedAt is not null) return;
+
+        var reason = connection.NeedsReconnect
+            ? "Paraşüt yenileme isteğini reddetti (yetki kodu akışı). Belirteç düşmüş, firma Paraşüt'te erişimi durdurmuş ya da yetkilendiren kullanıcının \"Uygulama Entegrasyonları\" yetkisi kaldırılmış olabilir."
+            : $"{connection.ReconnectAttempts} ardışık yenileme denemesi başarısız oldu; otomatik deneme durdu.";
+        var settings = AppUrls.FrontendBaseUrl(key => configuration[key]) is { } frontend ? $"{frontend}/settings" : null;
+        var subject = "Paraşüt bağlantısı koptu — yeniden bağlanma gerekiyor";
+        var html =
+            $"<p><b>ION CRM'in Paraşüt bağlantısı yenilenemiyor.</b> Cari eşitleme, fatura aktarımı ve tahsilat yazımı bu düzeltilene kadar çalışmaz.</p>" +
+            $"<p>{System.Net.WebUtility.HtmlEncode(reason)}</p>" +
+            (string.IsNullOrWhiteSpace(connection.LastError) ? string.Empty : $"<p>Son hata: <code>{System.Net.WebUtility.HtmlEncode(connection.LastError)}</code></p>") +
+            $"<p>Firma #{connection.CompanyId}{(string.IsNullOrWhiteSpace(connection.CompanyName) ? string.Empty : " · " + System.Net.WebUtility.HtmlEncode(connection.CompanyName))} · akış: {connection.AuthFlow}</p>" +
+            (settings is null
+                ? "<p>Ayarlar → Paraşüt Entegrasyonu → <b>Paraşüt'e Bağlan</b> ile yeniden yetki verin.</p>"
+                : $"<p><a href=\"{settings}\">Ayarlar → Paraşüt Entegrasyonu</a> → <b>Paraşüt'e Bağlan</b> ile yeniden yetki verin.</p>");
+
+        var sent = mail.IsConfigured && await mail.SendAsync(subject, html, cancellationToken);
+        if (!sent)
+            _logger.LogError("ParasutAutoConnect: bağlantı öldü ve bildirim gönderilemedi (Notifications__Smtp__*/Recipients tanımlı mı?). {Reason}", reason);
+
+        connection.ReconnectAlertedAt = DateTime.UtcNow;
+        connection.UpdatedAt = DateTime.UtcNow;
+        try { await connectionRepo.UpdateAsync(connection, cancellationToken); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex) { _logger.LogError(ex, "ParasutAutoConnect: ReconnectAlertedAt yazılamadı."); }
     }
 
     /// <summary>

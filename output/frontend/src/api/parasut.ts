@@ -7,8 +7,27 @@ import type { ApiResponse, ParasutProduct, ParasutProductKey, ParasutProductList
 export interface ParasutStatus {
   isConnected: boolean;
   companyId: number | null;
+  /** Paraşüt'ün bildirdiği firma adı (yeni akış, /v4/me) */
+  companyName: string | null;
   username: string | null;
   tokenExpiresAt: string | null;
+  lastConnectedAt: string | null;
+  lastError: string | null;
+  reconnectAttempts: number;
+  /** Bağlantı yeni yöntemle (yetki kodu + PKCE) kuruldu — parola saklanmıyor */
+  usesOAuth: boolean;
+  /** Yenileme kalıcı olarak reddedildi — Ayarlar'dan yeniden yetki verilmeli */
+  needsReconnect: boolean;
+  /** Yeni yöntem sunucuda yapılandırılmış mı ("Paraşüt'e Bağlan" düğmesi) */
+  canConnectWithOAuth: boolean;
+  /** Yenileme belirtecinin son kullanma anı (yeni akış, ~30 gün; her yenilemede uzar) */
+  refreshTokenExpiresAt: string | null;
+  connectedAt: string | null;
+}
+
+export interface StartParasutOAuthResponse {
+  authorizationUrl: string;
+  stateExpiresAt: string;
 }
 
 export interface ConnectParasutRequest {
@@ -100,6 +119,19 @@ export function useConnectParasut() {
     onSuccess: () => {
       // Invalidate every parasutStatus cache entry — global + per-project consumers all need to refetch.
       qc.invalidateQueries({ queryKey: ['parasutStatus'] });
+    },
+  });
+}
+
+/**
+ * YENİ akış: sunucudan Paraşüt giriş adresini alır. Çağıran tarayıcıyı o adrese gönderir (`window.location.assign`);
+ * Paraşüt onaydan sonra API'nin `callback` ucuna, o da `/settings?parasut=connected|error&reason=…` ile buraya döner.
+ */
+export function useConnectParasutOAuth() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post<ApiResponse<StartParasutOAuthResponse>>('/parasut/connect/oauth');
+      return res.data.data;
     },
   });
 }

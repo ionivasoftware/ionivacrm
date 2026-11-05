@@ -33,14 +33,22 @@ public record ParasutRefreshTokenRequest(
     [property: JsonPropertyName("redirect_uri")]   string RedirectUri = "urn:ietf:wg:oauth:2.0:oob"
 );
 
-/// <summary>Token response from POST /oauth/token.</summary>
+/// <summary>Token response from the token endpoint (legacy /oauth/token or Keycloak).</summary>
+/// <param name="RefreshExpiresIn">Keycloak only (new flow): lifetime of the refresh token, 30 days = 2 592 000 s. The legacy endpoint omits it → 0.</param>
 public record ParasutTokenResponse(
     [property: JsonPropertyName("access_token")]  string AccessToken,
     [property: JsonPropertyName("token_type")]    string TokenType,
     [property: JsonPropertyName("expires_in")]    int ExpiresIn,
     [property: JsonPropertyName("refresh_token")] string RefreshToken,
-    [property: JsonPropertyName("created_at")]    long CreatedAt
+    [property: JsonPropertyName("created_at")]    long CreatedAt = 0,
+    [property: JsonPropertyName("refresh_expires_in")] int RefreshExpiresIn = 0
 );
+
+/// <summary>A company the authorising Paraşüt user belongs to (from <c>/v4/me?include=companies</c>).</summary>
+public record ParasutMeCompany(long Id, string? Name);
+
+/// <summary>Result of <c>/v4/me</c>: the user's companies (first one is the default when none is stored yet).</summary>
+public record ParasutMeResponse(IReadOnlyList<ParasutMeCompany> Companies);
 
 // ── JSON:API Wrappers ─────────────────────────────────────────────────────────
 

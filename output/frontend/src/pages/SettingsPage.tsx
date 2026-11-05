@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -16,12 +17,12 @@ import { useToast } from '@/hooks/use-toast';
 import {
   useParasutStatus,
   useConnectParasut,
+  useConnectParasutOAuth,
   useDisconnectParasut,
   useParasutProducts,
   useParasutProductList,
   useSaveParasutProduct,
 } from '@/api/parasut';
-import { useAdminProjects, useUpdateProject } from '@/api/admin';
 import { MailSettingsCard } from '@/components/settings/MailSettingsCard';
 
 // ── Profile form ──────────────────────────────────────────────────────────────
@@ -46,6 +47,16 @@ const passwordSchema = z.object({
   path: ['confirmPassword'],
 });
 type PasswordForm = z.infer<typeof passwordSchema>;
+
+// ── Paraşüt geri dönüş neden kodları → kullanıcı metni ───────────────────────
+const PARASUT_REASONS: Record<string, string> = {
+  denied: 'Paraşüt\'te onay verilmedi.',
+  expired: 'Yetkilendirme süresi doldu (10 dk). Tekrar deneyin.',
+  state: 'Yetkilendirme eşleşmedi ya da bağlantı zaten kullanıldı. Tekrar deneyin.',
+  exchange: 'Paraşüt kodu belirtece çeviremedi. Sunucudaki istemci bilgilerini (ClientId/Secret/RedirectUri) kontrol edin.',
+  company: 'Paraşüt hesabında bir firma bulunamadı.',
+  parasut: 'Paraşüt hata döndürdü.',
+};
 
 // ── Paraşüt form ──────────────────────────────────────────────────────────────
 
@@ -383,7 +394,39 @@ export function SettingsPage() {
   // Paraşüt — connection is global (project-independent)
   const parasutStatus = useParasutStatus();
   const connectParasut = useConnectParasut();
+  const connectParasutOAuth = useConnectParasutOAuth();
   const disconnectParasut = useDisconnectParasut();
+
+  // Paraşüt'ten dönüş: API geri dönüş ucu buraya `?parasut=connected|error&reason=…` ile yönlendirir.
+  // Sonuç BİR KEZ bildirilir ve parametreler adresten silinir (sayfa yenilenince tekrar görünmesin).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const parasutResult = searchParams.get('parasut');
+  const parasutReason = searchParams.get('reason');
+  const reportedParasutResult = useRef<string | null>(null);
+  useEffect(() => {
+    if (!parasutResult || reportedParasutResult.current === parasutResult + (parasutReason ?? '')) return;
+    reportedParasutResult.current = parasutResult + (parasutReason ?? '');
+    if (parasutResult === 'connected') {
+      toast({ title: 'Paraşüt bağlandı', description: 'Yetki kodu akışıyla bağlantı kuruldu; şifreniz CRM\'de saklanmıyor.' });
+      void parasutStatus.refetch();
+    } else {
+      toast({ title: 'Paraşüt bağlanamadı', description: PARASUT_REASONS[parasutReason ?? ''] ?? `Neden: ${parasutReason ?? 'bilinmiyor'}`, variant: 'destructive' });
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('parasut');
+    next.delete('reason');
+    setSearchParams(next, { replace: true });
+  }, [parasutResult, parasutReason, searchParams, setSearchParams, toast, parasutStatus]);
+
+  async function handleParasutOAuth() {
+    try {
+      const r = await connectParasutOAuth.mutateAsync();
+      // Aynı sekmede gidilir: Paraşüt dönüşte bu sayfaya yönlendiriyor.
+      window.location.assign(r.authorizationUrl);
+    } catch {
+      toast({ title: 'Bağlantı adresi alınamadı', description: 'Yeni yöntem sunucuda yapılandırılmamış olabilir (Parasut__OAuth__*).', variant: 'destructive' });
+    }
+  }
   // Paraşüt product mappings are now project-independent (one global catalog).
   const parasutProducts = useParasutProducts();
   const parasutProductList = useParasutProductList(currentProjectId, loadParasutProductList);
@@ -480,6 +523,15 @@ export function SettingsPage() {
   }
 
   const isConnected = parasutStatus.data?.isConnected ?? false;
+  const parasutRefreshWarning = useMemo(() => {
+    const exp = parasutStatus.data?.refreshTokenExpiresAt;
+    if (!parasutStatus.data?.usesOAuth || !exp) return null;
+    const days = (new Date(exp).getTime() - Date.now()) / 86_400_000;
+    if (days > 7) return null;
+    return days <= 0
+      ? 'Yenileme belirtecinin süresi dolmuş görünüyor; yeniden bağlanmak gerekebilir.'
+      : `Yenileme belirteci ${new Date(exp).toLocaleDateString('tr-TR')} tarihinde sona erer; servis çalışırken her yenilemede kendiliğinden uzar.`;
+  }, [parasutStatus.data?.refreshTokenExpiresAt, parasutStatus.data?.usesOAuth]);
 
   return (
     <div className="space-y-6">
@@ -514,9 +566,10 @@ export function SettingsPage() {
                   <div className="flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-emerald-500" />
                     <div>
-                      <p className="text-sm font-medium text-foreground">Bağlı</p>
+                      <p className="text-sm font-medium text-foreground">Bağlı{parasutStatus.data?.companyName ? ` · ${parasutStatus.data.companyName}` : ''}</p>
                       <p className="text-xs text-muted-foreground">
-                        {parasutStatus.data?.username} · Firma #{parasutStatus.data?.companyId}
+                        {parasutStatus.data?.username ? `${parasutStatus.data.username} · ` : ''}Firma #{parasutStatus.data?.companyId}
+                        {' · '}{parasutStatus.data?.usesOAuth ? 'Yetki kodu (yeni yöntem)' : 'E-posta + şifre (eski yöntem)'}
                       </p>
                     </div>
                   </div>
@@ -540,10 +593,39 @@ export function SettingsPage() {
                 </div>
               )}
 
+              {parasutStatus.data?.needsReconnect && (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  Paraşüt bağlantısı yenilenemedi, tekrar bağlanmanız gerekiyor. Cari eşitleme, fatura aktarımı ve tahsilat yazımı bu sırada çalışmaz.
+                  {parasutStatus.data.lastError && <span className="block text-xs mt-1 opacity-80">{parasutStatus.data.lastError}</span>}
+                </div>
+              )}
+              {parasutRefreshWarning && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">{parasutRefreshWarning}</div>
+              )}
+
+              {parasutStatus.data?.canConnectWithOAuth ? (
+                <div className="rounded-lg border border-border p-4 space-y-2">
+                  <p className="text-sm font-medium text-foreground">Paraşüt'e Bağlan (yeni yöntem)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Paraşüt'ün kendi giriş ekranına yönlendirilirsiniz; şifreniz CRM'e girilmez ve saklanmaz. Paraşüt'teki kullanıcınızda <b>"Uygulama Entegrasyonları"</b> yetkisi açık olmalı (varsayılan kapalıdır, firma sahibinde de).
+                  </p>
+                  <Button type="button" onClick={handleParasutOAuth} disabled={connectParasutOAuth.isPending} className="gap-2">
+                    {connectParasutOAuth.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                    {isConnected && !parasutStatus.data.needsReconnect ? 'Yeniden bağlan' : "Paraşüt'e Bağlan"}
+                  </Button>
+                </div>
+              ) : !parasutStatus.isLoading && (
+                <p className="text-xs text-muted-foreground">
+                  Yeni bağlantı yöntemi (Paraşüt giriş ekranı) sunucuda yapılandırılmamış; Parasut__OAuth__ClientId ve Parasut__OAuth__RedirectUri tanımlanınca burada "Paraşüt'e Bağlan" düğmesi çıkar. Paraşüt şifreyle bağlanmayı 05.12.2026 civarında kapatıyor.
+                </p>
+              )}
+
               {!isConnected && !parasutStatus.isLoading && (
                 <>
                   <Separator />
-                  <form onSubmit={parasutForm.handleSubmit(handleParasutConnect)} className="space-y-4">
+                  <details>
+                    <summary className="cursor-pointer text-sm text-muted-foreground">Eski yöntem: e-posta + şifre (Paraşüt bu yolu 05.12.2026 civarında kapatıyor)</summary>
+                  <form onSubmit={parasutForm.handleSubmit(handleParasutConnect)} className="space-y-4 mt-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <Label>Firma ID *</Label>
@@ -637,9 +719,10 @@ export function SettingsPage() {
                       {connectParasut.isPending
                         ? <Loader2 className="h-4 w-4 animate-spin" />
                         : <Link2 className="h-4 w-4" />}
-                      Paraşüt'e Bağlan
+                      Şifreyle bağlan (eski yöntem)
                     </Button>
                   </form>
+                  </details>
                 </>
               )}
             </CardContent>

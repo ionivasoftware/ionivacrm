@@ -30,11 +30,10 @@ public class ParasutConnectionConfiguration : IEntityTypeConfiguration<ParasutCo
             .IsRequired()
             .HasMaxLength(500);
 
-        builder.Property(c => c.AccessToken)
-            .HasMaxLength(2000);
-
-        builder.Property(c => c.RefreshToken)
-            .HasMaxLength(2000);
+        // Keycloak tokens are long JWTs and the refresh token is stored encrypted (base64) — no length cap; columns are text.
+        builder.Property(c => c.CompanyName).HasMaxLength(300);
+        builder.Property(c => c.OAuthStateHash).HasMaxLength(64);
+        // The OAuthStateHash index lives in Program.cs raw SQL like the other indexes of this table.
 
         // ProjectId is nullable — null means global connection.
         // Uniqueness is enforced via partial indexes in Program.cs (idempotent SQL).

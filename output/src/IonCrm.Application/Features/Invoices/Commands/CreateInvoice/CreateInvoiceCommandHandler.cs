@@ -20,6 +20,7 @@ public sealed class CreateInvoiceCommandHandler
     private readonly ICustomerRepository _customerRepository;
     private readonly IParasutClient _parasutClient;
     private readonly IParasutConnectionRepository _connectionRepository;
+    private readonly ITokenProtector _tokenProtector;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<CreateInvoiceCommandHandler> _logger;
 
@@ -28,6 +29,7 @@ public sealed class CreateInvoiceCommandHandler
         ICustomerRepository customerRepository,
         IParasutClient parasutClient,
         IParasutConnectionRepository connectionRepository,
+        ITokenProtector tokenProtector,
         ICurrentUserService currentUser,
         ILogger<CreateInvoiceCommandHandler> logger)
     {
@@ -35,6 +37,7 @@ public sealed class CreateInvoiceCommandHandler
         _customerRepository = customerRepository;
         _parasutClient = parasutClient;
         _connectionRepository = connectionRepository;
+        _tokenProtector = tokenProtector;
         _currentUser = currentUser;
         _logger = logger;
     }
@@ -117,7 +120,7 @@ public sealed class CreateInvoiceCommandHandler
                 invoice.ProjectId, cancellationToken);
 
             var (conn, tokenError) = await ParasutTokenHelper.EnsureValidTokenAsync(
-                connection, _parasutClient, _connectionRepository, _logger, cancellationToken);
+                connection, _parasutClient, _connectionRepository, _tokenProtector, _logger, cancellationToken);
 
             if (conn is null)
             {
