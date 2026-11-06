@@ -1,4 +1,5 @@
 using IonCrm.Application.Common.DTOs;
+using IonCrm.Application.Common.Helpers;
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Domain.Enums;
 using IonCrm.Infrastructure.Persistence;
@@ -255,6 +256,119 @@ public class DashboardRepository : IDashboardRepository
             dailyActivity,
             contactTypeBreakdown
         );
+    }
+
+    /// <inheritdoc />
+    public async Task<CompanyReportDto> GetCompanyReportAsync(Guid projectId, CancellationToken cancellationToken = default)
+    {
+        // Dahili/test firmaları (IsInternal) hiçbir sayıma girmez; tenant süzgeci bağlam üzerinden uygulanır.
+        // Silinmiş rakip firma (soft delete) süzgeçle düşer → o müşteri "adı belirtilmedi" sayılır.
+        var rows = await _db.Customers
+            .Where(c => c.ProjectId == projectId && !c.IsInternal)
+            .Select(c => new CompanyRow(
+                c.Id, c.CompanyName, c.Status, c.Country, c.Phone, c.UsesCompetitor, c.CompetitorId,
+                c.Competitor != null ? c.Competitor.Name : null,
+                c.Competitor != null ? c.Competitor.Website : null))
+            .ToListAsync(cancellationToken);
+
+        var resolved = rows
+            .Select(r =>
+            {
+                var (country, source) = CountryInference.Resolve(r.Country, r.Phone);
+                return new ResolvedRow(r, country, source);
+            })
+            .ToList();
+
+        var totals = Counts(resolved.Select(r => r.Row.Status));
+
+        var byCountry = resolved
+            .GroupBy(r => r.Country)
+            .Select(g =>
+            {
+                var c = Counts(g.Select(x => x.Row.Status));
+                return new CountryCompanyCountsDto(g.Key, c.Lead, c.Active, c.Demo, c.Churned, c.Passive, c.Total);
+            })
+            .OrderByDescending(x => x.Total)
+            .ThenBy(x => x.Country is null ? 1 : 0)
+            .ThenBy(x => x.Country)
+            .ToList();
+
+        var usingCompetitor = resolved.Where(r => r.Row.UsesCompetitor).ToList();
+        var ids = usingCompetitor.Select(r => r.Row.Id).ToList();
+        var lastContacts = ids.Count == 0
+            ? new Dictionary<Guid, DateTime>()
+            : await _db.ContactHistories
+                .Where(h => h.ProjectId == projectId && h.UsesCompetitor && ids.Contains(h.CustomerId))
+                .GroupBy(h => h.CustomerId)
+                .Select(g => new { CustomerId = g.Key, LastAt = g.Max(h => h.ContactedAt) })
+                .ToDictionaryAsync(x => x.CustomerId, x => x.LastAt, cancellationToken);
+
+        var competitors = usingCompetitor
+            .GroupBy(r => r.Row.CompetitorName is null ? (Guid?)null : r.Row.CompetitorId)
+            .Select(g =>
+            {
+                var c = Counts(g.Select(x => x.Row.Status));
+                var first = g.First().Row;
+                var countries = g.GroupBy(x => x.Country)
+                    .Select(cg => new CountryCountDto(cg.Key, cg.Count()))
+                    .OrderByDescending(x => x.Count).ThenBy(x => x.Country is null ? 1 : 0).ThenBy(x => x.Country)
+                    .ToList();
+                return new CompetitorUsageDto(
+                    g.Key,
+                    g.Key is null ? UnnamedCompetitor : first.CompetitorName!,
+                    g.Key is null ? null : first.CompetitorWebsite,
+                    c.Lead, c.Active, c.Demo, c.Churned, c.Passive, c.Total, countries);
+            })
+            .OrderBy(x => x.CompetitorId is null ? 1 : 0)
+            .ThenByDescending(x => x.Total)
+            .ThenBy(x => x.Name)
+            .ToList();
+
+        var competitorCustomers = usingCompetitor
+            .Select(r => new CompetitorCustomerDto(
+                r.Row.Id, r.Row.CompanyName, r.Row.Status.ToString(), r.Country, r.Source,
+                r.Row.CompetitorName is null ? null : r.Row.CompetitorId, r.Row.CompetitorName,
+                lastContacts.TryGetValue(r.Row.Id, out var at) ? at : null))
+            .OrderByDescending(x => x.LastContactAt ?? DateTime.MinValue)
+            .ThenBy(x => x.CompanyName)
+            .ToList();
+
+        return new CompanyReportDto(
+            totals,
+            byCountry,
+            resolved.Count(r => r.Source == CountryInference.SourcePhone),
+            resolved.Count(r => r.Country is null),
+            usingCompetitor.Count,
+            usingCompetitor.Count(r => r.Row.CompetitorName is null),
+            competitors,
+            competitorCustomers);
+    }
+
+    /// <summary>Label of the "works with another vendor, name not given" bucket.</summary>
+    public const string UnnamedCompetitor = "Belirtilmedi";
+
+    private sealed record CompanyRow(
+        Guid Id, string CompanyName, CustomerStatus Status, string? Country, string? Phone,
+        bool UsesCompetitor, Guid? CompetitorId, string? CompetitorName, string? CompetitorWebsite);
+
+    private sealed record ResolvedRow(CompanyRow Row, string? Country, string? Source);
+
+    private static StatusCountsDto Counts(IEnumerable<CustomerStatus> statuses)
+    {
+        int lead = 0, active = 0, demo = 0, churned = 0, passive = 0, total = 0;
+        foreach (var s in statuses)
+        {
+            total++;
+            switch (s)
+            {
+                case CustomerStatus.Lead: lead++; break;
+                case CustomerStatus.Active: active++; break;
+                case CustomerStatus.Demo: demo++; break;
+                case CustomerStatus.Churned: churned++; break;
+                case CustomerStatus.Passive: passive++; break;
+            }
+        }
+        return new StatusCountsDto(lead, active, demo, churned, passive, total);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

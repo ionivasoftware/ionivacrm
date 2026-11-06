@@ -2133,6 +2133,13 @@ export function CustomerDetailPage() {
                 value={formatDateShort(customer.expirationDate)}
               />
             )}
+            {customer.usesCompetitor && (
+              <InfoItem
+                icon={Building2}
+                label="Çalıştığı Rakip Firma"
+                value={customer.competitorName ?? 'Belirtilmedi'}
+              />
+            )}
           </div>
         </CardContent>
       </Card>

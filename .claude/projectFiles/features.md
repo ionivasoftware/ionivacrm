@@ -55,6 +55,10 @@ Paraşüt 04–05.11.2026 duyurusuyla uygulamaların kullanıcı parolasına eri
 ## Dashboard & Raporlar
 - Widget'lar: toplam müşteri, aktif, demo, görevler, pipeline değeri
 - Grafikler: müşteri artışı, pipeline dağılımı
+- **Raporlar ekranı iki sekme (2026-11-06, `?tab=`):**
+  - **Görüşme Raporları** — eski rapor: tarih aralığı, KPI kartları, günlük görüşme grafiği, görüşme türleri (`GET /reports`).
+  - **Firma ve Lead Raporları** — `GET /reports/companies?projectId=` (`DashboardRepository.GetCompanyReportAsync`, tarih süzgeci yok, dahili firmalar hariç): durum toplamları (aktif/lead/demo/kayıp/pasif), **ülkeye göre firma tablosu** + yığılı grafik (ilk 8 ülke; renkler açık/koyu tema ve renk körlüğü için doğrulandı: aktif #16a34a, lead #6366f1, demo #d97706), **rakip analizi** (rakip firma × durum × ülke, pay çubuğu, satıra tıkla → alt liste süzülür; "adı belirtilmedi" kovası en sonda), **farklı firma ile çalışan firmalar** listesi (arama, rakip ve durum süzgeci, müşteri bağlantısı, bunun söylendiği en yeni görüşme tarihi).
+  - Ülke kuralı (`CountryInference`): `Customer.Country` (feed) → yoksa telefonun uluslararası kodu (`+90`, `0044`…; ulusal biçim "0555…" bilgi vermez) → "Bilinmiyor". Telefondan çıkarılan sayısı ve bilinmeyen sayısı raporda dipnot; listede "(tel.)" işareti.
 
 ## Admin
 - Kullanıcı yönetimi (CRUD + proje rol atama)
@@ -142,6 +146,8 @@ Paraşüt 04–05.11.2026 duyurusuyla uygulamaların kullanıcı parolasına eri
 ## Rakip Firma Takibi (görüşme kaydında) — 2026-11-02
 - Görüşme kaydı dialoglarında (müşteri detayı `AddContactHistoryDialog`, takvim `CompleteAppointmentDialog`) "Farklı bir firma ile çalışıyor" işareti → `CompetitorPicker`: proje rakip listesinden ara-seç; yazılan ad listede yoksa tek tıkla yeni firma açılır ve seçilir; firma bilinmiyorsa boş kalabilir.
 - Veri: `Competitors` tablosu (proje bazlı, ad harf duyarsız tekil, `CompetitorsController`), `ContactHistories.UsesCompetitor/CompetitorId`, `Customers.UsesCompetitor/CompetitorId` (son kaydın yansıması: bayrak set edilir, isim verilirse değişir, verilmezse eski isim korunur — `CompetitorMirror`, testli).
-- Görünüm: müşteri başlığında "Rakip: X" rozeti, zaman çizelgesinde kayıt altı "Farklı firma ile çalışıyor: X" etiketi, randevu kapatma dialogundaki son görüşmelerde "rakip: X".
-- Henüz yok: rakip listesi yönetim ekranı (PUT/DELETE uçları hazır), rakip bazlı rapor, planlayıcıda rakip puanı.
+- Görünüm: müşteri başlığında "Rakip: X" rozeti ve iletişim bilgileri ızgarasında "Çalıştığı Rakip Firma" satırı, zaman çizelgesinde kayıt altı "Farklı firma ile çalışıyor: X" etiketi, randevu kapatma dialogundaki son görüşmelerde "rakip: X".
+- 2026-11-06 düzeltme: `GET /customers/{id}` `FindAsync` ile yüklüyordu → `Competitor`/`AssignedUser` gelmiyor, kartta "Rakip: belirtilmedi" görünüyordu. `ICustomerRepository.GetForDisplayAsync` (AsNoTracking + Include) eklendi; `GetByIdAsync` yazan handler'lar için kaldı (izlenen ilişkili satırlar `Update` ile Modified olup `UpdatedAt` damgalanmasın).
+- Rakip bazlı rapor: Raporlar → "Firma ve Lead Raporları" sekmesi (bkz. Dashboard & Raporlar).
+- Henüz yok: rakip listesi yönetim ekranı (PUT/DELETE uçları hazır), planlayıcıda rakip puanı.
 

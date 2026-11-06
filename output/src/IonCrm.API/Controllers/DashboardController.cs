@@ -76,4 +76,20 @@ public class ReportsController : ApiControllerBase
         var reports = await _dashboardRepository.GetReportsAsync(projectId, startDate, endDate, cancellationToken);
         return OkResponse(reports);
     }
+
+    /// <summary>
+    /// GET /api/v1/reports/companies?projectId= — "Firma ve Lead Raporları": durum × ülke sayıları, rakip
+    /// analizi ve farklı firma ile çalışan müşteriler. Tarih süzgeci yok; mevcut müşteri tabanını anlatır.
+    /// </summary>
+    [HttpGet("companies")]
+    public async Task<IActionResult> GetCompanyReport(
+        [FromQuery] Guid projectId,
+        CancellationToken cancellationToken = default)
+    {
+        if (projectId == Guid.Empty)
+            return BadRequest(ApiResponse<object>.Fail("projectId is required"));
+
+        var report = await _dashboardRepository.GetCompanyReportAsync(projectId, cancellationToken);
+        return OkResponse(report);
+    }
 }

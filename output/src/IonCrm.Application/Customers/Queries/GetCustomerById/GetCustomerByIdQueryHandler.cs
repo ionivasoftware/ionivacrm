@@ -22,7 +22,9 @@ public class GetCustomerByIdQueryHandler : IRequestHandler<GetCustomerByIdQuery,
     /// <inheritdoc />
     public async Task<Result<CustomerDto>> Handle(GetCustomerByIdQuery request, CancellationToken cancellationToken)
     {
-        var customer = await _customerRepository.GetByIdAsync(request.Id, cancellationToken);
+        // Rakip firma adı ve atanan kullanıcı DTO'da gösterilir → ilişkili satırlarla, izlemesiz yükle
+        // (FindAsync bunları getirmiyordu; kartta "Rakip: belirtilmedi" görünüyordu).
+        var customer = await _customerRepository.GetForDisplayAsync(request.Id, cancellationToken);
         if (customer is null)
             return Result<CustomerDto>.Failure("Customer not found.");
 

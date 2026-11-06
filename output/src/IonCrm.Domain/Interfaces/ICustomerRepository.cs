@@ -23,6 +23,13 @@ public interface ICustomerRepository : IRepository<Customer>
     Task<Customer?> GetWithDetailsAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Read-only load for the customer card: the row plus the lookups its DTO shows (assigned user, current
+    /// competitor). Not tracked — <see cref="IRepository{T}.GetByIdAsync"/> (FindAsync) is for handlers that
+    /// modify the row and must not drag the related rows into the update.
+    /// </summary>
+    Task<Customer?> GetForDisplayAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns a customer by its legacy/external ID, bypassing tenant filters.
     /// Used by sync operations that run without a user context.
     /// Returns null if not found.

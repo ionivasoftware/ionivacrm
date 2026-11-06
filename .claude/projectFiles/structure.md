@@ -146,7 +146,8 @@ output/
 | Method | Path | Açıklama |
 |---|---|---|
 | GET | `/api/v1/dashboard` | İstatistikler |
-| GET | `/api/v1/reports` | Raporlar |
+| GET | `/api/v1/reports` | Raporlar — Görüşme Raporları sekmesi (tarih aralığı) |
+| GET | `/api/v1/reports/companies?projectId=` | Firma ve Lead Raporları: durum × ülke sayıları, rakip analizi, farklı firma ile çalışan firmalar (dahili hariç, tarih süzgeci yok) |
 | GET | `/api/v1/contact-histories` | Global görüşme listesi |
 | GET | `/api/v1/tasks` | Global görev listesi |
 | GET | `/api/v1/pipeline` | Fırsat listesi |

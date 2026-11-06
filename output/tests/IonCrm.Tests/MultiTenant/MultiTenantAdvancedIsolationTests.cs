@@ -110,7 +110,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
         var currentUserMock = new Mock<ICurrentUserService>();
 
         customerRepoMock
-            .Setup(r => r.GetByIdAsync(customerId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetForDisplayAsync(customerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Customer
             {
                 Id = customerId,
@@ -140,7 +140,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
         var currentUserMock = new Mock<ICurrentUserService>();
 
         customerRepoMock
-            .Setup(r => r.GetByIdAsync(customerId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetForDisplayAsync(customerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Customer
             {
                 Id = customerId,
@@ -170,7 +170,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
         var currentUserMock = new Mock<ICurrentUserService>();
 
         customerRepoMock
-            .Setup(r => r.GetByIdAsync(customerId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetForDisplayAsync(customerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Customer
             {
                 Id = customerId,
@@ -198,7 +198,7 @@ public class MultiTenantAdvancedIsolationTests : IDisposable
         var currentUserMock = new Mock<ICurrentUserService>();
 
         customerRepoMock
-            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetForDisplayAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Customer?)null);
         currentUserMock.Setup(u => u.IsSuperAdmin).Returns(false);
         currentUserMock.Setup(u => u.ProjectIds).Returns(new List<Guid> { _projectA });

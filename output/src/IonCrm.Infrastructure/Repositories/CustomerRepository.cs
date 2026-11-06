@@ -150,6 +150,16 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
     }
 
     /// <inheritdoc />
+    public async Task<Customer?> GetForDisplayAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await DbSet
+            .Include(c => c.AssignedUser)
+            .Include(c => c.Competitor)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<Customer?> GetByLegacyIdAsync(
         string legacyId,
         CancellationToken cancellationToken = default)

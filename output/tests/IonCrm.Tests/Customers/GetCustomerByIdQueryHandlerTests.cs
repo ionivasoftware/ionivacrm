@@ -32,7 +32,7 @@ public class GetCustomerByIdQueryHandlerTests
         };
 
         _repoMock
-            .Setup(r => r.GetByIdAsync(customer.Id, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetForDisplayAsync(customer.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(customer);
         _userMock.Setup(u => u.IsSuperAdmin).Returns(false);
         _userMock.Setup(u => u.ProjectIds).Returns(new List<Guid> { projectId });
@@ -53,7 +53,7 @@ public class GetCustomerByIdQueryHandlerTests
     {
         // Arrange
         _repoMock
-            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetForDisplayAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Customer?)null);
 
         // Act
@@ -79,7 +79,7 @@ public class GetCustomerByIdQueryHandlerTests
         };
 
         _repoMock
-            .Setup(r => r.GetByIdAsync(customer.Id, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetForDisplayAsync(customer.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(customer);
         _userMock.Setup(u => u.IsSuperAdmin).Returns(false);
         _userMock.Setup(u => u.ProjectIds).Returns(new List<Guid> { projectA });
@@ -106,7 +106,7 @@ public class GetCustomerByIdQueryHandlerTests
         };
 
         _repoMock
-            .Setup(r => r.GetByIdAsync(customer.Id, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetForDisplayAsync(customer.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(customer);
         _userMock.Setup(u => u.IsSuperAdmin).Returns(true);
         _userMock.Setup(u => u.ProjectIds).Returns(new List<Guid>());

@@ -557,7 +557,7 @@ public class CustomerCrudComprehensiveTests : IDisposable
         var currentUserMock = new Mock<ICurrentUserService>();
 
         customerRepoMock
-            .Setup(r => r.GetByIdAsync(customerId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetForDisplayAsync(customerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Customer
             {
                 Id          = customerId,

@@ -15,6 +15,12 @@ public interface IDashboardRepository
     Task<ReportsDto> GetReportsAsync(Guid projectId, DateTime startDate, DateTime endDate, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Raporlar → "Firma ve Lead Raporları": status × country counts and the competitor analysis for one project
+    /// (internal/test firms excluded). Not date-filtered — it describes the current customer base.
+    /// </summary>
+    Task<CompanyReportDto> GetCompanyReportAsync(Guid projectId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns the customer usage report for a given month — every customer that has a usage
     /// snapshot for (year, month), ordered by company name. Tenant-scoped by the caller's access.
     /// </summary>
