@@ -40,7 +40,7 @@
 - EMS süre uzatmada taslak satış faturası (0 TL, %20 KDV, açıklama: "1 Aylık/Yıllık EMS Lisans")
 
 
-## Paraşüt — Yetki Kodu Akışı (OAuth2 + PKCE) — 2026-11-05 (main'de, prod deploy + DevHub başvurusu bekliyor)
+## Paraşüt — Yetki Kodu Akışı (OAuth2 + PKCE) — 2026-11-05 (prod'da 2026-11-06, 3370fa5; DevHub başvurusu + `Parasut__OAuth__*` ve `App__FrontendUrl` env bekliyor — env gelmeden yeni akış kullanılamaz, callback düz metin döner)
 Paraşüt 04–05.11.2026 duyurusuyla uygulamaların kullanıcı parolasına erişmesini kaldırıyor (kesim ~05.12.2026). CRM'in IONIVA Paraşüt bağlantısı parola akışıyla ayaktaydı; artık iki akış yan yana (`ParasutConnection.AuthFlow`: 1 Password = mevcut satırlar, 2 OAuth2). Referans desen EMS `docs/parasut-oauth-gecisi.md`.
 - **Yapılandırma** `ParasutOAuthSettings` (Application, saf): `Parasut__OAuth__Environment` (Staging|Production, varsayılan Production — kimlik VE REST tabanını birlikte seçer: `id(-staging).parasut.com/realms/parasut/protocol/openid-connect`, REST `api.parasut.com` / `api.heroku-staging.parasut.com`), `Parasut__OAuth__ClientId`, `Parasut__OAuth__ClientSecret` (gizli istemcide zorunlu; public'te boş → hiç gönderilmez), `Parasut__OAuth__RedirectUri` (DevHub'daki adresin birebir aynısı; prod'da sonradan DEĞİŞTİRİLEMEZ). `App__FrontendUrl` (yoksa `SocialPublisher__FrontendBaseUrl`): geri dönüş sonrası tarayıcının yönlendirileceği CRM ön yüzü (`AppUrls`). İkisi de yoksa düğme çıkmaz, eski akış sürer.
 - **Uçlar** (`ParasutController`): `POST /api/v1/parasut/connect/oauth` (SuperAdmin) → `{authorizationUrl, stateExpiresAt}`; `GET /api/v1/parasut/callback?code&state[&error]` **anonim** (tek güven kaynağı tek kullanımlık `state`; CRM'de yetkilendirme süzgeci olmadığından aynı denetleyicide kalır) → `{FrontendUrl}/settings?parasut=connected|error&reason=state|expired|denied|parasut|code|verifier|exchange|company`; `GET /status` → `usesOAuth, needsReconnect, canConnectWithOAuth, refreshTokenExpiresAt, connectedAt, companyName`; `DELETE /disconnect` yeni akışta önce Keycloak `/revoke`. `POST /connect` (parola) kesime kadar dokunulmadı.
@@ -55,7 +55,7 @@ Paraşüt 04–05.11.2026 duyurusuyla uygulamaların kullanıcı parolasına eri
 ## Dashboard & Raporlar
 - Widget'lar: toplam müşteri, aktif, demo, görevler, pipeline değeri
 - Grafikler: müşteri artışı, pipeline dağılımı
-- **Raporlar ekranı iki sekme (2026-11-06, `?tab=`):**
+- **Raporlar ekranı iki sekme (2026-11-06, `?tab=`; prod'da 6abca31):**
   - **Görüşme Raporları** — eski rapor: tarih aralığı, KPI kartları, günlük görüşme grafiği, görüşme türleri (`GET /reports`).
   - **Firma ve Lead Raporları** — `GET /reports/companies?projectId=` (`DashboardRepository.GetCompanyReportAsync`, tarih süzgeci yok, dahili firmalar hariç): durum toplamları (aktif/lead/demo/kayıp/pasif), **ülkeye göre firma tablosu** + yığılı grafik (ilk 8 ülke; renkler açık/koyu tema ve renk körlüğü için doğrulandı: aktif #16a34a, lead #6366f1, demo #d97706), **rakip analizi** (rakip firma × durum × ülke, pay çubuğu, satıra tıkla → alt liste süzülür; "adı belirtilmedi" kovası en sonda), **farklı firma ile çalışan firmalar** listesi (arama, rakip ve durum süzgeci, müşteri bağlantısı, bunun söylendiği en yeni görüşme tarihi).
   - Ülke kuralı (`CountryInference`): `Customer.Country` (feed) → yoksa telefonun uluslararası kodu (`+90`, `0044`…; ulusal biçim "0555…" bilgi vermez) → "Bilinmiyor". Telefondan çıkarılan sayısı ve bilinmeyen sayısı raporda dipnot; listede "(tel.)" işareti.
