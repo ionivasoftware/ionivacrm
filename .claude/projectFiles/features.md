@@ -151,7 +151,7 @@ Paraşüt 04–05.11.2026 duyurusuyla uygulamaların kullanıcı parolasına eri
 - Rakip bazlı rapor: Raporlar → "Firma ve Lead Raporları" sekmesi (bkz. Dashboard & Raporlar).
 - Henüz yok: rakip listesi yönetim ekranı (PUT/DELETE uçları hazır), planlayıcıda rakip puanı.
 
-## Yenilikler — Liftdesk Haftalık Sürüm Notları — 2026-11-07 (main'de, prod bekliyor)
+## Yenilikler — Liftdesk Haftalık Sürüm Notları — 2026-11-07 (prod'da e2c452e; EMS ucu yayınlanınca dolar)
 EMS sözleşmesi "Sürüm Notları API (CRM)": içerik EMS'te gömülü `release-notes.json`, tek salt-okunur uç `GET /api/v1/crm/release-notes` (aynı statik `Liftdesk__ApiKey`), **görüntülemeyi CRM yapar**.
 - **Sunucu:** `ILiftdeskReleaseNotesClient`/`LiftdeskReleaseNotesClient` (Infrastructure; SiteBlog istemcisiyle aynı zarf/hata kalıbı) + `IMemoryCache` — başarılı yük 10 dk bellekte (`CacheKey`), hata hiç önbelleğe alınmaz. Handler'lar `Application/ReleaseNotes`: `GetReleaseNotesQuery` (yük + kullanıcının görüldü durumu), `GetReleaseNotesStatusQuery` (rozet; Liftdesk kapalı/hatalıysa sessizce 0), `MarkReleaseNotesSeenCommand` (`Users.LastSeenReleaseId`, RunSafe varchar(64); aynı kimlik tekrar yazılmaz). `ReleaseNotesStatus` saf yardımcı: görülmemiş = son görülenin önündeki sürüm sayısı; hiç görmemiş/eski kimlik → son **30 gün** içinde biten sürümler (tarihsizler sayılmaz). Modeller açık uçlu string (`key`, `type`): EMS yeni değer eklerse CRM kırılmaz.
 - **Uçlar:** `ReleaseNotesController` `/api/v1/release-notes` (GET, GET status, POST seen) — her oturum açmış kullanıcıya açık (satış/destek "yeni ne var" anlatır). Bkz. structure.md.
