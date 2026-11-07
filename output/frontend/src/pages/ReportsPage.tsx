@@ -564,12 +564,12 @@ function CompanyReportsTab() {
               </div>
             </div>
           )}
-          {data && (data.countryFromPhone > 0 || data.countryUnknown > 0) && (
+          {data && (data.countryFromPhone > 0 || data.countryDefaulted > 0) && (
             <p className="mt-3 flex items-start gap-1.5 text-[11px] text-muted-foreground">
               <Info className="h-3.5 w-3.5 mt-px flex-shrink-0" />
               <span>
                 {data.countryFromPhone > 0 && <>{data.countryFromPhone} firmanın ülkesi telefon kodundan çıkarıldı. </>}
-                {data.countryUnknown > 0 && <>{data.countryUnknown} firmanın ülkesi bilinmiyor (kayıtta ülke yok, telefon ulusal biçimde).</>}
+                {data.countryDefaulted > 0 && <>{data.countryDefaulted} firmada ülke bilgisi yok (kayıtta ülke yok, telefon ulusal biçimde); {countryLabel(data.defaultCountry)} sayıldı.</>}
               </span>
             </p>
           )}
@@ -733,6 +733,7 @@ function CompanyReportsTab() {
                       <td data-label="Ülke" className="px-4 py-2.5 text-xs">
                         <span className={cn(!c.country && 'text-muted-foreground italic')}>{countryLabel(c.country)}</span>
                         {c.countrySource === 'phone' && <span className="ml-1 text-muted-foreground" title="Telefonun uluslararası kodundan çıkarıldı">(tel.)</span>}
+                        {c.countrySource === 'default' && <span className="ml-1 text-muted-foreground" title="Kayıtta ülke yok, telefon ulusal biçimde; varsayılan ülke sayıldı">(varsayılan)</span>}
                       </td>
                       <td data-label="Rakip" className="px-4 py-2.5">
                         {c.competitorName

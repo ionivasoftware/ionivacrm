@@ -9,8 +9,10 @@ public record CompanyReportDto(
     IReadOnlyList<CountryCompanyCountsDto> ByCountry,
     /// <summary>Companies whose country came from the phone's international prefix rather than the record.</summary>
     int CountryFromPhone,
-    /// <summary>Companies with no country at all (null bucket in <see cref="ByCountry"/>).</summary>
-    int CountryUnknown,
+    /// <summary>Companies with no country on record and no international phone — counted under <see cref="DefaultCountry"/>.</summary>
+    int CountryDefaulted,
+    /// <summary>ISO2 the unresolved companies were counted under (TR, the home market).</summary>
+    string DefaultCountry,
     /// <summary>Companies whose latest contact said they work with another vendor.</summary>
     int UsingCompetitor,
     /// <summary>…of which the vendor was not named.</summary>
@@ -20,7 +22,7 @@ public record CompanyReportDto(
 
 public record StatusCountsDto(int Lead, int Active, int Demo, int Churned, int Passive, int Total);
 
-/// <summary><paramref name="Country"/> is ISO2 or null for "unknown".</summary>
+/// <summary><paramref name="Country"/> is ISO2; unresolved firms are counted under the default country, so it is never null in practice (nullable kept for the wire shape).</summary>
 public record CountryCompanyCountsDto(string? Country, int Lead, int Active, int Demo, int Churned, int Passive, int Total);
 
 public record CountryCountDto(string? Country, int Count);

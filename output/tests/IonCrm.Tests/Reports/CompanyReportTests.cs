@@ -46,7 +46,7 @@ public class CompanyReportTests
         var trActive = C("TR Aktif", CustomerStatus.Active, "TR", usesCompetitor: true, competitorId: rival.Id);
         var trLead = C("TR Lead", CustomerStatus.Lead, phone: "+90 532 000 00 00");            // ülke telefondan
         var gbDemo = C("GB Demo", CustomerStatus.Demo, "GB", usesCompetitor: true, competitorId: rival.Id);
-        var unknownLead = C("Bilinmez", CustomerStatus.Lead, phone: "0555 000 00 00", usesCompetitor: true); // adı verilmedi
+        var unknownLead = C("Bilinmez", CustomerStatus.Lead, phone: "0555 000 00 00", usesCompetitor: true); // adı verilmedi; ülke yok + ulusal telefon → varsayılan TR
         var churned = C("Kayıp", CustomerStatus.Churned, "TR", usesCompetitor: true, competitorId: deletedRival.Id); // rakip silinmiş → adı yok
         var internalFirm = C("IONIVA", CustomerStatus.Active, "TR", isInternal: true);
         var other = C("Başka Proje", CustomerStatus.Active, "DE", project: OtherProject);
@@ -73,12 +73,13 @@ public class CompanyReportTests
 
         report.Totals.Should().Be(new IonCrm.Application.Common.DTOs.StatusCountsDto(Lead: 2, Active: 1, Demo: 1, Churned: 1, Passive: 0, Total: 5));
 
-        report.ByCountry.Select(x => (x.Country, x.Total)).Should().Equal(("TR", 3), ("GB", 1), (null, 1));
+        report.ByCountry.Select(x => (x.Country, x.Total)).Should().Equal(("TR", 4), ("GB", 1));
         var tr = report.ByCountry.Single(x => x.Country == "TR");
-        (tr.Active, tr.Lead, tr.Churned, tr.Demo).Should().Be((1, 1, 1, 0));
+        (tr.Active, tr.Lead, tr.Churned, tr.Demo).Should().Be((1, 2, 1, 0), "the lead with a national phone counts as Turkish");
 
         report.CountryFromPhone.Should().Be(1, "TR Lead has no country but a +90 phone");
-        report.CountryUnknown.Should().Be(1, "a national phone number tells nothing");
+        report.CountryDefaulted.Should().Be(1, "a national phone number tells nothing → home market");
+        report.DefaultCountry.Should().Be("TR");
     }
 
     [Fact]
@@ -126,7 +127,8 @@ public class CompanyReportTests
 
         var unknown = report.CompetitorCustomers[1];
         unknown.CompetitorId.Should().BeNull();
-        unknown.Country.Should().BeNull();
+        unknown.Country.Should().Be("TR");
+        unknown.CountrySource.Should().Be(CountryInference.SourceDefault);
         unknown.LastContactAt.Should().Be(new DateTime(2026, 10, 20, 10, 0, 0, DateTimeKind.Utc));
 
         report.CompetitorCustomers[2].LastContactAt.Should().BeNull("no contact record carries the flag");

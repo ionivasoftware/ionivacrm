@@ -33,7 +33,15 @@ public class CountryInferenceTests
     public void Resolve_falls_back_to_the_phone_and_marks_the_source()
         => CountryInference.Resolve("xx1", "+90 532 000 00 00").Should().Be(("TR", CountryInference.SourcePhone));
 
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", "")]
+    [InlineData("xx1", "0555 000 00 00")]   // national format says nothing → home market
+    [InlineData(null, "+999 1234 5678")]    // unknown prefix
+    public void Resolve_counts_the_firm_as_turkish_when_neither_tells(string? country, string? phone)
+        => CountryInference.Resolve(country, phone).Should().Be((CountryInference.DefaultCountry, CountryInference.SourceDefault));
+
     [Fact]
-    public void Resolve_is_unknown_when_neither_tells()
-        => CountryInference.Resolve(null, "0555 000 00 00").Should().Be(((string?)null, (string?)null));
+    public void Default_country_is_turkey()
+        => CountryInference.DefaultCountry.Should().Be("TR");
 }

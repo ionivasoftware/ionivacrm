@@ -36,8 +36,8 @@ export interface CompetitorCustomer {
   companyName: string;
   status: CustomerStatus;
   country: string | null;
-  /** 'record' = kayıt ülkesi, 'phone' = telefonun uluslararası kodundan, null = bilinmiyor. */
-  countrySource: 'record' | 'phone' | null;
+  /** 'record' = kayıt ülkesi, 'phone' = telefonun uluslararası kodundan, 'default' = ikisi de yok → defaultCountry (TR) sayıldı. */
+  countrySource: 'record' | 'phone' | 'default' | null;
   competitorId: string | null;
   competitorName: string | null;
   lastContactAt: string | null;
@@ -47,7 +47,10 @@ export interface CompanyReport {
   totals: StatusCounts;
   byCountry: CountryCompanyCounts[];
   countryFromPhone: number;
-  countryUnknown: number;
+  /** Ülkesi çözülemeyip defaultCountry altında sayılan firma adedi ("Bilinmiyor" kovası yok). */
+  countryDefaulted: number;
+  /** ISO2 — çözülemeyen firmaların sayıldığı ülke (TR). */
+  defaultCountry: string;
   usingCompetitor: number;
   usingCompetitorUnnamed: number;
   competitors: CompetitorUsage[];

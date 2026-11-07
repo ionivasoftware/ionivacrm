@@ -3,7 +3,9 @@ namespace IonCrm.Application.Common.Helpers;
 /// <summary>
 /// Which country a customer belongs to for reporting: the signup country from the SaaS feed when known
 /// (<c>Customer.Country</c>), otherwise the international calling code of its phone number. A nationally
-/// written number ("0555 …") says nothing about the country and resolves to null ("Bilinmiyor").
+/// written number ("0555 …") says nothing about the country; whatever neither source resolves is counted as the
+/// home market <see cref="DefaultCountry"/> (TR) — every such firm in the list is Turkish (2026-11-07), there is no
+/// "unknown" bucket. Reporting only: the demo lifecycle mails still read <c>Customer.Country</c> directly.
 /// </summary>
 public static class CountryInference
 {
@@ -12,6 +14,12 @@ public static class CountryInference
 
     /// <summary>Country was derived from the phone number's international prefix.</summary>
     public const string SourcePhone = "phone";
+
+    /// <summary>Neither the record nor the phone told; counted as <see cref="DefaultCountry"/>.</summary>
+    public const string SourceDefault = "default";
+
+    /// <summary>Home market: a firm with no country and no internationally written phone is Turkish.</summary>
+    public const string DefaultCountry = "TR";
 
     // Longest-prefix match: 3-digit codes are tried before 2-digit, then 1-digit.
     // +1 is read as US (Canada shares it); +7 as RU (Kazakhstan shares it).
@@ -56,11 +64,11 @@ public static class CountryInference
         return null;
     }
 
-    /// <summary>Record country first, phone prefix second; <c>(null, null)</c> when neither tells.</summary>
-    public static (string? Country, string? Source) Resolve(string? country, string? phone)
+    /// <summary>Record country first, phone prefix second, <see cref="DefaultCountry"/> when neither tells.</summary>
+    public static (string Country, string Source) Resolve(string? country, string? phone)
     {
         if (Normalize(country) is { } c) return (c, SourceRecord);
         if (FromPhone(phone) is { } p) return (p, SourcePhone);
-        return (null, null);
+        return (DefaultCountry, SourceDefault);
     }
 }
