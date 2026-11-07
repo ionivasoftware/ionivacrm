@@ -334,6 +334,9 @@ app.Lifetime.ApplicationStarted.Register(() =>
             ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""MailSenderName"" varchar(120);
             ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""MailBccSelf"" boolean NOT NULL DEFAULT true;
         ");
+        await RunSafe("Users LastSeenReleaseId column", @"
+            ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""LastSeenReleaseId"" varchar(64);
+        ");
 
         // ── Idempotent column adds (later-sprint additions) ─────────────────────
         await RunSafe("Customers/Projects ADD COLUMN IF NOT EXISTS", @"

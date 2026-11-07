@@ -306,6 +306,13 @@ output/
 | POST | `/publish` · GET `/publish-status` | Yayın tetiği · durum |
 | GET/POST | `/topic-requests` · DELETE `/topic-requests/{id}` | Konu kuyruğu |
 
+### Yenilikler (Liftdesk Sürüm Notları) — `/api/v1/release-notes` (oturum; Liftdesk `/api/v1/crm/release-notes` proxy, 10 dk bellek)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/` | `{language, generatedAt, releases[] (en yeni başta: id, title, periodStart/End yyyy-MM-dd, summary, sections[{key,title,items[{type,title,note}]}]), lastSeenReleaseId, unseenCount}`; anahtar yoksa / Liftdesk hata → 400 + Türkçe mesaj |
+| GET | `/status` | Menü rozeti `{configured, latestReleaseId, latestTitle, latestPeriodEnd, lastSeenReleaseId, unseenCount}` — Liftdesk kapalıysa `unseenCount 0`, hata üretmez |
+| POST | `/seen` | `{releaseId}` → `Users.LastSeenReleaseId` (kimlik `^[A-Za-z0-9._:-]{1,64}$`), yanıt güncel `/status` |
+
 ### Pazarlama — `/api/v1/marketing` (oturum)
 | Method | Path | Açıklama |
 |---|---|---|

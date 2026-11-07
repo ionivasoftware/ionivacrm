@@ -370,6 +370,16 @@ public static class DependencyInjection
             })
             .AddPolicyHandler(BuildCircuitBreakerPolicy());
 
+        // Liftdesk haftalık sürüm notları ("Yenilikler") — salt okunur, aynı statik anahtar. Başarılı yük 10 dk
+        // bellekte (IMemoryCache): menü rozeti her kullanıcıda sorar, içerik yalnız yeni sürümle değişir.
+        services.AddMemoryCache();
+        services
+            .AddHttpClient<ILiftdeskReleaseNotesClient, LiftdeskReleaseNotesClient>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(30);
+            })
+            .AddPolicyHandler(BuildCircuitBreakerPolicy());
+
         // Sosyal medya publisher platform istemcileri — token'lar CRM DB'sinde şifreli, EMS görmez.
         services.AddHttpClient<IMetaGraphClient, MetaGraphClient>(client => client.Timeout = TimeSpan.FromSeconds(60));
         services.AddHttpClient<IXApiClient, XApiClient>(client => client.Timeout = TimeSpan.FromSeconds(60));

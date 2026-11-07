@@ -26,6 +26,7 @@ import {
   Earth,
   Newspaper,
   MailCheck,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -35,6 +36,7 @@ import { usePendingSocialPostCount } from '@/api/socialPosts';
 import { usePendingLeadCount } from '@/api/leadCandidates';
 import { usePendingGlobalLeadCount } from '@/api/globalLeads';
 import { usePendingSiteBlogCount } from '@/api/siteBlog';
+import { useReleaseNotesStatus } from '@/api/releaseNotes';
 import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
@@ -51,7 +53,7 @@ interface NavItem {
   superAdminOnly?: boolean;
   financeOnly?: boolean;
   /** When set, this nav item shows a live count badge (e.g. missing invoices, pending social posts). */
-  badgeKey?: 'missingInvoices' | 'pendingSocialPosts' | 'pendingLeads' | 'pendingGlobalLeads' | 'pendingBlog';
+  badgeKey?: 'missingInvoices' | 'pendingSocialPosts' | 'pendingLeads' | 'pendingGlobalLeads' | 'pendingBlog' | 'unseenReleases';
 }
 
 const navItems: NavItem[] = [
@@ -64,6 +66,7 @@ const navItems: NavItem[] = [
   { label: 'Faturalar', href: '/invoices', icon: FileText, financeOnly: true },
   { label: 'Raporlar', href: '/reports', icon: BarChart3 },
   { label: 'Kullanım Raporu', href: '/usage-report', icon: Activity },
+  { label: 'Yenilikler', href: '/whats-new', icon: Sparkles, badgeKey: 'unseenReleases' },
   { label: 'Ayarlar', href: '/settings', icon: Settings },
 ];
 
@@ -96,6 +99,9 @@ export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: Si
   const { data: pendingGlobalLeads = 0 } = usePendingGlobalLeadCount(!!user?.isSuperAdmin);
   // Blog taslakları — haftalık rutin: Pazartesi gelen taslağı okuyup onaylamak.
   const { data: pendingBlog = 0 } = usePendingSiteBlogCount(!!user?.isSuperAdmin);
+  // Liftdesk sürüm notları — herkese açık; kullanıcının görmediği sürüm sayısı (sunucu Liftdesk'e ulaşamazsa 0).
+  const { data: releaseStatus } = useReleaseNotesStatus(!!user);
+  const unseenReleases = releaseStatus?.unseenCount ?? 0;
 
   const badgeFor = (item: NavItem): number | undefined => {
     if (item.badgeKey === 'missingInvoices') return canAccessFinance ? missingInvoices : undefined;
@@ -103,6 +109,7 @@ export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: Si
     if (item.badgeKey === 'pendingLeads') return user?.isSuperAdmin ? pendingLeads : undefined;
     if (item.badgeKey === 'pendingGlobalLeads') return user?.isSuperAdmin ? pendingGlobalLeads : undefined;
     if (item.badgeKey === 'pendingBlog') return user?.isSuperAdmin ? pendingBlog : undefined;
+    if (item.badgeKey === 'unseenReleases') return unseenReleases;
     return undefined;
   };
 
@@ -175,6 +182,7 @@ export function Sidebar({ isCollapsed, onToggle, onClose, isMobile = false }: Si
             item={item}
             isCollapsed={isCollapsed}
             isActive={location.pathname.startsWith(item.href)}
+            badge={badgeFor(item)}
             onClick={isMobile ? onClose : undefined}
           />
         ))}

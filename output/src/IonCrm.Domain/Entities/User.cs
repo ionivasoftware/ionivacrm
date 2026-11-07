@@ -44,6 +44,9 @@ public class User : BaseEntity
     /// <summary>BCC the user on every marketing mail so the thread stays in their mailbox for follow-up.</summary>
     public bool MailBccSelf { get; set; } = true;
 
+    /// <summary>Id of the newest Liftdesk release the user has opened on the "Yenilikler" screen (sidebar badge). Null = never.</summary>
+    public string? LastSeenReleaseId { get; set; }
+
     /// <summary>Gets the user's full name.</summary>
     public string FullName => $"{FirstName} {LastName}".Trim();
 

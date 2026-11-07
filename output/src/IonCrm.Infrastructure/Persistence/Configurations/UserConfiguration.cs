@@ -43,6 +43,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasDefaultValue(true);
 
         // Computed column — FullName is not mapped to a DB column
+        builder.Property(u => u.LastSeenReleaseId)
+            .HasMaxLength(64);
+
         builder.Ignore(u => u.FullName);
 
         // Navigation: User → UserProjectRoles (one-to-many)

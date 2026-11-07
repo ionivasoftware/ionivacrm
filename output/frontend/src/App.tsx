@@ -21,6 +21,7 @@ const ProjectsAdminPage = lazy(() => import('@/pages/admin/ProjectsAdminPage').t
 const SettingsPage      = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const ReportsPage       = lazy(() => import('@/pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const UsageReportPage   = lazy(() => import('@/pages/UsageReportPage').then(m => ({ default: m.UsageReportPage })));
+const ReleaseNotesPage  = lazy(() => import('@/pages/ReleaseNotesPage').then(m => ({ default: m.ReleaseNotesPage })));
 const InvoicesPage      = lazy(() => import('@/pages/InvoicesPage').then(m => ({ default: m.InvoicesPage })));
 const SyncLogsPage      = lazy(() => import('@/pages/SyncLogsPage').then(m => ({ default: m.SyncLogsPage })));
 const ErrorTriagePage   = lazy(() => import('@/pages/admin/ErrorTriagePage').then(m => ({ default: m.ErrorTriagePage })));
@@ -121,6 +122,7 @@ export default function App() {
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/usage-report" element={<UsageReportPage />} />
+              <Route path="/whats-new" element={<ReleaseNotesPage />} />
               <Route path="/invoices" element={<InvoicesPage />} />
               <Route path="/settings" element={<SettingsPage />} />
 
