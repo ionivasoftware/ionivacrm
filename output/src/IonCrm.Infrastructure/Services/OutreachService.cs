@@ -83,6 +83,12 @@ public sealed class OutreachService : IOutreachService
         catch (Exception ex) { _logger.LogWarning(ex, "sequence.json okunamadı, varsayılan dizi"); return SequenceDefinition.Default; }
     }
 
+    public SequenceDefinition GetSequenceFor(string? country)
+    {
+        var folder = Folder;
+        return OutreachPolicy.ForCountry(GetSequence(), country, name => File.Exists(Path.Combine(folder, name)));
+    }
+
     public (List<(string Template, int DelayDays, bool Attachments, List<string> Subjects, bool Exists)> Steps, List<string> Attachments, string Folder) GetMaterials()
     {
         var folder = Folder;
@@ -101,7 +107,8 @@ public sealed class OutreachService : IOutreachService
 
     public async Task<string?> SendNextStepAsync(GlobalLead lead, CancellationToken cancellationToken = default)
     {
-        var def = GetSequence();
+        // Ülkeye göre dizi: Alman şablonu varsa o, saat dilimi alıcının (Europe/Berlin, Europe/Malta…).
+        var def = GetSequenceFor(lead.Country);
         var step = lead.OutreachStep;
         if (step >= def.Steps.Count) { lead.OutreachStatus = OutreachStatus.Completed; lead.NextSendAt = null; await _leads.UpdateAsync(lead, cancellationToken); return null; }
         if (string.IsNullOrWhiteSpace(lead.Email) || !MailboxAddress.TryParse(lead.Email, out var to)) return await FailAsync(lead, "Lead'in geçerli e-posta adresi yok.");
@@ -123,7 +130,7 @@ public sealed class OutreachService : IOutreachService
 
         if (string.IsNullOrWhiteSpace(lead.UnsubscribeToken)) lead.UnsubscribeToken = OutreachSequence.NewUnsubscribeToken();
         var baseUrl = SocialPostImageLinks.ResolvePublicApiBaseUrl(k => _configuration[k]) ?? "https://ion-crm-api-production.up.railway.app";
-        var bodyHtml = OutreachSequence.InjectUnsubscribe(rendered.Html, $"{baseUrl}/api/v1/outreach/unsubscribe/{lead.UnsubscribeToken}");
+        var bodyHtml = OutreachSequence.InjectUnsubscribe(OutreachPolicy.ApplySitePlaceholders(rendered.Html, lead.Country), $"{baseUrl}/api/v1/outreach/unsubscribe/{lead.UnsubscribeToken}");
 
         // Follow-ups thread under the intro and carry "Re:" when the template brings no subject of its own.
         var intro = step > 0 ? (await _leads.GetEmailsAsync(lead.Id, cancellationToken)).FirstOrDefault(e => e.Step == 0 && e.Status == OutreachEmailStatus.Sent) : null;

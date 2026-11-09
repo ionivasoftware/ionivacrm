@@ -98,6 +98,8 @@ function LeadDialog({ leadId, meta, onClose }: { leadId: string; meta: GlobalLea
   const [form, setForm] = useState({ companyName: '', contactName: '', email: '', phone: '', website: '', city: '', notes: '' });
   const [rejectReason, setRejectReason] = useState('');
   const [startOutreach, setStartOutreach] = useState(true);
+  // E-postası kapalı ülke (Almanya): operatör rızayı telefonla/yazılı aldıysa işaretler, dizi ancak o zaman başlar.
+  const [consent, setConsent] = useState(false);
   const busy = update.isPending || approve.isPending || reject.isPending || reopen.isPending || action.isPending || stop.isPending;
   const totalSteps = meta.sequence.steps.length;
 
@@ -115,6 +117,10 @@ function LeadDialog({ leadId, meta, onClose }: { leadId: string; meta: GlobalLea
   }
   const lead = l;
   const pending = lead.status === 'Pending';
+  const emailAllowed = meta.emailCountries.includes(lead.country);
+  const countryInfo = meta.catalog.find(c => c.code === lead.country);
+  const mailLanguage = (countryInfo?.culture ?? 'en-GB').startsWith('de') ? 'Almanca' : 'İngilizce';
+  const mailOk = emailAllowed || consent;
   const dirty = form.companyName !== lead.companyName || form.contactName !== (lead.contactName ?? '') || form.email !== (lead.email ?? '') || form.phone !== (lead.phone ?? '') || form.website !== (lead.website ?? '') || form.city !== (lead.city ?? '') || form.notes !== (lead.notes ?? '');
 
   async function saveEdits() {
@@ -127,11 +133,12 @@ function LeadDialog({ leadId, meta, onClose }: { leadId: string; meta: GlobalLea
   }
   async function onApprove() {
     if (!form.companyName.trim()) { toast({ title: 'Firma adı gerekli', variant: 'destructive' }); return; }
-    if (startOutreach && !form.email.trim()) { toast({ title: 'E-posta gerekli', description: 'Outreach e-posta ile gider; adresi girin ya da outreach’siz onaylayın.', variant: 'destructive' }); return; }
+    const willMail = startOutreach && mailOk;
+    if (willMail && !form.email.trim()) { toast({ title: 'E-posta gerekli', description: 'Outreach e-posta ile gider; adresi girin ya da outreach’siz onaylayın.', variant: 'destructive' }); return; }
     try {
       await saveEdits();
-      await approve.mutateAsync({ id: lead.id, startOutreach });
-      toast({ title: startOutreach ? 'Onaylandı · tanıtım maili sıraya alındı' : 'Onaylandı', description: startOutreach ? `${form.email.trim()} — gönderim penceresi ${meta.sequence.startHour}:00–${meta.sequence.endHour}:00 ${meta.sequence.timeZone}` : form.companyName.trim() });
+      await approve.mutateAsync({ id: lead.id, startOutreach: willMail, consentConfirmed: consent });
+      toast({ title: willMail ? `Onaylandı · ${mailLanguage} tanıtım maili sıraya alındı` : 'Onaylandı', description: willMail ? `${form.email.trim()} — gönderim penceresi ${meta.sequence.startHour}:00–${meta.sequence.endHour}:00 ${countryInfo?.timeZone ?? meta.sequence.timeZone}` : form.companyName.trim() });
       onClose();
     } catch (err) { toast({ title: 'Onaylanamadı', description: errorMessage(err, 'Hata'), variant: 'destructive' }); }
   }
@@ -143,9 +150,9 @@ function LeadDialog({ leadId, meta, onClose }: { leadId: string; meta: GlobalLea
     try { await reopen.mutateAsync(lead.id); toast({ title: 'Bekleyene alındı' }); onClose(); }
     catch (err) { toast({ title: 'Olmadı', description: errorMessage(err, 'Hata'), variant: 'destructive' }); }
   }
-  async function run(a: 'start' | 'pause' | 'resume' | 'send-now' | 'check-inbox', restart = false) {
+  async function run(a: 'start' | 'pause' | 'resume' | 'send-now' | 'check-inbox', restart = false, consentConfirmed = false) {
     try {
-      const r = await action.mutateAsync({ id: lead.id, action: a, restart });
+      const r = await action.mutateAsync({ id: lead.id, action: a, restart, consentConfirmed });
       if (a === 'check-inbox' && r && 'replied' in r) toast({ title: r.replied ? 'Yanıt bulundu — dizi durdu' : r.bounced ? 'Bounce bulundu — dizi durdu' : 'Yanıt/bounce yok', description: r.detail ?? undefined });
       else toast({ title: a === 'send-now' ? 'Gönderildi' : a === 'pause' ? 'Duraklatıldı' : a === 'resume' ? 'Sürdürüldü' : 'Dizi başlatıldı' });
     } catch (err) { toast({ title: 'Olmadı', description: errorMessage(err, 'Hata'), variant: 'destructive' }); }
@@ -198,7 +205,7 @@ function LeadDialog({ leadId, meta, onClose }: { leadId: string; meta: GlobalLea
             </div>
             <div className="flex flex-wrap gap-2">
               {(o === 'NotStarted' || o === 'Completed' || o === 'Bounced' || o === 'Replied') && (
-                <Button type="button" size="sm" variant="outline" disabled={busy || !meta.sender.ready || !lead.email} onClick={() => run('start', o !== 'NotStarted')} title={!meta.sender.ready ? 'Gönderici yok: ortak kutu tanımlı değil, Gmail ayarınız eksik' : undefined}>
+                <Button type="button" size="sm" variant="outline" disabled={busy || !meta.sender.ready || !lead.email || !mailOk} onClick={() => run('start', o !== 'NotStarted', consent)} title={!meta.sender.ready ? 'Gönderici yok: ortak kutu tanımlı değil, Gmail ayarınız eksik' : undefined}>
                   <Play className="h-4 w-4" /> {o === 'NotStarted' ? 'Diziyi başlat' : 'Yeniden başlat'}
                 </Button>
               )}
@@ -223,7 +230,7 @@ function LeadDialog({ leadId, meta, onClose }: { leadId: string; meta: GlobalLea
                   <thead><tr className="text-left text-muted-foreground border-b border-border"><th className="py-1 pr-2">Adım</th><th className="py-1 pr-2">Konu</th><th className="py-1 pr-2">Tarih</th><th className="py-1">Durum</th></tr></thead>
                   <tbody>{(data?.emails ?? []).map(e => (
                     <tr key={e.id} className="border-b border-border/40 last:border-0 align-top">
-                      <td data-label="Adım" className="py-1 pr-2 whitespace-nowrap">{e.step + 1} · {e.templateKey.replace(/\.en-GB\.html$/, '')}</td>
+                      <td data-label="Adım" className="py-1 pr-2 whitespace-nowrap">{e.step + 1} · {e.templateKey.replace(/\.[a-z]{2}-[A-Z]{2}\.html$/, '')}</td>
                       <td data-label="Konu" data-stack="primary" className="py-1 pr-2">{e.subject}</td>
                       <td data-label="Tarih" className="py-1 pr-2 whitespace-nowrap">{fmtShort(e.sentAt)}</td>
                       <td data-label="Durum" className={cn('py-1', e.status === 'Sent' ? 'text-emerald-400' : 'text-red-400')}>{e.status === 'Sent' ? 'Gönderildi' : `Hata: ${e.error ?? ''}`}</td>
@@ -255,8 +262,20 @@ function LeadDialog({ leadId, meta, onClose }: { leadId: string; meta: GlobalLea
         {pending && (
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={startOutreach} onChange={e => setStartOutreach(e.target.checked)} />
-            <span>Onaylayınca İngilizce tanıtım maili + takipler otomatik gitsin ({meta.sequence.steps.map(s => s.delayDays === 0 ? 'gün 0' : `+${s.delayDays} gün`).join(', ')})</span>
+            <span>Onaylayınca {mailLanguage} tanıtım maili + takipler otomatik gitsin ({meta.sequence.steps.map(s => s.delayDays === 0 ? 'gün 0' : `+${s.delayDays} gün`).join(', ')})</span>
           </label>
+        )}
+        {!emailAllowed && (pending || lead.status === 'Approved') && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200 space-y-1.5">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>{countryName(lead.country)}: otomatik soğuk e-posta kapalı — bu ülkede B2B için de önceden açık rıza gerekir (Almanya: UWG §7). Önce telefonla ulaşın; firma e-posta almayı kabul ederse aşağıdaki teyitle {mailLanguage.toLowerCase()} diziyi başlatın.</span>
+            </div>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />
+              <span>Firma e-posta almayı kabul etti (telefonla ya da yazılı rıza alındı)</span>
+            </label>
+          </div>
         )}
         {pending && startOutreach && !meta.sender.ready && (
           <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200 flex items-start gap-2">
@@ -280,8 +299,8 @@ function LeadDialog({ leadId, meta, onClose }: { leadId: string; meta: GlobalLea
             <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onClose}>Kapat</Button>
             {!pending && <Button type="button" variant="outline" size="sm" disabled={busy || !dirty} onClick={onSave}>{update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Kaydet</Button>}
             {pending && (
-              <Button type="button" size="sm" disabled={busy || (startOutreach && !meta.sender.ready)} onClick={onApprove}>
-                {approve.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} {startOutreach ? 'Onayla → maili başlat' : 'Onayla'}
+              <Button type="button" size="sm" disabled={busy || (startOutreach && mailOk && !meta.sender.ready)} onClick={onApprove}>
+                {approve.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} {startOutreach && mailOk ? 'Onayla → maili başlat' : 'Onayla'}
               </Button>
             )}
           </div>
@@ -326,7 +345,7 @@ export function GlobalLeadsPage() {
   async function onApproveChecked() {
     try {
       const r = await approveMany.mutateAsync({ ids: [...checked], startOutreach: true });
-      toast({ title: `${r.approved} lead onaylandı · mailler sıraya alındı`, description: r.errors.length ? `${r.errors.length} atlandı: ${r.errors[0]}` : undefined, variant: r.errors.length && !r.approved ? 'destructive' : 'default' });
+      toast({ title: `${r.approved} lead onaylandı${r.withoutMail ? ` · ${r.withoutMail} tanesi e-postasız (rıza gereken ülke)` : ' · mailler sıraya alındı'}`, description: r.errors.length ? `${r.errors.length} atlandı: ${r.errors[0]}` : undefined, variant: r.errors.length && !r.approved ? 'destructive' : 'default' });
       setChecked(new Set());
     } catch (err) { toast({ title: 'Olmadı', description: errorMessage(err, 'Hata'), variant: 'destructive' }); }
   }
@@ -341,7 +360,7 @@ export function GlobalLeadsPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><Globe className="h-6 w-6" /> Global Lead'ler</h1>
-          <p className="text-sm text-muted-foreground mt-1">Türkiye dışı asansör firmaları (şimdilik Birleşik Krallık). Global ajan haftada bir bölge bölge tarar; bulduğu firma buraya düşer, Müşteriler'e girmez. Onayladığınız lead'e İngilizce tanıtım maili ortak firma kutusundan sizin adınızla gider (ortak kutu tanımlı değilse kendi Gmail'inizden), takip mailleri belirlenen günlerde otomatik devam eder; yanıt, bounce ya da abonelikten çıkma diziyi durdurur.</p>
+          <p className="text-sm text-muted-foreground mt-1">Türkiye dışı asansör firmaları: Birleşik Krallık, İrlanda, Almanya ve Malta. Global ajan her gün bir bölge tarar; bulduğu firma buraya düşer, Müşteriler'e girmez. Onayladığınız lead'e ülkesinin dilinde (İngilizce / Almanca) tanıtım maili ortak firma kutusundan sizin adınızla gider (ortak kutu tanımlı değilse kendi Gmail'inizden), takip mailleri belirlenen günlerde otomatik devam eder; yanıt, bounce ya da abonelikten çıkma diziyi durdurur.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowSequence(v => !v)}><Settings2 className="h-4 w-4" /> Dizi & limitler</Button>

@@ -30,7 +30,9 @@ Aynı anahtar, ayrı uçlar: `/api/v1/lead-agent/global/*`. GitHub Actions **Glo
 (`global-lead-agent.yml`, **her gün** 06:00 UTC + elle; input `country` `auto` varsayılan ya da ISO2 GB/IE, `regions`,
 `regions_per_run` 1). Rotasyon sunucuda (`GlobalLeadRegions`, `next-regions?country=auto`): taranmamış bölgesi en çok
 olan ülke, sonra en eski taranan bölge — GB 26 + IE 6 bölge 32 günde bir kez dolaşır (09.11.2026; önce Perşembe, 2 bölge).
-Katalog yalnız İngilizce outreach dizisi olan ülkeler (GB, IE); DE/MT için Almanca/İngilizce şablon + rıza kararı gerekir.
+Katalog: GB 26, IE 6, DE 24, MT 2 bölge (09.11.2026). Ülke rehberi `countries/<ISO2>.md` (arama terimleri, rehberler; DE'de
+Impressum), OEM listesi ve telefon örneği `run-global.sh` içinde; şablon python ile doldurulur. E-posta kuralı CRM'de
+(`OutreachPolicy`): GB/IE/MT otomatik dizi, **Almanya rıza teyidi olmadan e-posta almaz** (UWG §7) — önce telefon.
 Adaylar **GlobalLeads** tablosuna düşer (Müşteriler'e girmez), ekran CRM → **Global Lead'ler** (SuperAdmin).
 E-posta ya da web zorunlu (outreach e-posta ile); noreply/webmaster adresleri elenir; OEM'ler (Otis, KONE,
 Schindler, TKE, Stannah, Orona) atlanır; kaynaklar LEIA, Yell, Checkatrade, Google, firma siteleri.

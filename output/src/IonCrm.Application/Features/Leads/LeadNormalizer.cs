@@ -97,6 +97,9 @@ public static partial class LeadNormalizer
     {
         "asansor", "asansorleri", "asansorcu", "lift", "lifts", "elevator", "elevators", "yuruyen", "merdiven", "sistemleri", "sistem", "sistemler",
         "servis", "servisi", "bakim", "bakimi", "onarim", "montaj", "montaji", "teknik", "teknoloji", "teknolojileri", "grup", "group", "proje", "dizayn",
+        // English / German sector words (global agent: GB, IE, DE, MT)
+        "service", "services", "engineering", "engineers", "maintenance", "installations", "technik", "aufzug", "aufzuge", "aufzugtechnik", "aufzugstechnik",
+        "aufzugbau", "aufzugsbau", "aufzugservice", "aufzugsservice", "liftservice", "lifttechnik", "fahrtreppen",
     };
 
     /// <summary>

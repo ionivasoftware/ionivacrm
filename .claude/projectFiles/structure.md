@@ -248,13 +248,13 @@ output/
 | Method | Path | Açıklama |
 |---|---|---|
 | GET | `/?status=&outreach=&country=&search=&page=&pageSize=` | Liste |
-| GET | `/meta` | Sayımlar (durum/dizi/ülke), dizi tanımı + şablon konuları + ekler, limitler, gönderici (`shared` = ortak kutu, `source`, `inboxCheck`), son döngü |
+| GET | `/meta` | Sayımlar (durum/dizi/ülke), dizi tanımı + şablon konuları + ekler, limitler, gönderici (`shared` = ortak kutu, `source`, `inboxCheck`), son döngü; **`emailCountries`** (otomatik e-posta izinli ülkeler, `Outreach__EmailCountries`, varsayılan GB,IE,MT) + **`catalog[]`** (`code, regions, emailAllowed, culture en-GB|de-DE, templatesReady, timeZone`) |
 | GET | `/pending-count` · `/runs?limit=` | Menü rozeti · global ajan koşuları |
 | GET | `/{id}` | Lead + gönderici + e-posta geçmişi |
 | PUT | `/{id}` | `{companyName?, contactName?, email?, phone?, website?, city?, notes?}` |
-| POST | `/{id}/approve` · `/approve-many` | `{contactName?, email?, startOutreach=true}` → onay + dizi başlat (ortak kutudan oturum kullanıcısının adıyla; ortak kutu yoksa kullanıcının Gmail'i) |
+| POST | `/{id}/approve` · `/approve-many` | `{contactName?, email?, startOutreach=true, consentConfirmed?}` → onay + dizi başlat (ortak kutudan oturum kullanıcısının adıyla; ortak kutu yoksa kullanıcının Gmail'i). E-postası kapalı ülkede (DE) tekli onay `consentConfirmed` yoksa 400 (Türkçe açıklama), toplu onay yalnız onaylar (`withoutMail` sayısı); dizi saat dilimi ülkenin (`GetSequenceFor`) |
 | POST | `/{id}/reject` · `/reject-many` · `/{id}/reopen` | Ret / bekleyene al |
-| POST | `/{id}/outreach/start` | `{restart?}` dizi (yeniden) başlat |
+| POST | `/{id}/outreach/start` | `{restart?, consentConfirmed?}` dizi (yeniden) başlat — DE için rıza teyidi şart (lead notuna yazılır) |
 | POST | `/{id}/outreach/pause` · `/resume` · `/send-now` · `/check-inbox` | Duraklat / sürdür / sıradaki adımı hemen gönder / IMAP yanıt-bounce kontrolü |
 | POST | `/{id}/outreach/stop` | `{reason: replied | unsubscribed | bounced | completed}` |
 | POST | `/outreach/run` | Zamanlayıcı döngüsünü şimdi çalıştır |

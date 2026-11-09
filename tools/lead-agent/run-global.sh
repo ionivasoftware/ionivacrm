@@ -54,13 +54,15 @@ else
   COUNTRY=$(printf '%s' "$BODY" | jq -r '.data.country // "GB"')
 fi
 RUN_ID="gh-${COUNTRY,,}-$(date -u +%Y%m%dT%H%M%S)"
+# Ülke rehberi (arama terimleri, rehberler, Impressum notu): countries/<ISO2>.md; OEM listesi ve telefon örneği burada.
 case "$COUNTRY" in
-  GB) COUNTRY_NAME="the United Kingdom" ;;
-  IE) COUNTRY_NAME="Ireland" ;;
-  DE) COUNTRY_NAME="Germany" ;;
-  MT) COUNTRY_NAME="Malta" ;;
-  *)  COUNTRY_NAME="$COUNTRY" ;;
+  GB) COUNTRY_NAME="the United Kingdom"; OEMS="Otis, KONE, Schindler, TK Elevator, Mitsubishi, Stannah Lifts, Orona"; PHONE_EXAMPLE="020 7946 0958" ;;
+  IE) COUNTRY_NAME="Ireland";            OEMS="Otis, KONE, Schindler, TK Elevator, Mitsubishi, Orona";                PHONE_EXAMPLE="01 234 5678" ;;
+  DE) COUNTRY_NAME="Germany";            OEMS="Otis, KONE, Schindler, TK Elevator, Mitsubishi, Orona, Schmitt + Sohn"; PHONE_EXAMPLE="030 1234567" ;;
+  MT) COUNTRY_NAME="Malta";              OEMS="Otis, KONE, Schindler, TK Elevator, Orona";                            PHONE_EXAMPLE="2123 4567" ;;
+  *)  COUNTRY_NAME="$COUNTRY";           OEMS="Otis, KONE, Schindler, TK Elevator, Mitsubishi, Orona";                PHONE_EXAMPLE="+00 ..." ;;
 esac
+GUIDE_FILE="$HERE/countries/$COUNTRY.md"; [ -f "$GUIDE_FILE" ] || GUIDE_FILE="$HERE/countries/_default.md"
 echo "[global-lead] koşu $RUN_ID — $COUNTRY bölgeler: $(printf '%s' "$REGIONS_JSON" | jq -r 'join(", ")')"
 api POST "/api/v1/lead-agent/global/runs/start" "$(jq -n -c --arg r "$RUN_ID" --arg c "$COUNTRY" --argjson g "$REGIONS_JSON" '{runId:$r, country:$c, regions:$g}')" >/dev/null || true
 
@@ -69,7 +71,17 @@ total_created=0; total_exist=0; total_invalid=0
 while IFS= read -r REGION; do
   [ -z "$REGION" ] && continue
   echo "[global-lead] ── $REGION araştırılıyor (en fazla $MAX aday)…"
-  PROMPT="$(sed -e "s/{{REGION}}/$REGION/g" -e "s/{{COUNTRY_NAME}}/$COUNTRY_NAME/g" -e "s/{{MAX}}/$MAX/g" "$PROMPT_TEMPLATE")"
+  # Şablon + ülke rehberi python ile doldurulur (çok satırlı metin; sed ile / ve & kaçışları sorun çıkarıyordu).
+  PROMPT="$(REGION="$REGION" COUNTRY_NAME="$COUNTRY_NAME" MAX="$MAX" OEMS="$OEMS" PHONE_EXAMPLE="$PHONE_EXAMPLE" GUIDE_FILE="$GUIDE_FILE" \
+    python3 - "$PROMPT_TEMPLATE" <<'PY'
+import os, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+t = t.replace("{{COUNTRY_GUIDE}}", open(os.environ["GUIDE_FILE"], encoding="utf-8").read().strip())
+for k in ("REGION", "COUNTRY_NAME", "MAX", "OEMS", "PHONE_EXAMPLE"):
+    t = t.replace("{{%s}}" % k, os.environ[k])
+sys.stdout.write(t)
+PY
+)"
   LOG="/tmp/global_lead_$(printf '%s' "$REGION" | tr -c 'a-zA-Z0-9' '_').log"
   # `</dev/null` ŞART: claude stdin'i tüketip while döngüsünü kırar.
   RAW=$(claude -p "$PROMPT" --model "$MODEL" --output-format json \

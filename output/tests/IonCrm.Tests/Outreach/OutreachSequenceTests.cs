@@ -1,5 +1,6 @@
 using FluentAssertions;
 using IonCrm.Application.Features.Leads;
+using IonCrm.Application.Features.Marketing;
 using IonCrm.Application.Features.Outreach;
 
 namespace IonCrm.Tests.OutreachTests;
@@ -112,15 +113,14 @@ public class OutreachSequenceTests
     public void Auto_country_rotation_interleaves_by_scanned_share_and_covers_every_region_once_before_cycling()
     {
         var t0 = new DateTime(2026, 11, 10, 6, 0, 0, DateTimeKind.Utc);
-        var state = new Dictionary<string, Dictionary<string, DateTime>>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["GB"] = new(StringComparer.OrdinalIgnoreCase), ["IE"] = new(StringComparer.OrdinalIgnoreCase),
-        };
+        var state = GlobalLeadRegions.CountryOrder.ToDictionary(c => c, _ => new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, DateTime>> View() =>
             state.ToDictionary(kv => kv.Key, kv => (IReadOnlyDictionary<string, DateTime>)kv.Value, StringComparer.OrdinalIgnoreCase);
+        var total = GlobalLeadRegions.CountryOrder.Sum(c => GlobalLeadRegions.ByCountry[c].Length);
+        total.Should().Be(26 + 6 + 24 + 2, "GB, IE, DE, MT catalogue");
 
         var picks = new List<string>();
-        for (var day = 0; day < 32; day++)
+        for (var day = 0; day < total; day++)
         {
             var (country, regions) = GlobalLeadRegions.NextAcrossCountries(1, View());
             regions.Should().ContainSingle();
@@ -128,14 +128,116 @@ public class OutreachSequenceTests
             picks.Add($"{country}:{regions[0]}");
         }
 
-        picks.Should().OnlyHaveUniqueItems("32 daily runs cover all 26 GB + 6 IE regions exactly once");
+        picks.Should().OnlyHaveUniqueItems("one daily run per region covers the whole catalogue exactly once");
         picks[0].Should().Be("GB:London");
-        picks[1].Should().Be("IE:Dublin", "IE has the lower scanned share after GB's first run");
+        picks[1].Should().Be("IE:Dublin", "after GB's first run every other country has a lower scanned share; catalogue order breaks the tie");
+        picks[2].Should().Be("DE:Berlin");
+        picks[3].Should().StartWith("MT:");
         picks.Count(p => p.StartsWith("IE:")).Should().Be(6);
-        picks.Take(10).Count(p => p.StartsWith("IE:")).Should().BeGreaterThanOrEqualTo(2, "small market is interleaved, not left for the end");
+        picks.Count(p => p.StartsWith("DE:")).Should().Be(24);
+        picks.Count(p => p.StartsWith("MT:")).Should().Be(2);
 
         var next = GlobalLeadRegions.NextAcrossCountries(1, View());
         (next.Country, next.Regions[0]).Should().Be(("GB", "London"), "steady state: back to the oldest scan");
+    }
+
+    // ── Ülke kuralları (09.11.2026: Almanya + Malta) ─────────────────────────────────────────────
+
+    [Fact]
+    public void Email_policy_allows_gb_ie_mt_by_default_requires_consent_for_germany_and_can_be_overridden()
+    {
+        OutreachPolicy.EmailAllowed("GB", null).Should().BeTrue();
+        OutreachPolicy.EmailAllowed("uk", null).Should().BeTrue();
+        OutreachPolicy.EmailAllowed("IE", null).Should().BeTrue();
+        OutreachPolicy.EmailAllowed("MT", null).Should().BeTrue();
+        OutreachPolicy.EmailAllowed("DE", null).Should().BeFalse("UWG §7: prior consent even for B2B");
+        OutreachPolicy.EmailAllowed("DE", "GB, DE").Should().BeTrue("explicit override after legal advice");
+        OutreachPolicy.EmailAllowed("IE", "GB, DE").Should().BeFalse();
+        OutreachPolicy.EmailCountries("  ,").Should().BeEquivalentTo(OutreachPolicy.DefaultEmailCountries, "blank config falls back to the default");
+    }
+
+    [Fact]
+    public void Country_maps_to_template_culture_site_locale_and_time_zone()
+    {
+        OutreachPolicy.TemplateCulture("DE").Should().Be("de-DE");
+        OutreachPolicy.TemplateCulture("AT").Should().Be("de-DE");
+        OutreachPolicy.TemplateCulture("MT").Should().Be("en-GB");
+        OutreachPolicy.SignupUrl("GB").Should().Be("https://liftdesk.app/uk/signup/");
+        OutreachPolicy.SignupUrl("IE").Should().Be("https://liftdesk.app/ie/signup/");
+        OutreachPolicy.SignupUrl("DE").Should().Be("https://liftdesk.app/de/signup/");
+        OutreachPolicy.SignupUrl("MT").Should().Be("https://liftdesk.app/en/signup/", "Malta is served by the international site");
+        OutreachPolicy.TimeZoneId("MT").Should().Be("Europe/Malta");
+        OutreachPolicy.TimeZoneId("DE").Should().Be("Europe/Berlin");
+        OutreachPolicy.TimeZoneId("IE").Should().Be("Europe/London");
+        OutreachPolicy.CountryLabelTr("DE").Should().Be("Almanya");
+        OutreachPolicy.ApplySitePlaceholders("<a href=\"{{SignupUrl}}\">x</a> {{SiteUrl}}", "IE").Should().Be("<a href=\"https://liftdesk.app/ie/signup/\">x</a> https://liftdesk.app/ie/");
+    }
+
+    [Fact]
+    public void Sequence_for_a_country_swaps_the_time_zone_and_only_the_templates_that_exist()
+    {
+        var baseDef = SequenceDefinition.Default;
+        var de = OutreachPolicy.ForCountry(baseDef, "DE", name => name.StartsWith("intro."));
+        de.TimeZone.Should().Be("Europe/Berlin");
+        de.Steps[0].Template.Should().Be("intro.de-DE.html");
+        de.Steps[1].Template.Should().Be("followup-1.en-GB.html", "no German follow-up on disk → English stays, the send never breaks");
+        de.Steps.Select(s => s.DelayDays).Should().Equal(0, 4, 9);
+
+        var gb = OutreachPolicy.ForCountry(baseDef, "GB", _ => true);
+        gb.TimeZone.Should().Be("Europe/London");
+        gb.Steps.Select(s => s.Template).Should().Equal(baseDef.Steps.Select(s => s.Template));
+        OutreachPolicy.ReCulture("sequence.json", "de-DE").Should().Be("sequence.json");
+    }
+
+    [Theory]
+    [InlineData("Müller Aufzüge GmbH & Co. KG", "muller aufzuge")]
+    [InlineData("Schulze Aufzugstechnik e.K.", "schulze aufzugstechnik")]
+    [InlineData("Berliner Lift UG (haftungsbeschränkt)", "berliner lift")]
+    [InlineData("Apex Lifts Ltd", "apex lifts")]
+    [InlineData("Island Elevators Limited", "island elevators")]
+    public void German_british_and_maltese_legal_forms_are_dropped_from_names(string raw, string expected) =>
+        GlobalLeadNormalizer.NormalizeName(raw).Should().Be(expected);
+
+    [Theory]
+    [InlineData("+49 30 1234567", "DE", "301234567")]
+    [InlineData("030 1234567", "DE", "301234567")]
+    [InlineData("+356 2123 4567", "MT", "21234567")]
+    [InlineData("2123 4567", "MT", "21234567")]
+    [InlineData("+44 20 7946 0958", "GB", "2079460958")]
+    public void Phones_become_the_national_significant_number_for_each_country(string raw, string country, string expected) =>
+        GlobalLeadNormalizer.NormalizePhone(raw, country).Should().Be(expected);
+
+    private static string? MarketingGlobalFolder()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var i = 0; i < 8 && dir is not null; i++, dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, "docs", "marketing", "global");
+            if (Directory.Exists(candidate)) return candidate;
+        }
+        return null;
+    }
+
+    [Fact]
+    public void German_templates_exist_render_and_english_ones_carry_country_placeholders()
+    {
+        var folder = MarketingGlobalFolder();
+        folder.Should().NotBeNull("docs/marketing/global ships with the API");
+        foreach (var name in new[] { "intro", "followup-1", "followup-2" })
+        {
+            var de = File.ReadAllText(Path.Combine(folder!, $"{name}.de-DE.html"));
+            de.Should().Contain("{{UnsubscribeUrl}}").And.Contain("[Name]").And.Contain("[Ad Soyad]").And.Contain("lang=\"de-DE\"");
+            de.Should().NotContain("Dear ").And.NotContain("Kind regards").And.NotContain("liftdesk.app/en/");
+            var en = File.ReadAllText(Path.Combine(folder!, $"{name}.en-GB.html"));
+            en.Should().NotContain("liftdesk.app/en/", "links come from {{SignupUrl}}/{{SiteUrl}} per country");
+            en.Should().Match(x => x.Contains("{{SignupUrl}}") || x.Contains("{{SiteUrl}}"));
+        }
+        var intro = File.ReadAllText(Path.Combine(folder!, "intro.de-DE.html"));
+        IntroMailTemplate.ExtractSubjects(intro).Should().HaveCount(3);
+        var rendered = IntroMailTemplate.Render(intro, 0, "Müller Aufzüge GmbH", null, "Ömer Çakmakcı", "support@ioniva.com", null);
+        rendered.Subject.Should().StartWith("Ein System");
+        rendered.Html.Should().Contain("Guten Tag Müller Aufzüge GmbH,").And.Contain("Ömer Çakmakcı").And.NotContain("<!-- 1:");
+        OutreachPolicy.ApplySitePlaceholders(rendered.Html, "DE").Should().Contain("https://liftdesk.app/de/signup/").And.NotContain("{{SignupUrl}}");
     }
 }
 

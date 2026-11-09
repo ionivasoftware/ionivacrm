@@ -56,6 +56,10 @@ export interface GlobalLeadMeta {
   outreach: Record<string, number>;
   countries: { code: string; count: number }[];
   supportedCountries: string[];
+  /** Otomatik soğuk e-posta izinli ülkeler (Outreach__EmailCountries; varsayılan GB, IE, MT — Almanya önceden rıza ister). */
+  emailCountries: string[];
+  /** Ajan kataloğu: ülke, bölge sayısı, e-posta izni, şablon kültürü (en-GB / de-DE) ve çevirinin hazır olup olmadığı. */
+  catalog: { code: string; regions: number; emailAllowed: boolean; culture: string; templatesReady: boolean; timeZone: string }[];
   sequence: {
     timeZone: string; startHour: number; endHour: number; weekdaysOnly: boolean;
     steps: { template: string; delayDays: number; attachments: boolean; subjects: string[]; exists: boolean }[];
@@ -141,7 +145,7 @@ export function useUpdateGlobalLead() {
 export function useApproveGlobalLead() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: async ({ id, ...body }: { id: string; contactName?: string; email?: string; startOutreach?: boolean }) =>
+    mutationFn: async ({ id, ...body }: { id: string; contactName?: string; email?: string; startOutreach?: boolean; consentConfirmed?: boolean }) =>
       (await apiClient.post<ApiResponse<GlobalLead>>(`/global-leads/${id}/approve`, body)).data.data,
     onSuccess: invalidate,
   });
@@ -151,7 +155,7 @@ export function useApproveManyGlobalLeads() {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: async ({ ids, startOutreach }: { ids: string[]; startOutreach?: boolean }) =>
-      (await apiClient.post<ApiResponse<{ approved: number; errors: string[] }>>('/global-leads/approve-many', { ids, startOutreach: startOutreach ?? true })).data.data,
+      (await apiClient.post<ApiResponse<{ approved: number; withoutMail: number; errors: string[] }>>('/global-leads/approve-many', { ids, startOutreach: startOutreach ?? true })).data.data,
     onSuccess: invalidate,
   });
 }
@@ -184,8 +188,8 @@ export type OutreachAction = 'start' | 'pause' | 'resume' | 'send-now' | 'check-
 export function useOutreachAction() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: async ({ id, action, restart }: { id: string; action: OutreachAction; restart?: boolean }) =>
-      (await apiClient.post<ApiResponse<GlobalLead | { replied: boolean; bounced: boolean; detail: string | null; lead: GlobalLead }>>(`/global-leads/${id}/outreach/${action}`, action === 'start' ? { restart: restart ?? false } : undefined)).data.data,
+    mutationFn: async ({ id, action, restart, consentConfirmed }: { id: string; action: OutreachAction; restart?: boolean; consentConfirmed?: boolean }) =>
+      (await apiClient.post<ApiResponse<GlobalLead | { replied: boolean; bounced: boolean; detail: string | null; lead: GlobalLead }>>(`/global-leads/${id}/outreach/${action}`, action === 'start' ? { restart: restart ?? false, consentConfirmed: consentConfirmed ?? false } : undefined)).data.data,
     onSuccess: invalidate,
   });
 }

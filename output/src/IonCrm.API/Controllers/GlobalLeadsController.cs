@@ -69,7 +69,22 @@ public sealed class GlobalLeadsController : ApiControllerBase
             },
             outreach = Enum.GetValues<OutreachStatus>().ToDictionary(k => k.ToString(), k => byOutreach.GetValueOrDefault(k)),
             countries = byCountry.OrderByDescending(kv => kv.Value).Select(kv => new { code = kv.Key, count = kv.Value }).ToList(),
-            supportedCountries = GlobalLeadRegions.ByCountry.Keys.OrderBy(k => k).ToList(),
+            supportedCountries = GlobalLeadRegions.CountryOrder.ToList(),
+            // Ülke kuralları (OutreachPolicy): otomatik e-posta izni, şablon kültürü ve çeviri hazır mı, saat dilimi.
+            emailCountries = OutreachPolicy.EmailCountries(_configuration["Outreach:EmailCountries"]).OrderBy(c => c).ToList(),
+            catalog = GlobalLeadRegions.CountryOrder.Select(c =>
+            {
+                var culture = OutreachPolicy.TemplateCulture(c);
+                var intro = def.Steps.Count > 0 ? def.Steps[0].Template : "intro.en-GB.html";
+                return new
+                {
+                    code = c, regions = GlobalLeadRegions.ByCountry[c].Length,
+                    emailAllowed = OutreachPolicy.EmailAllowed(c, _configuration["Outreach:EmailCountries"]),
+                    culture,
+                    templatesReady = culture == OutreachPolicy.DefaultCulture || System.IO.File.Exists(Path.Combine(folder, OutreachPolicy.ReCulture(intro, culture))),
+                    timeZone = OutreachPolicy.TimeZoneId(c),
+                };
+            }).ToList(),
             sequence = new
             {
                 timeZone = def.TimeZone, startHour = def.StartHour, endHour = def.EndHour, weekdaysOnly = def.WeekdaysOnly,
@@ -149,7 +164,7 @@ public sealed class GlobalLeadsController : ApiControllerBase
         var l = await _repo.GetAsync(id, cancellationToken);
         if (l is null) return NotFound(ApiResponse<object>.Fail("Lead bulunamadı.", 404));
         if (l.Status == GlobalLeadStatus.Approved) return StatusCode(409, ApiResponse<object>.Fail("Lead zaten onaylanmış.", 409));
-        var err = await ApproveOneAsync(l, body?.ContactName, body?.Email, body?.StartOutreach ?? true, cancellationToken);
+        var err = await ApproveOneAsync(l, body?.ContactName, body?.Email, body?.StartOutreach ?? true, body?.ConsentConfirmed == true, cancellationToken);
         return err is null ? OkResponse(ToDto(l)) : BadRequest(ApiResponse<object>.Fail(err, 400));
     }
 
@@ -158,22 +173,27 @@ public sealed class GlobalLeadsController : ApiControllerBase
     public async Task<IActionResult> ApproveMany([FromBody] ApproveManyGlobalBody body, CancellationToken cancellationToken = default)
     {
         var rows = await _repo.GetManyAsync(body.Ids ?? new(), cancellationToken);
-        var approved = 0; var errors = new List<string>();
+        var approved = 0; var withoutMail = 0; var errors = new List<string>();
+        var emailCountries = _configuration["Outreach:EmailCountries"];
         foreach (var l in rows.Where(r => r.Status != GlobalLeadStatus.Approved))
         {
-            var err = await ApproveOneAsync(l, null, null, body.StartOutreach ?? true, cancellationToken);
-            if (err is null) approved++; else errors.Add($"{l.CompanyName}: {err}");
+            // Toplu onayda rıza teyidi verilemez: e-postası kapalı ülke (Almanya) yalnız onaylanır, dizi başlamaz.
+            var wantMail = body.StartOutreach ?? true;
+            var mail = wantMail && OutreachPolicy.EmailAllowed(l.Country, emailCountries);
+            var err = await ApproveOneAsync(l, null, null, mail, false, cancellationToken);
+            if (err is null) { approved++; if (wantMail && !mail) withoutMail++; } else errors.Add($"{l.CompanyName}: {err}");
         }
-        return OkResponse(new { approved, errors });
+        return OkResponse(new { approved, withoutMail, errors });
     }
 
-    private async Task<string?> ApproveOneAsync(GlobalLead l, string? contactName, string? email, bool startOutreach, CancellationToken cancellationToken)
+    private async Task<string?> ApproveOneAsync(GlobalLead l, string? contactName, string? email, bool startOutreach, bool consentConfirmed, CancellationToken cancellationToken)
     {
         if (contactName is not null) l.ContactName = Trunc(contactName, 200);
         if (email is not null) { var e = email.Trim(); if (e.Length > 0 && !GlobalLeadNormalizer.IsUsableEmail(e)) return "E-posta geçersiz."; l.Email = e.Length == 0 ? null : e; }
         if (startOutreach)
         {
             if (!GlobalLeadNormalizer.IsUsableEmail(l.Email)) return "Outreach için geçerli bir e-posta adresi gerekli (önce düzenleyin ya da outreach'siz onaylayın).";
+            if (ConsentGate(l, consentConfirmed) is { } gate) return gate;
             var me = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == _currentUser.UserId, cancellationToken);
             if (me is null) return "Oturum kullanıcısı bulunamadı.";
             if (_outreach.SharedSender is null && (string.IsNullOrWhiteSpace(me.MailAddress) || string.IsNullOrWhiteSpace(me.MailPasswordEncrypted)))
@@ -181,7 +201,7 @@ public sealed class GlobalLeadsController : ApiControllerBase
             if (l.OutreachStatus == OutreachStatus.Unsubscribed) return "Bu lead abonelikten çıkmış; outreach başlatılamaz.";
             l.SenderUserId = me.Id; l.OutreachStatus = OutreachStatus.Active; l.OutreachStep = 0; l.LastError = null;
             if (string.IsNullOrWhiteSpace(l.UnsubscribeToken)) l.UnsubscribeToken = OutreachSequence.NewUnsubscribeToken();
-            l.NextSendAt = OutreachSequence.NextSendTime(DateTime.UtcNow, _outreach.GetSequence());
+            l.NextSendAt = OutreachSequence.NextSendTime(DateTime.UtcNow, _outreach.GetSequenceFor(l.Country));
         }
         l.Status = GlobalLeadStatus.Approved; l.ReviewedAt = DateTime.UtcNow; l.ReviewedBy = _currentUser.Email; l.RejectReason = null;
         await _repo.UpdateAsync(l, cancellationToken);
@@ -237,13 +257,14 @@ public sealed class GlobalLeadsController : ApiControllerBase
         if (l.OutreachStatus == OutreachStatus.Unsubscribed) return StatusCode(409, ApiResponse<object>.Fail("Abonelikten çıkmış lead'e gönderim yapılamaz.", 409));
         if (l.OutreachStatus == OutreachStatus.Active) return StatusCode(409, ApiResponse<object>.Fail("Dizi zaten aktif.", 409));
         if (!GlobalLeadNormalizer.IsUsableEmail(l.Email)) return BadRequest(ApiResponse<object>.Fail("Geçerli e-posta adresi yok.", 400));
+        if (ConsentGate(l, body?.ConsentConfirmed == true) is { } gate) return BadRequest(ApiResponse<object>.Fail(gate, 400));
         var me = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == _currentUser.UserId, cancellationToken);
         if (me is null) return BadRequest(ApiResponse<object>.Fail("Oturum kullanıcısı bulunamadı.", 400));
         if (_outreach.SharedSender is null && (string.IsNullOrWhiteSpace(me.MailAddress) || string.IsNullOrWhiteSpace(me.MailPasswordEncrypted)))
             return BadRequest(ApiResponse<object>.Fail("Gönderici yok: ortak posta kutusu tanımlı değil ve Gmail ayarlarınız eksik (Ayarlar → E-posta Gönderimi).", 400));
         l.SenderUserId = me.Id; l.OutreachStatus = OutreachStatus.Active; l.LastError = null;
         if (body?.Restart == true) { l.OutreachStep = 0; l.ThreadMessageId = null; }
-        l.NextSendAt = OutreachSequence.NextSendTime(DateTime.UtcNow, _outreach.GetSequence());
+        l.NextSendAt = OutreachSequence.NextSendTime(DateTime.UtcNow, _outreach.GetSequenceFor(l.Country));
         await _repo.UpdateAsync(l, cancellationToken);
         return OkResponse(ToDto(l));
     }
@@ -320,6 +341,20 @@ public sealed class GlobalLeadsController : ApiControllerBase
         return OkResponse(new { check.Replied, check.Bounced, check.Detail, lead = ToDto(l) });
     }
 
+    /// <summary>
+    /// Ülke e-posta kapısı (<see cref="OutreachPolicy"/>): otomatik soğuk e-posta kapalı ülkede (Almanya — UWG §7, önceden
+    /// açık rıza) dizi yalnız operatör rızayı teyit ederse başlar; teyit lead notuna yazılır. İzinli ülkede null.
+    /// </summary>
+    private string? ConsentGate(GlobalLead l, bool consentConfirmed)
+    {
+        if (OutreachPolicy.EmailAllowed(l.Country, _configuration["Outreach:EmailCountries"])) return null;
+        if (!consentConfirmed)
+            return $"{OutreachPolicy.CountryLabelTr(l.Country)} için otomatik tanıtım e-postası kapalı: bu ülkede B2B soğuk e-posta için önceden açık rıza gerekir (Almanya: UWG §7). Rızayı telefonla ya da yazılı aldıysanız 'rıza teyidi' ile başlatın; yoksa e-postasız onaylayıp telefonla ulaşın.";
+        var line = $"E-posta rızası teyit edildi ({_currentUser.Email}, {DateTime.UtcNow:yyyy-MM-dd}).";
+        l.Notes = string.IsNullOrWhiteSpace(l.Notes) ? line : Trunc($"{l.Notes.TrimEnd()}\n{line}", 2000);
+        return null;
+    }
+
     private static string? Trunc(string? s, int max) => string.IsNullOrWhiteSpace(s) ? null : (s.Trim().Length > max ? s.Trim()[..max] : s.Trim());
 
     internal static GlobalLeadDto ToDto(GlobalLead l) => new(
@@ -336,10 +371,11 @@ public record GlobalLeadDto(
 
 public record UpdateGlobalLeadBody(string? CompanyName, string? ContactName, string? Email, string? Phone, string? Website, string? City, string? Notes);
 
-public record ApproveGlobalLeadBody(string? ContactName, string? Email, bool? StartOutreach);
+/// <summary><paramref name="ConsentConfirmed"/>: e-postası kapalı ülkede (Almanya) operatör rızayı telefonla/yazılı aldı — dizi ancak o zaman başlar.</summary>
+public record ApproveGlobalLeadBody(string? ContactName, string? Email, bool? StartOutreach, bool? ConsentConfirmed);
 
 public record ApproveManyGlobalBody(List<Guid>? Ids, bool? StartOutreach);
 
-public record StartOutreachBody(bool? Restart);
+public record StartOutreachBody(bool? Restart, bool? ConsentConfirmed);
 
 public record StopOutreachBody(string? Reason);

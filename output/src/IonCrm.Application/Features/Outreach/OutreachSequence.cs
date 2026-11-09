@@ -94,14 +94,14 @@ public static class OutreachSequence
 }
 
 /// <summary>
-/// Scan regions per country for the global lead agent (biggest lift markets first). Only countries with an
-/// English outreach sequence are catalogued (GB, IE — EU markets such as DE/MT need their own templates and a
-/// consent decision before cold e-mail). Daily runs pick ONE region: <see cref="NextAcrossCountries"/>.
+/// Scan regions per country for the global lead agent (biggest lift markets first). Catalogue (09.11.2026): GB,
+/// IE, DE, MT — e-mail rules per country live in <see cref="OutreachPolicy"/> (DE: consent first). Daily runs pick
+/// ONE region: <see cref="NextAcrossCountries"/>.
 /// </summary>
 public static class GlobalLeadRegions
 {
     /// <summary>Catalogue order = tie-break order ("auto" starts with the biggest market).</summary>
-    public static readonly string[] CountryOrder = { "GB", "IE" };
+    public static readonly string[] CountryOrder = { "GB", "IE", "DE", "MT" };
 
     public static readonly Dictionary<string, string[]> ByCountry = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -113,6 +113,14 @@ public static class GlobalLeadRegions
             "Reading and the Thames Valley", "Cambridge and East Anglia", "Aberdeen", "Kent", "Essex", "Surrey", "Oxford", "Milton Keynes", "Stoke-on-Trent", "Hull",
         },
         ["IE"] = new[] { "Dublin", "Cork", "Galway", "Limerick", "Belfast border counties", "Waterford" },
+        ["DE"] = new[]
+        {
+            "Berlin", "Hamburg", "München und Oberbayern", "Köln und Rheinland", "Frankfurt und Rhein-Main", "Stuttgart und Mittlerer Neckar",
+            "Düsseldorf", "Ruhrgebiet (Essen, Dortmund, Bochum)", "Hannover und Niedersachsen", "Leipzig und Sachsen", "Dresden", "Nürnberg und Franken",
+            "Bremen", "Mannheim und Rhein-Neckar", "Münster und Westfalen", "Kiel und Schleswig-Holstein", "Mainz und Rheinland-Pfalz", "Saarland",
+            "Erfurt und Thüringen", "Magdeburg und Sachsen-Anhalt", "Rostock und Mecklenburg-Vorpommern", "Potsdam und Brandenburg", "Freiburg und Südbaden", "Augsburg und Schwaben",
+        },
+        ["MT"] = new[] { "Malta — north and central (Valletta, Sliema, Birkirkara, Mosta)", "Malta — south and Gozo (Marsa, Birżebbuġa, Victoria)" },
     };
 
     public static List<string> Next(string country, int count, ISet<string> recentlyScanned)

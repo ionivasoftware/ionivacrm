@@ -18,6 +18,9 @@ public interface IOutreachService
 {
     SequenceDefinition GetSequence();
 
+    /// <summary>The sequence as it applies to a lead's country: its time zone, its template culture when those files exist (<see cref="Features.Outreach.OutreachPolicy.ForCountry"/>).</summary>
+    SequenceDefinition GetSequenceFor(string? country);
+
     /// <summary>Shared company mailbox, or null when every approver sends from their own Gmail.</summary>
     OutreachSender? SharedSender { get; }
 

@@ -2,15 +2,21 @@ namespace IonCrm.Application.Features.Leads;
 
 /// <summary>
 /// Country-aware normalisation for non-TR leads. Names reuse <see cref="LeadNormalizer.NormalizeName"/>
-/// (ASCII fold + legal suffixes) and additionally drop UK/IE legal forms (plc, llp, cic…); phones become
-/// the national significant number (UK: +44 20 7946 0958 → 2079460958). Fingerprints are country-prefixed
-/// so a same-named firm in two countries never collides.
+/// (ASCII fold + legal suffixes) and additionally drop UK/IE legal forms (plc, llp, cic…) and German ones
+/// (GmbH, GmbH &amp; Co. KG, UG, e.K., OHG, GbR, AG); phones become the national significant number
+/// (UK: +44 20 7946 0958 → 2079460958; DE: +49 30 1234567 → 301234567; MT: +356 2123 4567 → 21234567).
+/// Fingerprints are country-prefixed so a same-named firm in two countries never collides.
 /// </summary>
 public static class GlobalLeadNormalizer
 {
-    private static readonly HashSet<string> ExtraLegalTokens = new(StringComparer.Ordinal) { "plc", "llp", "lp", "cic", "uk", "gb", "ireland", "t", "a", "trading", "as" };
+    private static readonly HashSet<string> ExtraLegalTokens = new(StringComparer.Ordinal)
+    {
+        "plc", "llp", "lp", "cic", "uk", "gb", "ireland", "t", "a", "trading", "as",
+        // Germany / Austria / Switzerland (folded: ü→u, ß→ss)
+        "gmbh", "mbh", "kg", "ug", "haftungsbeschrankt", "ag", "ek", "ohg", "gbr", "cokg", "u", "und", "sohne", "sohn",
+    };
 
-    private static readonly Dictionary<string, string> DialCodes = new(StringComparer.OrdinalIgnoreCase) { ["GB"] = "44", ["IE"] = "353", ["DE"] = "49", ["FR"] = "33", ["NL"] = "31", ["ES"] = "34", ["IT"] = "39", ["US"] = "1" };
+    private static readonly Dictionary<string, string> DialCodes = new(StringComparer.OrdinalIgnoreCase) { ["GB"] = "44", ["IE"] = "353", ["DE"] = "49", ["AT"] = "43", ["CH"] = "41", ["MT"] = "356", ["FR"] = "33", ["BE"] = "32", ["NL"] = "31", ["ES"] = "34", ["PT"] = "351", ["IT"] = "39", ["US"] = "1" };
 
     public static string NormalizeCountry(string? raw)
     {
@@ -32,7 +38,8 @@ public static class GlobalLeadNormalizer
         var digits = new string(raw.Where(char.IsDigit).ToArray());
         if (digits.StartsWith("00")) digits = digits[2..];
         var code = DialCodes.GetValueOrDefault(NormalizeCountry(country), "44");
-        if (digits.StartsWith(code) && digits.Length >= code.Length + 9) digits = digits[code.Length..];
+        // +7: Malta numbers are 8 digits (+356 2123 4567) — the old +9 floor never stripped the 356.
+        if (digits.StartsWith(code) && digits.Length >= code.Length + 7) digits = digits[code.Length..];
         if (digits.StartsWith('0') && digits.Length >= 10) digits = digits[1..];
         if (digits.Length < 7) return string.Empty;
         return digits.Length > 11 ? digits[^10..] : digits;
