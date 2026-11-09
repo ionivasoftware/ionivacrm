@@ -25,8 +25,10 @@ public class CallPlannerTests
             daysSinceContact is { } d ? Now.AddDays(-d) : null, daysSinceContact is null ? 0 : 3,
             lastSatDays is { } s ? Now.AddDays(-s) : null, next, expiration, false, null, usage);
 
-    private static UsageSignal Usage(int? loginDaysAgo, int maintenance, int elevators = 10, string? plan = null) =>
-        new(loginDaysAgo is { } l ? Now.AddDays(-l) : null, maintenance, 0, 0, 0, 0, elevators, 3, plan, 2026, 10);
+    /// <param name="prevMaintenance">Previous month's maintenance count; null = no earlier snapshot. Snapshot month = the test's current month (Oct 2026).</param>
+    private static UsageSignal Usage(int? loginDaysAgo, int maintenance, int elevators = 10, string? plan = null, int? prevMaintenance = null, int? prevFaults = null) =>
+        new(loginDaysAgo is { } l ? Now.AddDays(-l) : null, maintenance, 0, 0, 0, 0, elevators, 3, plan, 2026, 10,
+            prevMaintenance, prevFaults, prevFaults is null ? null : 0);
 
     [Fact]
     public void BusinessDays_skips_weekends_and_StartDay_moves_after_17()
@@ -92,9 +94,9 @@ public class CallPlannerTests
         var happy = CallPlanner.ScoreSatisfaction(Active("Happy", daysSinceContact: 120, usage: Usage(loginDaysAgo: 2, maintenance: 12)), Today)!.Value;
         happy.Reason.Should().StartWith("Aktif müşteri").And.Contain("hiç memnuniyet araması yapılmadı").And.Contain("yoğun kullanım");
 
-        var silent = CallPlanner.ScoreSatisfaction(Active("Silent", daysSinceContact: 20, usage: Usage(loginDaysAgo: 40, maintenance: 0), lastSatDays: 50), Today)!.Value;
-        silent.Reason.Should().Contain("40 gün giriş yok").And.Contain("bu ay bakım girişi yok");
-        silent.Score.Should().BeGreaterThan(happy.Score, "a usage dip outranks a routine courtesy call");
+        var silent = CallPlanner.ScoreSatisfaction(Active("Silent", daysSinceContact: 20, usage: Usage(loginDaysAgo: 40, maintenance: 0, prevMaintenance: 0, prevFaults: 0), lastSatDays: 50), Today)!.Value;
+        silent.Reason.Should().Contain("40 gün giriş yok").And.Contain("bir aydır bakım girişi yok").And.Contain("bir aydır arıza/iş emri yok");
+        silent.Score.Should().BeGreaterThan(happy.Score, "a real usage dip (login gone, a full month without entries) outranks a routine courtesy call");
         CallPlanner.ScoreSatisfaction(Active("Silent but just called", daysSinceContact: 10, usage: Usage(40, 0)), Today).Should().BeNull("14-day cooldown even when at risk");
 
         var renewal = CallPlanner.ScoreSatisfaction(Active("Renew", daysSinceContact: 20, expiration: Now.AddDays(20), usage: Usage(1, 5), lastSatDays: 30), Today)!.Value;
@@ -106,6 +108,45 @@ public class CallPlannerTests
         CallPlanner.ScoreSatisfaction(Active("No usage data", daysSinceContact: 90), Today).Should().NotBeNull("RezervAl-style account without usage: recency alone qualifies");
         CallPlanner.ScoreSatisfaction(Active("Demo", daysSinceContact: 120, status: CustomerStatus.Demo), Today).Should().BeNull();
         CallPlanner.ScoreSatisfaction(Active("Passive", daysSinceContact: 120, status: CustomerStatus.Passive), Today).Should().BeNull();
+    }
+
+    [Fact]
+    public void Usage_gaps_need_a_full_month_and_maintenance_alone_keeps_the_60_day_rule()
+    {
+        // Ayın başında herkesin "bu ay" sayısı sıfırdır: geçen ay bakım varsa boşluk yok.
+        var earlyMonth = CallPlanner.ScoreSatisfaction(Active("Early", daysSinceContact: 120, usage: Usage(loginDaysAgo: 2, maintenance: 0, prevMaintenance: 7)), Today)!.Value;
+        earlyMonth.Reason.Should().NotContain("bakım").And.NotContain("arıza");
+
+        // Önceki ay bilinmiyorsa (yeni firma / anlık görüntü yok) da boşluk sayılmaz.
+        CallPlanner.ScoreSatisfaction(Active("Unknown prev", daysSinceContact: 120, usage: Usage(2, 0)), Today)!.Value.Reason.Should().NotContain("bakım");
+
+        // Kapanmış bir ayın anlık görüntüsü tek başına yeter.
+        var closedMonth = Usage(2, 0) with { SnapshotMonth = 9 };
+        CallPlanner.UsageGaps(closedMonth, Today).NoMaintenance.Should().BeTrue();
+        CallPlanner.ScoreSatisfaction(Active("Closed month", daysSinceContact: 120, usage: closedMonth), Today)!.Value.Reason.Should().Contain("bir aydır bakım girişi yok");
+
+        // Bakım boşluğu tek başına 14 günlük kapıyı AÇMAZ: 60 gün temas kuralı ve 180 gün tekrar kuralı yerinde kalır.
+        var gapOnly = Usage(loginDaysAgo: 2, maintenance: 0, prevMaintenance: 0, prevFaults: 0);
+        CallPlanner.ScoreSatisfaction(Active("Gap, talked 20d ago", daysSinceContact: 20, usage: gapOnly), Today).Should().BeNull();
+        CallPlanner.ScoreSatisfaction(Active("Gap, recent sat", daysSinceContact: 120, usage: gapOnly, lastSatDays: 100), Today).Should().BeNull();
+        var gap = CallPlanner.ScoreSatisfaction(Active("Gap, due", daysSinceContact: 120, usage: gapOnly), Today)!.Value;
+        gap.Reason.Should().Contain("bir aydır bakım girişi yok").And.Contain("120 gün görüşülmedi");
+
+        // Giriş yok GÜÇLÜ sinyaldir: 14 gün sonra girer.
+        CallPlanner.ScoreSatisfaction(Active("No login, 20d", daysSinceContact: 20, usage: Usage(40, 5)), Today).Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Long_silent_healthy_customer_outranks_a_recently_contacted_one_with_a_single_risk_signal()
+    {
+        var old = CallPlanner.ScoreSatisfaction(Active("Old", daysSinceContact: 300, usage: Usage(2, 12)), Today)!.Value;
+        var riskNew = CallPlanner.ScoreSatisfaction(Active("RiskNew", daysSinceContact: 20, usage: Usage(40, 5), lastSatDays: 50), Today)!.Value;
+        old.Reason.Should().Contain("300 gün görüşülmedi");
+        old.Score.Should().BeGreaterThan(riskNew.Score, "09.11.2026: a firm called 20 days ago must not jump ahead of one silent for 300 days on risk points alone");
+
+        var mid = CallPlanner.ScoreSatisfaction(Active("Mid", daysSinceContact: 100, usage: Usage(2, 12)), Today)!.Value;
+        mid.Reason.Should().Contain("100 gün görüşülmedi");
+        old.Score.Should().BeGreaterThan(mid.Score, ">180 days earns more than >90");
     }
 
     [Fact]

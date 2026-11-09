@@ -18,7 +18,7 @@ namespace IonCrm.Infrastructure.Services;
 /// calls as Agent appointments. Idempotent per (project, local day); a forced run only tops up slots
 /// that are still empty, so re-running never duplicates a company or overflows a day.
 /// Config: CallPlan:NewCallsPerDay (5) · FollowUpsPerDay (5) · SatisfactionPerDay (2) ·
-/// HorizonBusinessDays (5) · TimeZone (Europe/Istanbul) · slot hours.
+/// HorizonBusinessDays (2 — kullanıcı 09.11.2026: haftalık değil iki günlük plan) · TimeZone (Europe/Istanbul) · slot hours.
 /// </summary>
 public sealed class CallPlanService : ICallPlanService
 {
@@ -44,7 +44,7 @@ public sealed class CallPlanService : ICallPlanService
         _configuration.GetValue("CallPlan:SatisfactionMinute", 30),
         _configuration.GetValue("CallPlan:StepMinutes", 15));
 
-    private int HorizonDays => Math.Clamp(_configuration.GetValue("CallPlan:HorizonBusinessDays", 5), 1, 15);
+    private int HorizonDays => Math.Clamp(_configuration.GetValue("CallPlan:HorizonBusinessDays", CallPlanner.DefaultHorizonBusinessDays), 1, 15);
 
     private TimeZoneInfo Tz => SocialPublishPlanner.ResolveTimeZone(_configuration["CallPlan:TimeZone"]);
 
@@ -175,8 +175,9 @@ public sealed class CallPlanService : ICallPlanService
             .Where(s => s.ProjectId == projectId && !s.IsDeleted && (s.SnapshotYear * 100 + s.SnapshotMonth == monthKey || s.SnapshotYear * 100 + s.SnapshotMonth == prevKey))
             .Select(s => new { s.CustomerId, s.SnapshotYear, s.SnapshotMonth, s.LastLoginAt, s.MaintenanceCount, s.FaultCount, s.WorkOrderCount, s.InvoiceCount, s.CollectionCount, s.ElevatorCount, s.UserCount, s.PlanStatus })
             .ToListAsync(ct);
+        // En yeni ay önde; ikinci satır (varsa) bir önceki ay — planlayıcı "bakım/arıza girişi yok"u yalnız tam bir ay gözlemleyince verir.
         var usageByCustomer = snapshots.GroupBy(s => s.CustomerId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(s => s.SnapshotYear * 100 + s.SnapshotMonth).First());
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(s => s.SnapshotYear * 100 + s.SnapshotMonth).ToList());
 
         var list = new List<PlanCandidate>(customers.Count);
         foreach (var c in customers)
@@ -186,8 +187,13 @@ public sealed class CallPlanService : ICallPlanService
             if (promiseByCustomer.TryGetValue(c.Id, out var promise) && (agg is null || agg.Last <= promise.ContactedAt))
                 next = promise.NextContactAt;
             UsageSignal? usage = null;
-            if (usageByCustomer.TryGetValue(c.Id, out var u))
-                usage = new UsageSignal(u.LastLoginAt, u.MaintenanceCount, u.FaultCount, u.WorkOrderCount, u.InvoiceCount, u.CollectionCount, u.ElevatorCount, u.UserCount, u.PlanStatus, u.SnapshotYear, u.SnapshotMonth);
+            if (usageByCustomer.TryGetValue(c.Id, out var months))
+            {
+                var u = months[0];
+                var p = months.Count > 1 ? months[1] : null;
+                usage = new UsageSignal(u.LastLoginAt, u.MaintenanceCount, u.FaultCount, u.WorkOrderCount, u.InvoiceCount, u.CollectionCount, u.ElevatorCount, u.UserCount, u.PlanStatus, u.SnapshotYear, u.SnapshotMonth,
+                    p?.MaintenanceCount, p?.FaultCount, p?.WorkOrderCount);
+            }
 
             list.Add(new PlanCandidate(c.Id, c.CompanyName, c.Status, c.Label, c.CreatedAt, agg?.Last, agg?.Count ?? 0, agg?.LastSat, next, c.ExpirationDate, c.IsInternal, c.AssignedUserId, usage));
         }

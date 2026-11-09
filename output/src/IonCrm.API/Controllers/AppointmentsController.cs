@@ -228,7 +228,7 @@ public sealed class AppointmentsController : ApiControllerBase
         CallPlanRun? run = pid == Guid.Empty ? null : await _appointments.GetLatestRunAsync(pid, cancellationToken);
         var q = _plan.Quotas;
         return OkResponse(new CallPlanStatusDto(
-            q.NewCalls, q.FollowUps, q.Satisfaction, _configuration.GetValue("CallPlan:HorizonBusinessDays", 5), _configuration["CallPlan:TimeZone"] ?? "Europe/Istanbul",
+            q.NewCalls, q.FollowUps, q.Satisfaction, _configuration.GetValue("CallPlan:HorizonBusinessDays", CallPlanner.DefaultHorizonBusinessDays), _configuration["CallPlan:TimeZone"] ?? "Europe/Istanbul",
             _configuration.GetValue("CallPlan:RunHourLocal", 5), _configuration.GetValue("CallPlan:Enabled", true),
             run?.PlanDate, run?.RanAt, run?.CreatedCount, run?.Summary, CanRunPlan(pid)));
     }

@@ -14,7 +14,11 @@ public record UsageSignal(
     int UserCount,
     string? PlanStatus,
     int SnapshotYear,
-    int SnapshotMonth);
+    int SnapshotMonth,
+    /// <summary>Previous month's counts when that snapshot exists — lets the planner judge "no maintenance" over a FULL month (null = unknown).</summary>
+    int? PrevMaintenanceCount = null,
+    int? PrevFaultCount = null,
+    int? PrevWorkOrderCount = null);
 
 /// <summary>Everything the planner knows about one company. Built by the data source, scored here.</summary>
 /// <remarks>
@@ -67,6 +71,9 @@ public static class CallPlanner
 {
     public const int NewCallCooldownDays = 7;
     public const int FollowUpCooldownDays = 14;
+
+    /// <summary>Planlama ufku: bugün + sonraki iş günü (kullanıcı 09.11.2026 — "1 hafta sonrasına değil 2 gün sonrasına"). Günlük koşu ufku bir gün ileri taşır; env <c>CallPlan__HorizonBusinessDays</c> ezer.</summary>
+    public const int DefaultHorizonBusinessDays = 2;
     /// <summary>Memnuniyet araması seyrek olmalı (kullanıcı kararı 19.10.2026): son temastan en az 60 gün, son memnuniyet aramasından en az 180 gün.</summary>
     public const int SatisfactionCooldownDays = 60;
     public const int SatisfactionRepeatDays = 180;
@@ -187,8 +194,11 @@ public static class CallPlanner
     }
 
     /// <summary>
-    /// Memnuniyet araması: aktif müşterinin tek planlı araması. Düşüş/yenileme sinyali varsa 14 gün bekleme ile
-    /// (riskli müşteri burada yakalanır); sinyal yoksa seyrek — 60 gün temas yok, 180 gün memnuniyet araması yok.
+    /// Memnuniyet araması: aktif müşterinin tek planlı araması. GÜÇLÜ sinyal (giriş yok, süre dolumu) 14 gün bekleme
+    /// ile girer (riskli müşteri burada yakalanır). Kullanım boşlukları (bakım / arıza girişi yok) yalnız TAM bir ay
+    /// gözlenince sayılır (<see cref="UsageGaps"/>) ve puan ekler ama 60 gün / 180 gün kuralını kaldırmaz — ayın 2'sinde
+    /// herkesin "bu ay bakımı yok"tu ve 20 gün önce görüşülen firma 300 gündür aranmayanın önüne geçiyordu (09.11.2026).
+    /// Uzun süredir görüşülmeyen firma eskilik puanıyla öne çıkar.
     /// </summary>
     public static (int Score, string Reason)? ScoreSatisfaction(PlanCandidate c, DateOnly today)
     {
@@ -196,17 +206,19 @@ public static class CallPlanner
         var since = DaysSince(c.LastContactAt, today);
         var sinceSat = DaysSince(c.LastSatisfactionCallAt, today);
 
-        var risk = new List<string>();
+        var strong = new List<string>();   // kısa bekleme süresini açar
+        var soft = new List<string>();     // yalnız puan
         var riskScore = 0;
         if (c.Usage is { } u)
         {
             var login = DaysSince(u.LastLoginAt, today);
-            if (login is null || login > 14) { riskScore += 30; risk.Add(login is null ? "hiç giriş yok" : $"{login} gün giriş yok"); }
-            if (u.MaintenanceCount == 0 && u.ElevatorCount > 0) { riskScore += 25; risk.Add("bu ay bakım girişi yok"); }
-            if (risk.Count > 0 && u.FaultCount + u.WorkOrderCount == 0) { riskScore += 10; risk.Add("arıza/iş emri yok"); }
+            if (login is null || login > 14) { riskScore += 30; strong.Add(login is null ? "hiç giriş yok" : $"{login} gün giriş yok"); }
+            var (noMaintenance, noFaults) = UsageGaps(u, today);
+            if (noMaintenance && u.ElevatorCount > 0) { riskScore += 25; soft.Add("bir aydır bakım girişi yok"); }
+            if ((strong.Count > 0 || noMaintenance) && noFaults) { riskScore += 10; soft.Add("bir aydır arıza/iş emri yok"); }
         }
-        riskScore += ExpiryScore(c, today, risk);
-        var atRisk = risk.Count > 0;
+        riskScore += ExpiryScore(c, today, strong);
+        var atRisk = strong.Count > 0;
 
         if (atRisk) { if (since is < FollowUpCooldownDays) return null; }
         else
@@ -217,7 +229,8 @@ public static class CallPlanner
 
         var score = riskScore;
         var parts = new List<string> { "Aktif müşteri" };
-        parts.AddRange(risk);
+        parts.AddRange(strong);
+        parts.AddRange(soft);
         if (sinceSat is null) { score += 30; parts.Add("hiç memnuniyet araması yapılmadı"); }
         else if (sinceSat > 365) { score += 25; parts.Add($"son memnuniyet araması {sinceSat} gün önce"); }
         else { score += 10; parts.Add($"son memnuniyet araması {sinceSat} gün önce"); }
@@ -229,9 +242,25 @@ public static class CallPlanner
         }
         if (today.DayNumber - DateOnly.FromDateTime(c.CreatedAt).DayNumber > 90) score += 10;
         if (c.Usage is { MaintenanceCount: >= 10 }) { score += 10; parts.Add("yoğun kullanım"); }
-        if (since is { } s && s > 90) parts.Add($"{s} gün görüşülmedi");
+
+        // Eskilik puanı: uzun süredir görüşülmeyen firma, yalnız risk puanıyla gelen yakın zamanda görüşülmüşün önüne geçer.
+        if (since is null) { score += 20; parts.Add("hiç görüşülmedi"); }
+        else if (since > 180) { score += 20; parts.Add($"{since} gün görüşülmedi"); }
+        else if (since > 90) { score += 10; parts.Add($"{since} gün görüşülmedi"); }
 
         return (score, string.Join(" · ", parts));
+    }
+
+    /// <summary>
+    /// Kullanım boşlukları yalnız TAM bir ay gözlenince sayılır: anlık görüntü kapanmış bir aya aitse o ayın sıfırı
+    /// yeter; içinde bulunduğumuz ayınsa (ayın 2'sinde herkes sıfırdır) bir önceki ay da bilinmeli ve sıfır olmalı.
+    /// </summary>
+    public static (bool NoMaintenance, bool NoFaultsOrWorkOrders) UsageGaps(UsageSignal u, DateOnly today)
+    {
+        var isCurrentMonth = u.SnapshotYear == today.Year && u.SnapshotMonth == today.Month;
+        bool Gap(int current, int? previous) => current == 0 && (!isCurrentMonth || previous == 0);
+        int? prevFaults = u.PrevFaultCount is null || u.PrevWorkOrderCount is null ? null : u.PrevFaultCount + u.PrevWorkOrderCount;
+        return (Gap(u.MaintenanceCount, u.PrevMaintenanceCount), Gap(u.FaultCount + u.WorkOrderCount, prevFaults));
     }
 
     // ── Planning ─────────────────────────────────────────────────────────────
