@@ -40,10 +40,17 @@ public record PlanCandidate(
     DateTime? ExpirationDate,
     bool IsInternal,
     Guid? AssignedUserId,
-    UsageSignal? Usage)
+    UsageSignal? Usage,
+    /// <summary>E-mail and internal-note records (not conversations). Only for the reason text: "aranmadı (yalnız 4 e-posta/not kaydı)" instead of a bare "hiç görüşülmedi" when the timeline is full of automated mails (09.11.2026, Apap Lifts).</summary>
+    int OtherContactCount = 0)
 {
     /// <summary>At least one conversation actually took place (reached).</summary>
     public bool WasReached => ContactCount > 0;
+
+    /// <summary>Reason fragment for "no conversation yet" that says what the timeline does hold.</summary>
+    public string NeverTalkedText => OtherContactCount > 0
+        ? $"aranmadı (yalnız {OtherContactCount} e-posta/not kaydı)"
+        : "hiç görüşülmedi";
 }
 
 public record CallPlanQuotas(int NewCalls = 5, int FollowUps = 5, int Satisfaction = 2);
@@ -128,7 +135,7 @@ public static class CallPlanner
         var score = LabelScore(c.Label);
         if (c.Label is { } l) parts.Add(LabelText(l));
 
-        if (since is null) { score += 30; parts.Add("hiç görüşülmedi"); }
+        if (since is null) { score += 30; parts.Add(c.NeverTalkedText); }
         else if (!c.WasReached) { score += 20; parts.Add($"ulaşılamadı, son deneme {since} gün önce"); }
         else if (since > 60) { score += 25; parts.Add($"{since} gün görüşülmedi"); }
         else if (since > 30) { score += 20; parts.Add($"{since} gün görüşülmedi"); }
@@ -244,7 +251,7 @@ public static class CallPlanner
         if (c.Usage is { MaintenanceCount: >= 10 }) { score += 10; parts.Add("yoğun kullanım"); }
 
         // Eskilik puanı: uzun süredir görüşülmeyen firma, yalnız risk puanıyla gelen yakın zamanda görüşülmüşün önüne geçer.
-        if (since is null) { score += 20; parts.Add("hiç görüşülmedi"); }
+        if (since is null) { score += 20; parts.Add(c.NeverTalkedText); }
         else if (since > 180) { score += 20; parts.Add($"{since} gün görüşülmedi"); }
         else if (since > 90) { score += 10; parts.Add($"{since} gün görüşülmedi"); }
 
@@ -363,7 +370,7 @@ public static class CallPlanner
         return 0;
     }
 
-    private static int LabelScore(CustomerLabel? label) => label switch
+    public static int LabelScore(CustomerLabel? label) => label switch
     {
         CustomerLabel.YuksekPotansiyel => 40, CustomerLabel.Potansiyel => 30, CustomerLabel.Notr => 15,
         CustomerLabel.Vasat => 5, CustomerLabel.Kotu => 0, _ => 12,

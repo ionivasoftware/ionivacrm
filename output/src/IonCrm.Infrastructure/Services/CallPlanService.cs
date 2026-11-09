@@ -159,6 +159,14 @@ public sealed class CallPlanService : ICallPlanService
             })
             .ToDictionaryAsync(x => x.CustomerId, ct);
 
+        // E-posta / not kayıtları görüşme değildir ama gerekçede görünür ("aranmadı (yalnız 4 e-posta/not kaydı)"):
+        // TR dışı demolarda zaman çizelgesi otomatik maillerle doluyken "hiç görüşülmedi" kafa karıştırıyordu (09.11.2026).
+        var otherAgg = await _db.ContactHistories.IgnoreQueryFilters()
+            .Where(h => h.ProjectId == projectId && !h.IsDeleted && (h.Type == ContactType.Email || h.Type == ContactType.Note))
+            .GroupBy(h => h.CustomerId)
+            .Select(g => new { CustomerId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.CustomerId, x => x.Count, ct);
+
         // Promised callbacks: the newest contact row that set NextContactAt, unless a later contact already happened.
         var cutoff = today.AddDays(-30).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var promises = await _db.ContactHistories.IgnoreQueryFilters()
@@ -195,7 +203,8 @@ public sealed class CallPlanService : ICallPlanService
                     p?.MaintenanceCount, p?.FaultCount, p?.WorkOrderCount);
             }
 
-            list.Add(new PlanCandidate(c.Id, c.CompanyName, c.Status, c.Label, c.CreatedAt, agg?.Last, agg?.Count ?? 0, agg?.LastSat, next, c.ExpirationDate, c.IsInternal, c.AssignedUserId, usage));
+            list.Add(new PlanCandidate(c.Id, c.CompanyName, c.Status, c.Label, c.CreatedAt, agg?.Last, agg?.Count ?? 0, agg?.LastSat, next, c.ExpirationDate, c.IsInternal, c.AssignedUserId, usage,
+                otherAgg.GetValueOrDefault(c.Id)));
         }
         return list;
     }

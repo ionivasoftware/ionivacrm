@@ -16,9 +16,9 @@ public class CallPlannerTests
     private static readonly DateOnly HorizonEnd = Today.AddDays(6);
 
     /// <param name="contacts">Reached conversations. 0 with <paramref name="daysSinceContact"/> set = unreached attempt.</param>
-    private static PlanCandidate Lead(string name, CustomerLabel? label = null, int? daysSinceContact = null, int ageDays = 100, int contacts = 0, DateTime? next = null, CustomerStatus status = CustomerStatus.Lead, DateTime? expiration = null, UsageSignal? usage = null) =>
+    private static PlanCandidate Lead(string name, CustomerLabel? label = null, int? daysSinceContact = null, int ageDays = 100, int contacts = 0, DateTime? next = null, CustomerStatus status = CustomerStatus.Lead, DateTime? expiration = null, UsageSignal? usage = null, int otherContacts = 0) =>
         new(Guid.NewGuid(), name, status, label, Now.AddDays(-ageDays),
-            daysSinceContact is { } d ? Now.AddDays(-d) : null, contacts, null, next, expiration, false, null, usage);
+            daysSinceContact is { } d ? Now.AddDays(-d) : null, contacts, null, next, expiration, false, null, usage, otherContacts);
 
     private static PlanCandidate Active(string name, int? daysSinceContact = null, DateTime? expiration = null, UsageSignal? usage = null, int? lastSatDays = null, DateTime? next = null, CustomerStatus status = CustomerStatus.Active) =>
         new(Guid.NewGuid(), name, status, null, Now.AddDays(-400),
@@ -43,6 +43,12 @@ public class CallPlannerTests
     {
         var hot = CallPlanner.ScoreNewCall(Lead("Hot", CustomerLabel.YuksekPotansiyel), Today, HorizonEnd)!.Value;
         hot.Reason.Should().StartWith("Lead").And.Contain("Yüksek potansiyel").And.Contain("hiç görüşülmedi");
+
+        // Otomatik maillerle dolu zaman çizelgesi: görüşme sayılmaz ama gerekçe neyin olduğunu söyler (Apap Lifts, 09.11.2026).
+        var mailed = CallPlanner.ScoreNewCall(Lead("Mailed demo", status: CustomerStatus.Demo, ageDays: 10, expiration: Now.AddDays(11), otherContacts: 4), Today, HorizonEnd)!.Value;
+        mailed.Reason.Should().Contain("aranmadı (yalnız 4 e-posta/not kaydı)").And.NotContain("hiç görüşülmedi");
+        mailed.Score.Should().Be(hot.Score - CallPlanner.LabelScore(CustomerLabel.YuksekPotansiyel) + CallPlanner.LabelScore(null) + 30 + 40 + 20,
+            "mails change the wording only: same 'never talked' points, plus demo / expiry / new-record points");
 
         var unreached = CallPlanner.ScoreNewCall(Lead("NoAnswer", CustomerLabel.Kotu, daysSinceContact: 20, contacts: 0), Today, HorizonEnd)!.Value;
         unreached.Reason.Should().Contain("ulaşılamadı, son deneme 20 gün önce");
