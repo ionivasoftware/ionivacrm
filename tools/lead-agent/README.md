@@ -27,8 +27,10 @@ sitelerinin kullanım koşullarına uyum operatörün sorumluluğundadır; şüp
 
 ## Global ajan (TR dışı) — `run-global.sh` + `prompt.global.md`
 Aynı anahtar, ayrı uçlar: `/api/v1/lead-agent/global/*`. GitHub Actions **Global Lead Discovery Agent**
-(`global-lead-agent.yml`, Perşembe 06:00 UTC + elle; input `country` ISO2 (GB varsayılan), `regions`).
-Bölge rotasyonu sunucuda (`GlobalLeadRegions`, 90 gün): GB için London, Greater Manchester, Birmingham…
+(`global-lead-agent.yml`, **her gün** 06:00 UTC + elle; input `country` `auto` varsayılan ya da ISO2 GB/IE, `regions`,
+`regions_per_run` 1). Rotasyon sunucuda (`GlobalLeadRegions`, `next-regions?country=auto`): taranmamış bölgesi en çok
+olan ülke, sonra en eski taranan bölge — GB 26 + IE 6 bölge 32 günde bir kez dolaşır (09.11.2026; önce Perşembe, 2 bölge).
+Katalog yalnız İngilizce outreach dizisi olan ülkeler (GB, IE); DE/MT için Almanca/İngilizce şablon + rıza kararı gerekir.
 Adaylar **GlobalLeads** tablosuna düşer (Müşteriler'e girmez), ekran CRM → **Global Lead'ler** (SuperAdmin).
 E-posta ya da web zorunlu (outreach e-posta ile); noreply/webmaster adresleri elenir; OEM'ler (Otis, KONE,
 Schindler, TKE, Stannah, Orona) atlanır; kaynaklar LEIA, Yell, Checkatrade, Google, firma siteleri.

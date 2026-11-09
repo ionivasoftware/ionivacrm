@@ -4,35 +4,30 @@ set -euo pipefail
 # ─────────────────────────────────────────────────────────────────────────────
 # LiftDesk Global Lead Ajanı  (CRM uçları: /api/v1/lead-agent/global/*)
 #
-# TR ajanının (run.sh) TR-dışı kardeşi. Ülke + bölge bazlı arar (varsayılan GB), bulduklarını
+# TR ajanının (run.sh) TR-dışı kardeşi. Ülke + bölge bazlı arar (varsayılan auto: CRM kataloğundaki ülkeler
+# arasında rotasyon — GB, IE; her gün bir bölge), bulduklarını
 # POST /lead-agent/global/candidates ile GlobalLeads tablosuna ADAY yazar. Dedupe sunucuda;
 # SuperAdmin "Global Lead'ler" ekranında onaylayınca İngilizce tanıtım + takip dizisi başlar.
 #
 # Env:
 #   CRM_API_BASE      zorunlu
 #   LEAD_AGENT_KEY    zorunlu  (LeadAgent__ApiKey ile aynı — X-Agent-Key)
-#   COUNTRY           ops.     (ISO2, varsayılan GB)
+#   COUNTRY           ops.     (auto = CRM rotasyonu ülkeyi de seçer [varsayılan]; ya da ISO2: GB, IE)
 #   CLAUDE_MODEL      ops.     (varsayılan claude-opus-4-8)
 #   REGIONS_OVERRIDE  ops.     ("London,Leeds and West Yorkshire" — boşsa API rotasyonu)
-#   REGIONS_PER_RUN   ops.     (varsayılan 2)
+#   REGIONS_PER_RUN   ops.     (varsayılan 1 — günlük koşu, her gün farklı bölge)
 #   MAX_PER_REGION    ops.     (varsayılan 15)
 # ─────────────────────────────────────────────────────────────────────────────
 
 API="${CRM_API_BASE:?CRM_API_BASE gerekli}"
 KEY="${LEAD_AGENT_KEY:?LEAD_AGENT_KEY gerekli}"
-COUNTRY="${COUNTRY:-GB}"
+COUNTRY="${COUNTRY:-auto}"
 MODEL="${CLAUDE_MODEL:-claude-opus-4-8}"
-PER_RUN="${REGIONS_PER_RUN:-2}"
+PER_RUN="${REGIONS_PER_RUN:-1}"
 MAX="${MAX_PER_REGION:-15}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PROMPT_TEMPLATE="$HERE/prompt.global.md"
 AUTH="X-Agent-Key: $KEY"
-RUN_ID="gh-${COUNTRY,,}-$(date -u +%Y%m%dT%H%M%S)"
-case "$COUNTRY" in
-  GB) COUNTRY_NAME="the United Kingdom" ;;
-  IE) COUNTRY_NAME="Ireland" ;;
-  *)  COUNTRY_NAME="$COUNTRY" ;;
-esac
 
 api() { # method path [json]
   local m="$1" p="$2" d="${3:-}"
@@ -45,6 +40,7 @@ api() { # method path [json]
 
 # ── 1. Bölgeler ───────────────────────────────────────────────────────────────
 if [ -n "${REGIONS_OVERRIDE:-}" ]; then
+  [ "$COUNTRY" = "auto" ] && COUNTRY="GB"   # elle bölge verildiyse ülke de elle olmalı; boşsa GB
   REGIONS_JSON=$(printf '%s' "$REGIONS_OVERRIDE" | jq -R -c 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')
 else
   OUT=$(api GET "/api/v1/lead-agent/global/next-regions?country=$COUNTRY&count=$PER_RUN")
@@ -54,7 +50,17 @@ else
     echo "[global-lead]   yanıt: $(printf '%s' "$BODY" | head -c 300)"; exit 1
   fi
   REGIONS_JSON=$(printf '%s' "$BODY" | jq -c '.data.regions')
+  # auto: ülkeyi CRM seçti (taranmamış bölgesi en çok olan, sonra en eski taranan). Eski API 'auto'yu GB okur — yine çalışır.
+  COUNTRY=$(printf '%s' "$BODY" | jq -r '.data.country // "GB"')
 fi
+RUN_ID="gh-${COUNTRY,,}-$(date -u +%Y%m%dT%H%M%S)"
+case "$COUNTRY" in
+  GB) COUNTRY_NAME="the United Kingdom" ;;
+  IE) COUNTRY_NAME="Ireland" ;;
+  DE) COUNTRY_NAME="Germany" ;;
+  MT) COUNTRY_NAME="Malta" ;;
+  *)  COUNTRY_NAME="$COUNTRY" ;;
+esac
 echo "[global-lead] koşu $RUN_ID — $COUNTRY bölgeler: $(printf '%s' "$REGIONS_JSON" | jq -r 'join(", ")')"
 api POST "/api/v1/lead-agent/global/runs/start" "$(jq -n -c --arg r "$RUN_ID" --arg c "$COUNTRY" --argjson g "$REGIONS_JSON" '{runId:$r, country:$c, regions:$g}')" >/dev/null || true
 

@@ -93,6 +93,50 @@ public class OutreachSequenceTests
         GlobalLeadRegions.Next("GB", 2, all).Should().Equal("London", "Greater Manchester");
         GlobalLeadRegions.Next("XX", 3, new HashSet<string>()).Should().Equal("XX");
     }
+
+    [Fact]
+    public void Regions_by_last_scan_pick_never_scanned_then_oldest_and_never_wrap_to_london()
+    {
+        var gb = GlobalLeadRegions.ByCountry["GB"];
+        var t0 = new DateTime(2026, 11, 1, 6, 0, 0, DateTimeKind.Utc);
+        var last = gb.Select((r, i) => (r, i)).ToDictionary(x => x.r, x => t0.AddDays(x.i), StringComparer.OrdinalIgnoreCase); // all scanned, London oldest
+        GlobalLeadRegions.Next("GB", 2, last).Should().Equal("London", "Greater Manchester");
+        last["London"] = t0.AddDays(100);                                                     // London just scanned → not next
+        GlobalLeadRegions.Next("GB", 1, last).Should().Equal("Greater Manchester");
+        last.Remove("Kent");                                                                  // never scanned beats every date
+        GlobalLeadRegions.Next("GB", 2, last).Should().Equal("Kent", "Greater Manchester");
+        GlobalLeadRegions.Next("XX", 1, new Dictionary<string, DateTime>()).Should().Equal("XX");
+    }
+
+    [Fact]
+    public void Auto_country_rotation_interleaves_by_scanned_share_and_covers_every_region_once_before_cycling()
+    {
+        var t0 = new DateTime(2026, 11, 10, 6, 0, 0, DateTimeKind.Utc);
+        var state = new Dictionary<string, Dictionary<string, DateTime>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["GB"] = new(StringComparer.OrdinalIgnoreCase), ["IE"] = new(StringComparer.OrdinalIgnoreCase),
+        };
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, DateTime>> View() =>
+            state.ToDictionary(kv => kv.Key, kv => (IReadOnlyDictionary<string, DateTime>)kv.Value, StringComparer.OrdinalIgnoreCase);
+
+        var picks = new List<string>();
+        for (var day = 0; day < 32; day++)
+        {
+            var (country, regions) = GlobalLeadRegions.NextAcrossCountries(1, View());
+            regions.Should().ContainSingle();
+            state[country][regions[0]] = t0.AddDays(day);
+            picks.Add($"{country}:{regions[0]}");
+        }
+
+        picks.Should().OnlyHaveUniqueItems("32 daily runs cover all 26 GB + 6 IE regions exactly once");
+        picks[0].Should().Be("GB:London");
+        picks[1].Should().Be("IE:Dublin", "IE has the lower scanned share after GB's first run");
+        picks.Count(p => p.StartsWith("IE:")).Should().Be(6);
+        picks.Take(10).Count(p => p.StartsWith("IE:")).Should().BeGreaterThanOrEqualTo(2, "small market is interleaved, not left for the end");
+
+        var next = GlobalLeadRegions.NextAcrossCountries(1, View());
+        (next.Country, next.Regions[0]).Should().Be(("GB", "London"), "steady state: back to the oldest scan");
+    }
 }
 
 public class GlobalLeadNormalizerTests

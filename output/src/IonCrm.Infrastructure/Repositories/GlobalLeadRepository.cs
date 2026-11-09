@@ -97,4 +97,18 @@ public sealed class GlobalLeadRepository : IGlobalLeadRepository
         var rows = await _context.LeadAgentRuns.IgnoreQueryFilters().Where(r => !r.IsDeleted && r.StartedAt >= sinceUtc && r.Cities.StartsWith(prefix)).Select(r => r.Cities).ToListAsync(cancellationToken);
         return rows.SelectMany(c => c[prefix.Length..].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
+
+    public async Task<Dictionary<string, DateTime>> LastScannedRegionsAsync(string country, DateTime sinceUtc, CancellationToken cancellationToken = default)
+    {
+        var prefix = $"{country.ToUpperInvariant()}:";
+        var rows = await _context.LeadAgentRuns.IgnoreQueryFilters()
+            .Where(r => !r.IsDeleted && r.StartedAt >= sinceUtc && r.Cities.StartsWith(prefix))
+            .Select(r => new { r.Cities, r.StartedAt })
+            .ToListAsync(cancellationToken);
+        var last = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in rows)
+            foreach (var region in row.Cities[prefix.Length..].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                if (!last.TryGetValue(region, out var at) || at < row.StartedAt) last[region] = row.StartedAt;
+        return last;
+    }
 }

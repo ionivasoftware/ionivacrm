@@ -1,27 +1,29 @@
 name: Global Lead Discovery Agent
 
-# TR-dışı lead ajanı (varsayılan GB). Bölge bazlı arar (API 90 günlük rotasyon), bulduklarını
+# TR-dışı lead ajanı. HER GÜN bir bölge arar (kullanıcı 09.11.2026): ülke + bölge rotasyonu CRM'de
+# (next-regions?country=auto — taranmamış bölgesi en çok olan ülke [GB 26 / IE 6 bölge], sonra en eski taranan;
+# 32 günde tüm katalog bir kez). Bulduklarını
 # GlobalLeads tablosuna aday yazar; SuperAdmin onayıyla İngilizce tanıtım + takip e-postaları
 # (marketing/global/sequence.json) onaylayanın Gmail'inden otomatik gider. Secrets TR ajanıyla aynı:
 # CLAUDE_CODE_OAUTH_TOKEN, CRM_LEAD_AGENT_KEY.
 
 on:
   schedule:
-    - cron: '0 6 * * 4'   # Perşembe 06:00 UTC — TR ajanı Salı; aynı gün çakışmasın
+    - cron: '0 6 * * *'   # her gün 06:00 UTC (GitHub saatlerce geciktirebilir, sorun değil); TR ajanı Salı ayrı akış
   workflow_dispatch:
     inputs:
       country:
-        description: 'ISO2 ülke (GB, IE)'
+        description: 'auto = CRM ülke+bölge rotasyonu (GB, IE); ya da ISO2 (GB, IE)'
         required: false
-        default: 'GB'
+        default: 'auto'
       regions:
         description: 'Virgülle ayrılmış bölgeler (boş = API rotasyonu)'
         required: false
         default: ''
       regions_per_run:
-        description: 'Rotasyondan kaç bölge taransın'
+        description: 'Rotasyondan kaç bölge taransın (günlük koşu 1)'
         required: false
-        default: '2'
+        default: '1'
       max_per_region:
         description: 'Bölge başına en fazla aday'
         required: false
@@ -51,7 +53,7 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           CRM_API_BASE: https://ion-crm-api-production.up.railway.app
           LEAD_AGENT_KEY: ${{ secrets.CRM_LEAD_AGENT_KEY }}
-          COUNTRY: ${{ github.event.inputs.country || 'GB' }}
+          COUNTRY: ${{ github.event.inputs.country || 'auto' }}
           REGIONS_OVERRIDE: ${{ github.event.inputs.regions || '' }}
-          REGIONS_PER_RUN: ${{ github.event.inputs.regions_per_run || '2' }}
+          REGIONS_PER_RUN: ${{ github.event.inputs.regions_per_run || '1' }}
           MAX_PER_REGION: ${{ github.event.inputs.max_per_region || '15' }}

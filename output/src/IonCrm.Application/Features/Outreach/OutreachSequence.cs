@@ -93,9 +93,16 @@ public static class OutreachSequence
         Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }
 
-/// <summary>Scan regions per country for the global lead agent (biggest lift markets first).</summary>
+/// <summary>
+/// Scan regions per country for the global lead agent (biggest lift markets first). Only countries with an
+/// English outreach sequence are catalogued (GB, IE — EU markets such as DE/MT need their own templates and a
+/// consent decision before cold e-mail). Daily runs pick ONE region: <see cref="NextAcrossCountries"/>.
+/// </summary>
 public static class GlobalLeadRegions
 {
+    /// <summary>Catalogue order = tie-break order ("auto" starts with the biggest market).</summary>
+    public static readonly string[] CountryOrder = { "GB", "IE" };
+
     public static readonly Dictionary<string, string[]> ByCountry = new(StringComparer.OrdinalIgnoreCase)
     {
         ["GB"] = new[]
@@ -114,5 +121,47 @@ public static class GlobalLeadRegions
         var folded = recentlyScanned.Select(x => x.ToLowerInvariant().Trim()).ToHashSet();
         var next = regions.Where(x => !folded.Contains(x.ToLowerInvariant())).Take(Math.Max(1, count)).ToList();
         return next.Count == 0 ? regions.Take(Math.Max(1, count)).ToList() : next;
+    }
+
+    /// <summary>
+    /// Least-recently scanned first: never-scanned regions in catalogue order, then by oldest scan date. Unlike the
+    /// set-based overload it never wraps to the catalogue start — with a daily run every region is "recent" after a
+    /// month and London would otherwise be scanned every day.
+    /// </summary>
+    public static List<string> Next(string country, int count, IReadOnlyDictionary<string, DateTime> lastScanned)
+    {
+        var regions = ByCountry.TryGetValue(country, out var r) ? r : new[] { country };
+        var folded = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in lastScanned) folded[kv.Key.Trim()] = kv.Value;
+        return regions
+            .Select((name, idx) => (name, idx, at: folded.TryGetValue(name, out var d) ? d : (DateTime?)null))
+            .OrderBy(x => x.at is null ? 0 : 1).ThenBy(x => x.at ?? DateTime.MinValue).ThenBy(x => x.idx)
+            .Take(Math.Max(1, count)).Select(x => x.name).ToList();
+    }
+
+    /// <summary>
+    /// "auto" rotation across the catalogue (kullanıcı 09.11.2026: her gün farklı bölge). While some regions were
+    /// never scanned, the country with the lowest scanned share goes first — IE (6 regions) gets roughly every
+    /// fifth day next to GB (26). Once every region has a date, the country holding the oldest scan goes, which
+    /// settles into a steady 32-day cycle.
+    /// </summary>
+    public static (string Country, List<string> Regions) NextAcrossCountries(int count, IReadOnlyDictionary<string, IReadOnlyDictionary<string, DateTime>> lastByCountry)
+    {
+        string? pick = null; var bestShare = double.MaxValue;
+        foreach (var country in CountryOrder)
+        {
+            var regions = ByCountry[country];
+            var last = lastByCountry.TryGetValue(country, out var d) ? d : new Dictionary<string, DateTime>();
+            var folded = last.Keys.Select(k => k.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var scanned = regions.Count(folded.Contains);
+            if (scanned == regions.Length) continue; // nothing unscanned left here
+            var share = (double)scanned / regions.Length;
+            if (share < bestShare) { bestShare = share; pick = country; }
+        }
+        pick ??= CountryOrder
+            .OrderBy(c => lastByCountry.TryGetValue(c, out var d) && d.Count > 0 ? d.Values.Min() : DateTime.MinValue)
+            .First();
+        var lastForPick = lastByCountry.TryGetValue(pick, out var lp) ? lp : new Dictionary<string, DateTime>();
+        return (pick, Next(pick, count, lastForPick));
     }
 }

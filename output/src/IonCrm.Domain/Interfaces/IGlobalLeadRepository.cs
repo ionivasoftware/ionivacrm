@@ -40,4 +40,7 @@ public interface IGlobalLeadRepository
 
     /// <summary>Regions scanned (per country) by agent runs started after <paramref name="sinceUtc"/>.</summary>
     Task<HashSet<string>> RecentlyScannedRegionsAsync(string country, DateTime sinceUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>Region → most recent run start (per country) for runs after <paramref name="sinceUtc"/>; feeds the least-recently-scanned rotation.</summary>
+    Task<Dictionary<string, DateTime>> LastScannedRegionsAsync(string country, DateTime sinceUtc, CancellationToken cancellationToken = default);
 }

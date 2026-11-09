@@ -28,14 +28,28 @@ public sealed class GlobalLeadAgentController : ApiControllerBase
         _repo = repo; _runs = runs; _configuration = configuration; _logger = logger;
     }
 
-    /// <summary>GET /api/v1/lead-agent/global/next-regions?country=GB&amp;count=2 — least-recently scanned regions (90-day rotation).</summary>
+    /// <summary>
+    /// GET /api/v1/lead-agent/global/next-regions?country=auto|GB|IE&amp;count=1 — least-recently scanned regions.
+    /// <c>auto</c> (günlük koşu) ülkeyi de seçer: taranmamış bölgesi en çok olan ülke, sonra en eski taranan bölge
+    /// (<see cref="GlobalLeadRegions.NextAcrossCountries"/>); yanıt <c>country</c> alanı seçilen ülkedir.
+    /// </summary>
     [HttpGet("next-regions")]
-    public async Task<IActionResult> NextRegions([FromQuery] string country = "GB", [FromQuery] int count = 2, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> NextRegions([FromQuery] string country = "auto", [FromQuery] int count = 1, CancellationToken cancellationToken = default)
     {
         if (LeadAgentAuth.Check(Request, _configuration) is { } u) return u;
+        var since = DateTime.UtcNow.AddDays(-90);
+        var n = Math.Clamp(count, 1, 10);
+        if (string.Equals(country?.Trim(), "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            var lastByCountry = new Dictionary<string, IReadOnlyDictionary<string, DateTime>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var catalogued in GlobalLeadRegions.CountryOrder)
+                lastByCountry[catalogued] = await _repo.LastScannedRegionsAsync(catalogued, since, cancellationToken);
+            var (picked, regions) = GlobalLeadRegions.NextAcrossCountries(n, lastByCountry);
+            return OkResponse(new { country = picked, regions });
+        }
         var c = GlobalLeadNormalizer.NormalizeCountry(country);
-        var recent = await _repo.RecentlyScannedRegionsAsync(c, DateTime.UtcNow.AddDays(-90), cancellationToken);
-        return OkResponse(new { country = c, regions = GlobalLeadRegions.Next(c, Math.Clamp(count, 1, 10), recent) });
+        var last = await _repo.LastScannedRegionsAsync(c, since, cancellationToken);
+        return OkResponse(new { country = c, regions = GlobalLeadRegions.Next(c, n, last) });
     }
 
     /// <summary>POST /api/v1/lead-agent/global/runs/start — {runId, country, regions[]}.</summary>
