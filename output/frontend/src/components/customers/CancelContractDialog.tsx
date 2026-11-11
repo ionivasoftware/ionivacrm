@@ -96,8 +96,10 @@ export function CancelContractDialog({
           <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm">
             <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
             <div className="text-red-200">
-              Bu işlem Rezerval'daki iyzico aboneliğini kalıcı olarak silecek ve firmanın
-              erişimi <span className="font-semibold">anında</span> sonlandırılacaktır.{' '}
+              {contract.rezervalSubscriptionId
+                ? "Bu işlem Rezerval'daki iyzico aboneliğini kalıcı olarak silecek ve firmanın erişimi "
+                : "EFT/Havale sözleşmesi: iyzico aboneliği yok. Rezerval'da firmanın erişim bitiş tarihi bugüne çekilecek ve erişimi "}
+              <span className="font-semibold">anında</span> sonlandırılacaktır.{' '}
               <span className="font-semibold">Geri alınamaz.</span>
             </div>
           </div>

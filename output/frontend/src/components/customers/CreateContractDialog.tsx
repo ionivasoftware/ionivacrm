@@ -247,8 +247,10 @@ export function CreateContractDialog({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            EFT/Havale seçildiğinde sözleşme başlangıç gününün her ay tekrarında otomatik
-            olarak taslak fatura oluşturulur ("RezervAl Aylık Lisans Bedeli" ürünü ile).
+            EFT/Havale seçildiğinde iyzico kullanılmaz: RezervAl'da yalnız firmanın erişim bitiş tarihi
+            güncellenir ve sözleşme başlangıç gününün her ay tekrarında otomatik olarak taslak fatura
+            oluşturulur ("RezervAl Aylık Lisans Bedeli" ürünü ile). Kredi Kartı'nda RezervAl iyzico
+            aboneliği açar.
           </p>
 
           <DialogFooter className="gap-2 sm:gap-2">

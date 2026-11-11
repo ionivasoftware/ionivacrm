@@ -1,6 +1,7 @@
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models;
 using IonCrm.Application.Common.Models.ExternalApis;
+using IonCrm.Application.Customers.Rezerval;
 using IonCrm.Application.Customers.Commands.CreateCustomerContract;
 using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
@@ -90,10 +91,22 @@ public sealed class CancelCustomerContractCommandHandler
         RezervalCancelSubscriptionResponse rezervalResponse;
         try
         {
-            rezervalResponse = await _saasBClient.CancelRezervalSubscriptionAsync(
-                new RezervalCancelSubscriptionRequest(rezervalCompanyId),
-                rezervalApiKey,
-                cancellationToken);
+            if (string.IsNullOrEmpty(contract.RezervalSubscriptionId))
+            {
+                // EFT/Havale sözleşmesi: RezervAl'da iyzico aboneliği yok, iptal ucu çağrılmaz (ürün/plan silmeye çalışıp
+                // hata üretiyordu). Erişim bitişi bugüne çekilir; sync bunu statüye yansıtır.
+                await RezervalCompanyExpiration.SetAsync(
+                    _saasBClient, rezervalCompanyId, DateTime.UtcNow.Date, rezervalApiKey, cancellationToken);
+                rezervalResponse = new RezervalCancelSubscriptionResponse(
+                    new RezervalCancelSubscriptionData(rezervalCompanyId, new List<string>()), true, null);
+            }
+            else
+            {
+                rezervalResponse = await _saasBClient.CancelRezervalSubscriptionAsync(
+                    new RezervalCancelSubscriptionRequest(rezervalCompanyId),
+                    rezervalApiKey,
+                    cancellationToken);
+            }
         }
         catch (Exception ex) when (ex.GetType().Name.Contains("BrokenCircuit") ||
                                     ex.Message.Contains("circuit is now open", StringComparison.OrdinalIgnoreCase))
@@ -108,7 +121,9 @@ public sealed class CancelCustomerContractCommandHandler
                 "Rezerval subscription cancel failed for customer {CustomerId} (rezervalCompanyId={RezvId}).",
                 customer.Id, rezervalCompanyId);
             return Result<CancelCustomerContractDto>.Failure(
-                $"Rezerval'da abonelik iptal edilemedi: {ex.Message}");
+                string.IsNullOrEmpty(contract.RezervalSubscriptionId)
+                    ? $"Rezerval'da erişim bitiş tarihi güncellenemedi: {ex.Message}"
+                    : $"Rezerval'da abonelik iptal edilemedi: {ex.Message}");
         }
 
         var iyzicoWarnings = rezervalResponse.Data?.IyzicoWarnings ?? new List<string>();

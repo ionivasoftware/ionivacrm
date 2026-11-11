@@ -1,6 +1,7 @@
 using IonCrm.Application.Common.Interfaces;
 using IonCrm.Application.Common.Models;
 using IonCrm.Application.Common.Models.ExternalApis;
+using IonCrm.Application.Customers.Rezerval;
 using IonCrm.Domain.Entities;
 using IonCrm.Domain.Enums;
 using IonCrm.Domain.Interfaces;
@@ -101,7 +102,24 @@ public sealed class CreateCustomerContractCommandHandler
         RezervalSubscriptionResponse rezervalResponse;
         try
         {
-            if (isRenewal)
+            if (request.PaymentType == ContractPaymentType.EftWire)
+            {
+                // EFT/Havale: iyzico'nun işi yok (11.11.2026). RezervAl'ın /Crm/Subscription ucu her durumda iyzico ürün+plan
+                // açmaya çalışıyor ve "Aktif ürün bulunamadı" ile düşüyordu. EFT'de yalnız firmanın erişim bitiş tarihi
+                // RezervAl'a yazılır; faturalar CRM'de taslak olarak üretilir. Karttan EFT'ye geçişte canlı iyzico
+                // aboneliği önce kapatılır (aksi hâlde kart çekilmeye devam eder).
+                if (isRenewal)
+                {
+                    var cancel = await _saasBClient.CancelRezervalSubscriptionAsync(
+                        new RezervalCancelSubscriptionRequest(rezervalCompanyId), rezervalApiKey, cancellationToken);
+                    if (cancel.Data?.IyzicoWarnings is { Count: > 0 } w)
+                        _logger.LogWarning("Rezerval: kart aboneliği EFT'ye geçişte kapatıldı, iyzico uyarıları: {Warnings}", string.Join("; ", w));
+                }
+                await RezervalCompanyExpiration.SetAsync(
+                    _saasBClient, rezervalCompanyId, RezervalCompanyExpiration.AccessEndFor(startDate, endDate), rezervalApiKey, cancellationToken);
+                rezervalResponse = new RezervalSubscriptionResponse(null, true, null);
+            }
+            else if (isRenewal)
             {
                 rezervalResponse = await _saasBClient.UpgradeRezervalSubscriptionAsync(
                     new RezervalUpgradeSubscriptionRequest(
@@ -145,9 +163,11 @@ public sealed class CreateCustomerContractCommandHandler
                 "Rezerval subscription {Op} failed for customer {CustomerId} (rezervalCompanyId={RezvId}).",
                 isRenewal ? "upgrade" : "create", customer.Id, rezervalCompanyId);
             return Result<CustomerContractDto>.Failure(
-                isRenewal
-                    ? $"Rezerval'da abonelik yenilenemedi: {ex.Message}"
-                    : $"Rezerval'da abonelik oluşturulamadı: {ex.Message}");
+                request.PaymentType == ContractPaymentType.EftWire
+                    ? $"Rezerval'da erişim bitiş tarihi güncellenemedi: {ex.Message}"
+                    : isRenewal
+                        ? $"Rezerval'da abonelik yenilenemedi: {ex.Message}"
+                        : $"Rezerval'da abonelik oluşturulamadı: {ex.Message}");
         }
 
         // 6-8. DB writes — wrapped so any persistence error surfaces with a meaningful message
