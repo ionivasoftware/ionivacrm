@@ -313,6 +313,11 @@ output/
 | GET | `/status` | Menü rozeti `{configured, latestReleaseId, latestTitle, latestPeriodEnd, lastSeenReleaseId, unseenCount}` — Liftdesk kapalıysa `unseenCount 0`, hata üretmez |
 | POST | `/seen` | `{releaseId}` → `Users.LastSeenReleaseId` (kimlik `^[A-Za-z0-9._:-]{1,64}$`), yanıt güncel `/status` |
 
+### Cavit Masaüstü Asistanı — `/api/v1/cavit` (anonim + `X-Cavit-Key` ya da Bearer = `Cavit__ApiKey`; sabit süreli karşılaştırma, LeadAgent anahtarından ayrı)
+| Method | Path | Açıklama |
+|---|---|---|
+| GET | `/stats?project=Liftdesk` | Yalnız SAYILAR, kişisel veri yok (`CavitStatsDto`): aktif/demo firma, son anlık görüntü ayındaki kullanıcı sayısı ve 30 günde giriş yapan firma, bugünkü randevu (yapılan), bu haftaki demo (yapılan, bugün kalan), bu ay/bugün görüşme (Not hariç), açık/demo fırsat; gün-hafta-ay Europe/Istanbul; proje adı içerir eşleşmesi, yoksa 404 + mevcut proje adları; anahtar tanımsızsa 503 |
+
 ### Pazarlama — `/api/v1/marketing` (oturum)
 | Method | Path | Açıklama |
 |---|---|---|

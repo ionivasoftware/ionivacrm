@@ -167,3 +167,8 @@ EMS sözleşmesi "Sürüm Notları API (CRM)": içerik EMS'te gömülü `release
 - **İptal:** `RezervalSubscriptionId` yoksa (EFT) RezervAl Cancel çağrılmaz (ürün/plan silmeye çalışıp hata üretiyordu); erişim bitişi bugüne çekilir, sync statüyü düşürür. Kartta eski akış (Cancel + iyzico uyarıları).
 - Kredi Kartı akışı değişmedi (Create / Upgrade). Ekran: Sözleşme Oluştur dipnotu + İptal diyaloğu EFT'de iyzico yok der. Testler `tests/IonCrm.Tests/Customers/CustomerContractHandlersTests.cs` (8).
 - Not: RezervAl backend kodu bu makinede yok; `/Crm/Subscription`'ın EFT'de iyzico'ya gitmesi RezervAl tarafında da düzeltilebilir ama CRM artık ona bağlı değil.
+
+## Cavit Masaüstü Asistanı — Sayım Ucu — 2026-11-12
+- `GET /api/v1/cavit/stats?project=Liftdesk` (`CavitController`, anonim + `CavitAuth`: `X-Cavit-Key` ya da Bearer = `Cavit__ApiKey`, sabit süreli karşılaştırma; LeadAgent anahtarından ayrı, bağımsız döndürülebilir). `CavitStatsRepository` servis anahtarıyla çağrıldığı için tenant bağlamı yok: her sorgu `IgnoreQueryFilters()` + proje/soft-delete süzgeci açık; dahili firmalar sayılmaz.
+- Yük yalnız sayılar (`CavitStatsDto`): aktif/demo firma; son kullanım anlık görüntüsü ayında aktif firmaların kullanıcı toplamı ve 30 günde giriş yapan firma; bugünkü randevu/yapılan (Skipped sayılmaz); bu haftaki demo/yapılan/bugün kalan; bu ay ve bugün görüşme (Not hariç); açık (YeniArama/Potansiyel/Demo) ve demo aşamasındaki fırsat. Gün/hafta/ay sınırları Europe/Istanbul (tzdata yoksa +3). Proje adı "içerir" eşleşmesi, aktif proje önce; yoksa 404 + mevcut adlar; anahtar yoksa 503.
+- Testler `tests/IonCrm.Tests/Cavit/CavitStatsTests.cs` (3; İstanbul saat sınırları, dahili/silinmiş/atlanmış dışlama). Railway: `Cavit__ApiKey` tanımlanmalı.

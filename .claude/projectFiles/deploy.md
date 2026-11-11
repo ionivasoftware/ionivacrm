@@ -27,6 +27,7 @@ git push origin main
 | `SaasA__ProjectId` | (opsiyonel) Sync hedef proje GUID — yoksa DB fallback |
 | `SaasB__BaseUrl` | RezervAl API base URL |
 | `SaasB__ApiKey` | RezervAl global API key |
+| `Cavit__ApiKey` | Cavit masaüstü asistanının `GET /api/v1/cavit/stats` sayım ucu için statik anahtar (`X-Cavit-Key`); tanımsızsa uç 503 döner |
 
 ## Servis ID'leri (GitHub Actions workflow)
 - Backend Service ID: `987799b6-18b9-4223-81c6-505ffc6717ba`
